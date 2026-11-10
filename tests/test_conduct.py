@@ -3659,8 +3659,10 @@ def _items(*slugs: str) -> str:
 
 
 def _swap_runner(conduct: dict[str, Any]) -> None:
-    """Run `brief_check.py` by this interpreter: the suite needs no `uv`."""
-    conduct["main"].__globals__["UV_RUN"] = (sys.executable,)
+    """Run `brief_check.py` by this interpreter and fetch no wheel: no `uv` needed."""
+    names = conduct["main"].__globals__
+    names["UV_RUN"] = (sys.executable,)
+    names["_prefetch"] = lambda primary, rows: None
 
 
 def test_parallel_cuts_reserve_apart_and_start_one_run(
@@ -3872,6 +3874,145 @@ def test_a_cut_queues_its_models_file(
     with pytest.raises(conduct["Stop"], match=r"models\.toml cannot be written"):
         conduct["cut"](root, "b", "minor", f"brief={brief}", [], "claude", None, None)
     assert sorted(os.listdir(root / ".minions" / "cuts")) == before[0]
+
+
+_FAKE_UV = """
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+with Path(os.environ["FAKE_UV_RECORD"]).open("a") as file:
+    file.write(json.dumps({"argv": sys.argv[1:], "env": dict(os.environ)}) + "\\n")
+time.sleep(float(os.environ.get("FAKE_UV_SLEEP", "0")))
+sys.exit(int(os.environ.get("FAKE_UV_EXIT", "0")))
+"""
+
+
+def test_a_cut_prefetches_its_approved_wheels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    names["_prefetch"] = conduct["_prefetch"]
+    bin_ = tmp_path / "uv-bin"
+    bin_.mkdir()
+    (bin_ / "uv").write_text(f"#!{sys.executable} -S{_FAKE_UV}")
+    (bin_ / "uv").chmod(0o755)
+    record = tmp_path / "uv-record.jsonl"
+    monkeypatch.setenv("PATH", str(bin_), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_UV_RECORD", str(record))
+    for name in ("UV_INDEX_URL", "UV_DEFAULT_INDEX", "PIP_INDEX_URL"):
+        monkeypatch.setenv(name, "https://index.invalid/simple")
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "other-cache"))
+    brief = tmp_path / "brief.md"
+    scratch = root / ".minions" / "tmp"
+
+    def cut(*rows: str) -> str:
+        table = "".join(f"| a | {row} | a pad |\n" for row in rows)
+        section = (
+            "| item | package | constraint | why |\n|---|---|---|---|\n" + table
+            if rows
+            else "None.\n"
+        )
+        brief.write_text(f"# brief\n\n## Dependencies\n{section}\n{_items('a')}")
+        return conduct["cut"](
+            root, "a", "minor", f"brief={brief}", [], "claude", None, None
+        )
+
+    def fetched() -> list[dict[str, Any]]:
+        lines = record.read_text().splitlines() if record.is_file() else []
+        record.unlink(missing_ok=True)
+        return [json.loads(line) for line in lines]
+
+    # A brief with no row runs no fetch.
+    assert cut() == "cut: queued 0001-a · the live run takes it"
+    assert fetched() == []
+
+    # Each approved row is one wheels-only fetch from PyPI, into the primary's cache.
+    assert cut("left-pad | >=1.3, <2", "right-pad | ==2.0.1") == (
+        "cut: queued 0002-a · the live run takes it"
+    )
+    runs = fetched()
+    cache = str(root / ".minions" / "uv-cache")
+    head = ["pip", "install", "--no-config", "--no-build", "--default-index"]
+    head += ["https://pypi.org/simple", "--target"]
+    assert [run["argv"][:7] for run in runs] == [head, head]
+    assert [run["argv"][8:] for run in runs] == [
+        ["left-pad>=1.3, <2"],
+        ["right-pad==2.0.1"],
+    ]
+    for run in runs:
+        assert run["argv"][7].startswith(f"{scratch}{os.sep}")
+        assert not Path(run["argv"][7]).exists()
+        kept = [n for n in run["env"] if n.startswith(("UV_", "PIP_"))]
+        assert kept == ["UV_CACHE_DIR"]
+        assert run["env"]["UV_CACHE_DIR"] == cache
+    assert os.listdir(scratch) == []
+
+    # A row that is no plain package and specifier stops the cut before any fetch.
+    before = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+    refused = (
+        "left-pad | @ https://index.invalid/left-pad.whl",
+        "https://index.invalid/left-pad.whl | >=1",
+        "./vendor/left-pad | >=1",
+        "left-pad | >=1 @ /tmp/left-pad",
+        "left-pad | 1.3.0",
+        "left-pad | ^2",
+    )
+    for row in refused:
+        with pytest.raises(conduct["Stop"]) as stopped:
+            cut("right-pad | ==2.0.1", row)
+        assert stopped.value.code == 2
+        said = str(stopped.value)
+        assert said.startswith("cut: cannot run — the brief's row ")
+        assert row.replace(" | ", " ") in said
+        assert fetched() == []
+        after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+        assert after == before
+        assert not (root / ".minions" / "changes" / "0003-a").exists()
+
+    # A failed or unfinished fetch names its package and leaves no scratch.
+    monkeypatch.setenv("FAKE_UV_EXIT", "1")
+    with pytest.raises(conduct["Stop"]) as failed:
+        cut("left-pad | >=1.3")
+    assert failed.value.code == 2
+    assert str(failed.value) == "cut: cannot run — fetching left-pad failed: exit 1"
+    assert len(fetched()) == 1
+    monkeypatch.delenv("FAKE_UV_EXIT")
+    monkeypatch.setenv("FAKE_UV_SLEEP", "5")
+    names["PREFETCH_SECONDS"] = 0.2
+    with pytest.raises(conduct["Stop"]) as slow:
+        cut("left-pad | >=1.3")
+    assert str(slow.value) == "cut: cannot run — fetching left-pad failed: timed out"
+    names["PREFETCH_SECONDS"] = 600
+    monkeypatch.delenv("FAKE_UV_SLEEP")
+    with monkeypatch.context() as bare:
+        bare.setenv("PATH", str(tmp_path / "no-uv"))
+        with pytest.raises(conduct["Stop"], match="failed: No such file") as gone:
+            conduct["_prefetch"](root, [["left-pad", ">=1.3"]])
+    assert gone.value.code == 2
+    assert os.listdir(scratch) == []
+    after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+    assert after == before
+
+    # A link where the scratch folder goes stops the cut before any fetch.
+    fetched()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    shutil.rmtree(scratch)
+    scratch.symlink_to(elsewhere)
+    with pytest.raises(conduct["Stop"], match="scratch folder") as linked:
+        cut("left-pad | >=1.3")
+    assert linked.value.code == 2
+    assert fetched() == []
+    assert os.listdir(elsewhere) == []
 
 
 def test_a_started_run_is_seen_by_its_claim_or_its_end(

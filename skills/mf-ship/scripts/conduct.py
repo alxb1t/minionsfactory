@@ -43,6 +43,8 @@ TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
 PUSH_TIMEOUT = 1800
+PYPI_INDEX = "https://pypi.org/simple"
+PREFETCH_SECONDS = 600
 RETRIES = (0, 10, 30)
 PUSH_RETRIES = (0, 10)
 LOCK_SECONDS = 30
@@ -77,6 +79,8 @@ DEPENDENCIES = "## Dependencies"
 INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
 BLOCK_HEADING = re.compile(r"<h[12](?:[\s/>]|$)", re.IGNORECASE)
 APPROVED = ["item", "package", "constraint", "why"]
+PACKAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+SPECIFIER = re.compile(r"[<>=!~][<>=!~,.0-9A-Za-z*+ -]*")
 UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -6832,6 +6836,58 @@ def _approval(path: Path, slug: str, command: str) -> list[list[str]]:
     return approved
 
 
+def _prefetch(primary: Path, rows: list[list[str]]) -> None:
+    """Fetch each approved row's wheel into the primary's uv cache, or stop with 2.
+
+    Why: 0110-gate-hardening design D4.
+    """
+    for package, constraint in rows:
+        if not (PACKAGE.fullmatch(package) and SPECIFIER.fullmatch(constraint)):
+            raise Stop(
+                2,
+                f"cut: cannot run — the brief's row {package} {constraint} is not a"
+                " package name and a plain version specifier",
+            )
+    scratch = primary / ".minions" / "tmp"
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("UV_", "PIP_"))
+    }
+    env["UV_CACHE_DIR"] = str(primary / ".minions" / "uv-cache")
+    for package, constraint in rows:
+        try:
+            os.close(_folder_fd(primary, ".minions", "tmp"))
+        except OSError as error:
+            raise Stop(
+                2, f"cut: cannot run — scratch folder {scratch}: {error}"
+            ) from error
+        target = tempfile.mkdtemp(dir=scratch)
+        command = ["uv", "pip", "install", "--no-config", "--no-build"]
+        command += ["--default-index", PYPI_INDEX, "--target", target]
+        try:
+            done = subprocess.run(
+                [*command, f"{package}{constraint}"],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                timeout=PREFETCH_SECONDS,
+            )
+        except (subprocess.TimeoutExpired, OSError) as error:
+            why = error.strerror if isinstance(error, OSError) else "timed out"
+            raise Stop(
+                2, f"cut: cannot run — fetching {package} failed: {why}"
+            ) from None
+        finally:
+            shutil.rmtree(target, ignore_errors=True)
+        if done.returncode != 0:
+            raise Stop(
+                2,
+                f"cut: cannot run — fetching {package} failed: exit {done.returncode}",
+            )
+
+
 def _rows_hash(rows: list[list[str]]) -> str:
     """Return the sha256 of `rows` as JSON: the hash a rejoin's `--yes` names.
 
@@ -6957,6 +7013,7 @@ def cut(
     models = _models_text(path.resolve(), slug)
     ids = linked.get("after", [])
     primary = primary_of(cwd)
+    _prefetch(primary, approved)
     with _queue_lock(primary):
         known = {version.change for version in open_versions(primary)}
         known |= set(_cuts(primary))

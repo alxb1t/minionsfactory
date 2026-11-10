@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ast-grep-cli` joins the dev group, and `sg-rules/subprocess-run-needs-timeout.yml` holds that a `subprocess.run` call
   passes `timeout=`, in `make gate` and `make check`. Each site gets its module's `TIMEOUT_SECONDS`, the `make gate` call
   of `gate_run.py` `GATE_SECONDS`; `CONTRIBUTING.md` states the ratchet (change `0110-gate-hardening`, phase 3).
+- `conduct.py cut` fetches each package its brief approves into `.minions/uv-cache`, wheels only, from PyPI's hosts only,
+  so the offline sandboxed gate finds a new dev dependency. A row that is no package name and plain version specifier, or
+  a failed fetch, stops the cut with exit 2 before any reservation (change `0110-gate-hardening`, phase 4).
 
 ## [0.91.0] - 2026-11-10
 

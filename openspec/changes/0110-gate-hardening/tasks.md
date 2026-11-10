@@ -9,7 +9,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 - [x] 1 — The wider lint, its sites cleaned · moderate
 - [x] 2 — The docstring check, its sites fixed · moderate
 - [x] 3 — The timeout rule, its sites fixed · hard
-- [ ] 4 — `conduct.py cut` prefetches the approved wheels · hard
+- [x] 4 — `conduct.py cut` prefetches the approved wheels · hard
 - [ ] 5 — `gate_integrity.py` · hard
 - [ ] 6 — The evidence at every freeze · hard
 - [ ] 7 — The references, the ratchet and D79 · hard
@@ -91,17 +91,17 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 4 — `conduct.py cut` prefetches the approved wheels
 
-- [ ] 4.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 4.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^def _approval(' -e '^def cut(' -e '^def _write_models(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 4.2 Add `test_a_cut_prefetches_its_approved_wheels` to `tests/test_conduct.py` ([Tests](design.md#tests)): a fake `uv` on `PATH` records argv
+- [x] 4.2 Add `test_a_cut_prefetches_its_approved_wheels` to `tests/test_conduct.py` ([Tests](design.md#tests)): a fake `uv` on `PATH` records argv
   and environment of each fetch a case of [D4](design.md#d4) makes, and none for a refused row; it calls `_swap_runner`, then sets `_prefetch` back to `conduct["_prefetch"]`.
   Verify: `git grep -n 'def test_a_cut_prefetches_its_approved_wheels' -- tests/test_conduct.py` prints a line.
-- [ ] 4.3 Make `_swap_runner` in `tests/test_conduct.py` set `_prefetch` to a no-op in the globals of `conduct["main"]`, so a test that cuts a brief with rows fetches nothing.
+- [x] 4.3 Make `_swap_runner` in `tests/test_conduct.py` set `_prefetch` to a no-op in the globals of `conduct["main"]`, so a test that cuts a brief with rows fetches nothing.
   Verify: `git grep -n '"_prefetch"' -- tests/test_conduct.py` prints a line.
-- [ ] 4.4 In `C` add `PYPI_INDEX = "https://pypi.org/simple"` and `PREFETCH_SECONDS = 600`, and `_prefetch(primary, rows)` to [D4](design.md#d4):
+- [x] 4.4 In `C` add `PYPI_INDEX = "https://pypi.org/simple"` and `PREFETCH_SECONDS = 600`, and `_prefetch(primary, rows)` to [D4](design.md#d4):
   one `uv pip install` for each row, `UV_CACHE_DIR` set, every `UV_*` and `PIP_*` name dropped, the scratch removed after.
   Verify: `git grep -n -e '^PYPI_INDEX = ' -e '^def _prefetch(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 4.5 In `_prefetch` stop with exit 2 on a row [D4](design.md#d4) refuses and on a failed fetch, naming the row or the package, then in `cut` of `C`
+- [x] 4.5 In `_prefetch` stop with exit 2 on a row [D4](design.md#d4) refuses and on a failed fetch, naming the row or the package, then in `cut` of `C`
   call it after `primary = primary_of(cwd)` and before `with _queue_lock(primary)`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "prefetch or parallel_cuts or queues_its_models"` exits 0.
 
