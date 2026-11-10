@@ -1,11 +1,12 @@
 [project]
 name = "minions-factory"
-version = "0.91.1"
+version = "0.92.0"
 requires-python = ">=3.12"
 dependencies = []
 
 [dependency-groups]
 dev = [
+    "ast-grep-cli>=0.51.1,<0.52",
     "coverage>=7.17.1",
     "diff-cover>=11.0.1",
     "markdown-it-py>=3,<4",
@@ -21,6 +22,7 @@ required-version = ">=0.12.19,<0.13"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "D", "ANN", "B", "S"]
+extend-select = ["UP", "ERA", "PERF", "SIM", "RET", "PT", "RUF", "PLE", "PLC", "PLR", "PLW", "BLE"]
 
 [tool.coverage.run]
 parallel = true
@@ -45,6 +47,18 @@ markers = ["slow: over 5 s; `make check` leaves it to the gate"]
     "S603",
     # `git`, `make` and `uv` resolve on `PATH`, as the OpenSpec CLI does (D8).
     "S607",
+    # Noise in the wider families: look-alike characters, list concatenation, branch and argument counts.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "RUF005",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR0917",
+    "PLR2004",
+    "PLW1510",
 ]
 # pytest's checks are plain asserts.
-"tests/**" = ["D", "S101"]
+"tests/**" = ["D", "S101", "PT018"]

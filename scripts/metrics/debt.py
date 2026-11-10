@@ -12,6 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+TIMEOUT_SECONDS = 600
 DEBT = Path(".minions/debt.md")
 CARD = re.compile(r"^- \*\*\d{4}·", re.MULTILINE)
 
@@ -24,6 +25,7 @@ def cards(root: Path) -> int | None:
         capture_output=True,
         text=True,
         check=True,
+        timeout=TIMEOUT_SECONDS,
     ).stdout.strip()
     path = Path(common).parent / DEBT
     if not path.is_file():

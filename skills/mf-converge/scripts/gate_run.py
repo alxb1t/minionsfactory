@@ -6,14 +6,7 @@
 
     gate_run.py [--fresh] [--tree <path>]
 
-Run from the repository root, or name a worktree with `--tree`. A worktree with no
-unstaged edit and no untracked file is settled; its key is `git write-tree`, so a
-staged merge and its commit share one.
-A settled tree whose `.minions/gate/<tree>` holds the same `make -n gate` hash is
-reused; else `make gate` runs. `--fresh` runs it whatever stands. Exit 0 green,
-else `make`'s code; a red run records nothing. `make` and its dry run see no
-`VIRTUAL_ENV`, and a green run prints its summary line alone; a red one, make's
-output first. Why: 0064-lighter-catch-up design D1; 0100-worker-diet design D10.
+Why: 0064-lighter-catch-up design D1; 0100-worker-diet design D10.
 """
 
 import argparse
@@ -24,6 +17,9 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+
+TIMEOUT_SECONDS = 600
+GATE_SECONDS = 3600
 
 
 class Stop(Exception):
@@ -40,7 +36,9 @@ def _run(
 ) -> subprocess.CompletedProcess[str]:
     """Return a command's result, its output captured; a missing tool stops the run."""
     try:
-        return subprocess.run(argv, capture_output=True, text=True, env=env)
+        return subprocess.run(
+            argv, capture_output=True, text=True, env=env, timeout=TIMEOUT_SECONDS
+        )
     except FileNotFoundError:
         raise Stop(2, f"gate: cannot run — {argv[0]} is missing") from None
 
@@ -98,12 +96,7 @@ def read_record(path: Path) -> dict[str, str]:
 
 
 def write_record(path: Path, dry: str, seconds: int) -> str | None:
-    """Write the record of a green run, replacing any record of the same tree.
-
-    A worker can write the run directory, so nothing is written through a link: a
-    linked `.minions/gate` takes no record, and a staged `.tmp` is removed first and
-    then created anew, refusing a link. Return why nothing was written, else None.
-    """
+    """Write the record of a green run, replacing any record of the same tree."""
     if path.parent.is_symlink():
         return ".minions/gate is a link"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -137,6 +130,7 @@ def gate(fresh: bool) -> int:
         stderr=subprocess.STDOUT,
         text=True,
         errors="replace",
+        timeout=GATE_SECONDS,
     )
     code = done.returncode
     seconds = round(time.monotonic() - start)

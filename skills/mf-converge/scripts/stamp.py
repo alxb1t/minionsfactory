@@ -4,11 +4,6 @@
 # ///
 """Write converge status-log events or a run heading with the clock's time.
 
-    stamp.py <log> '<round N · event — detail>' ['<event>' …]
-    stamp.py <log> --run <N> [--mark <mark>]
-
-Events go under the first `## Run`, the last given on top. Exit 0, or 2 with
-`stamp: cannot stamp — …`, the log unchanged: a link, a misordered `done` or `halt`.
 Why: 0088-paydown-2 design D7; 0100-worker-diet design D9;
 0109-converge-done-order design D1.
 """
@@ -39,19 +34,14 @@ def _ends(line: str) -> str | None:
 
     e.g. "10:00:00 · round 1 · done — ok" → "done"
     """
-    name = line.split(" — ")[0]
+    name = line.split(" — ", maxsplit=1)[0]
     return next((e for e in ("done", "halt") if name.endswith(f" · {e}")), None)
 
 
 def stamp(
     text: str, events: list[str], run: int | None, mark: str | None
 ) -> tuple[list[str], list[str]]:
-    """Return the log's lines with the new lines inserted, and those lines.
-
-    e.g. the lines "# t", "", "## Run 1 — d" and the events "round 1 · go" and
-    "round 1 · on" → "10:02:03 · round 1 · on" then "10:02:03 · round 1 · go",
-    inserted after "## Run 1 — d"; a misordered `done` or `halt` raises `Stop`
-    """
+    """Return the log's lines with the new lines inserted, and those lines."""
     lines = text.splitlines()
     now = _now()
     if run is not None:
@@ -92,12 +82,7 @@ def read(log: Path) -> str:
 
 
 def write(log: Path, text: str) -> None:
-    """Replace the log with `text`, through a staged file that refuses a link.
-
-    A worker can write the run directory, so nothing is written through a link: the
-    staged `.tmp` is removed, created anew with `O_NOFOLLOW`, then renamed over the log.
-    A rename that fails removes the `.tmp` and leaves the log as it stood.
-    """
+    """Replace the log with `text`, through a staged file that refuses a link."""
     staged = log.with_name(f"{log.name}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     try:

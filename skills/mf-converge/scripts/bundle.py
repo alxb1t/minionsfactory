@@ -4,16 +4,7 @@
 # ///
 """Write a converge worker's bundle of the decisions and requirements a change cites.
 
-    bundle.py <change-id> <bundle.md>
-    bundle.py --decisions <file>…
-
-Run from the repository root. The bundle holds each repo decision the change cites,
-in full, an index of every decision, and each requirement its delta modifies or
-removes, as a diff from the living spec. Prints `bundle: <n> decisions cited · <m>
-requirements` and exits 0, or `bundle: cannot bundle — <why>` and exits 2, writing
-nothing; a bundle path that is a link is refused. `--decisions` prints the decisions
-the files cite and the index, for the cut and the build, and writes nothing. Why:
-0094-lighter-converge design D5; 0100-worker-diet design D7;
+Why: 0094-lighter-converge design D5; 0100-worker-diet design D7;
 0101-cut-converge-diet design D4.
 """
 
@@ -54,12 +45,7 @@ def _read(path: Path) -> str:
 
 
 def cited(plan: list[str], decisions: str) -> list[int]:
-    """Return the ids of the repo decisions the plan cites, in file order.
-
-    A `decisions.md#d<n>` link cites; so does `D<n> · <title>` when it and the
-    heading's title, each trimmed, match where one starts with the other.
-    e.g. "D2 · Two rules" and "### D2 · Two rules hold" → [2]; a bare "D3" → []
-    """
+    """Return the ids of the repo decisions the plan cites, in file order."""
     headed = {int(n): title.strip(TRIM) for n, title in TITLED.findall(decisions)}
     ids = {int(n) for text in plan for n in LINKED.findall(text)}
     for text in plan:
@@ -110,13 +96,7 @@ def _requirement(spec: str | None, title: str) -> str | None:
 
 
 def diffed(living: str | None, block: str, title: str) -> str:
-    """Return a requirement's diff from the living spec to its delta block.
-
-    `living` is the living spec's text, None when it has none; `block` is the delta's
-    block for the title, "" for a removed one. A title the living spec lacks is named.
-    The title heads the diff, and a requirement the delta leaves as it stood reads
-    `unchanged`. e.g. a removed "A" → its title, then a fenced `diff` of `-` lines
-    """
+    """Return a requirement's diff from the living spec to its delta block."""
     old = _requirement(living, title)
     if old is None:
         return f"- `{title}` — not in the living spec"
@@ -186,12 +166,7 @@ def bundle(change: str, root: Path = Path()) -> tuple[str, int, int]:
 
 
 def write(path: Path, text: str) -> None:
-    """Replace `path` with `text` through a staged file; a link is refused.
-
-    As `stamp.py`'s `write`: the staged `.tmp` is created anew with `O_NOFOLLOW`,
-    then renamed over the bundle; a failure removes it and leaves the bundle as it
-    stood.
-    """
+    """Replace `path` with `text` through a staged file; a link is refused."""
     if path.is_symlink():
         raise Stop(f"{path} is a link")
     staged = path.with_name(f"{path.name}.tmp")

@@ -119,12 +119,7 @@ def _plant(base: Path, texts: dict[str, str]) -> Path:
 def _planted_problems(
     base: Path, heading: str, letter: str, owners: tuple[str, ...] = _SHARED_OWNERS
 ) -> list[str]:
-    """Return what the scan reports for planted owners that disagree.
-
-    The owner holds ids 1–3, the first carrier 1 and 3, and any later carrier 1–2, so
-    the first carrier has a gap and each carrier differs by one id. A row past the
-    section's end must not count.
-    """
+    """Return what the scan reports for planted owners that disagree."""
     outside = f"\n## Never\n\n| **{letter}9** | outside |\n"
     ids = [(1, 2, 3), (1, 3)] + [(1, 2)] * (len(owners) - 2)
     texts = {
@@ -193,11 +188,11 @@ def _card_owner_problems(base: Path) -> list[str]:
         problems.append(f"skills/{_CARD_OWNER}: does not exist")
     elif not _section_labels(owner, _CARD_HEADING):
         problems.append(f"skills/{_CARD_OWNER}: no labels in `{_CARD_HEADING}`")
-    for path in sorted((base / "skills").glob("*/SKILL.md")):
-        if path != owner and _CARD_HEADING in path.read_text().splitlines():
-            problems.append(
-                f"skills/{path.parent.name}/SKILL.md: carries `{_CARD_HEADING}`"
-            )
+    problems.extend(
+        f"skills/{path.parent.name}/SKILL.md: carries `{_CARD_HEADING}`"
+        for path in sorted((base / "skills").glob("*/SKILL.md"))
+        if path != owner and _CARD_HEADING in path.read_text().splitlines()
+    )
     return problems
 
 

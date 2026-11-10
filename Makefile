@@ -14,6 +14,8 @@ gate:
 	uv sync --locked
 	uv run ruff format --check .
 	uv run ruff check .
+	uv run --script scripts/docstrings.py
+	uv run ast-grep scan
 	uv run ty check
 	uv run zizmor .github/workflows/ci.yml
 	betterleaks dir . --no-banner --redact
@@ -25,6 +27,8 @@ gate:
 check:
 	uv run ruff format --check .
 	uv run ruff check .
+	uv run --script scripts/docstrings.py
+	uv run ast-grep scan
 	uv run ty check
 	uv run pytest -q -n auto -m "not slow"
 

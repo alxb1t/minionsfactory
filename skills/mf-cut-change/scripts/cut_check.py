@@ -282,9 +282,13 @@ def row_i4(change: Change, plan: dict[str, Any]) -> str | None:
     for _, line in prose_lines(change.tasks):
         if line.startswith("## "):
             current = int(m[1]) if (m := PHASE.match(line[3:])) else None
-        elif (m := SUBTASK.match(line)) and (name := m[1].split()[0]):
-            if int(name.split(".")[0]) in ids and int(name.split(".")[0]) != current:
-                problems.append(f"sub-task {name} sits outside its `## … —` section")
+        elif (
+            (m := SUBTASK.match(line))
+            and (name := m[1].split()[0])
+            and int(name.split(".")[0]) in ids
+            and int(name.split(".")[0]) != current
+        ):
+            problems.append(f"sub-task {name} sits outside its `## … —` section")
     return " · ".join(problems) or None
 
 

@@ -4,29 +4,8 @@
 # ///
 """Check a hard brief has the shape the cut station needs, before its cut is queued.
 
-    brief_check.py <brief>
-    brief_check.py --facts <brief>
-    brief_check.py --models <brief> <slug>
-
-Exit 0 ready · 1 a check halts · 2 the brief cannot be checked. Each halt prints
-`brief: halt — …`. Each `## Facts` item ends ``(`<path>:<line>[-<line>]`[, …] at
-`<sha>`)``, a path of two components or more or one led by `./`; `--facts` prints the
-facts as JSON, and `--models` prints the models file of the `## For the cut` item
-`<slug>` as TOML, the cut part written nowhere. A command is a span of an Acceptance or
-`Verify:` item that holds a space, held to `verify_check.py`'s shell rules; none runs.
-Each `## For the cut` item's
-slug, bump, `after`, `beside` and models, which the close pastes into `conduct.py cut`,
-are held to their shape; a models line may add checker and fixer parts, a host on a
-model, and a last `shadow`. Each `## For the cut` line is a blank, a head `<n>. ` at
-column 0, a `- models: ` or `- **Acceptance:** ` line under it, an Acceptance's
-continuation, or the cut's `Cut` line. `## Dependencies` is `None.` or a table of
-item · package · constraint · why. A checked line is printable, and each checked
-heading is written one way, once. Sections and headings are read as CommonMark reads
-them, so a fence holds none; a carriage return not before a newline halts its line.
-Why: 0083-plan-queues design D1; 0088-paydown-2
-design D5; 0091-cut-halts design D2; 0097-cross-model design D1;
-0098-beside design D1, D2; 0098-beside security S1; 0103-fewer-rounds design D6;
-0106-cut-scripts design D1, D2, D3.
+Why: 0083-plan-queues D1; 0088-paydown-2 D5; 0091-cut-halts D2; 0097-cross-model D1;
+0098-beside D1, D2, security S1; 0103-fewer-rounds D6; 0106-cut-scripts D1, D2, D3.
 """
 
 import argparse
@@ -117,9 +96,7 @@ def depth(brief: str) -> str | None:
 def parsed(brief: str) -> tuple[list[str], list[Any]]:
     """Return the brief's lines and its CommonMark tokens.
 
-    A carriage return not before a newline reads as a space, so a token's `map` indexes
-    the lines split at a newline alone. A vertical tab or another `str.splitlines`
-    separator stays inside its line. Why: 0103-fewer-rounds design D6.
+    Why: 0103-fewer-rounds design D6.
     """
     text = LONE.sub(" ", brief)
     return text.split("\n"), MARKDOWN.parse(text)
@@ -158,14 +135,7 @@ def sections(brief: str) -> dict[str, list[str]]:
 
 
 def items(lines: list[str]) -> list[str]:
-    """Return each item of a section: its lines, stripped, joined by a space.
-
-    An item's line wraps onto each deeper line after it that opens no item, and, as
-    Markdown's lazy continuation does, onto any other line before a blank one that
-    opens no list marker or `|`. As in CommonMark, only spaces and tabs indent a line
-    or blank it: a line of NBSP or a form feed is text.
-    e.g. ["- a", "  b", "c", "- d", "* e"] → ["- a b c", "- d"]
-    """
+    """Return each item of a section: its lines, stripped, joined by a space."""
     found: list[str] = []
     indent: int | None = None
     for line in lines:
@@ -242,12 +212,7 @@ def ids(number: str, kind: str, value: str, slug: re.Pattern[str]) -> list[str]:
 
 
 def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
-    """Return a halt for each field of an item's head out of shape.
-
-    `parts` is the head split on ` · `; its slug and each `after` and `beside` entry
-    match `slug`. `beside:` is optional.
-    e.g. "1", ["**x$(y)**", "minor", "after: none"] → ["item 1 — not a slug: `x$(y)`"]
-    """
+    """Return a halt for each field of an item's head out of shape."""
     found: list[str] = []
     if not slug.fullmatch(name := parts[0].strip("*` ")):
         found.append(f"item {number} — not a slug: `{name}`")
@@ -269,14 +234,7 @@ def head(number: str, parts: list[str], slug: re.Pattern[str]) -> list[str]:
 
 
 def models(number: str, text: str) -> list[str]:
-    """Return a halt for each word of an item's `models:` line out of shape.
-
-    The stations, then an ordered subset of `PARTS`. A model may open `<host>/`,
-    save on `HOSTLESS`. `converge`, `conformance` and `adversarial` may read `skip`
-    for their model and effort.
-    e.g. "1", " build a b · converge a b · release a b · cut a b;c" →
-    ["item 1 — not a model or effort: `b;c`"]
-    """
+    """Return a halt for each word of an item's `models:` line out of shape."""
     parts = [part.split() for part in text.split(" · ")]
     shadowed = parts[-1:] == [SHADOW]
     if shadowed:
@@ -380,12 +338,7 @@ def models_toml(opened: re.Match[str], item: list[str]) -> str:
 
 
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
-    """Return a halt for each `## For the cut` field `conduct.py cut` takes, misshapen.
-
-    `lines` are one heading's. Each head is read from its own line, opening `<n>. `
-    at column 0, and each `- models: ` line after it, as `grammar` places one, once
-    a head.
-    """
+    """Return a halt per misshapen `## For the cut` field `conduct.py cut` takes."""
     found: list[str] = []
     numbers: list[str] = []
     named: set[str] = set()
@@ -436,12 +389,7 @@ def packages(brief: str, lines: list[str], conduct: dict[str, Any]) -> list[str]
 def grammar(lines: list[str]) -> list[str]:
     """Return a halt for each `## For the cut` line outside the item grammar.
 
-    A line is a blank of spaces; a head, `<n>. ` and text at column 0; under a head, a
-    `- models: ` or `- **Acceptance:** ` line three spaces in or at its head's text; a
-    continuation, two or more spaces past the Acceptance line, right after it or
-    another; or the cut's `Cut` line. Lines count from 1 under the heading.
     Why: 0098-beside design D1, D2.
-    e.g. ["1. **a** · minor", "| · after: x"] → ["## For the cut line 2: …"]
     """
     found: list[str] = []
     column = 3
@@ -486,21 +434,14 @@ def printable(heading: str, lines: list[str]) -> list[str]:
 def fold(text: str) -> str:
     r"""Return the letters and digits `text` renders as, case-folded.
 
-    Its HTML tags, heading and inline, drop, then its character references read as
-    the characters they name. Why: 0098-beside design D1, D2; 0098-beside security S1.
-    e.g. "<h2><em>For the C&#117;t</em></h2>" → "forthecut"
+    Why: 0098-beside design D1, D2; 0098-beside security S1.
     """
     text = html.unescape(TAG.sub("", text))
     return "".join(char for char in text if char.isalnum()).casefold()
 
 
 def alike(line: str, heading: str) -> bool:
-    """Return whether a folded line reads as a folded heading.
-
-    They match where `line` holds an ASCII character; a non-ASCII one stands for any.
-    `line` keeps at least one ASCII letter.
-    e.g. "fоrthecut", a Cyrillic `о`, "forthecut" → True
-    """
+    """Return whether a folded line reads as a folded heading."""
     return (
         len(line) == len(heading)
         and any(char.isascii() and char.isalpha() for char in line)
@@ -514,12 +455,7 @@ def alike(line: str, heading: str) -> bool:
 def headings(brief: str) -> list[str]:
     """Return a halt per line reading as a checked heading not written so, or twice.
 
-    The lines checked are those of a heading token, an HTML block, and a paragraph
-    whose inline HTML opens `<h1>`…`<h6>`; a fence holds none. A line reads as a
-    heading when `alike` holds for their folds, unless it is an ATX `h2` written so,
-    which counts. Lines count from 1 in the brief.
     Why: 0098-beside design D1, D2; 0103-fewer-rounds design D6.
-    e.g. " ## For the cut" → ["line 1 reads as `## For the cut` but is not written so"]
     """
     lines, tokens = parsed(brief)
     checked: set[int] = set()

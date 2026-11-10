@@ -4,8 +4,6 @@
 # ///
 """Print the broken references in the root docs and `docs/*.md`.
 
-A link to a missing file or heading is broken, and so is a cited `D<n>` with no
-`### D<n> ·` heading. The skills are not read: their links are examples.
 Why: 0030-change-impact design D7.
 """
 

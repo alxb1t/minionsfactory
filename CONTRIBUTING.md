@@ -23,6 +23,10 @@ mf-plan ──▶ mf-cut-change ──▶ mf-build ──▶ mf-converge or a ha
 - **Its change directory** under `openspec/changes/`: proposal, design, tasks and spec delta.
 - **Each `Verify:`**, run by the build before its box is ticked.
 - **A green `make check`** at every phase's commit, and a green `make gate` at the last.
+- **A rule for a repeat card** — a card of a syntactic class that comes back becomes a rule of `sg-rules/` at the next
+  paydown, and `make gate` holds it.
+- **`evidence.md`**, in `.minions/changes/<change-id>/`: the facts a tool found, written at every freeze; a rule a tool
+  can hold goes to the gate ([D79](docs/decisions.md#d79--a-tool-finds-a-checker-judges)).
 - **A `Change: <change-id>` trailer** on every commit
   ([D21](docs/decisions.md#d21--every-commit-names-its-change)).
 - **The check loop's findings**, in `.minions/changes/<change-id>/`, when converge ran

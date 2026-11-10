@@ -324,7 +324,8 @@ def _when_logged(
             time.sleep(0.05)
         try:
             act()
-        except BaseException as error:
+        # why: the thread keeps whatever `act` raises, SystemExit included.
+        except BaseException as error:  # noqa: BLE001
             raised.append(error)
         finally:
             hold.touch()
@@ -401,7 +402,7 @@ def test_status_reads_each_stage_from_disk(
     (root / ".git" / "info" / "attributes").write_text("* filter=probe\n")
     _git(root, "config", "filter.probe.clean", str(planted))
     os.utime(tree / "AGENTS.md", (1, 1))
-    with pytest.raises(conduct["Stop"], match="filter.probe.clean"):
+    with pytest.raises(conduct["Stop"], match=r"filter\.probe\.clean"):
         stage_of(root, version)
     assert not ran.exists()
     _git(root, "config", "--unset", "filter.probe.clean")
@@ -1162,7 +1163,7 @@ def test_a_merge_in_refuses_a_planted_hook(
     _git(hooked, "config", "hook.probe.command", f"touch {shlex.quote(str(ran))}")
     held_run = conduct["Run"](hooked, "claude")
     held_run.git_state = conduct["_git_state"](hooked)
-    with pytest.raises(conduct["Stop"], match="hook.probe.event"):
+    with pytest.raises(conduct["Stop"], match=r"hook\.probe\.event"):
         held_run.merge_in(waiting, "0002-marks", "main")
     assert not ran.exists()
     assert not _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
@@ -2873,7 +2874,7 @@ def test_rescue_skip_runs_none(
     moderate = models(minions, "0001-todo", "build.moderate", "claude")
     assert moderate == ("codex", "m", None)
     table.write_text('[build.moderate]\nexecutor = "codex"\n')
-    with pytest.raises(conduct["Stop"], match="build.moderate names an executor"):
+    with pytest.raises(conduct["Stop"], match=r"build\.moderate names an executor"):
         models(minions, "0001-todo", "build.moderate", "claude")
     table.write_text('[build.moderate]\nmodel = "a;b"\n')
     with pytest.raises(conduct["Stop"], match="'a;b' is not a model or effort"):
@@ -3455,7 +3456,7 @@ def test_a_fixed_version_rejoins_a_live_run(
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     _version(root, "0003-hand", "- [ ] 1 — Hand **HUMAN**\n")
     rejoin, stop = conduct["rejoin"], conduct["Stop"]
-    with pytest.raises(stop, match="^rejoin: no run is live — run /mf-ship$"):
+    with pytest.raises(stop, match=r"^rejoin: no run is live — run /mf-ship$"):
         rejoin(root, None)
 
     def fix() -> None:
@@ -3658,8 +3659,10 @@ def _items(*slugs: str) -> str:
 
 
 def _swap_runner(conduct: dict[str, Any]) -> None:
-    """Run `brief_check.py` by this interpreter: the suite needs no `uv`."""
-    conduct["main"].__globals__["UV_RUN"] = (sys.executable,)
+    """Run `brief_check.py` by this interpreter and fetch no wheel: no `uv` needed."""
+    names = conduct["main"].__globals__
+    names["UV_RUN"] = (sys.executable,)
+    names["_prefetch"] = lambda primary, rows: None
 
 
 def test_parallel_cuts_reserve_apart_and_start_one_run(
@@ -3868,9 +3871,149 @@ def test_a_cut_queues_its_models_file(
     names["GIT_TIMEOUT"] = 60
     brief.write_text(f"# brief\n\n{_items('a', 'b')}")
     (root / ".minions" / "changes" / "0002-b").symlink_to(tmp_path)
-    with pytest.raises(conduct["Stop"], match="models.toml cannot be written"):
+    with pytest.raises(conduct["Stop"], match=r"models\.toml cannot be written"):
         conduct["cut"](root, "b", "minor", f"brief={brief}", [], "claude", None, None)
     assert sorted(os.listdir(root / ".minions" / "cuts")) == before[0]
+
+
+_FAKE_UV = """
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+with Path(os.environ["FAKE_UV_RECORD"]).open("a") as file:
+    file.write(json.dumps({"argv": sys.argv[1:], "env": dict(os.environ)}) + "\\n")
+time.sleep(float(os.environ.get("FAKE_UV_SLEEP", "0")))
+sys.exit(int(os.environ.get("FAKE_UV_EXIT", "0")))
+"""
+
+
+@pytest.mark.slow
+def test_a_cut_prefetches_its_approved_wheels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    names["_prefetch"] = conduct["_prefetch"]
+    bin_ = tmp_path / "uv-bin"
+    bin_.mkdir()
+    (bin_ / "uv").write_text(f"#!{sys.executable} -S{_FAKE_UV}")
+    (bin_ / "uv").chmod(0o755)
+    record = tmp_path / "uv-record.jsonl"
+    monkeypatch.setenv("PATH", str(bin_), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_UV_RECORD", str(record))
+    for name in ("UV_INDEX_URL", "UV_DEFAULT_INDEX", "PIP_INDEX_URL"):
+        monkeypatch.setenv(name, "https://index.invalid/simple")
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "other-cache"))
+    brief = tmp_path / "brief.md"
+    scratch = root / ".minions" / "tmp"
+
+    def cut(*rows: str) -> str:
+        table = "".join(f"| a | {row} | a pad |\n" for row in rows)
+        section = (
+            "| item | package | constraint | why |\n|---|---|---|---|\n" + table
+            if rows
+            else "None.\n"
+        )
+        brief.write_text(f"# brief\n\n## Dependencies\n{section}\n{_items('a')}")
+        return conduct["cut"](
+            root, "a", "minor", f"brief={brief}", [], "claude", None, None
+        )
+
+    def fetched() -> list[dict[str, Any]]:
+        lines = record.read_text().splitlines() if record.is_file() else []
+        record.unlink(missing_ok=True)
+        return [json.loads(line) for line in lines]
+
+    # A brief with no row runs no fetch.
+    assert cut() == "cut: queued 0001-a · the live run takes it"
+    assert fetched() == []
+
+    # Each approved row is one wheels-only fetch from PyPI, into the primary's cache.
+    assert cut("left-pad | >=1.3, <2", "right-pad | ==2.0.1") == (
+        "cut: queued 0002-a · the live run takes it"
+    )
+    runs = fetched()
+    cache = str(root / ".minions" / "uv-cache")
+    head = ["pip", "install", "--no-config", "--no-build", "--default-index"]
+    head += ["https://pypi.org/simple", "--target"]
+    assert [run["argv"][:7] for run in runs] == [head, head]
+    assert [run["argv"][8:] for run in runs] == [
+        ["left-pad>=1.3, <2"],
+        ["right-pad==2.0.1"],
+    ]
+    for run in runs:
+        assert run["argv"][7].startswith(f"{scratch}{os.sep}")
+        assert not Path(run["argv"][7]).exists()
+        kept = [n for n in run["env"] if n.startswith(("UV_", "PIP_"))]
+        assert kept == ["UV_CACHE_DIR"]
+        assert run["env"]["UV_CACHE_DIR"] == cache
+    assert os.listdir(scratch) == []
+
+    # A row that is no plain package and specifier stops the cut before any fetch.
+    before = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+    refused = (
+        "left-pad | @ https://index.invalid/left-pad.whl",
+        "https://index.invalid/left-pad.whl | >=1",
+        "./vendor/left-pad | >=1",
+        "left-pad | >=1 @ /tmp/left-pad",
+        "left-pad | 1.3.0",
+        "left-pad | ^2",
+    )
+    for row in refused:
+        with pytest.raises(conduct["Stop"]) as stopped:
+            cut("right-pad | ==2.0.1", row)
+        assert stopped.value.code == 2
+        said = str(stopped.value)
+        assert said.startswith("cut: cannot run — the brief's row ")
+        assert row.replace(" | ", " ") in said
+        assert fetched() == []
+        after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+        assert after == before
+        assert not (root / ".minions" / "changes" / "0003-a").exists()
+
+    # A failed or unfinished fetch names its package and leaves no scratch.
+    monkeypatch.setenv("FAKE_UV_EXIT", "1")
+    with pytest.raises(conduct["Stop"]) as failed:
+        cut("left-pad | >=1.3")
+    assert failed.value.code == 2
+    assert str(failed.value) == "cut: cannot run — fetching left-pad failed: exit 1"
+    assert len(fetched()) == 1
+    monkeypatch.delenv("FAKE_UV_EXIT")
+    monkeypatch.setenv("FAKE_UV_SLEEP", "5")
+    names["PREFETCH_SECONDS"] = 0.2
+    with pytest.raises(conduct["Stop"]) as slow:
+        cut("left-pad | >=1.3")
+    assert str(slow.value) == "cut: cannot run — fetching left-pad failed: timed out"
+    names["PREFETCH_SECONDS"] = 600
+    monkeypatch.delenv("FAKE_UV_SLEEP")
+    with monkeypatch.context() as bare:
+        bare.setenv("PATH", str(tmp_path / "no-uv"))
+        with pytest.raises(conduct["Stop"], match="failed: No such file") as gone:
+            conduct["_prefetch"](root, [["left-pad", ">=1.3"]])
+    assert gone.value.code == 2
+    assert os.listdir(scratch) == []
+    after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+    assert after == before
+
+    # A link where the scratch folder goes stops the cut before any fetch.
+    fetched()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    shutil.rmtree(scratch)
+    scratch.symlink_to(elsewhere)
+    with pytest.raises(conduct["Stop"], match="scratch folder") as linked:
+        cut("left-pad | >=1.3")
+    assert linked.value.code == 2
+    assert fetched() == []
+    assert os.listdir(elsewhere) == []
 
 
 def test_a_started_run_is_seen_by_its_claim_or_its_end(
@@ -3919,7 +4062,7 @@ def test_a_started_run_is_seen_by_its_claim_or_its_end(
         [sys.executable, "-c", "pass"]
     )
     with pytest.raises(
-        stop, match="^the run did not start — no line in .minions/runs/detached.log$"
+        stop, match=r"^the run did not start — no line in \.minions/runs/detached\.log$"
     ):
         start(root, "claude")
 
@@ -3928,7 +4071,7 @@ def test_a_started_run_is_seen_by_its_claim_or_its_end(
     (root / "dirty.txt").write_text("x\n")
     with pytest.raises(
         stop,
-        match="^the run did not start — run: cannot run — the primary's tree is not"
+        match=r"^the run did not start — run: cannot run — the primary's tree is not"
         " clean$",
     ):
         start(root, "claude")
@@ -6175,7 +6318,7 @@ def test_a_run_moves_an_old_layout(
     conduct = _conduct()
     calls = fake()
     root = _primary(tmp_path)
-    built, halted = _old_layout(root)
+    _built, halted = _old_layout(root)
     minions = root / ".minions"
     find, stage_of = conduct["find_version"], conduct["stage_of"]
 
@@ -6305,7 +6448,7 @@ def test_status_names_an_old_layout(
     assert report(root).splitlines()[0] == old
     with pytest.raises(
         conduct["Stop"],
-        match="grant: cannot run — .minions/build/0001-todo.done is the old layout:"
+        match=r"grant: cannot run — \.minions/build/0001-todo\.done is the old layout:"
         " /mf-ship moves it",
     ):
         conduct["grant"](root, "0001-todo", "claude")
@@ -8170,7 +8313,7 @@ def test_a_mixed_key_list_gets_no_lfs_remedy(tmp_path: Path) -> None:
     # LFS's own key, naming a program LFS never wrote.
     _git(root, "config", "--unset", "lfs.repositoryformatversion")
     _git(root, "config", "filter.lfs.clean", "./planted.sh %f")
-    with pytest.raises(conduct["Stop"], match="filter.lfs.clean") as held:
+    with pytest.raises(conduct["Stop"], match=r"filter\.lfs\.clean") as held:
         conduct["_refuse_config_commands"](root)
     assert str(held.value).endswith("move it to the global config or remove it")
 
@@ -8187,7 +8330,7 @@ def test_a_program_key_in_a_worktree_config_halts(tmp_path: Path) -> None:
     config.write_text("[core]\n\tsshCommand = planted\n[user]\n\tname = kept\n")
     assert "core.sshcommand" not in _git(root, "config", "--list", "--name-only")
     assert held(root) == ["core.sshcommand"] and held(tree) == ["core.sshcommand"]
-    with pytest.raises(conduct["Stop"], match="core.sshcommand") as stop:
+    with pytest.raises(conduct["Stop"], match=r"core\.sshcommand") as stop:
         conduct["_refuse_config_commands"](root)
     assert str(stop.value).endswith("move it to the global config or remove it")
     # Twin: plain keys alone, an empty file and no file hold none.
@@ -8255,13 +8398,13 @@ def test_no_hook_runs_in_a_worker(
     assert fires({})
 
     _git(root, "config", "lfs.repositoryformatversion", "0")
-    with pytest.raises(conduct["Stop"], match="lfs.repositoryformatversion") as held:
+    with pytest.raises(conduct["Stop"], match=r"lfs\.repositoryformatversion") as held:
         conduct["_refuse_config_commands"](root)
     assert "a run cannot upload LFS objects" in str(held.value)
     assert "remove it" not in str(held.value)
     _git(root, "config", "--unset", "lfs.repositoryformatversion")
     _git(root, "config", "filter.lfs.clean", "git-lfs clean -- %f")
-    with pytest.raises(conduct["Stop"], match="filter.lfs.clean.*cannot upload LFS"):
+    with pytest.raises(conduct["Stop"], match=r"filter\.lfs\.clean.*cannot upload LFS"):
         conduct["_refuse_config_commands"](root)
 
 
@@ -8614,6 +8757,44 @@ def test_auto_grant_false_grants_none(
         assert auto(minions, "0001-todo")
     table.unlink()
     assert auto(minions, "0001-todo")
+
+
+def test_a_missing_worktree_or_a_crash_ends_in_a_halt_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0002-marks")
+    conductor.read_plan([conduct["find_version"](root, "0001-todo"), version])
+
+    # A stage with no worktree to run in halts the version.
+    monkeypatch.setattr(conduct["Run"], "stage", lambda *_: ("build", "go"))
+    conductor.advance(conduct["Version"]("0001-todo", None), ())
+    assert conductor.halts == [("0001-todo", "0001-todo has no worktree")]
+
+    # Any other crash in a version's pass ends it in a halt line.
+    def broken(*_: object) -> tuple[str, str]:
+        raise ValueError("broken")
+
+    monkeypatch.setattr(conduct["Run"], "stage", broken)
+    conductor.advance(version, ())
+    assert conductor.halts[-1] == ("run", "conduct.py failed: broken")
+    conductor.log.path.unlink()
+
+    # A crash of the run itself is its halt line, and exit 1.
+    def sunk(*_: object) -> int:
+        raise ValueError("sunk")
+
+    monkeypatch.setattr(conduct["Run"], "ship", sunk)
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert any(" · run · halt — conduct.py failed: sunk" in line for line in _log(root))
 
 
 @pytest.mark.slow
@@ -10681,7 +10862,7 @@ def test_a_linked_tree_writes_under_the_codex_sandbox(
     prefix = "sandbox_workspace_write.writable_roots="
     (roots,) = [
         json.loads(pair.removeprefix(prefix))
-        for flag, pair in zip(command, command[1:], strict=False)
+        for flag, pair in itertools.pairwise(command)
         if flag == "-c" and pair.startswith(prefix)
     ]
     # codex-cli 0.163's `codex sandbox` requires a permission profile and ignores

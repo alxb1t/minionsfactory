@@ -4,10 +4,6 @@
 # ///
 """Collect a repository's declared metrics into a data file, and render its page.
 
-    metrics.py collect --change <id> --base <rev> --out <path> [--value <id>=<n> …]
-    metrics.py page <id> [--data <path>] [--out <path>]
-
-Exit 0 written · 2 the catalogue is broken · 3 no catalogue · any other a crash.
 Why: 0030-change-impact design D2…D5.
 """
 
@@ -197,7 +193,12 @@ def run_metric(root: Path, metric: Metric, env: dict[str, str]) -> Value:
 def _git(root: Path, *args: str) -> str:
     """Return a git command's stripped stdout; a failure raises."""
     return subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True, check=True
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=TIMEOUT_SECONDS,
     ).stdout.strip()
 
 
@@ -254,6 +255,7 @@ def mf_version(package: Path) -> str:
             cwd=package,
             capture_output=True,
             text=True,
+            timeout=TIMEOUT_SECONDS,
         )
         if tracked.returncode != 0 or tracked.stdout.strip() != MF_PATH.as_posix():
             return _installed(package)
@@ -262,6 +264,7 @@ def mf_version(package: Path) -> str:
             cwd=package,
             capture_output=True,
             text=True,
+            timeout=TIMEOUT_SECONDS,
         )
     except OSError:
         return _installed(package)

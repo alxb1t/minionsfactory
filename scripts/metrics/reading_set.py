@@ -4,12 +4,8 @@
 # ///
 """Print the words a station reads before it starts.
 
-The set is `converge`, `conformance`, `adversarial` or `shared`. `converge` is the
-fixer's: no shared context past `AGENTS.md`; conformance reads the decisions' index,
-`INDEX`, in place of the whole file; adversarial reads the threat model and no
-decision. Why: 0030-change-impact design D7; 0076-context-cost design D4;
-0094-lighter-converge design D10; 0095-converge-roles design D13; 0100-worker-diet
-design D7; 0108-converge-script design D10.
+Why: 0030-change-impact D7; 0076-context-cost D4; 0094-lighter-converge D10;
+0095-converge-roles D13; 0100-worker-diet D7; 0108-converge-script D10.
 """
 
 import sys

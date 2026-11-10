@@ -4,9 +4,7 @@
 # ///
 """Print a conformance count: `trailer`, `minions` or `amends`.
 
-`trailer` — commits in base..head whose `Change` trailer is not the change id.
-`minions` — files tracked under `.minions/`. `amends` — the cut's amend commits
-in base..head. Why: 0030-change-impact design D7.
+Why: 0030-change-impact design D7.
 """
 
 import os
@@ -14,11 +12,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+TIMEOUT_SECONDS = 600
+
 
 def _git(root: Path, *args: str) -> str:
     """Return a git command's stdout; a failure raises."""
     return subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True, check=True
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=TIMEOUT_SECONDS,
     ).stdout
 
 

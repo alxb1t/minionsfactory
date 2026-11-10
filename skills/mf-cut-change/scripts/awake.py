@@ -4,14 +4,6 @@
 # ///
 """Hold the Mac awake while a cut runs by hand, and release the hold.
 
-    awake.py start <change-id>
-    awake.py stop <change-id>
-
-Run from the repository root. `start` holds `caffeinate` for two hours at most, or until
-the session's host process exits; its pid is recorded in `.minions/awake/<change-id>`
-beside the primary checkout. `stop` kills that pid only while `ps` names it
-`caffeinate`. Exit 0, or 2 for an id that is no change id, a directory outside a repo,
-or a git that fails.
 Why: 0081-cut-awake design D1.
 """
 
@@ -24,6 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+TIMEOUT_SECONDS = 600
 CAFFEINATE = "caffeinate"
 HOLD_SECONDS = 7200
 LAUNCHERS = {"sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "uv"}
@@ -46,6 +39,7 @@ def _record(change_id: str) -> Path:
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
         capture_output=True,
         text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     if done.returncode != 0 and "not a git repository" in done.stderr:
         raise Stop("awake: cannot run — not in a git repository")
@@ -62,7 +56,10 @@ def _record(change_id: str) -> Path:
 def _ps(field: str, pid: int) -> str:
     """Return `ps`'s `field` for `pid`, or "" when it names nothing."""
     done = subprocess.run(
-        ["ps", "-o", f"{field}=", "-p", str(pid)], capture_output=True, text=True
+        ["ps", "-o", f"{field}=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     return done.stdout.strip()
 

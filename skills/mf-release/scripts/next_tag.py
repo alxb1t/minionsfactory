@@ -6,7 +6,6 @@
 
     next_tag.py minor|patch
 
-Exit 0 printed · 2 another bump, or git failed.
 Why: 0047-version-at-merge design D2.
 """
 

@@ -1,0 +1,17 @@
+id: subprocess-run-needs-timeout
+language: python
+severity: error
+message: subprocess.run needs a timeout= argument, so an unattended run cannot hang.
+files:
+  - skills/**
+  - scripts/**
+rule:
+  pattern: subprocess.run($$$ARGS)
+  not:
+    has:
+      field: arguments
+      has:
+        kind: keyword_argument
+        has:
+          field: name
+          regex: ^timeout$

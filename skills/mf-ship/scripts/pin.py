@@ -4,10 +4,6 @@
 # ///
 """Install one pinned MF release on both hosts, and move it only at a quiet moment.
 
-    pin.py install [<tag>|live]
-    pin.py uninstall
-
-Exit 0 done · 2 cannot. The conductor loads `move`, `describe`, `trees` and `holder`.
 Why: 0068-pinned-release design D1, D2 and D3.
 """
 

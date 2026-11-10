@@ -4,8 +4,7 @@
 # ///
 """Print the skills' hedge words (`hedge`) or sentences over 30 words (`long`).
 
-The text is `skills/*/SKILL.md` and `skills/*/references/*.md`, outside
-frontmatter, fenced code, inline code and table rows. Why: 0030-change-impact
+Why: 0030-change-impact
 design D7.
 """
 

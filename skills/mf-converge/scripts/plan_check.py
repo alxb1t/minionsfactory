@@ -4,8 +4,7 @@
 # ///
 """Hold a change's plan to the tree built from it, and print each place they differ.
 
-Exit 0 clean · 1 a problem · 2 unreadable. A name inside a living requirement
-the change's delta removes is skipped. Why: 0103-fewer-rounds design D4, D5;
+Why: 0103-fewer-rounds design D4, D5;
 the skip, 0108-converge-script.
 """
 
@@ -88,7 +87,12 @@ def _git(
     """Return a finished git command run in `root`; a code outside `ok` stops."""
     try:
         done = subprocess.run(
-            ["git", *argv], cwd=root, capture_output=True, text=True, errors="replace"
+            ["git", *argv],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=TIMEOUT_SECONDS,
         )
     except FileNotFoundError:
         raise Stop("git is missing") from None
@@ -167,10 +171,7 @@ def verify_of(text: str) -> str | None:
 def rerun(name: str, command: Command, root: Path) -> list[str]:
     """Return the lines a command that fails prints, none when it passes.
 
-    A command passes on exit 0 printing what its `Verify:` says: nothing, not even a
-    blank line, the number alone, or anything when it says neither. A `grep` or
-    `git grep` also passes on exit 1 printing nothing when its `Verify:` says it
-    prints nothing or `0`, or printing `0` alone when it says `0`. Why:
+    Why:
     0103-fewer-rounds design D4.
     """
     argv = tokens(command.text)
@@ -298,12 +299,7 @@ def _read(path: Path) -> str:
 
 
 def removed_lines(root: Path, folder: str, path: str) -> set[int]:
-    """Return the numbers of a living spec's lines in requirements the delta removes.
-
-    A requirement runs from its `### Requirement:` heading to the next one or the
-    next `## ` heading. e.g. `openspec/specs/cap/spec.md` → the lines of each
-    requirement `<folder>/specs/cap/spec.md` lists under `## REMOVED Requirements`.
-    """
+    """Return the numbers of a living spec's lines in requirements the delta removes."""
     parts = Path(path).parts
     if len(parts) != 4 or parts[:2] != ("openspec", "specs") or parts[3] != "spec.md":
         return set()
@@ -331,9 +327,7 @@ def check_names(
 ) -> list[str]:
     """Return a line for each removed name the plan still names.
 
-    A line saying it is removed is out, as are `tasks.md`, the design's `## Tests`
-    section and a living requirement the change's delta lists under
-    `## REMOVED Requirements`. Why: 0108-converge-script design C8.
+    Why: 0108-converge-script design C8.
     """
     folder = f"openspec/changes/{change}"
     lines: list[str] = []

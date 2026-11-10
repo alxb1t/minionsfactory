@@ -4,13 +4,7 @@
 # ///
 """Write the cards of a findings file a verify worker judges.
 
-    open_cards.py <findings.md> <out.md>
-
-A card is judged when its Status reads `open`, `fixed` or `wontfix`, case folded,
-backticks and bold dropped; it is copied verbatim. Prints `open cards: <n> of
-<findings name>` and exits 0, or `open cards: cannot read — <why>` and exits 2,
-writing nothing: on a Status word none of `KNOWN`, a card with no Status, a Status
-line under no card, or an out path that is a link. Why: 0095-converge-roles design
+Why: 0095-converge-roles design
 D10, 0108-converge-script design D11.
 """
 

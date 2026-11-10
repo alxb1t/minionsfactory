@@ -161,7 +161,7 @@ def test_test_metrics_read_the_junit_report(
     kinds = [kind for kind in codebase.KINDS if kind.startswith(("test-s", "slow"))]
     kinds += ["total-coverage"]
 
-    with pytest.raises(SystemExit, match="no readable test-report.xml"):
+    with pytest.raises(SystemExit, match=r"no readable test-report\.xml"):
         codebase.count(tmp_path, "test-seconds")
 
     cases = "".join(
@@ -170,10 +170,10 @@ def test_test_metrics_read_the_junit_report(
     )
     report = f'<testsuite name="pytest" tests="3" time="12.5">{cases}</testsuite>'
     _write(tmp_path, {".minions/test-report.xml": "<testsuites"})
-    with pytest.raises(SystemExit, match="no readable test-report.xml"):
+    with pytest.raises(SystemExit, match=r"no readable test-report\.xml"):
         codebase.count(tmp_path, "test-seconds")
     _write(tmp_path, {".minions/test-report.xml": "<testsuites/>"})
-    with pytest.raises(SystemExit, match="no testsuite in test-report.xml"):
+    with pytest.raises(SystemExit, match=r"no testsuite in test-report\.xml"):
         codebase.count(tmp_path, "test-seconds")
 
     _write(
@@ -195,11 +195,11 @@ def test_test_metrics_read_the_junit_report(
     # A report of other tests is stale, so is the coverage beside it.
     collected[0] = 4
     for kind in kinds:
-        with pytest.raises(SystemExit, match="test-report.xml is stale"):
+        with pytest.raises(SystemExit, match=r"test-report\.xml is stale"):
             codebase.count(tmp_path, kind)
     collected[0] = 3
     (tmp_path / "coverage.xml").unlink()
-    with pytest.raises(SystemExit, match="no readable coverage.xml"):
+    with pytest.raises(SystemExit, match=r"no readable coverage\.xml"):
         codebase.count(tmp_path, "total-coverage")
 
 
@@ -563,7 +563,7 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
         "gap: no commit `docs(0005-v): land the change directory`"
     )
 
-    with pytest.raises(run.Gap, match="usage: run.py <id>, one of lead-minutes"):
+    with pytest.raises(run.Gap, match=r"usage: run\.py <id>, one of lead-minutes"):
         run.measure(tmp_path, [], env)
     with pytest.raises(run.Gap, match="no MF_METRICS_CHANGE"):
         run.measure(tmp_path, ["grants"], {})

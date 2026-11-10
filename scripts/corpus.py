@@ -31,7 +31,12 @@ def _git(root: Path, *argv: str) -> str:
     """Return a git command's stdout, run in `root`; a failure stops."""
     try:
         done = subprocess.run(
-            ["git", *argv], cwd=root, capture_output=True, text=True, errors="replace"
+            ["git", *argv],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=TIMEOUT_SECONDS,
         )
     except FileNotFoundError:
         raise Stop("git is missing") from None

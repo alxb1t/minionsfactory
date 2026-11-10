@@ -70,12 +70,7 @@ def _front_of(role: str, head: str, round_: int, verdict: str) -> str:
 def _cards(
     root: Path, change: str, head: str, size: str, granted: bool = False
 ) -> None:
-    """Write both findings files capped at `head`, the `S` blocker sized `size`.
-
-    Conformance's open blocker is sized `one line`; a nit, a `medium` and a verified
-    blocker, each sized `a design change`, block nothing. A `granted` round's run is
-    marked `· grant`, as `mf-converge` marks it.
-    """
+    """Write both findings files capped at `head`, the `S` blocker sized `size`."""
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     cards = {
@@ -100,12 +95,7 @@ def _cards(
 
 
 def _amend_needed(root: Path, change: str, head: str, card: str = "R1") -> None:
-    """Write converge's `amend needed — <card>` halt at `head`, after round 1's start.
-
-    The card is `wontfix`, naming a `design.md` prose amend: conformance's
-    `blocking`, or adversarial's `high` security card for an `S` id. The other
-    findings file is clean.
-    """
+    """Write converge's `amend needed — <card>` halt at `head` after round 1 starts."""
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     role, severity = (
@@ -569,7 +559,7 @@ def _fix(here: Path, primary: Path, change: str, round_: str, ids: str) -> None:
     if "grant-unfinished" in modes and int(round_) > 2:
         sys.exit(1)
     folder = _folder(primary, change)
-    sent = [each.strip() for each in ids.split(";")[0].split(",")]
+    sent = [each.strip() for each in ids.split(";", maxsplit=1)[0].split(",")]
     fixed, wontfix, commit = "none", "none", "nothing committed"
     if "amend-halts" in modes and not _prose(here, change):
         conformance = folder / "conformance.md"
@@ -613,8 +603,6 @@ def _rewrite(here: Path, role: str, change: str, round_: str, path: Path) -> Non
 def _converge_worker(prompt: str, found: re.Match[str]) -> None:
     """Play the one converge worker the prompt's role line names; log its call.
 
-    The station is the checker, its shadow, a verify worker, the fixer or a rewrite
-    worker, read from the prompt; `liar-<change>` writes nothing.
     Why: 0108-converge-script design D8.
     """
     role, change, round_ = found.groups()

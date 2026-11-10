@@ -6,12 +6,7 @@
 
     verify_check.py <tasks.md>
 
-Exit 0 no break · 1 a check breaks `I19` · 2 a check cannot be parsed or run. Run
-from the repository root. A `grep` or `git grep` runs as argv, no shell, over HEAD's
-tree, or the revision a `git grep` names; each match prints as
-`<sub-task>: <path>:<line>: <text>`. A search takes the options below alone, and no
-path outside the repository: any other option, a pager's among them, or such a
-path, breaks `I19`. Why: 0066-plan-halts design D1.
+Why: 0066-plan-halts design D1.
 """
 
 import argparse
@@ -237,8 +232,6 @@ def plain(words: list[str], shell: list[str]) -> list[str]:
 def search(words: list[str]) -> Search | None:
     """Return how a search's plain words run, printing its lines; None for no search.
 
-    `-n` is added, and the flags that hide lines dropped. A `git grep` reads HEAD's
-    index, unless its first operand after the pattern is a revision git resolves.
     e.g. ["grep", "-c", "x", "a"] → (["grep", "-H", "-n", "x", "a"], [], ["a"], None)
     """
     if words[:1] == ["grep"]:
@@ -368,8 +361,9 @@ def check_command(subtask: str, command: Command, head: Head) -> bool:
         )
         return True
     matches = 0
-    for line in head.run(query):
-        if match := MATCH.fullmatch(line):
+    for found in head.run(query):
+        line = found
+        if match := MATCH.fullmatch(found):
             matches += 1
             line = f"{match[1]}:{match[2]}: {match[3]}"
         print(f"{subtask}: {line}")

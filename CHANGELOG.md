@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.92.0] - 2026-11-11
+
+Gate: local 4m9s · CI not read under mf-ship · 0.91.1: local 4m40s · CI not read under mf-ship
+
+- Ruff selects the wider families (`UP`, `ERA`, `PERF`, `SIM`, `RET`, `PT`, `RUF`, `PLE`, `PLC`, `PLR`, `PLW`, `BLE`) and
+  the gate holds them: each site is cleaned, and each deliberate blind `except` of `conduct.py` carries
+  `# noqa: BLE001` and a `# why:` line. `CODING_STANDARDS.md` states the rule (change `0110-gate-hardening`, phase 1).
+- `scripts/docstrings.py` holds `C7` and `C3` for every docstring of a Python file, counting non-blank lines, and runs in
+  `make gate` and `make check`. Each docstring over the limit keeps its summary and its `Why:` line (change
+  `0110-gate-hardening`, phase 2).
+- `ast-grep-cli` joins the dev group, and `sg-rules/subprocess-run-needs-timeout.yml` holds that a `subprocess.run` call
+  passes `timeout=`, in `make gate` and `make check`. Each site gets its module's `TIMEOUT_SECONDS`, the `make gate` call
+  of `gate_run.py` `GATE_SECONDS`; `CONTRIBUTING.md` states the ratchet (change `0110-gate-hardening`, phase 3).
+- `conduct.py cut` fetches each package its brief approves into `.minions/uv-cache`, wheels only, from PyPI's hosts only,
+  so the offline sandboxed gate finds a new dev dependency. A row that is no package name and plain version specifier, or
+  a failed fetch, stops the cut with exit 2 before any reservation (change `0110-gate-hardening`, phase 4).
+- `skills/mf-converge/scripts/gate_integrity.py` reads a frozen patch to the lines `gate_check.py` cannot see: an added
+  suppression, skip, allowlist line, swallowed error or `pyproject.toml` setting, and a removed test or `assert`; a
+  moved line is none. `make corpus` runs it over each frozen patch (change `0110-gate-hardening`, phase 5).
+- Converge writes `evidence.md` at every freeze, from `gate_integrity.py`, `plan_check.py`, one `git grep` for the names
+  the patch removes and the junit report, and gives its path to each worker as `{evidence}`. The checkers start from facts
+  a tool found (change `0110-gate-hardening`, phase 6).
+- D79, *A tool finds, a checker judges*, extends D66, D77 and D78. The worker references start from `evidence.md`, never
+  re-derive a line it holds and judge its judgment half; `CONTRIBUTING.md` states that a rule a tool can hold goes to the
+  gate (change `0110-gate-hardening`, phase 7).
+- `gate_integrity.py` and `evidence.py` read a patch's files by Git's own header lines, not by splitting `diff --git` at
+  ` b/`: a path with a space or a quoted non-ASCII name keeps its own lines, and a quoted name is read as UTF-8. A test's
+  time is its module's, class's and name's own, so `TestFast.test_main` no longer sums `TestSlow.test_main` (change
+  `0110-gate-hardening`, phase 8).
+
 ## [0.91.1] - 2026-11-10
 
 Gate: local 4m40s · CI not read under mf-ship · 0.91.0: local 4m37s · CI not read under mf-ship

@@ -32,10 +32,13 @@ DEBT_MATCH = runpy.run_path(str(HERE / "debt_match.py"))
 SKIP_STUB = runpy.run_path(str(HERE / "skip_stub.py"))
 OPEN_CARDS = runpy.run_path(str(HERE / "open_cards.py"))
 PLAN_CHECK = runpy.run_path(str(HERE / "plan_check.py"))
+EVIDENCE = runpy.run_path(str(HERE / "evidence.py"))
+GATE_INTEGRITY = runpy.run_path(str(HERE / "gate_integrity.py"))
 OVERLAP = runpy.run_path(str(HERE / "overlap.py"))
 INTEGRATE = runpy.run_path(str(HERE.parents[1] / "mf-integrate/scripts/integrate.py"))
 ROLES = ("conformance", "adversarial")
 CAP = 3
+TIMEOUT_SECONDS = 600
 SMALL = ("one line", "a test", "one line and a test")
 SIZE = re.compile(r"size:([^:]*)$")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+) — (.*)$")
@@ -57,7 +60,7 @@ REFERENCES = HERE.parent / "references"
 # The `## Prompt` placeholders. Why: design D2.
 PLACEHOLDERS = (
     *("change", "role", "round", "base", "head", "range", "scope", "findings", "patch"),
-    *("bundle", "debt_cards", "open", "ids", "models", "mode"),
+    *("bundle", "debt_cards", "open", "ids", "models", "mode", "evidence"),
 )
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -109,7 +112,10 @@ class Freeze(NamedTuple):
 
 
 class Checked(Protocol):
-    """What `host.checker` returns of one checker's run. Why: design D4."""
+    """What `host.checker` returns of one checker's run.
+
+    Why: design D4.
+    """
 
     @property
     def code(self) -> int:
@@ -259,12 +265,7 @@ class Verdict(NamedTuple):
 
 @dataclass
 class Context:
-    """One converge run: the host, the change, its worktree, workers and round.
-
-    `mark` is the run heading's; `cap` the round past which a blocker halts;
-    `picked` this run's pickup; `sent` the plan-check subjects Step 7 sent back;
-    `stations` each table's last station and effort, which a rewrite repeats.
-    """
+    """One converge run: the host, the change, its worktree, workers and round."""
 
     host: Host
     change: str
@@ -292,7 +293,13 @@ class Context:
 
 def git(tree: Path, *args: str) -> str:
     """Return git's output for `args` in `tree`, or halt naming the command."""
-    done = subprocess.run(["git", *args], cwd=tree, capture_output=True, text=True)
+    done = subprocess.run(
+        ["git", *args],
+        cwd=tree,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
+    )
     if done.returncode != 0:
         raise Halt(f"git {args[0]} failed: {done.stderr.strip()}")
     return done.stdout
@@ -402,7 +409,10 @@ def preconditions(context: Context) -> str:
 
 
 def gated(context: Context, when: str) -> None:
-    """Run the gate, then `gate_check.py`, halting on either. Why: design D6."""
+    """Run the gate, then `gate_check.py`, halting on either.
+
+    Why: design D6.
+    """
     if code := sandboxed(context, script("gate_run.py")):
         raise Halt(f"the gate is red {when}: gate_run.py exit {code}")
     argv = script("gate_check.py", "--change", context.change, "--base", context.base)
@@ -429,10 +439,48 @@ def _captured(context: Context, argv: list[str]) -> tuple[int, str]:
     return code, buffer.getvalue()
 
 
+def _read(path: Path) -> str:
+    """Return a file's text, or nothing when it is missing or a link."""
+    text = ""
+    with suppress(OSError):
+        text = _text(path) or ""
+    return text
+
+
+def _evidence(context: Context, base: str, head: str, diff: str) -> None:
+    """Write `evidence.md` for a frozen patch: facts tools found, never a verdict.
+
+    Each command runs through `_captured`, and its exit halts nothing.
+    Why: 0110-gate-hardening design D6.
+    """
+    names = EVIDENCE["candidates"](diff)
+    plan = script("plan_check.py", "--change", context.change, "--base", context.base)
+    checked = _captured(context, plan)[1]
+    grep = ["git", "grep", "-n", "-w", "-F", *(a for n in names for a in ("-e", n))]
+    found = _captured(context, grep)[1] if names else ""
+    sections = {
+        "Gate integrity": GATE_INTEGRITY["lines"](diff),
+        "Plan check": [line.rstrip() for line in checked.splitlines() if line.strip()],
+        "Stale-claim candidates": EVIDENCE["stale"](
+            names, found, EVIDENCE["touched"](diff)
+        ),
+        "Test cost": EVIDENCE["test_cost"](
+            diff,
+            _read(context.tree / ".minions" / "test-report.xml"),
+            _read(context.tree / "openspec" / "changes" / context.change / "design.md"),
+        ),
+    }
+    text = EVIDENCE["render"](context.change, base, head, sections)
+    try:
+        BUNDLE["write"](context.folder / "evidence.md", text)
+    except BUNDLE["Stop"] as stop:
+        raise Halt(f"evidence: cannot write — {stop}") from stop
+
+
 def freeze(
     context: Context, base: str, head: str, scope: tuple[str, int, int] | None = None
 ) -> Freeze:
-    """Write the patch, bundle and debt cards of `base..head`; return its counts.
+    """Write the patch, bundle, cards and evidence of `base..head`; return its counts.
 
     A catch-up's `scope` is its patch, commits and files. `debt_match.py`'s exit 2
     leaves a cards file of no card. Writes `freeze`. Why: design D3, D5.
@@ -440,9 +488,9 @@ def freeze(
     tree, folder = context.tree, context.folder
     folder.mkdir(parents=True, exist_ok=True)
     patch = folder / "diff.patch"
-    text = git(tree, "diff", "--binary", base, head) if scope is None else scope[0]
+    diff = git(tree, "diff", "--binary", base, head) if scope is None else scope[0]
     try:
-        BUNDLE["write"](patch, text)
+        BUNDLE["write"](patch, diff)
     except BUNDLE["Stop"] as stop:
         raise Halt(f"the patch cannot be written — {stop}") from stop
     try:
@@ -456,6 +504,7 @@ def freeze(
     cards = folder / "debt-cards.md"
     if DEBT_MATCH["main"]([str(debt), str(patch), str(cards)]) != 0:
         DEBT_MATCH["write"](cards, DEBT_MATCH["page"]([]))
+    _evidence(context, base, head, diff)
     commits, files = scope[1:] if scope else counts(context, base, head)[:2]
     shown = f"{_plural(commits, 'commit')} · {_plural(files, 'file')}"
     stamp(context, f"freeze — {base[:7]}..{head[:7]} · {shown}")
@@ -995,6 +1044,7 @@ def fixer(context: Context, ids: str) -> None:
         ids=ids,
         findings=" and ".join(str(context.folder / f"{r}.md") for r in ROLES),
         base=context.base,
+        evidence=context.folder / "evidence.md",
     )
     models = (executor, model, effort or "medium")
     for last in (False, True):
@@ -1016,9 +1066,6 @@ def fixer(context: Context, ids: str) -> None:
 def fix(context: Context, judged: Freeze, ids: str, note: str = "") -> Freeze:
     """Run Step 6's fixer on `ids`; return the freeze Step 7 judges.
 
-    A red gate or a dirty tree gets one more pass, with its lines as the cards, then
-    `cap reached`; a blocking amend card halts `amend needed`. The re-freeze is
-    `judged.head..HEAD`, and a fixer that committed nothing leaves `judged`.
     Why: design D3, D4, D5.
     """
     sent, why = ids, ""
@@ -1194,9 +1241,7 @@ class Debt(NamedTuple):
 def still_true(context: Context, value: str) -> tuple[int | None, str]:
     """Return a card's **Still true?** command's exit, run sandboxed, and the command.
 
-    The command is the backtick-quoted span the value opens with; with none, or one
-    that cannot be split, the exit is None. Why: design D6, D7.
-    e.g. "`grep -n x a.py` prints a line" → (0, "grep -n x a.py")
+    Why: design D6, D7.
     """
     found = COMMAND.match(value.strip())
     if found is None:
@@ -1371,9 +1416,7 @@ def _unfiled(text: str, ident: str) -> str:
 def debt(context: Context) -> Debt:
     """Write Step 9's debt once, under its lock; return what it did.
 
-    Amend cards first; then each non-blocking card not `verified` and not moot, its
-    id qualified, an id the debt holds skipped; then each fixed repeat's old card
-    cleared when its check exits 1. Writes `debt`. Why: design D7.
+    Why: design D7.
     """
     minions = Path(context.host.primary) / ".minions"
     path = minions / "debt.md"
@@ -1572,6 +1615,7 @@ def ancestor(context: Context, older: str, newer: str) -> bool:
         ["git", "merge-base", "--is-ancestor", older, newer],
         cwd=context.tree,
         capture_output=True,
+        timeout=TIMEOUT_SECONDS,
     )
     return done.returncode == 0
 
@@ -1594,10 +1638,8 @@ def select(context: Context, judged: str) -> list[tuple[str, list[str]]]:
         )
     default = INTEGRATE["default_branch"](context.tree)
     for sha, parents in chosen:
-        if (
-            len(parents) > 2
-            or len(parents) == 2
-            and not ancestor(context, parents[1], default)
+        if len(parents) > 2 or (
+            len(parents) == 2 and not ancestor(context, parents[1], default)
         ):
             raise Halt(
                 f"{sha[:7]} is no merge of {default}: catch-up scope cannot judge it"
@@ -1628,6 +1670,7 @@ def added(context: Context, judged: str) -> None:
         cwd=context.tree,
         capture_output=True,
         text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     tasks = PLAN_CHECK["subtasks"]
     was = {
@@ -1863,7 +1906,7 @@ def go_on(context: Context, run: Run) -> int:
         return catch_up(context, resolve(context, judged[1] if judged else "HEAD"))
     if name == "debt":
         return finish(context, owed=False)
-    if name == "by rule" and caught or top.detail == "none":
+    if (name == "by rule" and caught) or top.detail == "none":
         return finish(context)
     if name == "start":
         frozen = freeze(context, context.base, head(context))
@@ -1964,6 +2007,7 @@ def checker_prompt(
         patch=folder / "diff.patch",
         bundle=folder / "bundle.md",
         debt_cards=folder / "debt-cards.md",
+        evidence=folder / "evidence.md",
         findings=findings or folder / f"{role}.md",
     )
 
@@ -1981,6 +2025,7 @@ def verify_prompt(context: Context, frozen: Freeze, role: str, roles: list[str])
         round=context.round,
         range=f"{frozen.base}..{frozen.head}",
         patch=folder / "diff.patch",
+        evidence=folder / "evidence.md",
         head=frozen.head,
         open=" and ".join(str(folder / f"{each}.open.md") for each in roles),
         findings=" and ".join(str(folder / f"{each}.md") for each in roles),

@@ -6,8 +6,6 @@
 
     run.py <id>
 
-`MF_METRICS_CHANGE`, `_BASE` and `_HEAD` name the version. A metric the run left no
-data for exits 1, naming what it lacked: a gap, never a zero.
 Why: 0077-run-metrics design D3, D4.
 """
 
@@ -22,9 +20,11 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import cached_property
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
+TIMEOUT_SECONDS = 600
 STAMP = re.compile(r"(\d{8})-(\d{6})(?:-(\d+))?")
 EVENT = re.compile(r"^(\d\d):(\d\d):(\d\d) · (\S+) · ([\w-]+) — (.*)$", re.MULTILINE)
 STATIONS = ("build", "converge", "integrate", "release", "rescue", "supervise")
@@ -123,7 +123,12 @@ def _checker(station: str) -> bool:
 def _git(root: Path, *args: str) -> str:
     """Return a git command's stripped stdout; a failure raises."""
     return subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True, check=True
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=TIMEOUT_SECONDS,
     ).stdout.strip()
 
 
@@ -248,10 +253,7 @@ def _priced(path: Path, name: str, turns: list[dict[str, Any]]) -> float | Gap:
 def _spent(path: Path, name: str) -> tuple[float | Gap, int]:
     """Return a worker log's dollars, or the Gap naming why none, and its tokens.
 
-    A Claude log's are its last result event's totals: `total_cost_usd` and
-    `modelUsage` are cumulative, per 0076-context-cost D1. A Codex log's are its
-    `turn.completed` events', priced by `_priced`; one stopped before its first item
-    spent none. Why: 0104-codex-limits design D5.
+    Why: 0104-codex-limits design D5.
     """
     events = list(_json(path, '"type"')) if path.is_file() else []
     results = [e for e in events if e.get("type") == "result"]
@@ -396,7 +398,7 @@ class Version:
         events = self.events
         total = sum(
             (later.at - event.at).total_seconds()
-            for event, later in zip(events, events[1:], strict=False)
+            for event, later in pairwise(events)
             if event.who == self.change
             and event.name == "wait"
             and later.stamp == event.stamp
@@ -492,7 +494,10 @@ class Version:
             raise Gap(f"no head in {name}")
         built = found[1]
         ancestor = ["git", "merge-base", "--is-ancestor", built, self.head]
-        if subprocess.run(ancestor, cwd=self.root, capture_output=True).returncode:
+        checked = subprocess.run(
+            ancestor, cwd=self.root, capture_output=True, timeout=TIMEOUT_SECONDS
+        )
+        if checked.returncode:
             raise Gap(f"{name}'s head is not in the version's history")
         span = f"{built}..{self.head}" if fixes else f"{self.base}..{built}"
         count = ("rev-list", "--first-parent", "--no-merges", "--count", span)
@@ -525,12 +530,7 @@ class Version:
         ]
 
     def spent(self, stages: tuple[str, ...], dollars: bool = True) -> tuple[float, int]:
-        """Return the stages' dollars and tokens, each spawn's log read; none is 0.
-
-        A checker or a converge worker counts in the stage that held it, and the
-        converge script's spawn, which writes no log, counts nothing. A log priced
-        to no dollars is a gap only when `dollars` are asked for.
-        """
+        """Return the stages' dollars and tokens, each spawn's log read; none is 0."""
         logs = [
             self.log(spawn)
             for stage in stages
@@ -586,9 +586,6 @@ class Version:
     def role_tokens(self, role: str) -> int:
         """Return a role's tokens: its subagents' over the converge logs, its checkers'.
 
-        A subagent's `assistant` events carry its Task's `tool_use_id`, which the
-        log's `task_started` event names; a `converge-<role>` log, and a worker's
-        `converge-<role>-r<N>` or `converge-verify-<role>-r<N>`, is read as any log.
         Why: 0077-run-metrics design D4; 0097-cross-model design D11;
         0108-converge-script design D10.
         """

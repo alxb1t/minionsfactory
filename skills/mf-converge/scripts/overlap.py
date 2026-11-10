@@ -4,15 +4,7 @@
 # ///
 """Count what round 1's checkers and their shadows each caught, and both.
 
-    overlap.py <change-folder>
-
-Reads `conformance.md` and `adversarial.md`, their cards of round 1, and
-`shadow-conformance.md` and `shadow-adversarial.md`, every card. Two cards match when
-their `What it affects` spans share a path, a line of one within `NEAR` of a line of
-the other, or either names that path bare: a span with a line is a path, a span with
-none is one when it has a `/` or a named file suffix, and bare when its card gives
-that path no line. Prints one line, each role's counts, and
-exits 0, or `overlap: cannot read — <file>` and exits 2. Why: 0097-cross-model design
+Why: 0097-cross-model design
 D10.
 """
 
@@ -62,10 +54,7 @@ def cards(text: str) -> list[str]:
 def anchors(card: str) -> list[Anchor]:
     """Return the path and lines of each path span of a card's `What it affects`.
 
-    A span with a line is a path whatever its shape, and a bare span when it has a `/`
-    or a named file suffix; a path the card also gives a line is not named bare. e.g.
-    "`f()` in `a.py` (`a.py:12-14`), `b.py` and `Makefile:3`" →
-    [("a.py", 12, 14), ("b.py", None, None), ("Makefile", 3, 3)]
+    e.g. "`f()` in `a.py:12-14`, `b.py`" → [("a.py", 12, 14), ("b.py", None, None)]
     """
     affects = AFFECTS.search(card)
     found: list[Anchor] = []

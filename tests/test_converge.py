@@ -1,7 +1,5 @@
 """`converge.py`, the converge conductor, driven over a fake host.
 
-A real repository under `tmp_path`, its version in a worktree; the host fakes the
-sandbox, the checkers and the fixer, so no worker process runs.
 Why: 0108-converge-script design D1, its `## Tests` table.
 """
 
@@ -118,12 +116,7 @@ def _round_of(station: str) -> int:
 
 
 class Host:
-    """A fake of the run `converge` is handed: its sandbox and its workers.
-
-    A checker writes `<table>.md` clean at `HEAD`, unless `answers` holds its
-    station; a fixer commits one file and reports, unless `fixers` holds one.
-    `exits` holds an exit per command, or a list taken one a call, its last kept.
-    """
+    """A fake of the run `converge` is handed: its sandbox and its workers."""
 
     def __init__(self, primary: Path, tree: Path) -> None:
         self.primary = primary
@@ -470,12 +463,54 @@ def test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards(host: Host) -
     for name, said in (
         ("diff.patch", "the patch cannot be written"),
         ("bundle.md", "bundle: cannot bundle"),
+        ("evidence.md", "evidence: cannot write"),
     ):
         (folder / name).unlink()
         (folder / name).symlink_to(host.primary / "elsewhere")
         with pytest.raises(converge["Halt"], match=said):
             converge["freeze"](context, base, head)
         (folder / name).unlink()
+
+    # The evidence stands after the freeze: its plan check is the host's output, and a
+    # patch that removes a name runs one `git grep` for it.
+    host.printed["plan_check.py"] = "plan: clean\n"
+    host.printed["git"] = "docs/guide.md:41:call A to start\nsrc/a.py:1:B = 1\n"
+    (host.tree / ".minions").mkdir()
+    (host.tree / ".minions" / "test-report.xml").write_text(
+        '<testsuites><testcase classname="tests.test_x" name="test_x"'
+        ' time="0.25"/></testsuites>'
+    )
+    context.base = base
+    fixed = _commit(
+        host.tree,
+        {
+            "src/a.py": "B = 1  # noqa: X\n",
+            "tests/test_x.py": "def test_x():\n    pass\n",
+        },
+        "fix(0001-a): it",
+    )
+    host.ran.clear()
+
+    converge["freeze"](context, head, fixed)
+
+    assert (folder / "evidence.md").read_text() == (
+        f"# Evidence — {_CHANGE} · {head[:7]}..{fixed[:7]}\n\n"
+        "Facts a tool found, not verdicts. Start from them; judge them.\n\n"
+        "## Gate integrity\nnoqa · src/a.py:1 · B = 1  # noqa: X\n\n"
+        "## Plan check\nplan: clean\n\n"
+        "## Stale-claim candidates\nA · docs/guide.md:41: call A to start\n\n"
+        "## Test cost\nadded · tests/test_x.py:1 · test_x · 0.25 s\n"
+    )
+    assert _ran(host) == ["plan_check.py", "git"]
+    assert host.ran[0][-4:] == ["--change", _CHANGE, "--base", base]
+    assert host.ran[1] == ["git", "grep", "-n", "-w", "-F", "-e", "A"]
+
+    # With no name to look for no `git grep` runs, and the section reads `None.`.
+    host.ran.clear()
+    converge["freeze"](context, base, head)
+
+    assert _ran(host) == ["plan_check.py"]
+    assert "## Stale-claim candidates\nNone.\n" in (folder / "evidence.md").read_text()
 
 
 _REFERENCES = (
@@ -503,10 +538,10 @@ def test_each_worker_prompt_is_filled_from_its_reference(tmp_path: Path) -> None
     with pytest.raises(ValueError, match="unknown placeholder: colour"):
         converge["prompt"]("verify.md", colour="red", **values)
     del values["findings"]
-    with pytest.raises(ValueError, match="verify.md: findings is not filled"):
+    with pytest.raises(ValueError, match=r"verify\.md: findings is not filled"):
         converge["prompt"]("verify.md", **values)
     # A reference with no `## Prompt`, or one naming no placeholder, is refused.
-    with pytest.raises(ValueError, match="worker.md has no ## Prompt block"):
+    with pytest.raises(ValueError, match=r"worker\.md has no ## Prompt block"):
         converge["prompt"]("worker.md", **values)
     odd = tmp_path / "odd.md"
     odd.write_text("## Prompt\n\n```text\nrole: {colour}\n```\n")
@@ -640,7 +675,7 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     ]
     # A file missing, or one not clean, halts the round naming it.
     halt = converge["Halt"]
-    with pytest.raises(halt, match="conformance.md is missing: its checker left no"):
+    with pytest.raises(halt, match=r"conformance\.md is missing: its checker left no"):
         converge["held"](context, read | {"conformance": None}, frozen)
     narrow = folder / "conformance.md"
     narrow.write_text(findings("conformance", head, files=0, commits=0))
@@ -691,6 +726,7 @@ def test_a_clean_round_converges_with_no_fix(host: Host) -> None:
         "make",
         "gate_run.py",
         "gate_check.py",
+        "plan_check.py",
         "gate_run.py",
     ]
 
@@ -812,10 +848,15 @@ def test_a_blocker_is_fixed_verified_and_cleared(host: Host) -> None:
     assert f"{first}..{fixed}: {host.folder() / 'diff.patch'}" in verify
     assert str(host.folder() / "conformance.open.md") in verify
     assert "- **R1 — It breaks**" in (host.folder() / "conformance.open.md").read_text()
+    # The re-freeze rewrote the evidence for the fix range, and each prompt names it.
+    evidence = host.folder() / "evidence.md"
+    assert evidence.read_text().startswith(f"# Evidence — {_CHANGE} · {span}\n")
+    assert all(str(evidence) in prompt for *_, prompt in host.checks)
+    assert str(evidence) in told
     assert _ran(host) == [
-        *("make", "gate_run.py", "gate_check.py"),
-        *("gate_run.py", "gate_run.py", "gate_check.py", "plan_check.py"),
-        "gate_run.py",
+        *("make", "gate_run.py", "gate_check.py", "plan_check.py"),
+        *("gate_run.py", "plan_check.py", "gate_run.py", "gate_check.py"),
+        *("plan_check.py", "gate_run.py"),
     ]
 
     for case, why in (
@@ -1046,7 +1087,7 @@ def test_round_one_pickup_rides_with_the_fix(host: Host) -> None:
         "round 1 · debt — written 0001·R2",
         "round 1 · done — converged in 1 round · 1 card to debt",
     ]
-    assert _ran(host)[3:] == ["gate_run.py", "grep", "gate_run.py"]
+    assert _ran(host)[3:] == ["plan_check.py", "gate_run.py", "grep", "gate_run.py"]
 
 
 def test_a_pickup_check_runs_on_the_needed_role(host: Host) -> None:
@@ -1081,8 +1122,8 @@ def test_a_pickup_check_runs_on_the_needed_role(host: Host) -> None:
     for role in ("conformance", "adversarial"):
         assert str(host.folder() / f"{role}.open.md") in told
     assert _ran(host)[3:] == [
-        *("gate_run.py", "gate_run.py", "gate_check.py"),
-        "gate_run.py",
+        *("plan_check.py", "gate_run.py", "plan_check.py"),
+        *("gate_run.py", "gate_check.py", "gate_run.py"),
     ]
 
     host.answers = {
@@ -1248,7 +1289,7 @@ def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
     )
 
     host.exits["git"] = 0
-    host.exits["plan_check.py"] = [1, 0]
+    host.exits["plan_check.py"] = [0, 1, 0]
     host.printed["plan_check.py"] = "plan: 1.1 — `git grep -n nope` exited 1\n"
 
     assert run(host) == 0

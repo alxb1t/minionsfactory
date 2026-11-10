@@ -1,8 +1,5 @@
 """The Markdown readers against the page: each reads a section as CommonMark renders it.
 
-A deterministic corpus: every combination of a prefix, a heading form, a body and a line
-ending, for `## Dependencies` and `## For the cut`, read by `conduct.py` and by
-`brief_check.py` and by an oracle that renders the document and reads its HTML.
 Why: 0103-fewer-rounds design D6.
 """
 

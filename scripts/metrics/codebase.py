@@ -19,6 +19,7 @@ from collections.abc import Callable
 from pathlib import Path
 from xml.parsers import expat
 
+TIMEOUT_SECONDS = 600
 ROOTS = ("skills", "scripts", "tests")
 CODE = ("skills", "scripts")
 BIG_MODULE_LINES = 1000
@@ -77,6 +78,7 @@ def _complex_functions(root: Path) -> int:
         cwd=root,
         capture_output=True,
         text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     return complex_count(done.stdout, done.returncode, done.stderr)
 
@@ -144,6 +146,7 @@ def _collected(root: Path) -> int:
         cwd=root,
         capture_output=True,
         text=True,
+        timeout=TIMEOUT_SECONDS,
     )
     found = COLLECTED.search(done.stdout)
     if done.returncode != 0 or not found:
