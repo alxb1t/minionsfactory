@@ -57,13 +57,15 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
             "skills/mf-converge/references/worker.md": "fifteen sixteen",
             "skills/mf-converge/references/generic-conformance.md": "seventeen",
             "skills/mf-converge/references/generic-adversarial.md": "eighteen nineteen",
+            "skills/mf-converge/references/fix.md": "twenty twenty-one twenty-two",
         },
     )
     reading_set = _load("reading_set")
 
     assert reading_set.words(tmp_path, "shared") == 9
-    # The converge conductor reads no decision, principle or threat model.
-    assert reading_set.words(tmp_path, "converge") == 9
+    # The converge fixer reads `AGENTS.md`, the worker reference and `fix.md`: no
+    # decision, principle, threat model or the skill's front.
+    assert reading_set.words(tmp_path, "converge") == 8
     # A decisions file with no `### D` heading counts whole in conformance's index.
     assert reading_set.words(tmp_path, "conformance") == 10
     # Adversarial reads the threat model, and no decision.
@@ -72,7 +74,7 @@ def test_reading_sets_count_words(tmp_path: Path) -> None:
     # Conformance reads the decisions' index, its `### D` lines, not the whole file.
     _write(tmp_path, {"docs/decisions.md": "### D1 · six\nbody words"})
     assert reading_set.words(tmp_path, "shared") == 14
-    assert reading_set.words(tmp_path, "converge") == 9
+    assert reading_set.words(tmp_path, "converge") == 8
     assert reading_set.words(tmp_path, "conformance") == 13
     assert reading_set.words(tmp_path, "adversarial") == 8
 
@@ -883,6 +885,42 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     (tmp_path / ".minions/changes" / checker).unlink()
     with pytest.raises(run.Gap, match=f"no {checker}"):
         run.Version(tmp_path, "0001-x", "a", "b").role_tokens("conformance")
+
+    # The converge script writes no log of its own: each worker it starts is a spawn,
+    # its log `<stamp>-converge-<role>-r<N>.log`, a retry's `-2`, and counts in the
+    # converge stage's cost and tokens and its role's tokens, never in its minutes.
+    # Why: 0108-converge-script design D10.
+    scripted = (
+        "# Ship run 20261103-100000\n\n"
+        "10:00:00 · run · start — executor claude · versions 0007-s · mf v1\n"
+        "10:00:10 · 0007-s · spawn — converge · script\n"
+        "10:00:20 · 0007-s · spawn — converge-conformance-r1 · model m\n"
+        "10:00:20 · 0007-s · spawn — converge-adversarial-r1 · model m\n"
+        "10:05:00 · 0007-s · finish — converge-adversarial-r1 · exit 1 · 280s\n"
+        "10:05:01 · 0007-s · spawn — converge-adversarial-r1 · model m\n"
+        "10:06:00 · 0007-s · finish — converge-adversarial-r1 · exit 0 · 59s\n"
+        "10:06:00 · 0007-s · finish — converge-conformance-r1 · exit 0 · 340s\n"
+        "10:06:10 · 0007-s · spawn — converge-fix-r1 · model m\n"
+        "10:07:10 · 0007-s · finish — converge-fix-r1 · exit 0 · 60s\n"
+        "10:07:20 · 0007-s · spawn — converge-verify-adversarial-r2 · model m\n"
+        "10:08:20 · 0007-s · finish — converge-verify-adversarial-r2 · exit 0 · 60s\n"
+        "10:10:10 · 0007-s · finish — converge · exit 0 · 600s\n"
+    )
+    _write(tmp_path, {".minions/runs/20261103-100000.md": scripted})
+    for name, cost, tokens in (
+        ("converge-conformance-r1", 1.0, 100),
+        ("converge-adversarial-r1", 0.5, 10),
+        ("converge-adversarial-r1-2", 0.25, 20),
+        ("converge-fix-r1", 0.25, 30),
+        ("converge-verify-adversarial-r2", 0.5, 40),
+    ):
+        _worker_log(tmp_path, f"0007-s/logs/20261103-100000-{name}.log", cost, tokens)
+    assert read("cost-usd-converge", "0007-s") == 2.5
+    assert read("tokens-converge", "0007-s") == 200
+    assert read("converge-minutes", "0007-s") == 10.0
+    scripted_run = run.Version(tmp_path, "0007-s", "a", "b")
+    assert scripted_run.role_tokens("conformance") == 100
+    assert scripted_run.role_tokens("adversarial") == 70
 
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:

@@ -6,6 +6,8 @@ agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 
 import fnmatch
 import hashlib
+import io
+import itertools
 import json
 import os
 import re
@@ -39,17 +41,24 @@ _WORKER = Path(__file__).with_name("fake_worker.py")
 _WORKTREES = (
     "- **Worktrees:** `../` — a version's worktree is `<this path>/<branch>`.\n"
 )
+_GATE = "gate:\n\ttest ! -e .minions/red\n"
+_ROLES = ("adversarial", "conformance")
 
 
 def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
-    """Return a primary checkout on `main`, its `AGENTS.md` holding `agents`."""
+    """Return a primary checkout on `main`, its `AGENTS.md` holding `agents`.
+
+    Its gate is green unless `.minions/red` stands in the tree it runs in.
+    Why: 0108-converge-script C5.
+    """
     root = tmp_path / "main"
     root.mkdir()
     _git(root, "init", "-q", "-b", "main")
     _git(root, "config", "user.name", "mf")
     _git(root, "config", "user.email", "mf@example.invalid")
     _git(root, "config", "commit.gpgsign", "false")
-    _commit(root, {".gitignore": ".minions/\n", "AGENTS.md": agents}, "base")
+    files = {".gitignore": ".minions/\n", "AGENTS.md": agents, "Makefile": _GATE}
+    _commit(root, files, "base")
     return root.resolve()
 
 
@@ -64,6 +73,7 @@ def _version(
     line += f"beside: [{beside}]\n" if beside else ""
     files = {
         f"{folder}/proposal.md": f"---\nbump: minor\n{line}---\n",
+        f"{folder}/design.md": f"# {change} — design\n",
         f"{folder}/tasks.md": f"## Progress\n\n{progress}",
     }
     _commit(tree, files, f"cut {change}")
@@ -141,6 +151,14 @@ def ps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _no_codex_sessions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Read Codex sessions from an empty folder, never the operator's."""
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+
+
+@pytest.fixture(autouse=True)
+def _sandbox(fake_sandbox_exec: Path) -> None:
+    """Run converge's commands under the fake `sandbox-exec`: a Seatbelt cannot nest.
+
+    Why: 0108-converge-script C5.
+    """
 
 
 def _register(pid: int, comm: str, lstart: str) -> None:
@@ -234,10 +252,38 @@ def _codex_argvs(tmp_path: Path) -> list[list[str]]:
 def _calls(path: Path) -> list[str]:
     """Return the fake's calls, a phase spawn's ` with phase=<digits>` dropped.
 
-    Why: 0102-build-per-phase design *The fake host*.
+    A round's converge workers run in parallel: each run of their lines is sorted.
+    Why: 0102-build-per-phase design *The fake host*; 0108-converge-script design D4.
     """
     lines = path.read_text().splitlines() if path.is_file() else []
-    return [re.sub(r" with phase=\d+\b", "", line) for line in lines]
+    calls = [re.sub(r" with phase=\d+\b", "", line) for line in lines]
+    grouped = itertools.groupby(calls, key=lambda call: call.startswith("converge-"))
+    return [
+        call for worker, run in grouped for call in (sorted if worker else list)(run)
+    ]
+
+
+def _judged(change: str = "0001-todo", round_: int = 1) -> list[str]:
+    """Return the calls of one judge round's checkers, as `_calls` orders them."""
+    return [
+        f"converge-{role}-r{round_} {change}" for role in ("adversarial", "conformance")
+    ]
+
+
+def _verified(change: str, round_: int) -> list[str]:
+    """Return the calls of a fix and the verify round after it."""
+    verify = (f"converge-verify-{role}-r{round_ + 1} {change}" for role in _ROLES)
+    return [f"converge-fix-r{round_} {change}", *verify]
+
+
+def _capped(change: str = "0001-todo") -> list[str]:
+    """Return the calls of a converge that caps: round 1, then two fixes verified."""
+    return [*_judged(change), *_verified(change, 1), *_verified(change, 2)]
+
+
+def _granted(change: str = "0001-todo", round_: int = 3) -> list[str]:
+    """Return the calls of a granted round past the files' `round_`."""
+    return _verified(change, round_)
 
 
 def _log(root: Path) -> list[str]:
@@ -684,7 +730,7 @@ def test_a_ready_version_ships_past_a_slow_one(
     fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
-    calls = fake("slow-0001-todo", "by-rule")
+    calls = fake("slow-0001-todo")
     root = _primary(tmp_path)
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
@@ -699,16 +745,19 @@ def test_a_ready_version_ships_past_a_slow_one(
 
     seen = _calls(calls)
     assert seen[0] == "probe"
-    assert seen.index("build 0001-todo") < seen.index("converge 0001-todo")
+    assert seen.index("build 0001-todo") < seen.index(
+        "converge-conformance-r1 0001-todo"
+    )
     # A converge skipped by the plan sends the built version to its release.
-    assert "converge 0002-marks" not in seen
+    assert "converge-conformance-r1 0002-marks" not in seen
     assert seen.index("build 0002-marks") < seen.index("release 0002-marks")
     assert not (marks / "conformance.md").exists()
     assert not (marks / "adversarial.md").exists()
     between = seen[
         seen.index("release 0002-marks") + 1 : seen.index("release 0001-todo")
     ]
-    assert between[-2:] == ["integrate 0001-todo", "converge 0001-todo"]
+    # The catch-up over the integrate merge is by rule: it starts no worker.
+    assert between[-1] == "integrate 0001-todo"
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
     assert _git(root, "rev-parse", "v0.1.0") == _git(root, "rev-parse", "0002-marks")
     assert _git(root, "rev-parse", "v0.2.0") == _git(root, "rev-parse", "0001-todo")
@@ -753,6 +802,7 @@ def test_a_ready_version_ships_past_a_slow_one(
     folder = "openspec/changes/0003-more"
     cut = {
         f"{folder}/proposal.md": "---\nbump: minor\n---\n",
+        f"{folder}/design.md": "# 0003-more — design\n",
         f"{folder}/tasks.md": "## Progress\n\n- [ ] 1 — More\n",
     }
     _commit(elsewhere, cut, "cut 0003-more")
@@ -885,7 +935,9 @@ def test_a_version_with_adversarial_skipped_ships_on_a_stub(
         == 0
     )
 
-    assert "converge 0001-todo and adversarial=skip" in _calls(calls)
+    # The skipped checker starts no worker.
+    assert "converge-conformance-r1 0001-todo" in _calls(calls)
+    assert "converge-adversarial-r1 0001-todo" not in _calls(calls)
     assert "release 0001-todo" in _calls(calls)
     stub = (folder / "adversarial.md").read_text()
     assert "\nmode: skipped\n" in stub
@@ -963,7 +1015,7 @@ def test_after_waits_for_its_dependency(
             "build 0001-todo",
             "build 0002-marks",
             "release 0001-todo",
-            "converge 0002-marks",
+            *_judged("0002-marks"),
         )
     ]
     assert order == sorted(order)
@@ -1388,12 +1440,16 @@ def test_the_integrate_script_is_loaded_once(
 
 
 def _behind(tmp_path: Path, moved: str, started: bool) -> tuple[Path, Path]:
-    """Return a primary and `0001-todo`'s cut, `main` moved `moved` since."""
+    """Return a primary and `0001-todo`'s cut, `main` moved `moved` since.
+
+    A moved `Makefile` keeps its `gate` recipe.
+    """
     base = _primary(tmp_path)
     cut = _version(base, "0001-todo", "- [ ] 1 — Todo\n")
     if started:
         _commit(cut, {"work.txt": "x\n"}, "build: a first part")
-    _commit(base, {moved: "x\n"}, "main moves")
+    text = f"{_GATE}x:\n\ttrue\n" if moved == "Makefile" else "x\n"
+    _commit(base, {moved: text}, "main moves")
     return base, cut
 
 
@@ -1412,7 +1468,7 @@ def test_a_cut_only_version_merges_in_before_its_first_worker(
         "probe",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(),
         "release 0001-todo",
     ]
     assert _MERGED in _git(cut_only, "log", "--format=%s", "0001-todo")
@@ -1458,7 +1514,8 @@ def test_a_changelog_conflict_is_settled_by_rule(
     mine = f"{entries}\n- The branch's entry.\n"
     _commit(logged_tree, {"CHANGELOG.md": mine}, "build: a first part")
     release = f"{entries}\n## [0.1.0] - 2026-11-04\n\n- A release.\n"
-    _commit(logged, {"Makefile": "x\n", "CHANGELOG.md": release}, "main releases")
+    moved = {"Makefile": f"{_GATE}x:\n\ttrue\n", "CHANGELOG.md": release}
+    _commit(logged, moved, "main releases")
     assert _run_claude(conduct, logged, monkeypatch) == 0
     assert _calls(calls)[1] == "build 0001-todo"
     assert _MERGED in _git(logged, "log", "--format=%s", "0001-todo")
@@ -1867,7 +1924,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _calls(calls) == ["probe", *_judged(), "release 0001-todo"]
     assert _git(root, "tag", "-l") == "v0.1.0"
 
     other = tmp_path / "other"
@@ -1899,7 +1956,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
         _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert "converge 0002-marks" not in _calls(calls)
+    assert "converge-conformance-r1 0002-marks" not in _calls(calls)
     lines = _log(crashed)
     assert any(" · run · halt — conduct.py failed: " in line for line in lines)
     assert lines[-1].endswith(
@@ -1929,7 +1986,7 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
         "rescue 0001-todo",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(),
         "release 0001-todo",
     ]
     grep = ("--grep=amend the change", "0001-todo")
@@ -2034,12 +2091,13 @@ def test_a_build_runs_a_worker_per_phase(
     lines = run(root, 0)
 
     build = "build 0001-todo with phase="
-    assert calls.read_text().splitlines() == [
+    called = calls.read_text().splitlines()
+    assert called[:5] == [
         "probe",
         *(f"{build}{phase}" for phase in ("1", "2", "3", "close")),
-        "converge 0001-todo",
-        "release 0001-todo",
     ]
+    assert sorted(called[5:7]) == _judged()
+    assert called[7:] == ["release 0001-todo"]
 
     # The moderate phase builds on `[build.moderate]`; the hard, the unrated and the
     # close on `[build]`'s model.
@@ -2143,16 +2201,17 @@ def test_a_halt_in_a_phase_resumes_there(
     )
 
     build = "build 0001-todo with phase="
-    assert calls.read_text().splitlines() == [
+    called = calls.read_text().splitlines()
+    assert called[:6] == [
         "probe",
         f"{build}1",
         f"{build}2",
         "rescue 0001-todo",
         f"{build}2",
         f"{build}close",
-        "converge 0001-todo",
-        "release 0001-todo",
     ]
+    assert sorted(called[6:8]) == _judged()
+    assert called[8:] == ["release 0001-todo"]
 
     # A phase spawn that ticks nothing halts: no phase runs twice without an amend.
     idle = tmp_path / "idle"
@@ -2205,15 +2264,18 @@ def test_a_rescue_amends_at_amend_needed(
         "probe",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(),
+        "converge-fix-r1 0001-todo",
         "rescue 0001-todo",
-        "converge 0001-todo",
+        *_judged(round_=2),
         "release 0001-todo",
     ]
     assert any(line.endswith(fixed(root)) for line in lines)
     assert lines[-1].endswith(" · run · done — released v0.1.0")
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
-    assert log.read_text().startswith("# t\n\n## Run 2 — d · amend\n")
+    assert re.match(
+        r"# 0001-todo — converge status\n\n## Run 2 — .* · amend\n", log.read_text()
+    )
 
     # Halted so on disk at the run's start, beside a version that builds, it gets
     # the same through the entry rescue.
@@ -2225,7 +2287,7 @@ def test_a_rescue_amends_at_amend_needed(
     lines = run(entry, 0)
     made = _calls(calls)
     assert "build 0001-todo" not in made
-    assert made.count("converge 0001-todo") == 1
+    assert made.count("converge-conformance-r2 0001-todo") == 1
     assert {"rescue 0001-todo", "release 0001-todo", "release 0002-marks"} <= set(made)
     assert any(" · 0001-todo · halt — converge-halted — " in line for line in lines)
     assert any(line.endswith(fixed(entry)) for line in lines)
@@ -2241,7 +2303,7 @@ def test_a_rescue_amends_at_amend_needed(
     assert _calls(calls) == [
         "probe",
         "rescue 0001-todo",
-        "converge 0001-todo",
+        *_judged(round_=2),
         "release 0001-todo",
     ]
     assert any(line.endswith(fixed(alone)) for line in lines)
@@ -2473,9 +2535,10 @@ def test_an_amend_during_a_rescue_goes_on(
         "probe",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(),
+        "converge-fix-r1 0001-todo",
         "rescue 0001-todo",
-        "converge 0001-todo",
+        *_judged(round_=2),
         "release 0001-todo",
     ]
     grep = ("--grep=amend the change", "0001-todo")
@@ -2536,11 +2599,15 @@ def test_a_halt_answered_on_disk_comes_back(
 
     # A worker in the second version's tree is killed as at a timeout.
     def timed_out(
-        command: list[str], cwd: Path, out: Path | int, claim: Path | None
+        command: list[str],
+        cwd: Path,
+        out: Path | int,
+        claim: Path | None,
+        timeout: float | None = None,
     ) -> tuple[int, bool]:
         if cwd.name == "0003-late":
             return -9, True
-        return work(command, cwd, out, claim)
+        return work(command, cwd, out, claim, timeout=timeout)
 
     globals_["work"] = timed_out
     hold = tmp_path / "hold"
@@ -2591,7 +2658,10 @@ def test_a_halt_answered_on_disk_comes_back(
         sleep(seconds)
 
     conductor.on_disk = on_disk
-    monkeypatch.setattr(time, "sleep", wait)
+    # The conductor's own sleeps alone: a git run's reap on a loaded machine sleeps too.
+    clock = types.SimpleNamespace(**vars(time))
+    clock.sleep = wait
+    monkeypatch.setitem(globals_, "time", clock)
     conductor.halt("0003-late", "build timed out")
     taken: list[object] = []
 
@@ -2832,10 +2902,11 @@ def test_the_supervisor_runs_on_its_own_table(tmp_path: Path) -> None:
     table.unlink()
     assert models(minions, "0001-todo", "supervise", "codex") == ("codex", None, None)
 
-    # Converge's conductor on Claude takes Sonnet high when its table names neither;
-    # a table naming one keeps it, the other none. Why: 0100-worker-diet design D8.
-    conductor = ("claude", "claude-sonnet-5-5", "high")
-    assert models(minions, "0001-todo", "converge", "claude") == conductor
+    # `[converge]` on Claude, the checkers' default, takes Sonnet high when its table
+    # names neither; a table naming one keeps it, the other none.
+    # Why: 0100-worker-diet design D8; 0108-converge-script design D8.
+    checkers = ("claude", "claude-sonnet-5-5", "high")
+    assert models(minions, "0001-todo", "converge", "claude") == checkers
     assert models(minions, "0001-todo", "converge", "codex") == ("codex", None, None)
     table.write_text('[converge]\nmodel = "claude-opus-5-5"\n')
     opus = ("claude", "claude-opus-5-5", None)
@@ -2879,7 +2950,7 @@ def test_a_supervisor_answers_a_diagnosed_halt(
         "supervise 0001-todo with decide=recommended",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(),
         "release 0001-todo",
     ]
     grep = ("--grep=amend the change", "0001-todo")
@@ -3112,7 +3183,7 @@ def test_a_supervisor_settles_an_integrate_note(
         "integrate 0002-marks with settled=supervisor",
         "build 0002-marks",
         "build 0002-marks with phase=close",
-        "converge 0002-marks",
+        *_judged("0002-marks"),
         "release 0002-marks",
     ]
     subject = "--grep=^chore(integrate): merge main into 0002-marks$"
@@ -3528,7 +3599,8 @@ def test_a_new_executor_is_probed_mid_run(
             )
             assert any(
                 line.endswith(
-                    " · 0002-marks · spawn — converge · model default · executor codex"
+                    " · 0002-marks · spawn — converge-conformance-r1 · model default"
+                    " · executor codex"
                 )
                 for line in lines
             )
@@ -4042,7 +4114,7 @@ def test_a_queued_cut_is_cut_then_built(
         "cut-change 0001-a",
         "build 0001-a",
         "build 0001-a with phase=close",
-        "converge 0001-a",
+        *_judged("0001-a"),
     ]
     assert _calls(calls) == ["probe", *made, "release 0001-a"]
     lines = _log(root)
@@ -4139,7 +4211,7 @@ def test_a_cut_brief_reaches_the_supervisor(
         "supervise 0001-a with decide=recommended and brief=brief.md",
         "build 0001-a",
         "build 0001-a with phase=close",
-        "converge 0001-a",
+        *_judged("0001-a"),
         "release 0001-a",
     ]
     prompt = conduct["_supervise_prompt"]
@@ -4593,95 +4665,6 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     ]
 
 
-def test_a_worker_clause_names_its_model_and_effort(tmp_path: Path) -> None:
-    conduct = _conduct()
-    clause = conduct["_worker_clause"]
-    assert (
-        clause("converge.conformance", ("claude", "claude-opus-5-5", "high"), "claude")
-        == " and conformance=claude-opus-5-5/high"
-    )
-    assert (
-        clause("converge.fix", ("claude", "claude-sonnet-5-5", None), "claude")
-        == " and fix=claude-sonnet-5-5/default"
-    )
-    assert clause("converge.conformance", ("codex", "gpt-5", "high"), "codex") == ""
-    assert clause("converge.adversarial", ("claude", None, None), "claude") == ""
-    # A checker on another host than converge's goes through the mailbox.
-    assert (
-        clause("converge.conformance", ("codex", "gpt-6.1-sol", "high"), "claude")
-        == " and conformance=mailbox"
-    )
-    assert (
-        clause("converge.adversarial", ("claude", None, None), "codex")
-        == " and adversarial=mailbox"
-    )
-    # A skipped checker takes no model and no mailbox, on either host.
-    assert (
-        clause("converge.adversarial", ("claude", None, None), "claude", True)
-        == " and adversarial=skip"
-    )
-    assert (
-        clause("converge.conformance", ("codex", "gpt-6.1-sol", "high"), "claude", True)
-        == " and conformance=skip"
-    )
-
-    minions = tmp_path / ".minions"
-    table = minions / "changes" / "0001-todo" / "models.toml"
-    table.parent.mkdir(parents=True)
-    table.write_text(
-        '[converge]\nexecutor = "claude"\n'
-        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
-    )
-    models = conduct["_models"]
-    assert models(minions, "0001-todo", "converge.conformance", "codex") == (
-        "claude",
-        "claude-opus-5-5",
-        "high",
-    )
-    # A cut's old table names the worker it was written for.
-    table.write_text(
-        '[converge.review]\nmodel = "claude-sonnet-5-5"\n'
-        '[converge.security]\neffort = "max"\n'
-    )
-    assert models(minions, "0001-todo", "converge.conformance", "claude") == (
-        "claude",
-        "claude-sonnet-5-5",
-        None,
-    )
-    assert models(minions, "0001-todo", "converge.adversarial", "claude") == (
-        "claude",
-        None,
-        "max",
-    )
-    file = "conduct: halt — changes/0001-todo/models.toml"
-    for station, text, said in (
-        (
-            "converge.fix",
-            '[converge.fix]\nexecutor = "codex"\n',
-            f"{file}: converge.fix names an executor",
-        ),
-        (
-            "converge.adversarial",
-            '[converge.adversarial]\nexecutor = "codex"\nmodel = "claude-opus-5-5"\n',
-            f"{file}: converge.adversarial on codex, model claude-opus-5-5",
-        ),
-        (
-            "converge.conformance",
-            '[converge.conformance]\nexecutor = "gemini"\n',
-            f"{file}: executor 'gemini' unknown",
-        ),
-        (
-            "converge.fix",
-            '[converge.fix]\nmodel = "x y"\n',
-            f"{file}: converge.fix 'x y' is not a model or effort",
-        ),
-    ):
-        table.write_text(text)
-        with pytest.raises(conduct["Stop"]) as stop:
-            models(minions, "0001-todo", station, "claude")
-        assert str(stop.value) == said
-
-
 def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
@@ -4766,157 +4749,76 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
         table.write_text(text)
         assert skips(minions, "0001-todo") == held, text
 
-
-def test_a_checker_request_is_bounded(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    serve, opened = conduct["serve_requests"], conduct["_open_mailbox"]
-    mailbox = tmp_path / "queue" / "checkers" / "0001-todo"
-    assert opened(mailbox) is None
-    assert mailbox.stat().st_mode & 0o777 == 0o700
-    # A converge spawn starts on an empty mailbox.
-    (mailbox / "conformance.answer").write_text("exit 0\n")
-    assert opened(mailbox) is None
-    assert list(mailbox.iterdir()) == []
-
-    spawned: list[tuple[str, str, str]] = []
-
-    def spawn(role: str, prompt: str, request: str) -> str:
-        spawned.append((role, prompt, request))
-        return "exit 0 · executor codex · model gpt-6.1-sol · effort high"
-
-    ident = "0123456789abcdef"
-    other = "fedcba9876543210"
-
-    secret = tmp_path / "secret"
-    secret.write_text("key\n")
-    (mailbox / "conformance.request").write_text(f"request {ident}\nJudge it.\n")
-    (mailbox / "adversarial.request").symlink_to(secret)
-    long = "x" * (conduct["REQUEST_BYTES"] + 1)
-    (mailbox / "shadow-conformance.request").write_text(long)
-    (mailbox / "shadow-adversarial.request").mkdir()
-    (mailbox / "fix.request").write_text("Fix it.\n")
-    assert serve(mailbox, 0, spawn) == 1
-    assert spawned == [("conformance", "Judge it.\n", ident)]
-    assert (mailbox / "conformance.answer").read_text() == (
-        "exit 0 · executor codex · model gpt-6.1-sol · effort high\n"
+    # Each worker table is read as its station, an old table's name kept.
+    minions = tmp_path / "tables" / ".minions"
+    table = minions / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    table.write_text(
+        '[converge]\nexecutor = "claude"\n'
+        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
     )
-    for role in ("adversarial", "shadow-conformance", "shadow-adversarial"):
-        assert (mailbox / f"{role}.answer").read_text() == (
-            f"exit 1 · refused: {role}.request is a link, no file or too long\n"
-        )
-    assert secret.read_text() == "key\n"
-    # A request is taken once; an entry named for no role is left.
-    assert [path.name for path in mailbox.iterdir() if "request" in path.name] == [
-        "fix.request"
-    ]
-    # Past `CHECKER_SPAWNS` served, no checker starts; the refusal names its request.
-    (mailbox / "conformance.request").write_text(f"request {other}\nAgain.\n")
-    assert serve(mailbox, 8, spawn) == 8
-    assert (mailbox / "conformance.answer").read_text() == (
-        f"exit 1 · refused: more than 8 checker requests · request {other}\n"
+    models = conduct["_models"]
+    assert models(minions, "0001-todo", "converge.conformance", "codex") == (
+        "claude",
+        "claude-opus-5-5",
+        "high",
     )
-    assert spawned == [("conformance", "Judge it.\n", ident)]
-    # A request with no id line, a short one and an upper-case one name no request.
-    for bad in ("Judge it.\n", "request abc\nx\n", f"request {ident.upper()}\nx\n", ""):
-        (mailbox / "conformance.request").write_text(bad)
-        assert serve(mailbox, 0, spawn) == 0
-        assert (mailbox / "conformance.answer").read_text() == (
-            "exit 1 · refused: conformance.request names no request\n"
-        )
-    assert spawned == [("conformance", "Judge it.\n", ident)]
-    assert serve(tmp_path / "gone", 3, spawn) == 3
-
-    answer = conduct["_answer"]
-    assert answer(0, False, ("codex", "gpt-6.1-sol", "high"), "") == (
-        "exit 0 · executor codex · model gpt-6.1-sol · effort high"
+    # A cut's old table names the worker it was written for.
+    table.write_text(
+        '[converge.review]\nmodel = "claude-sonnet-5-5"\n'
+        '[converge.security]\neffort = "max"\n'
     )
-    limit = " · stopped by a usage limit · resets 5:50 PM"
-    assert answer(-9, True, ("claude", None, None), limit) == (
-        f"exit -9 · executor claude · model default · effort default · timed out{limit}"
+    assert models(minions, "0001-todo", "converge.conformance", "claude") == (
+        "claude",
+        "claude-sonnet-5-5",
+        None,
     )
-    # The fallback, the tokens and the request come last, in that order.
-    assert answer(0, False, ("claude", "m", "e"), "", True, 7, ident) == (
-        "exit 0 · executor claude · model m · effort e"
-        f" · fallback: codex usage limit · tokens 7 · request {ident}"
+    assert models(minions, "0001-todo", "converge.adversarial", "claude") == (
+        "claude",
+        None,
+        "max",
     )
+    file = "conduct: halt — changes/0001-todo/models.toml"
+    for station, text, said in (
+        (
+            "converge.fix",
+            '[converge.fix]\nexecutor = "codex"\n',
+            f"{file}: converge.fix names an executor",
+        ),
+        (
+            "converge.adversarial",
+            '[converge.adversarial]\nexecutor = "codex"\nmodel = "claude-opus-5-5"\n',
+            f"{file}: converge.adversarial on codex, model claude-opus-5-5",
+        ),
+        (
+            "converge.conformance",
+            '[converge.conformance]\nexecutor = "gemini"\n',
+            f"{file}: executor 'gemini' unknown",
+        ),
+        (
+            "converge.fix",
+            '[converge.fix]\nmodel = "x y"\n',
+            f"{file}: converge.fix 'x y' is not a model or effort",
+        ),
+    ):
+        table.write_text(text)
+        with pytest.raises(conduct["Stop"]) as stop:
+            models(minions, "0001-todo", station, "claude")
+        assert str(stop.value) == said
 
-    # A mailbox a worker swapped for a link halts its version, and empties nothing.
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    (elsewhere / "kept.txt").write_text("x\n")
-    shutil.rmtree(mailbox)
-    mailbox.symlink_to(elsewhere)
-    assert opened(mailbox) == f"the checker mailbox {mailbox} is a link"
-    assert (elsewhere / "kept.txt").is_file()
-    mailbox.unlink()
-    mailbox.write_text("x\n")
-    assert opened(mailbox) == f"the checker mailbox {mailbox} is a link"
-    under = mailbox / "0002-next"
-    assert opened(under) == f"the checker mailbox {under} is a link"
 
-    # A converge's `between` runs each poll; `TIMEOUT` still bounds it, and a
-    # `between` that raises kills the worker's group first.
-    work = conduct["work"]
-    monkeypatch.setitem(work.__globals__, "MAILBOX_POLL", 0.05)
-    monkeypatch.setitem(work.__globals__, "TIMEOUT", 0.3)
-    sleeper = [sys.executable, "-c", "import time; time.sleep(30)"]
-    polled: list[int] = []
-    out = tmp_path / "work.log"
-    assert work(sleeper, tmp_path, out, None, lambda: polled.append(1)) == (-9, True)
-    assert polled
-    monkeypatch.setitem(work.__globals__, "TIMEOUT", 30)
-    claim = tmp_path / "claim"
-    claim.mkdir()
+def _ask(root: Path, table: str, change: str = "0001-todo") -> str:
+    """Return a checker's prompt as `converge.py` fills it, for `table`'s findings file.
 
-    def failed() -> None:
-        raise conduct["Stop"](1, "conduct: halt — a root moved")
-
-    started = time.monotonic()
-    with pytest.raises(conduct["Stop"]):
-        work(sleeper, tmp_path, out, claim, failed)
-    assert time.monotonic() - started < 10
-    assert list(claim.iterdir()) == []
-
-    # A `timeout` replaces `TIMEOUT`, with `between` and without it.
-    assert work(sleeper, tmp_path, out, None, lambda: None, timeout=0.2) == (-9, True)
-    assert work(sleeper, tmp_path, out, None, timeout=0.2) == (-9, True)
-
-    # A served checker gets what is left of converge's time: none, and it starts
-    # nothing; a moment, and a checker that outlasts it is killed.
-    fake("checker-sleep")
-    (tmp_path / "ship").mkdir()
-    root = _primary(tmp_path / "ship")
-    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    folder = root / ".minions" / "changes" / "0001-todo"
-    folder.mkdir(parents=True)
-    (folder / "models.toml").write_text("[converge]\n")
-    (root / ".minions" / "runs" / "active").mkdir(parents=True)
-    run = conduct["Run"](root, "claude")
-    run.read_plan([conduct["Version"]("0001-todo", tree)])
-    ask = "You are converge's conformance checker for change 0001-todo.\n"
-    spent = time.monotonic() - 1
-    assert run.checker("0001-todo", "conformance", tree, ask, spent) == (
-        "exit 1 · refused: converge's time is spent"
+    Why: 0108-converge-script design D2.
+    """
+    role = table.removeprefix("shadow-")
+    findings = root / ".minions" / "changes" / change / f"{table}.md"
+    return (
+        f"role: {role}\nchange: {change}\nround: 1\n\n"
+        f"You are the {role} checker of change {change}, round 1.\n"
+        f"- Your findings file, the one file you write: {findings}\n"
     )
-    assert run.outs == {}
-    started = time.monotonic()
-    answer = run.checker("0001-todo", "conformance", tree, ask, started + 1.5)
-    assert "exit -9 · executor claude" in answer and " · timed out" in answer
-    assert time.monotonic() - started < 30
-    # Through `Run.server`, the same deadline reaches the checker.
-    box = tmp_path / "box"
-    assert opened(box) is None
-    serving = run.server("0001-todo", tree, box, time.monotonic() - 1)
-    (box / "conformance.request").write_text(f"request {ident}\n{ask}")
-    serving()
-    assert (box / "conformance.answer").read_text() == (
-        f"exit 1 · refused: converge's time is spent · request {ident}\n"
-    )
-    # A checker answers naming the request it was sent.
-    answered = run.checker("0001-todo", "conformance", tree, ask, 0, ident)
-    assert answered == f"exit 1 · refused: converge's time is spent · request {ident}"
 
 
 @pytest.mark.slow
@@ -4935,16 +4837,13 @@ def test_a_limited_checker_falls_back_to_claude(
     sessions = tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08"
     sessions.mkdir(parents=True)
     claude_argvs = tmp_path / "claude-argv.jsonl"
-    ask = "You are converge's conformance checker for change 0001-todo.\n"
-    coded = "exit 0 · executor codex · model gpt-6.1-sol · effort high · tokens 2200"
-    fell = (
-        "exit 0 · executor claude · model claude-sonnet-5-5 · effort medium"
-        " · fallback: codex usage limit · tokens 1100"
-    )
-    stopped = (
-        "exit 1 · executor codex · model default · effort default"
-        " · stopped by a usage limit"
-    )
+    checked = conduct["Checked"]
+    on_codex_models = ("codex", "gpt-6.1-sol", "high")
+    coded = checked(0, False, on_codex_models, "", False, 2200)
+    sonnet = ("claude", "claude-sonnet-5-5", "medium")
+    fell = checked(0, False, sonnet, "", True, 1100)
+    limit = " · stopped by a usage limit"
+    stopped = checked(1, False, ("codex", None, None), limit, False, None)
     # A patched clock: a sleep moves it past what it waits for, and Codex then answers.
     now = [time.time()]
     sleeps: list[float] = []
@@ -4995,8 +4894,9 @@ def test_a_limited_checker_falls_back_to_claude(
         )
         run.read_plan([conduct["Version"]("0001-todo", tree)])
 
-    def check(role: str = "conformance", ahead: float = 3000) -> str:
-        return run.checker("0001-todo", role, tree, ask, time.monotonic() + ahead)
+    def check(role: str = "conformance", ahead: float = 3000) -> object:
+        station, deadline = f"converge-{role}-r1", time.monotonic() + ahead
+        return run.checker("0001-todo", station, role, tree, _ask(root, role), deadline)
 
     fake_codex("", "limit")
     run = conduct["Run"](root, "claude")
@@ -5042,7 +4942,8 @@ def test_a_limited_checker_falls_back_to_claude(
     assert spawned() == (6, 4) and len(sleeps) == 3
 
     # A spent deadline starts nothing.
-    assert check(ahead=-1) == "exit 1 · refused: converge's time is spent"
+    spent = checked(1, False, on_codex_models, "converge's time is spent", False, None)
+    assert check(ahead=-1) == spent
     assert spawned() == (6, 4)
 
     # A shadow on Codex, limited, answers exit 1 and starts no worker; so does one
@@ -5069,7 +4970,7 @@ def test_a_limited_checker_falls_back_to_claude(
     work = run.worker
 
     def timed(*args: object, **kwargs: object) -> tuple[int, bool, Path, list[str]]:
-        timeouts.append(args[9] if len(args) > 9 else kwargs.get("timeout"))
+        timeouts.append(args[7] if len(args) > 7 else kwargs.get("timeout"))
         return work(*args, **kwargs)
 
     run.worker = timed
@@ -5086,7 +4987,7 @@ def test_a_limited_checker_falls_back_to_claude(
     assert [who for who, _ in run.halts] == ["0001-todo"]
 
 
-def test_a_mailbox_checker_is_stamped_and_counted(
+def test_a_codex_checker_is_stamped_and_counted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
@@ -5101,8 +5002,8 @@ def test_a_mailbox_checker_is_stamped_and_counted(
     monkeypatch.setenv("FAKE_CODEX_ROLLOUT", str(rollout))
     monkeypatch.setenv("FAKE_CODEX_USED", "25")
     fake_codex("", "")
-    ask = "You are converge's conformance checker for change 0001-todo.\n"
     findings = folder / "conformance.md"
+    checked = conduct["Checked"]
 
     def models(executor: str) -> None:
         extra = (
@@ -5123,10 +5024,10 @@ def test_a_mailbox_checker_is_stamped_and_counted(
         payload = {"type": "token_count", "rate_limits": rates}
         rollout.write_text(json.dumps({"type": "event_msg", "payload": payload}) + "\n")
 
-    def check(ahead: float = 600) -> str:
-        return run.checker(
-            "0001-todo", "conformance", tree, ask, time.monotonic() + ahead
-        )
+    def check(ahead: float = 600) -> object:
+        ask, deadline = _ask(root, "conformance"), time.monotonic() + ahead
+        station = "converge-conformance-r1"
+        return run.checker("0001-todo", station, "conformance", tree, ask, deadline)
 
     def quota() -> list[dict[str, object]]:
         logs = (folder / "logs").glob("*-converge-conformance*.log")
@@ -5138,12 +5039,11 @@ def test_a_mailbox_checker_is_stamped_and_counted(
     run.probed.update({"claude", "codex"})
     models("codex")
 
-    # The answer names the log's tokens, the findings the plan's model and those tokens,
-    # and the log ends with the shares the windows moved, one reset or two.
+    # The result names the log's tokens, the findings the plan's model and those
+    # tokens, and the log ends with the shares the windows moved, one reset or two.
     opened(10, 4_000_000_000)
-    assert check() == (
-        "exit 0 · executor codex · model gpt-6.1-sol · effort high · tokens 2200"
-    )
+    on_codex = ("codex", "gpt-6.1-sol", "high")
+    assert check() == checked(0, False, on_codex, "", False, 2200)
     assert "\nmodel: gpt-6.1-sol\ntokens: 2200\n" in findings.read_text()
     assert quota() == [{"type": "mf.quota", "five_hour": 15.0, "weekly": 4.0}]
     opened(10, 1)
@@ -5158,17 +5058,17 @@ def test_a_mailbox_checker_is_stamped_and_counted(
     opened(10, 4_000_000_000, weekly=False)
     check()
     assert quota() == [{"type": "mf.quota", "five_hour": 0.0}]
-    # A Claude checker is stamped with the model the plan names, `default` for none.
+    # A Claude checker whose table names no model runs on converge's model and
+    # effort, the checkers' default, and is stamped with it.
     models("claude")
-    assert check() == (
-        "exit 0 · executor claude · model default · effort default · tokens 1100"
-    )
-    assert "\nmodel: default\ntokens: 1100\n" in findings.read_text()
+    sonnet = ("claude", "claude-sonnet-5-5", "medium")
+    assert check() == checked(0, False, sonnet, "", False, 1100)
+    assert "\nmodel: claude-sonnet-5-5\ntokens: 1100\n" in findings.read_text()
     # A run that fails stamps nothing: the old file stands.
     models("codex")
     fake_codex("checker-sleep", "")
     stale = findings.read_text()
-    assert " · timed out" in check(ahead=1.5)
+    assert vars(check(ahead=1.5))["killed"]
     assert findings.read_text() == stale
 
     # `_stamp` replaces the model and tokens lines, leaves the body, and follows no
@@ -5239,123 +5139,12 @@ def test_a_mailbox_checker_is_stamped_and_counted(
     assert tokens_of(log) is None
 
 
-def test_the_checker_command_sends_and_waits(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    fake: Callable[..., Path],
-) -> None:
-    conduct = _conduct()
-    checker = conduct["checker"]
-    root = _primary(tmp_path)
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-
-    def said(cwd: Path, change: str, role: str, wait: bool) -> tuple[int, str]:
-        code = checker(cwd, change, role, wait)
-        return code, capsys.readouterr().out
-
-    unknown = "checker: cannot run — not a change id and a checker role\n"
-    assert said(root, "0001-todo;id", "conformance", False) == (2, unknown)
-    assert said(root, "0001-todo", "fix", False) == (2, unknown)
-    none = "checker: cannot run — this converge has no mailbox\n"
-    assert said(root, "0001-todo", "conformance", False) == (2, none)
-    mailbox = conduct["_mailbox"](root, "0001-todo")
-    assert mailbox.parent.parent == conduct["_queue"](root)
-    mailbox.parent.mkdir(parents=True)
-    mailbox.symlink_to(tmp_path)
-    assert said(root, "0001-todo", "conformance", False) == (2, none)
-    mailbox.unlink()
-    assert conduct["_open_mailbox"](mailbox) is None
-
-    # The prompt is a regular file in the change's folder, at most `REQUEST_BYTES`.
-    prompt = root / ".minions" / "changes" / "0001-todo" / "conformance.prompt.md"
-    bad = f"checker: cannot run — {prompt} is a link, no file or too long\n"
-    assert said(root, "0001-todo", "conformance", False) == (2, bad)
-    prompt.parent.mkdir(parents=True)
-    prompt.symlink_to(root / "AGENTS.md")
-    assert said(root, "0001-todo", "conformance", False) == (2, bad)
-    prompt.unlink()
-    prompt.write_text("x" * (conduct["REQUEST_BYTES"] + 1))
-    assert said(root, "0001-todo", "conformance", False) == (2, bad)
-    assert list(mailbox.iterdir()) == []
-    # The id line counts against the bound: the prompt fits by its length less.
-    fits = conduct["REQUEST_BYTES"] - len("request 0123456789abcdef\n")
-    monkeypatch.setitem(checker.__globals__, "CHECKER_WAIT", 0)
-    prompt.write_text("x" * (fits + 1))
-    assert said(root, "0001-todo", "conformance", False) == (2, bad)
-    assert list(mailbox.iterdir()) == []
-    prompt.write_text("x" * fits)
-    assert said(root, "0001-todo", "conformance", False)[0] == 3
-    for name in ("request", "sent"):
-        (mailbox / f"conformance.{name}").unlink()
-
-    # Sent with an id, then waited on past `CHECKER_WAIT`: exit 3 names the re-run.
-    text = "You are converge's conformance checker for change 0001-todo.\n"
-    prompt.write_text(text)
-    waiting = "checker: waiting — run conduct.py checker 0001-todo conformance --wait\n"
-
-    def sent() -> str:
-        return (mailbox / "conformance.sent").read_text()
-
-    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
-    assert re.fullmatch(r"[0-9a-f]{16}", sent())
-    assert (mailbox / "conformance.request").read_text() == f"request {sent()}\n{text}"
-    first = sent()
-    assert said(root, "0001-todo", "conformance", True) == (3, waiting)
-    # It polls each `MAILBOX_POLL` until `CHECKER_WAIT` passes.
-    monkeypatch.setitem(checker.__globals__, "CHECKER_WAIT", 0.05)
-    monkeypatch.setitem(checker.__globals__, "MAILBOX_POLL", 0.01)
-    assert said(root, "0001-todo", "conformance", True) == (3, waiting)
-    # An answer left by an earlier request is removed as a request is sent, and each
-    # request has an id of its own.
-    (mailbox / "conformance.answer").write_text("exit 0 · request 0000000000000000\n")
-    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
-    assert not (mailbox / "conformance.answer").exists()
-    assert sent() != first
-
-    # `--wait` sends nothing and prints the answer naming its request, exiting with
-    # its code; the answer and `<role>.sent` go, so the mailbox ends empty.
-    (mailbox / "conformance.request").unlink()
-    answer = (
-        "exit 0 · executor codex · model gpt-6.1-sol · effort high"
-        f" · request {sent()}\n"
-    )
-    (mailbox / "conformance.answer").write_text(answer)
-    code = _main(
-        conduct,
-        root,
-        "checker",
-        "0001-todo",
-        "conformance",
-        "--wait",
-        monkeypatch=monkeypatch,
-    )
-    assert (code, capsys.readouterr().out) == (0, answer)
-    assert list(mailbox.iterdir()) == []
-    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
-    refused = f"exit 1 · refused: x · request {sent()}\n"
-    (mailbox / "conformance.answer").write_text(refused)
-    assert said(root, "0001-todo", "conformance", True) == (1, refused)
-    assert list(mailbox.iterdir()) == [mailbox / "conformance.request"]
-    # A leftover answer naming another id, one naming none and a garbled one are each
-    # removed and waited past; with no request sent, none is taken.
-    assert said(root, "0001-todo", "conformance", False) == (3, waiting)
-    for leftover in ("exit 0 · request 0000000000000000\n", "exit 0\n", "garbled\n"):
-        (mailbox / "conformance.answer").write_text(leftover)
-        assert said(root, "0001-todo", "conformance", True) == (3, waiting)
-        assert not (mailbox / "conformance.answer").exists()
-    (mailbox / "conformance.sent").unlink()
-    (mailbox / "conformance.answer").write_text(refused)
-    assert said(root, "0001-todo", "conformance", True) == (3, waiting)
-    assert (mailbox / "conformance.answer").read_text() == refused
-
-
 @pytest.mark.slow
-def test_a_codex_checker_runs_through_the_mailbox(
+def test_a_codex_checker_runs_through_run_checker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    calls = fake_codex("")
+    calls = fake_codex("checker-sleep")
     found = conduct["main"].__globals__
     monkeypatch.setitem(found, "_unlinked", lambda _: None)
     monkeypatch.setitem(found, "_executor_missing", lambda _: False)
@@ -5363,11 +5152,32 @@ def test_a_codex_checker_runs_through_the_mailbox(
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     folder = root / ".minions" / "changes" / "0001-todo"
     folder.mkdir(parents=True)
+
+    # Past converge's time a checker starts nothing; with a moment left, one that
+    # outlasts it is killed. A checker naming no model runs on converge's default.
+    (folder / "models.toml").write_text("[converge]\n")
+    run = conduct["Run"](root, "claude")
+    run.claim = None
+    run.read_plan([conduct["Version"]("0001-todo", tree)])
+    checked = conduct["Checked"]
+    ask, station = _ask(root, "conformance"), "converge-conformance-r1"
+    sonnet = ("claude", "claude-sonnet-5-5", "high")
+    spent = time.monotonic() - 1
+    assert run.checker("0001-todo", station, "conformance", tree, ask, spent) == (
+        checked(1, False, sonnet, "converge's time is spent", False, None)
+    )
+    assert run.outs == {}
+    started = time.monotonic()
+    killed = run.checker("0001-todo", station, "conformance", tree, ask, started + 1.5)
+    assert (killed.killed, killed.models) == (True, sonnet)
+    assert time.monotonic() - started < 30
+    calls.unlink()
+
+    fake_codex("")
     (folder / "models.toml").write_text(
         '[converge.conformance]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n'
         'effort = "high"\n'
     )
-
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
@@ -5379,64 +5189,228 @@ def test_a_codex_checker_runs_through_the_mailbox(
         "checker",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo and conformance=mailbox",
-        "checker 0001-todo conformance",
+        *_judged(),
         "release 0001-todo",
     ]
     # Codex runs the checker on its table's model and effort, in the worktree.
-    *_, args = _codex_argvs(tmp_path)
+    [args] = [
+        args
+        for args in _codex_argvs(tmp_path)
+        if args[-1].startswith("role: conformance\n")
+    ]
     assert args[args.index("-m") + 1] == "gpt-6.1-sol"
     assert "model_reasoning_effort=high" in args
     assert args[args.index("-C") + 1] == str(tree)
-    assert args[-1].startswith(
-        "You are converge's conformance checker for change 0001-todo.\n"
-    )
-    # The Claude converge may write its mailbox, through no added directory.
-    mailbox = conduct["_mailbox"](root, "0001-todo")
-    claude = tmp_path / "claude-argv.jsonl"
-    [converge] = [
-        json.loads(line)
-        for line in claude.read_text().splitlines()
-        if "Run the mf-converge skill" in line
-    ]
-    settings = json.loads(converge[converge.index("--settings") + 1])
-    assert str(mailbox) in settings["sandbox"]["filesystem"]["allowWrite"]
-    assert str(mailbox) not in converge
     # The findings name their checker's executor, and the checker logs as a station.
     assert "\nexecutor: codex\n" in (folder / "conformance.md").read_text()
     spawned = [
         line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
     ]
     assert (
-        "converge-conformance · model gpt-6.1-sol · effort high · executor codex"
+        "converge-conformance-r1 · model gpt-6.1-sol · effort high · executor codex"
         in spawned
     )
-    [log] = (folder / "logs").glob("*-converge-conformance.log")
+    # The Codex log beside the deadline steps' Claude ones.
+    [log] = [
+        log
+        for log in (folder / "logs").glob("*-converge-conformance-r1.log")
+        if log.read_text().startswith('{"type": "mf.spawn"')
+    ]
     spawn = {"type": "mf.spawn", "executor": "codex", "model": "gpt-6.1-sol"}
     assert json.loads(log.read_text().splitlines()[0]) == spawn | {"effort": "high"}
     assert any(
-        " · 0001-todo · finish — converge-conformance · exit 0 · " in line
+        " · 0001-todo · finish — converge-conformance-r1 · exit 0 · " in line
         for line in _log(root)
     )
-    assert list(mailbox.iterdir()) == []
 
-    # A mailbox a worker swapped for a link halts its version before converge starts.
-    _version(root, "0002-more", "- [ ] 1 — More\n")
-    more = root / ".minions" / "changes" / "0002-more"
-    more.mkdir(parents=True)
-    (more / "models.toml").write_text((folder / "models.toml").read_text())
-    linked = conduct["_mailbox"](root, "0002-more")
-    linked.symlink_to(tmp_path)
+
+def test_the_run_hands_converge_its_trees_and_sandbox(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    run = conduct["Run"](root, "claude")
+
+    assert run.trees() == conduct["reach"](root) == [root, tree]
+    out = io.StringIO()
+    shown = [sys.executable, "-c", "import os; print(os.getcwd())"]
+    assert run.sandboxed(shown, tree, run.trees(), out) == 0
+    assert Path(out.getvalue().strip()).resolve() == tree
+    assert fake_sandbox_exec.read_text() == conduct["_profile"](
+        run.trees(), Path.home()
+    )
+    assert (
+        run.sandboxed([sys.executable, "-c", "raise SystemExit(3)"], tree, [tree]) == 3
+    )
+
+    # A worker's log names a tool its station lacks; a station with no log names none.
+    log = tmp_path / "worker.log"
+    asked = {"type": "tool_use", "id": "t1", "name": "Agent"}
+    result = {"type": "tool_result", "tool_use_id": "t1", "is_error": True}
+    result["content"] = "No such tool available: Agent"
+    log.write_text(
+        "".join(
+            json.dumps({"message": {"content": [block]}}) + "\n"
+            for block in (asked, result)
+        )
+    )
+    run.outs["0001-todo", "converge-fix-r1"] = log
+    assert run.lacks("0001-todo", "converge-fix-r1") == ["Agent"]
+    assert run.lacks("0001-todo", "converge-fix-r2") == []
+
+
+def test_a_skip_is_read_once(tmp_path: Path) -> None:
+    conduct = _conduct()
+    stage_of, unjudged = conduct["stage_of"], conduct["_unjudged"]
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    version = conduct["Version"]("0001-todo", tree)
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    assert run.skips_of("0001-todo") == frozenset()
+
+    # A worker plants a converge skip after the plan was read.
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "models.toml").write_text("[converge]\nskip = true\n")
+    owed = ("converge", "no conformance findings file")
+    # The run's poll passes its plan's skips, empty here: the planted file binds not.
+    assert run.stage(version) == owed
+    assert stage_of(root, version, frozenset()) == owed
+    assert (
+        unjudged(root / ".minions", tree, "0001-todo", skips=frozenset()) == (owed[1])
+    )
+    # Twin: with none, as `status` and `check` call them, the file is read.
+    assert stage_of(root, version) == (
+        "release",
+        "converge skipped by plan; main is an ancestor",
+    )
+    assert unjudged(root / ".minions", tree, "0001-todo") is None
+    # The next run reads it with its plan.
+    again = conduct["Run"](root, "claude")
+    again.read_plan([version])
+    assert "converge" in again.skips_of("0001-todo")
+    assert again.stage(version)[0] == "release"
+
+
+@pytest.mark.slow
+def test_the_converge_command_runs_by_hand(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    # By hand no models file is read: its skip binds nothing.
+    (folder / "models.toml").write_text("[converge]\nskip = true\n")
+
+    def by_hand(*given: str) -> int:
+        return _main(
+            conduct, root, "converge", "0001-todo", *given, monkeypatch=monkeypatch
+        )
+
+    for bad in ("fix=claude-sonnet-5-5", "shadow=yes", "fix=a b/high", "fix=skip"):
+        assert by_hand(bad) == 2
+        assert capsys.readouterr().out.startswith(f"converge: cannot run — {bad} ")
+    # No version worktree, or no executor to start the workers, cannot run.
+    gone = _main(conduct, root, "converge", "0009-gone", monkeypatch=monkeypatch)
+    assert gone == 2
+    assert "no version worktree holds 0009-gone" in capsys.readouterr().out
+    with monkeypatch.context() as bare:
+        bare.delenv("MF_SHIP_AGENT")
+        bare.setenv("PATH", str(tmp_path / "no-bin"))
+        assert by_hand("--executor", "codex") == 2
+    assert "codex is not on PATH" in capsys.readouterr().out
+    assert _calls(calls) == []
+
+    # Its exit is the script's: 0 at `done`, its report printed last.
+    assert by_hand("conformance=default/high", "adversarial=skip") == 0
+    assert _calls(calls) == ["converge-conformance-r1 0001-todo"]
+    assert "\nmode: skipped\n" in (folder / "adversarial.md").read_text()
+    assert capsys.readouterr().out.splitlines()[-1] == (
+        "Next: /mf-release, in a fresh session."
+    )
+    spawned = [line for line in _log(root) if " · spawn — " in line]
+    assert [line.split(" · spawn — ")[1] for line in spawned] == [
+        "converge-conformance-r1 · model default · effort high"
+    ]
+
+    # The fixer runs on `fix=`'s model and effort; a cap is exit 1.
     calls.unlink()
+    fake("cap-small")
+    assert by_hand("fix=claude-sonnet-5-5/medium", "grant=no") == 2
+    assert by_hand("fix=claude-sonnet-5-5/medium") == 1
+    assert "converge-fix-r1 0001-todo" in _calls(calls)
+    fixer = [line for line in _log(root) if " · spawn — converge-fix-r1 · " in line]
+    assert fixer[0].endswith(" · model claude-sonnet-5-5 · effort medium")
+    halt = (folder / "status_log.md").read_text()
+    assert " · halt — cap reached, R1, S1 open · security S1 · head " in halt
+
+    # `grant=yes` runs one round past the cap, in a run marked `· grant`.
+    assert by_hand("fix=claude-sonnet-5-5/medium", "grant=yes") == 0
+    runs = re.findall(
+        r"^## Run \d+ — .*$", (folder / "status_log.md").read_text(), re.M
+    )
+    assert runs[0].endswith(" · grant")
+
+
+@pytest.mark.slow
+def test_a_version_converges_with_no_conducting_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
+        == 0
     )
-    assert "build 0002-more" in _calls(calls)
-    assert not any(call.startswith("converge 0002-more") for call in _calls(calls))
+
+    # The fakes see no converge station: one worker per checker, one log each.
+    made = _calls(calls)
+    assert not any(call.startswith("converge ") for call in made)
+    assert made[-3:] == [*_judged(), "release 0001-todo"]
+    folder = root / ".minions" / "changes" / "0001-todo"
+    names = sorted(
+        re.sub(r"^\d{8}-\d{6}-", "", log.name)
+        for log in (folder / "logs").glob("*-converge-*.log")
+    )
+    assert names == ["converge-adversarial-r1.log", "converge-conformance-r1.log"]
+    # The status log holds the events the skill's converge wrote, in their text.
+    log = (folder / "status_log.md").read_text().splitlines()
+    events = [
+        line.split(" · ", 2)[2].split(" — ")[0] for line in log if " · round " in line
+    ]
+    assert events[::-1] == [
+        "start",
+        "freeze",
+        "fan-out",
+        *("verdicts", "verdicts"),
+        "debt",
+        "done",
+    ]
+    # The run log pairs the script's spawn and finish, so `log --verify` passes.
+    lines = _log(root)
     assert any(
-        line.endswith(f" · 0002-more · halt — the checker mailbox {linked} is a link")
-        for line in _log(root)
+        line.endswith(" · 0001-todo · spawn — converge · script") for line in lines
+    )
+    assert any(
+        re.search(r" · 0001-todo · finish — converge · exit 0 · \d+s$", line)
+        for line in lines
+    )
+    run_log = conduct["last_log"](root / ".minions" / "runs")
+    assert (
+        _main(conduct, root, "log", "--verify", str(run_log), monkeypatch=monkeypatch)
+        == 0
     )
 
 
@@ -5490,7 +5464,7 @@ def test_a_codex_limit_at_the_probe_halts_its_stations_alone(
     # The Claude-only version and the checker version ship; the checker ran on Claude.
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
     assert "build 0003-build" not in _calls(calls)
-    assert _calls(calls).count("checker 0002-check conformance") == 2
+    assert _calls(calls).count("converge-conformance-r1 0002-check") == 1
     assert (
         "\nexecutor: claude\n"
         in (root / ".minions/changes/0002-check/conformance.md").read_text()
@@ -5529,14 +5503,14 @@ def test_a_shadow_round_drives_no_fix(
     assert _calls(calls)[3:] == [
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo and conformance=mailbox and adversarial=mailbox"
-        " and shadow=yes",
-        "checker 0001-todo conformance",
-        "checker 0001-todo adversarial",
-        "checker 0001-todo shadow-conformance",
-        "checker 0001-todo shadow-adversarial",
+        *_judged(),
+        "converge-shadow-adversarial-r1 0001-todo",
+        "converge-shadow-conformance-r1 0001-todo",
         "release 0001-todo",
     ]
+    status = (folder / "status_log.md").read_text()
+    assert " · round 1 · shadow — " in status
+    assert " · fix — " not in status
     for role in ("conformance", "adversarial"):
         shadow = (folder / f"shadow-{role}.md").read_text()
         assert "\nexecutor: claude\n" in shadow
@@ -5546,7 +5520,7 @@ def test_a_shadow_round_drives_no_fix(
     spawned = [
         line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
     ]
-    assert "converge-shadow-adversarial · model claude-sonnet-5-5" in spawned
+    assert "converge-shadow-adversarial-r1 · model claude-sonnet-5-5" in spawned
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
@@ -5561,7 +5535,7 @@ def test_a_station_runs_on_its_executor(
     (minions / "changes" / "0001-todo").mkdir(parents=True)
     table = (
         '[converge]\nexecutor = "codex"\n'
-        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
+        '[converge.conformance]\nmodel = "gpt-6.1-sol"\neffort = "high"\n'
         '[release]\nmodel = "opus"\neffort = "high"\n'
     )
     (minions / "changes" / "0001-todo" / "models.toml").write_text(table)
@@ -5571,7 +5545,8 @@ def test_a_station_runs_on_its_executor(
 
     def spy(executor: str, prompt: str, *rest: object, **_: object) -> list[str]:
         found = re.search(r"Run the mf-(\w+) skill", prompt)
-        started.append((found[1] if found else "probe", executor))
+        station = "converge" if prompt.startswith("role: ") else "probe"
+        started.append((found[1] if found else station, executor))
         prompts.append(prompt)
         return argv(executor, prompt, *rest)
 
@@ -5587,7 +5562,7 @@ def test_a_station_runs_on_its_executor(
     # A worker table runs on converge's executor, with no Codex check.
     assert models(minions, "0001-todo", "converge.conformance", "claude") == (
         "codex",
-        "claude-opus-5-5",
+        "gpt-6.1-sol",
         "high",
     )
     assert models(minions, "0001-todo", "converge.fix", "claude") == (
@@ -5611,7 +5586,12 @@ def test_a_station_runs_on_its_executor(
         "probe-codex-checker · model default · executor codex",
     ]
     assert "build · model default" in spawned
-    assert "converge · model default · executor codex" in spawned
+    # Each checker runs on Codex, on its table's model and effort, else converge's.
+    assert "converge-adversarial-r1 · model default · executor codex" in spawned
+    assert (
+        "converge-conformance-r1 · model gpt-6.1-sol · effort high · executor codex"
+        in spawned
+    )
     # A models file's effort is in the spawn line; none, and the line reads as before.
     assert "release · model opus · effort high" in spawned
     assert started == [
@@ -5621,16 +5601,20 @@ def test_a_station_runs_on_its_executor(
         ("build", "claude"),
         ("build", "claude"),
         ("converge", "codex"),
+        ("converge", "codex"),
         ("release", "claude"),
     ]
-    # A worker on Codex is given no model: the Codex converge names none.
-    converged = [prompt for prompt in prompts if "Run the mf-converge" in prompt]
-    assert converged and " and conformance=" not in converged[0]
+    # No converge prompt names a model: the spawn's command line does.
+    converged = [prompt for prompt in prompts if prompt.startswith("role: ")]
+    assert converged and not any("gpt-6.1-sol" in prompt for prompt in converged)
     # A Codex log opens with its spawn line; a Claude log carries none.
     logs = minions / "changes" / "0001-todo" / "logs"
-    [converge] = logs.glob("*-converge.log")
+    [converge] = logs.glob("*-converge-adversarial-r1.log")
     spawn = {"type": "mf.spawn", "executor": "codex", "model": None, "effort": None}
     assert json.loads(converge.read_text().splitlines()[0]) == spawn
+    [conformance] = logs.glob("*-converge-conformance-r1.log")
+    named = spawn | {"model": "gpt-6.1-sol", "effort": "high"}
+    assert json.loads(conformance.read_text().splitlines()[0]) == named
     [build] = logs.glob("*-build.log")
     assert "mf.spawn" not in build.read_text()
 
@@ -5651,30 +5635,6 @@ def test_a_station_runs_on_its_executor(
         line.endswith(" · run · halt — probe-codex — codex is not on PATH")
         for line in _log(second)
     )
-
-
-@pytest.mark.slow
-def test_a_fix_reaching_no_surface_takes_adversarial_by_rule(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    fake("fix-surfaces")
-    threats = "# t\n\n## Surfaces\n\n- `0001-todo.txt` — a surface\n"
-    # A fix touching no listed path releases with adversarial by rule.
-    # Why: 0094-lighter-converge D8.
-    monkeypatch.setenv("FAKE_FIX", "notes.txt")
-    root = _primary(tmp_path)
-    _commit(root, {"THREAT_MODEL.md": threats}, "threats")
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 0
-    )
-
-    adversarial = root / ".minions" / "changes" / "0001-todo" / "adversarial.md"
-    assert "mode: by-rule\n" in adversarial.read_text()
-    assert _git(root, "tag", "-l") == "v0.1.0"
 
 
 def test_a_models_mismatch_halts_its_version(
@@ -5764,7 +5724,7 @@ def test_a_changed_git_config_halts_a_merge_in(
         join()
 
         assert "release 0001-todo" in _calls(calls)
-        assert "converge 0002-marks" not in _calls(calls)
+        assert "converge-conformance-r1 0002-marks" not in _calls(calls)
         assert any(line.endswith(said) for line in _log(root))
         assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
@@ -5816,22 +5776,32 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
         == 1
     )
 
+    # A checker that dies is retried once; dying again, it halts naming its role.
     assert "release 0001-todo" not in _calls(calls)
+    assert _calls(calls).count("converge-conformance-r1 0001-todo") == 2
     assert _git(root, "tag", "-l") == ""
-    assert any(
-        line.endswith(" · 0001-todo · halt — converge worker exit 1")
-        for line in _log(root)
-    )
     head = _git(tree, "rev-parse", "HEAD")
     findings = root / ".minions" / "changes" / "0001-todo"
-    assert f"head: {head}\n" in (findings / "conformance.md").read_text()
+    status = (findings / "status_log.md").read_text()
+    died = "converge-conformance-r1 worker exit 1"
+    assert f" · round 1 · fan-out — retry — conformance: {died}\n" in status
+    assert f" · round 1 · halt — {died} · head {head}\n" in status
+    assert any(
+        " · 0001-todo · halt — converge check fail — the status log halts: " in line
+        and f" · halt — {died} · head " in line
+        for line in _log(root)
+    )
+
+    # A run that dies inside converge leaves its run unended: the next run resumes it.
+    lines = status.splitlines()
+    top = next(i for i, line in enumerate(lines) if " · halt — " in line)
+    del lines[top]
+    (findings / "status_log.md").write_text("\n".join(lines) + "\n")
     capsys.readouterr()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out.strip() == "0001-todo · converge"
     stage_of, find = conduct["stage_of"], conduct["find_version"]
-    assert stage_of(root, find(root, "0001-todo"))[1] == (
-        "unfinished run: 10:00:00 · round 1 · pickup — R1"
-    )
+    assert stage_of(root, find(root, "0001-todo"))[1].startswith("unfinished run: ")
 
     calls.unlink()
     fake()
@@ -5840,7 +5810,7 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
         == 0
     )
 
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _calls(calls) == ["probe", *_judged(), "release 0001-todo"]
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
@@ -5908,7 +5878,7 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     assert _calls(calls) == [
         "probe",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(),
         "release 0001-todo",
     ]
     assert _git(root, "tag", "-l") == "v0.1.0"
@@ -5951,13 +5921,15 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     (scratch / "left.txt").write_text("x\n")
 
     assert run() == 0
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    # Converge resumes at Step 9, the debt write: it starts no worker.
+    assert _calls(calls) == ["probe", "release 0001-todo"]
     assert not lock.exists()
     assert any(
         re.search(r" · run · unlock — \.minions/debt\.lock, 6\d\ds old$", line)
         for line in _log(root)
     )
-    assert scratch.is_dir() and not list(scratch.iterdir())
+    # The run's own commands use the folder after its start.
+    assert scratch.is_dir() and not (scratch / "left.txt").exists()
 
     lock.mkdir()
     young = time.time() - (conduct["LOCK_STALE"] - 60)
@@ -5965,7 +5937,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "kept.txt").write_text("x\n")
-    scratch.rmdir()
+    shutil.rmtree(scratch)
     scratch.symlink_to(outside)
     assert run() == 0
     assert lock.is_dir()
@@ -6524,7 +6496,7 @@ def test_a_dead_integrate_is_resumed_by_a_rerun(
     assert _calls(calls) == [
         "probe",
         "integrate 0001-todo",
-        "converge 0001-todo",
+        *_judged(round_=2),
         "release 0001-todo",
     ]
     assert "chore(integrate): merge main into 0001-todo" in _git(
@@ -7847,14 +7819,17 @@ def test_a_run_goes_on_while_origin_is_down(
         for station, clause in (
             ("build", ""),
             ("build", " with phase=close"),
-            ("converge", ""),
+            ("converge-adversarial-r1", ""),
+            ("converge-conformance-r1", ""),
             ("release", ""),
         )
         for change in ("0001-todo", "0002-marks")
     }
-    assert len(seen) == 9
+    assert len(seen) == 11
     assert seen.index("build 0001-todo") < seen.index("build 0002-marks")
-    assert seen.index("release 0001-todo") < seen.index("converge 0002-marks")
+    assert seen.index("release 0001-todo") < seen.index(
+        "converge-conformance-r1 0002-marks"
+    )
     for change in ("0001-todo", "0002-marks"):
         assert f"{change} · check — release · pass" in lines
         assert not (root.parent / change).exists()
@@ -8022,14 +7997,14 @@ def test_the_plan_is_read_once(
         "probe",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo and conformance=claude and fix=claude",
+        *_judged(),
     ]
-    assert any(
-        " and conformance=claude-opus-5-5/high and fix=claude-sonnet-5-5/high."
-        in str(arg)
-        for args in started
-        for arg in args
-    )
+    # The plan's model and effort start the worker; its prompt names neither.
+    [conformance] = [
+        args for args in started if str(args[1]).startswith("role: conformance\n")
+    ]
+    assert conformance[3:5] == ("claude-opus-5-5", "high")
+    assert "claude-opus-5-5" not in str(conformance[1])
     assert any(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml"
@@ -8166,7 +8141,7 @@ def test_a_commit_during_a_run_halts_before_integrate(
         == 1
     )
 
-    assert "converge 0001-todo" in _calls(calls)
+    assert "converge-conformance-r1 0001-todo" in _calls(calls)
     assert "integrate 0001-todo" not in _calls(calls)
     commit = _git(root, "rev-parse", "main")[:7]
     said = (
@@ -8488,11 +8463,7 @@ def test_a_small_cap_is_granted_automatically(
 
     # A cap of small cards standing at the start gets its round in the run.
     assert run() == 0
-    assert _calls(calls) == [
-        "probe",
-        "converge 0001-todo and grant=yes",
-        "release 0001-todo",
-    ]
+    assert _calls(calls) == ["probe", *sorted(_granted()), "release 0001-todo"]
     lines = _log(root)
     granted = " · run · grant — 0001-todo: automatic · R1 S1"
     assert any(line.endswith(granted) for line in lines)
@@ -8504,12 +8475,8 @@ def test_a_small_cap_is_granted_automatically(
     tree = _version(root, "0002-marks", "- [x] 1 — Marks\n")
     _done(root, "0002-marks", _git(tree, "rev-parse", "HEAD"))
     assert run() == 0
-    assert _calls(calls) == [
-        "probe",
-        "converge 0002-marks",
-        "converge 0002-marks and grant=yes",
-        "release 0002-marks",
-    ]
+    marks = _capped("0002-marks") + _granted("0002-marks")
+    assert _calls(calls) == ["probe", *sorted(marks), "release 0002-marks"]
     lines = _log(root)
     assert any(
         line.endswith(" · run · grant — 0002-marks: automatic · R1 S1")
@@ -8517,11 +8484,11 @@ def test_a_small_cap_is_granted_automatically(
     )
     assert lines[-1].endswith(" · run · done — released v0.2.0")
     assert not (minions / "grants").exists()
-    # Each converge spawn in the run keeps its own log.
+    # Each converge worker in the run keeps its own log.
     stamp = sorted((minions / "runs").glob("*.md"))[-1].stem
     folder = minions / "changes" / "0002-marks" / "logs"
-    logs = sorted(path.name for path in folder.glob(f"{stamp}-converge*.log"))
-    assert logs == [f"{stamp}-converge-2.log", f"{stamp}-converge.log"]
+    logs = [path.name for path in folder.glob(f"{stamp}-converge-*.log")]
+    assert sorted(logs) == sorted(f"{stamp}-{call.split()[0]}.log" for call in marks)
 
     # The granted round is checked as a person's is: one with no `done` halts there.
     calls.unlink()
@@ -8529,13 +8496,14 @@ def test_a_small_cap_is_granted_automatically(
     tree = _version(root, "0003-tags", "- [x] 1 — Tags\n")
     _done(root, "0003-tags", _git(tree, "rev-parse", "HEAD"))
     assert run() == 1
-    assert _calls(calls) == [
-        "probe",
-        "converge 0003-tags",
-        "converge 0003-tags and grant=yes",
-    ]
-    unfinished = " · 0003-tags · check — converge · fail — the status log has no done"
-    assert any(line.endswith(unfinished) for line in _log(root))
+    died = "converge-fix-r3 0003-tags"
+    tags = [*_capped("0003-tags"), died, died]
+    assert _calls(calls)[: len(tags) + 1] == ["probe", *sorted(tags)]
+    unfinished = " · 0003-tags · check — converge · fail — the status log halts: "
+    assert any(
+        unfinished in line and " · halt — converge-fix-r3 worker exit 1 · head " in line
+        for line in _log(root)
+    )
 
 
 def _replanned(root: Path, ids: str) -> list[str]:
@@ -8561,7 +8529,7 @@ def test_a_design_change_cap_halts_as_replan(
         == 1
     )
 
-    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    assert _calls(calls) == ["probe", *sorted(_capped()), "rescue 0001-todo"]
     lines = _replanned(root, "R1 S1")
     assert not any(" · grant — " in line for line in lines)
     assert not (root / ".minions" / "grants").exists()
@@ -8583,12 +8551,8 @@ def test_an_auto_granted_round_that_blocks_halts_as_replan(
 
     assert run() == 1
 
-    assert _calls(calls) == [
-        "probe",
-        "converge 0001-todo",
-        "converge 0001-todo and grant=yes",
-        "rescue 0001-todo",
-    ]
+    capped = sorted(_capped() + _granted())
+    assert _calls(calls) == ["probe", *capped, "rescue 0001-todo"]
     lines = _replanned(root, "R1 S1")
     granted = [line for line in lines if " · run · grant — " in line]
     assert len(granted) == 1
@@ -8687,7 +8651,7 @@ def test_a_grant_buys_one_round(
     assert started == [] and not grants.exists()
 
     capped = "# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n"
-    log.write_text(capped)
+    _cards(root, "0001-todo", _git(tree, "rev-parse", "HEAD"), "a design change")
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
     recorded = (0, "grant: recorded · run started · pid 4242")
     assert grant() == recorded
@@ -8707,7 +8671,7 @@ def test_a_grant_buys_one_round(
 
     fake("grant-halts", "rescue-diagnose")
     run()
-    assert "converge 0001-todo and grant=yes" in _calls(calls)
+    assert _calls(calls)[:4] == ["probe", *sorted(_granted())]
     assert not grants.exists()
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
     assert _git(tree, "status", "--porcelain") == ""
@@ -8722,8 +8686,8 @@ def test_a_grant_buys_one_round(
     diagnosis = ".minions/changes/0001-todo/rescue.md"
     assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
     assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
-    # The granted round's cap is the run's second, and no card is read: a re-plan.
-    _replanned(root, "no open blocking card read")
+    # The granted round's cap is the run's second: a re-plan.
+    _replanned(root, "R1 S1")
 
     # A person's grant still buys a round on a re-plan halt.
     conduct["main"].__globals__["_start_run"] = spy
@@ -8731,11 +8695,7 @@ def test_a_grant_buys_one_round(
     conduct["main"].__globals__["_start_run"] = runner
     calls.unlink()
     run()
-    assert _calls(calls) == [
-        "probe",
-        "converge 0001-todo and grant=yes",
-        "rescue 0001-todo",
-    ]
+    assert _calls(calls) == ["probe", *sorted(_granted(round_=4)), "rescue 0001-todo"]
     assert not grants.exists()
 
     # A rescue that answers the cap on disk, here by a grant, and asks to rejoin keeps
@@ -8743,8 +8703,13 @@ def test_a_grant_buys_one_round(
     calls.unlink()
     log.unlink()
     fake("grant-halts", "rescue-answers")
+    # A poll while the rescue's thread lives deletes its request unread (0063-rejoin
+    # D2): the run's one poll outlasts the thread, so the request is read after it.
+    polls = conduct["main"].__globals__["REJOIN_POLL"]
+    conduct["main"].__globals__["REJOIN_POLL"] = 600
     run()
-    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    conduct["main"].__globals__["REJOIN_POLL"] = polls
+    assert _calls(calls) == ["probe", *sorted(_capped()), "rescue 0001-todo"]
     answered = "rescue answered its halt — converge: granted"
     lines = _log(root)
     assert any(line.endswith(f" · 0001-todo · halt — {answered}") for line in lines)
@@ -8773,7 +8738,7 @@ def test_a_grant_buys_one_round(
     log.unlink()
     run()
     assert (elsewhere / "0001-todo").is_file()
-    assert _calls(calls) == ["probe", "converge 0001-todo", "rescue 0001-todo"]
+    assert _calls(calls) == ["probe", *sorted(_capped()), "rescue 0001-todo"]
     calls.unlink()
     grants.parent.unlink()
     grants.parent.mkdir()
@@ -8815,7 +8780,7 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     judged = _git(tree, "rev-parse", "HEAD")
-    _findings(root, "0001-todo", judged, "blocking")
+    _findings(root, "0001-todo", judged, "changes-requested")
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
     # A halt after round 1's `start`: one before it is any commit's to answer.
@@ -8889,9 +8854,9 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
         == 0
     )
 
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _calls(calls) == ["probe", *_judged(round_=2), "release 0001-todo"]
     assert not grants.exists()
-    assert log.read_text().startswith("# t\n\n## Run 2 — d · amend\n")
+    assert re.match(r"# t\n\n## Run 2 — [^\n]* · amend\n", log.read_text())
     assert _git(root, "tag", "-l") == "v0.1.0"
 
     # An amend answers a halt past the judged head, and a commit after it is judged
@@ -8967,8 +8932,8 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
         _main(conduct, base, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
-    assert log.read_text().startswith("# t\n\n## Run 2 — d · amend\n")
+    assert _calls(calls) == ["probe", *_judged(round_=2), "release 0001-todo"]
+    assert re.match(r"# t\n\n## Run 2 — [^\n]* · amend\n", log.read_text())
     assert _git(base, "tag", "-l") == "v0.1.0"
 
 
@@ -8980,7 +8945,7 @@ def test_a_done_under_the_top_line_is_stamped_again(
 ) -> None:
     # Why: 0109-converge-done-order design D2, D3.
     conduct = _conduct()
-    calls = fake("keep-log")
+    calls = fake()
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     head = _git(tree, "rev-parse", "HEAD")
@@ -9044,13 +9009,32 @@ def test_a_done_under_the_top_line_is_stamped_again(
     assert check(root, "converge", version, notes=notes) is None
     assert notes == ["re-stamped done"]
 
-    # A run: the host's converge leaves `debt` over `done`; the check heals it.
-    log.write_text(held)
+    # A run: its converge leaves `debt` over `done`; the check heals it.
+    for name in ("status_log.md", "conformance.md", "adversarial.md"):
+        (log.parent / name).unlink()
+    run_class = conduct["Run"]
+    conducted = run_class.conducted
+
+    def buries_done(
+        self: object, change: str, tree: Path, workers: object, grant: bool
+    ) -> list[str]:
+        denied = conducted(self, change, tree, workers, grant)
+        lines = log.read_text().splitlines(keepends=True)
+        assert " · done — " in lines[3] and " · debt — " in lines[4]
+        lines[3:5] = lines[4], lines[3]
+        log.write_text("".join(lines))
+        return denied
+
+    monkeypatch.setattr(run_class, "conducted", buries_done)
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    roles = ["converge-adversarial-r1 0001-todo", "converge-conformance-r1 0001-todo"]
+    assert _calls(calls) == ["probe", *roles, "release 0001-todo"]
+    assert any(
+        line.endswith(" · 0001-todo · spawn — converge · script") for line in _log(root)
+    )
     assert any(
         line.endswith(" · 0001-todo · check — converge · pass · re-stamped done")
         for line in _log(root)
@@ -9074,7 +9058,7 @@ def test_an_amend_past_the_judged_head_gets_one_round(
     def halted(root: Path) -> tuple[Path, str, str]:
         tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
         judged = _git(tree, "rev-parse", "HEAD")
-        _findings(root, "0001-todo", judged, "blocking")
+        _findings(root, "0001-todo", judged, "changes-requested")
         _commit(tree, {"src.txt": "fixed\n"}, "fix(0001-todo): R1")
         fixed = _git(tree, "rev-parse", "HEAD")
         _done(root, "0001-todo", fixed)
@@ -9100,13 +9084,14 @@ def test_an_amend_past_the_judged_head_gets_one_round(
     assert stage_of(root, conduct["find_version"](root, "0001-todo")) == amended
     calls = fake("amends")
     run(root, 0)
-    assert _calls(calls) == ["probe", "converge 0001-todo", "release 0001-todo"]
+    assert _calls(calls) == ["probe", *_judged(round_=2), "release 0001-todo"]
     folder = root / ".minions" / "changes" / "0001-todo"
     text = (folder / "status_log.md").read_text()
-    assert text.startswith("# t\n\n## Run 2 — d · amend\n")
-    assert f"· round 2 · freeze — {judged}..{amend}" in text
-    own = text.split("## Run 2 — d · amend\n")[1].split("## Run")[0]
-    assert "· round 1 ·" not in own
+    assert re.match(r"# t\n\n## Run 2 — [^\n]* · amend\n", text)
+    own = text.split(" · amend\n")[1].split("## Run")[0]
+    assert f" · freeze — {judged[:7]}..{amend[:7]} · " in own
+    # The amend round has its own count: its judge round is round 2.
+    assert " · round 2 · verdicts — conformance clean · " in own
     assert "round: 2" in (folder / "conformance.md").read_text()
 
     # An amend adding a phase brings the build's code into the round's range.
@@ -9122,25 +9107,28 @@ def test_an_amend_past_the_judged_head_gets_one_round(
         "probe",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(round_=2),
         "release 0001-todo",
     ]
     built = _git(root, "log", "-1", "--format=%H", "--grep=^build$", "0001-todo")
     text = (root / ".minions" / "changes" / "0001-todo" / "status_log.md").read_text()
-    assert f"· round 2 · freeze — {judged}..{built}" in text
+    assert f" · freeze — {judged[:7]}..{built[:7]} · " in text
 
     # An amended `Verify:` that fails halts before the round's `start`, with no
     # rescue: re-run at its head, and answered by any commit past it.
     (tmp_path / "verify").mkdir()
     root = _primary(tmp_path / "verify")
     tree, _, _ = halted(root)
-    _commit(tree, {tasks: f"{progress}\nAmended.\nTwice.\n"}, subject)
+    failing = (
+        f"{progress}\n## 1 — Todo\n\n- [x] 1.1 Todo.\n"
+        "  Verify: `git cat-file -e HEAD:absent.txt` exits 0.\n"
+    )
+    _commit(tree, {tasks: failing}, subject)
     calls.unlink()
-    fake("verify-fails")
+    fake()
     run(root, 1)
-    made = _calls(calls)
-    assert made[:2] == ["probe", "converge 0001-todo"]
-    assert not any(call.startswith(("release", "rescue")) for call in made)
+    # It halts before any worker starts.
+    assert _calls(calls) == ["probe"]
     assert any(
         " · halt — " in line and "verify failed — 1.1" in line for line in _log(root)
     )
@@ -9209,20 +9197,30 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    calls = fake("verify-halts")
+    calls = fake()
     root = _primary(tmp_path)
-    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
-    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    planned = (
+        "- [x] 1 — Todo\n\n## 1 — Todo\n\n- [x] 1.1 Todo.\n  Verify: `{}` exits 0.\n"
+    )
+    tree = _version(root, "0001-todo", planned.format("git status"))
+    # A `Verify:` edited since the cut halts Step 1, before any worker.
+    tasks = {"openspec/changes/0001-todo/tasks.md": f"## Progress\n\n{planned}"}
+    _commit(
+        tree, {path: text.format("git log -1") for path, text in tasks.items()}, "x"
+    )
     head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
 
-    assert _calls(calls) == ["probe", "converge 0001-todo"]
+    assert _calls(calls) == ["probe"]
     name = ".minions/changes/0001-todo/rescue.md"
-    halt = f"10:00:00 · round 1 · halt — verify: halt — 1.1 · head {head}"
+    status = (root / ".minions/changes/0001-todo/status_log.md").read_text()
+    [halt] = [line for line in status.splitlines() if " · halt — " in line]
+    assert halt.endswith(f" · round 1 · halt — verify: halt — 1.1 · head {head}")
     assert (root / name).read_text() == (
         f"# 0001-todo — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
         "cause: a Verify: changed since the cut\n"
@@ -9295,13 +9293,15 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     # Halted in the run, it runs again on a rejoin with no commit, and releases.
     (tmp_path / "live").mkdir()
     live = _primary(tmp_path / "live")
-    _version(live, "0001-todo", "- [x] 1 — Todo\n")
+    red = _version(live, "0001-todo", "- [x] 1 — Todo\n") / ".minions" / "red"
     _done(live, "0001-todo", _git(live, "rev-parse", "0001-todo"))
     _version(live, "0002-marks", "- [ ] 1 — Marks\n")
-    calls = fake("red-halts", "hold-0002-marks")
+    red.parent.mkdir()
+    red.touch()
+    calls = fake("hold-0002-marks")
 
     def again() -> None:
-        fake("hold-0002-marks")
+        red.unlink()
         conduct["rejoin"](live, "0001-todo")
 
     join = _when_logged(live, (" · 0001-todo · halt — ",), again, hold)
@@ -9311,9 +9311,15 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     )
     join()
     made = _calls(calls)
-    # The halt and its re-run; the catch-up converge follows the integrate.
-    before = made[: made.index("integrate 0001-todo")]
-    assert before.count("converge 0001-todo") == 2
+    # The halt, before any worker, then its re-run: 0001-todo's first two stations.
+    lines = _log(live)
+    spawned = [
+        line.split(" · spawn — ")[1]
+        for line in lines
+        if " · 0001-todo · spawn — " in line and "converge-" not in line
+    ]
+    assert spawned[:2] == ["converge · script", "converge · script"]
+    assert made.count("converge-conformance-r1 0001-todo") == 1
     assert {"release 0001-todo", "release 0002-marks"} <= set(made)
     assert not any(call.startswith("rescue") for call in made)
     assert any(
@@ -9324,7 +9330,9 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     hold.unlink()
     calls.unlink()
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
-    calls = fake("red-halts", "hold-0002-marks")
+    (tree / ".minions").mkdir()
+    (tree / ".minions" / "red").touch()
+    calls = fake("hold-0002-marks")
     join = _when_logged(
         root,
         (" · 0001-todo · halt — ",),
@@ -9336,7 +9344,9 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
         == 1
     )
     join()
-    assert _calls(calls).count("converge 0001-todo") == 1
+    assert not any(call.endswith("-r1 0001-todo") for call in _calls(calls))
+    script = " · 0001-todo · spawn — converge · script"
+    assert len([line for line in _log(root) if line.endswith(script)]) == 1
     reran = (
         " · run · rejoin — 0001-todo: still halted — halted before round 1 again at"
         " this head: a commit answers it"
@@ -9970,8 +9980,10 @@ def test_every_station_starts_lean(
     argvs = (tmp_path / "claude-argv.jsonl").read_text().splitlines()
     tools: dict[str, str] = {}
     for args in map(json.loads, argvs):
-        named = re.search(r"Run the mf-(\w+) skill", args[args.index("-p") + 1])
-        tools[named[1] if named else "probe"] = args[args.index("--tools") + 1]
+        told = args[args.index("-p") + 1]
+        named = re.search(r"Run the mf-(\w+) skill", told)
+        station = "converge" if told.startswith("role: ") else "probe"
+        tools[named[1] if named else station] = args[args.index("--tools") + 1]
         assert "--exclude-dynamic-system-prompt-sections" in args
         sent = json.loads(args[args.index("--settings") + 1])
         assert sent["enabledPlugins"] == {"notes@market": False, "idle@market": False}
@@ -9980,7 +9992,7 @@ def test_every_station_starts_lean(
     assert tools == {
         "probe": "Bash,Read",
         "build": worker,
-        "converge": f"{worker},Agent",
+        "converge": worker,
         "release": worker,
     }
     assert conduct["tools_for"]("converge-adversarial") == conduct["WORKER_TOOLS"]
@@ -9994,13 +10006,12 @@ def test_every_station_starts_lean(
     conduct["_record_repo"](root)
     assert repos.read_text() == f"{root}\n"
 
-    # The cut and converge wait past 5 minutes; no station, the host's default.
+    # The cut waits past 5 minutes; no station, the host's default.
     repo = (root, root / ".git")
     argv = conduct["argv"]
     hour, minutes = "ENABLE_PROMPT_CACHING_1H=1", "FORCE_PROMPT_CACHING_5M=1"
     for station, ttl in (
         ("cut", hour),
-        ("converge", hour),
         ("build", minutes),
         ("converge-adversarial", minutes),
     ):
@@ -10180,7 +10191,7 @@ def test_a_probe_halts_on_a_write_out(
         "probe",
         "build 0001-todo",
         "build 0001-todo with phase=close",
-        "converge 0001-todo",
+        *_judged(),
         "release 0001-todo",
     ]
     assert not list(marks.glob("probe-*"))
@@ -10911,13 +10922,6 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     conduct["main"].__globals__["work"] = started
     conductor.log.path.unlink()
 
-    converge = conduct["PROMPTS"]["converge"]
-    assert converge.format(change="0001-todo", workers="", grant="") == (
-        "Run the mf-converge skill for change 0001-todo."
-    )
-    assert converge.format(
-        change="0001-todo", workers=" and conformance=a/b", grant=" and grant=yes"
-    ).endswith("and conformance=a/b and grant=yes.")
     models = root / ".minions" / "changes" / "0001-todo"
     models.mkdir(parents=True, exist_ok=True)
     (models / "models.toml").write_text('[converge]\ntier = "high"\n')
@@ -10954,7 +10958,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 0
     )
-    assert "converge 0001-todo" in _calls(calls)
+    assert "converge-conformance-r1 0001-todo" in _calls(calls)
     lines = _log(root)
     assert any(
         line.endswith(" · 0001-todo · denied — build · Bash(rm -rf build)")

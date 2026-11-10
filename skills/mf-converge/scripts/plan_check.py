@@ -4,7 +4,9 @@
 # ///
 """Hold a change's plan to the tree built from it, and print each place they differ.
 
-Exit 0 clean · 1 a problem · 2 unreadable. Why: 0103-fewer-rounds design D4, D5.
+Exit 0 clean · 1 a problem · 2 unreadable. A name inside a living requirement
+the change's delta removes is skipped. Why: 0103-fewer-rounds design D4, D5;
+the skip, 0108-converge-script.
 """
 
 import argparse
@@ -45,6 +47,8 @@ REMOVAL = re.compile(
     r"delet|remov|renam|retir|drop|replac|→|\*\*Reason\*\*|\*\*Migration\*\*",
     re.IGNORECASE,
 )
+REQUIREMENT = "### Requirement:"
+REMOVED = "## REMOVED Requirements"
 TEST_DEF = r"^[[:space:]]*(async[[:space:]]+)?def test_[A-Za-z0-9_]*"
 TEST_NAME = re.compile(r"\bdef (test_\w+)")
 CORPUS = re.compile(r"\*\*CORPUS\*\* `([a-z0-9-]+)`")
@@ -170,10 +174,6 @@ def rerun(name: str, command: Command, root: Path) -> list[str]:
     0103-fewer-rounds design D4.
     """
     argv = tokens(command.text)
-    search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
-    wanted = (
-        "" if command.nothing else None if command.count is None else str(command.count)
-    )
     try:
         done = subprocess.run(
             argv,
@@ -189,16 +189,28 @@ def rerun(name: str, command: Command, root: Path) -> list[str]:
         return [f"plan: {name} — `{command.text}` timed out"]
     except OSError as error:
         code, stdout = 127, str(error.strerror)
-    output = stdout.splitlines()
+    if passed(command, code, stdout):
+        return []
+    shown = [f"  | {line}" for line in stdout.splitlines()[:SHOWN]]
+    result = "printed other than its Verify: says" if code == 0 else f"exited {code}"
+    return [f"plan: {name} — `{command.text}` {result}", *shown]
+
+
+def passed(command: Command, code: int, stdout: str) -> bool:
+    """Return whether a command's exit and output are what its `Verify:` says.
+
+    The rule is `rerun`'s.
+    """
+    argv = tokens(command.text)
+    search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
+    wanted = (
+        "" if command.nothing else None if command.count is None else str(command.count)
+    )
     # Nothing is no byte at all, blank lines included; a count is read stripped.
     printed = stdout if command.nothing else stdout.strip()
     if code == 0 and wanted in (None, printed):
-        return []
-    if code == 1 and search and wanted in ("", "0") and printed in ("", wanted):
-        return []
-    shown = [f"  | {line}" for line in output[:SHOWN]]
-    result = "printed other than its Verify: says" if code == 0 else f"exited {code}"
-    return [f"plan: {name} — `{command.text}` {result}", *shown]
+        return True
+    return code == 1 and search and wanted in ("", "0") and printed in ("", wanted)
 
 
 def phases(tasks: str) -> tuple[set[int], set[int]]:
@@ -277,16 +289,55 @@ def removed_names(root: Path, merge_base: str) -> list[str]:
     return [name for name in dict.fromkeys(names) if gone(name)]
 
 
+def _read(path: Path) -> str:
+    """Return a file's text, or nothing when it cannot be read."""
+    try:
+        return path.read_text(errors="replace")
+    except OSError:
+        return ""
+
+
+def removed_lines(root: Path, folder: str, path: str) -> set[int]:
+    """Return the numbers of a living spec's lines in requirements the delta removes.
+
+    A requirement runs from its `### Requirement:` heading to the next one or the
+    next `## ` heading. e.g. `openspec/specs/cap/spec.md` → the lines of each
+    requirement `<folder>/specs/cap/spec.md` lists under `## REMOVED Requirements`.
+    """
+    parts = Path(path).parts
+    if len(parts) != 4 or parts[:2] != ("openspec", "specs") or parts[3] != "spec.md":
+        return set()
+    titles: set[str] = set()
+    listed = False
+    for line in _read(root / folder / "specs" / parts[2] / "spec.md").splitlines():
+        if line.startswith("## "):
+            listed = line.rstrip() == REMOVED
+        elif listed and line.startswith(REQUIREMENT):
+            titles.add(line.removeprefix(REQUIREMENT).strip())
+    numbers: set[int] = set()
+    inside = False
+    for number, line in enumerate(_read(root / path).splitlines(), start=1):
+        if line.startswith(REQUIREMENT):
+            inside = line.removeprefix(REQUIREMENT).strip() in titles
+        elif line.startswith("## "):
+            inside = False
+        if inside:
+            numbers.add(number)
+    return numbers
+
+
 def check_names(
     root: Path, change: str, merge_base: str, tests: tuple[str, range]
 ) -> list[str]:
     """Return a line for each removed name the plan still names.
 
-    A line saying it is removed is out, as are `tasks.md` and the design's
-    `## Tests` section.
+    A line saying it is removed is out, as are `tasks.md`, the design's `## Tests`
+    section and a living requirement the change's delta lists under
+    `## REMOVED Requirements`. Why: 0108-converge-script design C8.
     """
     folder = f"openspec/changes/{change}"
     lines: list[str] = []
+    removed: dict[str, set[int]] = {}
     for name in removed_names(root, merge_base):
         found = _git(
             root,
@@ -297,8 +348,12 @@ def check_names(
         )
         for match in MATCH.finditer(found.stdout):
             path, number, text = match[1], int(match[2]), match[3]
-            out = path == f"{folder}/tasks.md" or (
-                path == f"{folder}/design.md" and number in tests[1]
+            if path not in removed:
+                removed[path] = removed_lines(root, folder, path)
+            out = (
+                path == f"{folder}/tasks.md"
+                or (path == f"{folder}/design.md" and number in tests[1])
+                or number in removed[path]
             )
             if not out and not REMOVAL.search(text):
                 lines.append(

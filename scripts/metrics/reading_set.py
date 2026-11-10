@@ -4,12 +4,12 @@
 # ///
 """Print the words a station reads before it starts.
 
-The set is `converge`, `conformance`, `adversarial` or `shared`. The converge
-conductor reads no shared context past `AGENTS.md`; conformance reads the decisions'
-index, `INDEX`, in place of the whole file; adversarial reads the threat model and no
+The set is `converge`, `conformance`, `adversarial` or `shared`. `converge` is the
+fixer's: no shared context past `AGENTS.md`; conformance reads the decisions' index,
+`INDEX`, in place of the whole file; adversarial reads the threat model and no
 decision. Why: 0030-change-impact design D7; 0076-context-cost design D4;
 0094-lighter-converge design D10; 0095-converge-roles design D13; 0100-worker-diet
-design D7.
+design D7; 0108-converge-script design D10.
 """
 
 import sys
@@ -28,8 +28,8 @@ SETS = {
     "shared": SHARED,
     "converge": (
         "AGENTS.md",
-        "skills/mf-converge/SKILL.md",
         "skills/mf-converge/references/worker.md",
+        "skills/mf-converge/references/fix.md",
     ),
     "conformance": (
         "AGENTS.md",

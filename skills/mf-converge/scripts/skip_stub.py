@@ -32,9 +32,9 @@ def _today() -> date:
     return date.today()
 
 
-def _git(*args: str) -> str:
-    """Return git's output for `args` in the current directory, or stop."""
-    done = subprocess.run(["git", *args], capture_output=True, text=True)
+def _git(*args: str, cwd: Path | None = None) -> str:
+    """Return git's output for `args` in `cwd`, else the current directory, or stop."""
+    done = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
     if done.returncode != 0:
         raise Stop("no repository with a commit here")
     return done.stdout.strip()
@@ -66,14 +66,16 @@ def round_of(text: str) -> int:
     return int(text)
 
 
-def stub(path: Path, role: str, round_: int, head: str) -> str:
-    """Return the stub's text for `role` at `head`."""
-    common = Path(_git("rev-parse", "--path-format=absolute", "--git-common-dir"))
+def stub(path: Path, role: str, round_: int, head: str, cwd: Path | None = None) -> str:
+    """Return the stub's text for `role` at `head`, read from the worktree `cwd`."""
+    common = Path(
+        _git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=cwd)
+    )
     keys = {
         "type": role,
         "plan": path.parent.name,
         "project": common.parent.name,
-        "branch": _git("branch", "--show-current"),
+        "branch": _git("branch", "--show-current", cwd=cwd),
         "head": head,
         "reviewed": _today().isoformat(),
         "round": round_,

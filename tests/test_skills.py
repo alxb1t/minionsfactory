@@ -499,14 +499,14 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # 0040-mf-ship design D6; 0064-lighter-catch-up design D2; 0066-plan-halts design D1;
 # 0081-cut-awake design D4; 0083-plan-queues design D4; 0088-paydown-2 design D7;
 # 0094-lighter-converge design D5, D8; 0095-converge-roles design D8, D10;
-# 0097-cross-model design D8; 0100-worker-diet design D7; 0106-cut-scripts design D9.
+# 0097-cross-model design D8; 0100-worker-diet design D7; 0106-cut-scripts design D9;
+# 0108-converge-script design D10.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
     ("mf-release", "../mf-build/scripts/metrics.py"),
     ("mf-release", "scripts/next_tag.py"),
-    ("mf-converge", "scripts/gate_check.py"),
+    ("mf-converge", "scripts/converge.py"),
     ("mf-release", "../mf-converge/scripts/gate_check.py"),
-    ("mf-converge", "scripts/gate_run.py"),
     ("mf-build", "../mf-converge/scripts/gate_run.py"),
     ("mf-integrate", "../mf-converge/scripts/gate_run.py"),
     ("mf-release", "../mf-converge/scripts/gate_run.py"),
@@ -516,13 +516,7 @@ _METRICS_SCRIPTS = [
     ("mf-cut-change", "scripts/awake.py"),
     ("mf-plan", "scripts/brief_check.py"),
     ("mf-plan", "../mf-ship/scripts/conduct.py"),
-    ("mf-converge", "scripts/stamp.py"),
-    ("mf-converge", "scripts/bundle.py"),
-    ("mf-converge", "scripts/surfaces.py"),
-    ("mf-converge", "scripts/debt_match.py"),
-    ("mf-converge", "scripts/open_cards.py"),
     ("mf-converge", "../mf-ship/scripts/conduct.py"),
-    ("mf-converge", "scripts/overlap.py"),
     ("mf-build", "../mf-converge/scripts/bundle.py"),
     ("mf-cut-change", "../mf-converge/scripts/bundle.py"),
     ("mf-cut-change", "../mf-converge/scripts/gate_check.py"),
@@ -562,7 +556,6 @@ def test_the_stations_run_the_bundled_metrics_script() -> None:
 
 
 _GATE_RUN_UNNAMED = [
-    "skills/mf-converge/SKILL.md: scripts/gate_run.py: not named",
     "skills/mf-build/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
     "skills/mf-integrate/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
     "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
@@ -574,7 +567,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         tmp_path,
         {
             "mf-build": "Run `<this package>/scripts/metrics.py collect`.\n",
-            "mf-converge": "Run `<this package>/scripts/gate_check.py`.\n",
+            "mf-converge": "Run `<this package>/scripts/converge.py`.\n",
             "mf-release": "Run `../mf-build/scripts/metrics.py collect` and "
             "`../mf-converge/scripts/gate_check.py`.\n",
         },
@@ -583,7 +576,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-build/SKILL.md: scripts/metrics.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: missing file",
         "skills/mf-release/SKILL.md: scripts/next_tag.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
+        "skills/mf-converge/SKILL.md: scripts/converge.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: "
         "missing file",
         *_GATE_RUN_UNNAMED,
@@ -593,13 +586,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-cut-change/SKILL.md: scripts/awake.py: not named",
         "skills/mf-plan/SKILL.md: scripts/brief_check.py: not named",
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/stamp.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/bundle.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/surfaces.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/debt_match.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/open_cards.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/overlap.py: not named",
         *_BUNDLE_UNNAMED,
         *_CUT_UNNAMED,
     ]
@@ -612,7 +599,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-build/SKILL.md: scripts/metrics.py: empty file",
         "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: not named",
         "skills/mf-release/SKILL.md: scripts/next_tag.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/gate_check.py: missing file",
+        "skills/mf-converge/SKILL.md: scripts/converge.py: missing file",
         "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: not named",
         *_GATE_RUN_UNNAMED,
         "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
@@ -621,13 +608,7 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         "skills/mf-cut-change/SKILL.md: scripts/awake.py: not named",
         "skills/mf-plan/SKILL.md: scripts/brief_check.py: not named",
         "skills/mf-plan/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/stamp.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/bundle.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/surfaces.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/debt_match.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/open_cards.py: not named",
         "skills/mf-converge/SKILL.md: ../mf-ship/scripts/conduct.py: not named",
-        "skills/mf-converge/SKILL.md: scripts/overlap.py: not named",
         *_BUNDLE_UNNAMED,
         *_CUT_UNNAMED,
     ]

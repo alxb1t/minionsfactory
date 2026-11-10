@@ -51,10 +51,20 @@ def _findings(
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
     for role in roles:
-        text = f"---\nverdict: {verdict}\nhead: {head}\nround: {round}\n---\n"
-        (folder / f"{role}.md").write_text(text)
+        (folder / f"{role}.md").write_text(_front_of(role, head, round, verdict))
     log = folder / "status_log.md"
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
+
+
+def _front_of(role: str, head: str, round_: int, verdict: str) -> str:
+    """Return a planted findings file's frontmatter, to the findings file contract."""
+    blocking = int(verdict != "clean")
+    passes = "passes: [stale-claim, test-cost, no-removed-test]\n"
+    return (
+        f"---\nverdict: {verdict}\nhead: {head}\nround: {round_}\n"
+        f"open_blocking: {blocking}\nfiles: 1\ncommits: 1\n"
+        f"{passes if role == 'conformance' else ''}inconclusive: []\n---\n"
+    )
 
 
 def _cards(
@@ -79,16 +89,10 @@ def _cards(
             ("S2", "medium", "a design change", "open"),
         ],
     }
-    categories = {"conformance": "stability", "adversarial": "security"}
     for role, listed in cards.items():
-        text = f"---\nverdict: changes-requested\nhead: {head}\nround: 3\n---\n\n"
+        text = _front_of(role, head, 3, "changes-requested") + "\n"
         for card, severity, fix, status in listed:
-            text += (
-                f"- **{card} — a finding**\n"
-                f"  - **Priority:** {severity} · {role} · {categories[role]} — why.\n"
-                f"  - **Fix:** a fix · size: {fix}.\n"
-                f"  - **Status:** {status}\n"
-            )
+            text += _card(card, severity, role, f"a fix · size: {fix}.", status)
         (folder / f"{role}.md").write_text(text)
     run = "## Run 2 — d · grant\n" if granted else "## Run 1 — d\n"
     log = folder / "status_log.md"
@@ -104,21 +108,16 @@ def _amend_needed(root: Path, change: str, head: str, card: str = "R1") -> None:
     """
     folder = _folder(root, change)
     folder.mkdir(parents=True, exist_ok=True)
-    role, severity, category = (
-        ("adversarial", "high", "security")
-        if card[0] == "S"
-        else ("conformance", "blocking", "stability")
+    role, severity = (
+        ("adversarial", "high") if card[0] == "S" else ("conformance", "blocking")
     )
     for name in ("conformance", "adversarial"):
         verdict = "changes-requested" if name == role else "clean"
-        text = f"---\nverdict: {verdict}\nhead: {head}\nround: 1\n---\n"
+        text = _front_of(name, head, 1, verdict)
         if name == role:
-            text += (
-                f"\n- **{card} — a finding**\n"
-                f"  - **Priority:** {severity} · {role} · {category} — why.\n"
-                "  - **Fix:** amend design.md's prose · size: one line.\n"
-                "  - **Status:** wontfix — needs the amend of design.md's prose\n"
-            )
+            fix = "amend design.md's prose · size: one line."
+            why = "wontfix — needs the amend of design.md's prose"
+            text += "\n" + _card(card, severity, role, fix, why, amend="yes")
         (folder / f"{name}.md").write_text(text)
     (folder / "status_log.md").write_text(
         "# t\n\n## Run 1 — d\n"
@@ -189,92 +188,6 @@ def _phase(tree: Path, primary: Path, change: str, phase: str, modes: set[str]) 
         notes.symlink_to(beside)
     if f"dies-phase-{phase}" in modes:
         sys.exit(1)
-
-
-def _by_rule(tree: Path, folder: Path) -> list[str] | None:
-    """Return a line per merge when a catch-up selects merges alone, each replaying."""
-    conformance = folder / "conformance.md"
-    text = conformance.read_text() if conformance.is_file() else ""
-    found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
-    head = _git(tree, "rev-parse", "HEAD")
-    if not found or found[1] == head:
-        return None
-    span = f"{found[1]}..HEAD"
-    selected = _git(tree, "rev-list", "--first-parent", span).split()
-    merges = _git(tree, "rev-list", "--first-parent", "--merges", span).split()
-    if not selected or not all(sha in merges for sha in selected):
-        return None
-    script = Path(__file__).resolve().parent.parent / "skills" / "mf-integrate"
-    lines = []
-    for sha in selected:
-        done = subprocess.run(
-            [sys.executable, str(script / "scripts" / "integrate.py"), "replay", sha],
-            cwd=tree,
-            capture_output=True,
-            text=True,
-        )
-        if done.returncode != 0:
-            return None
-        lines.append(f"- {sha}: {done.stdout.strip().removeprefix('replay: ')}")
-    return lines
-
-
-def _write_by_rule(folder: Path, head: str, lines: list[str]) -> None:
-    """Write both findings files clean at `head` with `## By rule`; log the round."""
-    for role in ("conformance", "adversarial"):
-        text = f"---\nverdict: clean\nhead: {head}\nround: 2\nworkers: 0\n---\n"
-        text += "\n## By rule\n\n" + "\n".join(lines) + "\n"
-        (folder / f"{role}.md").write_text(text)
-    paths = "; ".join(line.split(" — ", 1)[1] for line in lines)
-    (folder / "status_log.md").write_text(
-        "# t\n\n## Run 2 — d · catch-up\n10:00:01 · round 2 · done — ok\n"
-        f"10:00:00 · round 2 · by rule — clean, {paths}\n"
-    )
-
-
-def _stubbed(tree: Path, primary: Path, change: str, roles: list[str]) -> None:
-    """Write each skipped role's findings file with `skip_stub.py`, as converge does.
-
-    Why: 0105-converge-switches design D3.
-    """
-    script = Path(__file__).resolve().parent.parent / "skills" / "mf-converge"
-    folder = _folder(primary, change)
-    for role in roles:
-        subprocess.run(
-            [sys.executable, str(script / "scripts" / "skip_stub.py")]
-            + [str(folder / f"{role}.md"), "1"],
-            cwd=tree,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-
-def _fix_surfaces(tree: Path, primary: Path, change: str) -> None:
-    """Judge the head clean, commit a fix at `FAKE_FIX`, then judge it as Step 7 does.
-
-    Adversarial takes the fix head by rule, `mode: by-rule`, when `surfaces.py` exits 0.
-    """
-    folder = _folder(primary, change)
-    start = _git(tree, "rev-parse", "HEAD")
-    _findings(primary, change, start)
-    _commit(tree, {os.environ["FAKE_FIX"]: "fixed\n"}, "fix")
-    end = _git(tree, "rev-parse", "HEAD")
-    script = Path(__file__).resolve().parent.parent / "skills" / "mf-converge"
-    done = subprocess.run(
-        [sys.executable, str(script / "scripts" / "surfaces.py")]
-        + [str(folder / "adversarial.md"), start, end],
-        cwd=tree,
-        capture_output=True,
-        text=True,
-    )
-    # Read by its line, not its exit: a crash exits 1 too.
-    said = done.stdout.split(" — ")[0].strip()
-    mode = {"surfaces: no surface": "by-rule", "surfaces: verify": "parallel"}[said]
-    _findings(primary, change, end, round=2)
-    adversarial = folder / "adversarial.md"
-    text = adversarial.read_text().replace("round: 2\n", f"round: 2\nmode: {mode}\n")
-    adversarial.write_text(text)
 
 
 def _integrate(
@@ -441,6 +354,7 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
     spec = f"openspec/changes/{change}"
     files = {
         f"{spec}/proposal.md": f"---\nbump: {bump}\n{line}---\n",
+        f"{spec}/design.md": "## Dependencies\n\nNone.\n",
         f"{spec}/tasks.md": "## Progress\n\n- [ ] 1 — One\n",
     }
     if "cut-packages" in modes:
@@ -461,115 +375,337 @@ def _cut(tree: Path, primary: Path, change: str, prompt: str, modes: set[str]) -
 
 
 _USAGE = {"input_tokens": 1000, "cached_input_tokens": 400, "output_tokens": 100}
-_CHECKER = re.compile(r"converge's (\S+) checker for change (\S+?)[ .]")
+_PROBE = "converge's conformance checker for change 0001-probe"
+# A converge worker's prompt opens on its role, change and round lines.
+_ROLE = re.compile(r"\Arole: (\S+)\nchange: (\S+)\nround: (\d+)\n")
+_RANGE = re.compile(r"\b([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})\b")
+_BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
+# Each caps on blockers of its size; `cap-again` and `grant-halts` keep them through a
+# granted round.
+_CAPS = {
+    "cap-small": "a test",
+    "cap-design": "a design change",
+    "cap-again": "a test",
+    "grant-halts": "a design change",
+}
+_KEPT = ("cap-again", "grant-halts")
+_HELD = ("verified", "accepted")
 
 
-def _front(here: Path, role: str, change: str, verdict: str, blocking: int) -> str:
-    """Return a findings file's frontmatter with every key, the host `FAKE_HOST`."""
-    keys = {
-        "type": role.removeprefix("shadow-"),
+def _card(
+    card: str, severity: str, role: str, fix: str, status: str, amend: str = "no"
+) -> str:
+    """Return one findings card, its fields as the worker reference names them."""
+    category = "security" if role == "adversarial" else "stability"
+    return (
+        f"- **{card} — a finding**\n"
+        f"  - **Priority:** {severity} · {role} · {category} — why.\n"
+        "  - **What it affects:** `total.py:12`\n"
+        f"  - **Fix:** {fix}\n"
+        f"  - **Amend:** {amend}\n"
+        f"  - **Status:** {status}\n"
+    )
+
+
+def _cards_of(text: str) -> list[str]:
+    """Return each card of a findings file's text, its title and indented lines."""
+    blocks: list[list[str]] = []
+    current: list[str] | None = None
+    for line in text.splitlines(keepends=True):
+        if line.startswith("- **"):
+            current = [line]
+            blocks.append(current)
+        elif current is not None and line.startswith((" ", "\t")):
+            current.append(line)
+        else:
+            current = None
+    return ["".join(block) for block in blocks]
+
+
+def _blocking(cards: list[str], role: str) -> int:
+    """Return the `cards` that block on `role`'s scale, unverified and unaccepted."""
+    count = 0
+    for card in cards:
+        severity = re.search(r"\*\*Priority:\*\* (\w+)", card)
+        status = re.search(r"\*\*Status:\*\* (\w+)", card)
+        if severity and status and severity[1] in _BLOCKS[role]:
+            count += status[1] not in _HELD
+    return count
+
+
+def _write(
+    path: Path,
+    here: Path,
+    role: str,
+    change: str,
+    round_: str,
+    span: tuple[str, str],
+    cards: list[str],
+) -> None:
+    """Write a findings file to the contract: `span`'s scope, its cards' verdict."""
+    checked = role.removeprefix("shadow-")
+    base, head = span
+    blocking = _blocking(cards, checked)
+    keys: dict[str, object] = {
+        "type": checked,
         "plan": change,
+        "project": "fake",
+        "branch": _git(here, "branch", "--show-current"),
+        "head": head,
+        "reviewed": "2026-11-09",
+        "round": round_,
+        "open_blocking": blocking,
+        "verdict": "changes-requested" if blocking else "clean",
+        "mode": "parallel",
+        "workers": 1,
+        "files": len(_git(here, "diff", "--name-only", base, head).splitlines()),
+        "commits": _git(here, "rev-list", "--count", f"{base}..{head}"),
+    }
+    if checked == "conformance":
+        keys["passes"] = "[stale-claim, test-cost, no-removed-test]"
+    keys |= {
+        "inconclusive": "[]",
+        "model": "fake",
+        "executor": os.environ.get("FAKE_HOST", "claude"),
+        "packet": "diff.patch",
+    }
+    front = "".join(f"{key}: {value}\n" for key, value in keys.items())
+    body = "".join(cards)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"---\n{front}---\n\n## Summary\n\nJudged.\n\n{body}\n## Resolution log\n"
+    )
+
+
+def _judged_cards(here: Path, role: str, change: str, modes: set[str]) -> list[str]:
+    """Return the cards a round-1 checker of `role` finds, as `modes` say."""
+    sizes = [_CAPS[mode] for mode in _CAPS if mode in modes]
+    if sizes and role == "conformance":
+        return [
+            _card("R1", "blocking", role, "a fix · size: one line.", "open"),
+            _card("R2", "nit", role, "a fix · size: a design change.", "open"),
+            _card("R3", "blocking", role, "a fix · size: one line.", "verified — held"),
+        ]
+    if sizes:
+        return [
+            _card("S1", "high", role, f"a fix · size: {sizes[0]}.", "open"),
+            _card("S2", "medium", role, "a fix · size: a design change.", "open"),
+        ]
+    if "amend-halts" in modes and role == "conformance" and not _prose(here, change):
+        fix = f"amend `openspec/changes/{change}/design.md`'s prose · size: one line."
+        return [_card("R1", "blocking", role, fix, "open", amend="yes")]
+    return []
+
+
+def _judge(
+    here: Path, role: str, change: str, round_: str, span: tuple[str, str], path: Path
+) -> None:
+    """Write a checker's findings file, or a shadow's, as `FAKE_MODE` says.
+
+    `hold-converge-<change>` waits for `FAKE_HOLD`; `checker-sleep` waits a minute;
+    `dies-converge` exits 1; `plant-executor` plants a models file first.
+    """
+    modes = set(os.environ["FAKE_MODE"].split(","))
+    if f"hold-converge-{change}" in modes:
+        hold, deadline = Path(os.environ["FAKE_HOLD"]), time.monotonic() + 60
+        while not hold.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+    if "checker-sleep" in modes:
+        time.sleep(60)
+    if "dies-converge" in modes:
+        sys.exit(1)
+    common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    primary = Path(common).parent
+    if "plant-executor" in modes:
+        table = _folder(primary, change) / "models.toml"
+        table.write_text('[release]\nexecutor = "codex"\n')
+    if path.name.startswith("shadow-"):
+        cards = []
+        if "shadow-blocks" in modes:
+            name, grade = (
+                ("S1", "high") if role == "adversarial" else ("R1", "blocking")
+            )
+            cards = [_card(name, grade, role, "a fix · size: one line.", "open")]
+        _write(path, here, f"shadow-{role}", change, round_, span, cards)
+    else:
+        cards = _judged_cards(here, role, change, modes)
+        _write(path, here, role, change, round_, span, cards)
+    print(json.dumps({"type": "turn.completed", "usage": _USAGE}), flush=True)
+
+
+def _verify(
+    here: Path, change: str, round_: str, span: tuple[str, str], paths: list[Path]
+) -> None:
+    """Rewrite each findings file at the fix's head, its fixed cards verified.
+
+    A cap mode keeps every card through round 3, and `_KEPT`'s through a granted
+    round too; an amend card's `wontfix` stays.
+    """
+    modes = set(os.environ["FAKE_MODE"].split(","))
+    capped = any(mode in modes for mode in _CAPS)
+    kept = any(mode in modes for mode in _KEPT)
+    keep = kept or (capped and int(round_) < 4)
+    for path in paths:
+        role = path.stem
+        cards = _cards_of(path.read_text() if path.is_file() else "")
+        if not keep:
+            cards = [
+                re.sub(
+                    r"\*\*Status:\*\* (open|fixed)\b.*", "**Status:** verified", card
+                )
+                for card in cards
+            ]
+        _write(path, here, role, change, round_, span, cards)
+    print(json.dumps({"type": "turn.completed", "usage": _USAGE}), flush=True)
+
+
+def _fix(here: Path, primary: Path, change: str, round_: str, ids: str) -> None:
+    """Commit a fix and mark the cards `fixed`, or idle, as `FAKE_MODE` says; report.
+
+    A cap mode commits nothing; `amend-halts` sets its amend card `wontfix`; a
+    granted round's fixer, past round 2, dies under `grant-unfinished`.
+    """
+    modes = set(os.environ["FAKE_MODE"].split(","))
+    if "grant-unfinished" in modes and int(round_) > 2:
+        sys.exit(1)
+    folder = _folder(primary, change)
+    sent = [each.strip() for each in ids.split(";")[0].split(",")]
+    fixed, wontfix, commit = "none", "none", "nothing committed"
+    if "amend-halts" in modes and not _prose(here, change):
+        conformance = folder / "conformance.md"
+        why = "**Status:** wontfix — needs the amend of design.md's prose"
+        text = conformance.read_text().replace("**Status:** open", why)
+        conformance.write_text(text)
+        wontfix = "R1"
+    elif not any(mode in modes for mode in _CAPS):
+        _commit(here, {f"fixes/r{round_}.txt": f"{ids}\n"}, f"fix({change}): {ids}")
+        commit = _git(here, "rev-parse", "--short", "HEAD")
+        fixed = ", ".join(sent)
+        for role in ("conformance", "adversarial"):
+            path = folder / f"{role}.md"
+            if not path.is_file():
+                continue
+            text = path.read_text()
+            for card in _cards_of(text):
+                title = re.match(r"- \*\*(\S+) — ", card)
+                if title and title[1] in sent:
+                    done = card.replace("**Status:** open", "**Status:** fixed")
+                    text = text.replace(card, done)
+            path.write_text(text)
+    (folder / "fix.md").write_text(
+        f"fixed: {fixed}\nwontfix: {wontfix}\ncommit: {commit}\nplan check left: none\n"
+    )
+
+
+def _rewrite(here: Path, role: str, change: str, round_: str, path: Path) -> None:
+    """Rewrite a malformed findings file to the contract, its cards kept."""
+    text = path.read_text() if path.is_file() else ""
+    head = re.search(r"^head: (\S+)$", text, re.MULTILINE)
+    now = head[1] if head else _git(here, "rev-parse", "HEAD")
+    base = _git(here, "merge-base", "main", now)
+    cards = [
+        card if "**Amend:**" in card else card + "  - **Amend:** no\n"
+        for card in _cards_of(text)
+    ]
+    _write(path, here, role, change, round_, (base, now), cards)
+
+
+def _converge_worker(prompt: str, found: re.Match[str]) -> None:
+    """Play the one converge worker the prompt's role line names; log its call.
+
+    The station is the checker, its shadow, a verify worker, the fixer or a rewrite
+    worker, read from the prompt; `liar-<change>` writes nothing.
+    Why: 0108-converge-script design D8.
+    """
+    role, change, round_ = found.groups()
+    here = Path.cwd()
+    common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    primary = Path(common).parent
+    written = re.search(r"Your findings file, the one file you write: (\S+)", prompt)
+    path = Path(written[1]) if written else None
+    span = _RANGE.search(prompt)
+    ends = (span[1], span[2]) if span else ("HEAD", "HEAD")
+    if "You are converge's fixer" in prompt:
+        station = f"converge-fix-r{round_}"
+    elif "You are the verify worker" in prompt:
+        station = f"converge-verify-{role}-r{round_}"
+    elif "Rewrite that file to the contract" in prompt:
+        station = f"converge-rewrite-{role}-r{round_}"
+    elif path is not None and path.name.startswith("shadow-"):
+        station = f"converge-shadow-{role}-r{round_}"
+    else:
+        station = f"converge-{role}-r{round_}"
+    modes = set(os.environ["FAKE_MODE"].split(","))
+    with open(os.environ["FAKE_CALLS"], "a") as calls:
+        calls.write(f"{station} {change}\n")
+    if f"liar-{change}" in modes:
+        return
+    if station.startswith("converge-fix-"):
+        ids = re.search(r"The cards to clear, by id: (.+)", prompt)
+        _fix(here, primary, change, round_, ids[1] if ids else "")
+    elif station.startswith("converge-verify-"):
+        listed = re.search(
+            r"Your findings file, or a pickup check's files: (.+)", prompt
+        )
+        paths = [Path(each) for each in (listed[1] if listed else "").split(" and ")]
+        _verify(here, change, round_, ends, paths)
+    elif station.startswith("converge-rewrite-"):
+        broken = re.search(r"Your findings file (\S+) breaks", prompt)
+        _rewrite(here, role, change, round_, Path(broken[1] if broken else ""))
+    elif path is not None:
+        _judge(here, role, change, round_, ends, path)
+
+
+def _probe_checker(here: Path, modes: set[str]) -> None:
+    """Write the probe checker's findings file, requesting changes, every key in it.
+
+    `checker-silent` writes none. Why: 0096-codex-ready design D9.
+    """
+    if "checker-silent" in modes:
+        return
+    keys = {
+        "type": "conformance",
+        "plan": "0001-probe",
         "project": "fake",
         "branch": _git(here, "branch", "--show-current"),
         "head": _git(here, "rev-parse", "HEAD"),
         "reviewed": "2026-11-08",
         "round": "1",
-        "open_blocking": str(blocking),
-        "verdict": verdict,
+        "open_blocking": "1",
+        "verdict": "changes-requested",
         "mode": "parallel",
         "workers": "1",
         "model": "fake",
         "executor": os.environ.get("FAKE_HOST", "claude"),
         "packet": "diff.patch",
     }
-    return (
-        "---\n" + "".join(f"{key}: {value}\n" for key, value in keys.items()) + "---\n"
-    )
-
-
-def _checker(here: Path, role: str, change: str, modes: set[str]) -> None:
-    """Write a checker's findings file with every key, and a usage event.
-
-    The probe's, for `0001-probe`, requests changes; `checker-silent` writes none. A
-    shadow's blocks under `shadow-blocks`; `checker-sleep` waits a minute first.
-    Why: 0096-codex-ready design D9; 0097-cross-model design D7; 0104-codex-limits
-    design D3.
-    """
-    if "checker-sleep" in modes:
-        time.sleep(60)
-    if change == "0001-probe":
-        if "checker-silent" in modes:
-            return
-        root, verdict, blocking, card = here, "changes-requested", 1, ""
-    else:
-        common = _git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
-        root, verdict, blocking, card = Path(common).parent, "clean", 0, ""
-        if role.startswith("shadow-") and "shadow-blocks" in modes:
-            adversarial = role.endswith("adversarial")
-            name, grade = ("S1", "high") if adversarial else ("R1", "blocking")
-            verdict, blocking = "changes-requested", 1
-            card = (
-                f"\n- **{name} — a finding**\n"
-                f"  - **Priority:** {grade} · {role[7:]} · stability — why.\n"
-                "  - **What it affects:** `total.py:12`\n"
-                "  - **Fix:** a fix · size: one line.\n"
-                "  - **Status:** open\n"
-            )
-    folder = _folder(root, change)
+    folder = _folder(here, "0001-probe")
     folder.mkdir(parents=True, exist_ok=True)
-    front = _front(here, role, change, verdict, blocking)
-    (folder / f"{role}.md").write_text(front + card)
+    front = "".join(f"{key}: {value}\n" for key, value in keys.items())
+    (folder / "conformance.md").write_text(f"---\n{front}---\n")
     print(json.dumps({"type": "turn.completed", "usage": _USAGE}), flush=True)
-
-
-def _mailed(here: Path, primary: Path, change: str, roles: list[str]) -> None:
-    """Send each role through `conduct.py checker`, as converge's conductor does.
-
-    A failed send ends the fake converge with 1, save a shadow's.
-    Why: 0097-cross-model design D7.
-    """
-    conduct = Path(__file__).resolve().parent.parent / "skills" / "mf-ship" / "scripts"
-    for role in roles:
-        prompt = f"You are converge's {role} checker for change {change}.\n"
-        _folder(primary, change).mkdir(parents=True, exist_ok=True)
-        (_folder(primary, change) / f"{role}.prompt.md").write_text(prompt)
-        done = subprocess.run(
-            [
-                sys.executable,
-                "-S",
-                str(conduct / "conduct.py"),
-                "checker",
-                change,
-                role,
-            ],
-            cwd=here,
-            capture_output=True,
-            text=True,
-        )
-        if done.returncode != 0 and not role.startswith("shadow-"):
-            sys.exit(1)
 
 
 def _fake(prompt: str) -> None:
     """Do on disk what the station the prompt names would, as `FAKE_MODE` says."""
     modes = set(os.environ["FAKE_MODE"].split(","))
     here = Path.cwd()
+    if role_line := _ROLE.match(prompt):
+        _converge_worker(prompt, role_line)
+        return
     found = re.search(r"Run the mf-([a-z-]+) skill(?: for change (\S+?)[ .])?", prompt)
     station, change = (found[1], found[2]) if found else ("probe", None)
-    role = None
-    if checked := _CHECKER.search(prompt):
-        station, role, change = "checker", checked[1], checked[2]
+    if _PROBE in prompt:
+        station = "checker"
     # Every key=value clause but the one every release prompt carries.
     clauses = "".join(re.findall(r" (?:with|and) (?!merge=yes\b)\w+=\w+", prompt))
     if station == "supervise" and (brief := re.search(r" and brief=(\S+)\.\s", prompt)):
         clauses += f" and brief={Path(brief[1]).name}"
     with open(os.environ["FAKE_CALLS"], "a") as calls:
         called = f"{station} {change}" if change else station
-        if station == "checker":
-            called = "checker" if change == "0001-probe" else f"checker {change} {role}"
         calls.write(f"{called}{clauses}\n")
     if station == "checker":
-        _checker(here, str(role), str(change), modes)
+        _probe_checker(here, modes)
         return
     phase = re.search(r" with phase=(\w+)", prompt) if station == "build" else None
     if station == "build" and "deny" in modes and not (phase and phase[1] == "close"):
@@ -617,8 +753,7 @@ def _fake(prompt: str) -> None:
         time.sleep(60)
     if station == "build" and f"slow-{change}" in modes:
         time.sleep(2)
-    holds = {"build": f"hold-{change}", "converge": f"hold-converge-{change}"}
-    if holds.get(station) in modes:
+    if station == "build" and f"hold-{change}" in modes:
         hold, deadline = Path(os.environ["FAKE_HOLD"]), time.monotonic() + 60
         while not hold.exists() and time.monotonic() < deadline:
             time.sleep(0.05)
@@ -709,95 +844,6 @@ def _fake(prompt: str) -> None:
         if "dies-simplify" in modes:
             sys.exit(1)
         _closed(here, primary, str(change), modes)
-    elif station == "converge":
-        if "plant-executor" in modes:
-            table = _folder(primary, str(change)) / "models.toml"
-            table.parent.mkdir(parents=True, exist_ok=True)
-            table.write_text('[release]\nexecutor = "codex"\n')
-        # Each caps on cards of its size; `cap-again` caps a granted round too.
-        sizes = {
-            "cap-small": "a test",
-            "cap-design": "a design change",
-            "cap-again": "a test",
-        }
-        capping = [sizes[mode] for mode in sizes if mode in modes]
-        granted = "grant=yes" in clauses
-        if capping and (not granted or "cap-again" in modes):
-            head = _git(here, "rev-parse", "HEAD")
-            _cards(primary, str(change), head, capping[0], granted)
-            return
-        if granted and "grant-unfinished" in modes:
-            # A granted round whose host ended its turn mid-run: no `done`, exit 0.
-            log = _folder(primary, str(change)) / "status_log.md"
-            log.write_text(
-                "# t\n\n## Run 2 — d · grant\n10:00:00 · round 4 · fix — R1\n"
-            )
-            return
-        if "grant-halts" in modes:
-            log = _folder(primary, str(change)) / "status_log.md"
-            log.write_text(
-                "# t\n\n## Run 2 — d\n10:00:00 · round 4 · halt — cap reached\n"
-            )
-            return
-        if "amend-halts" in modes and not _prose(here, str(change)):
-            _amend_needed(primary, str(change), _git(here, "rev-parse", "HEAD"))
-            return
-        folder = _folder(primary, str(change))
-        log = folder / "status_log.md"
-        held = log.read_text() if log.is_file() else ""
-        head = _git(here, "rev-parse", "HEAD")
-        if "verify-fails" in modes:
-            # The amend round's amended `Verify:` fails before its `start`.
-            run = (
-                "## Run 2 — d · amend\n"
-                f"10:00:00 · round 2 · halt — verify failed — 1.1 · head {head}\n\n"
-            )
-            log.write_text(held.replace("## Run", run + "## Run", 1))
-            return
-        # Step 1's halts before `start`: a `Verify:` edited since the cut, a red gate.
-        before = {
-            "verify-halts": "verify: halt — 1.1",
-            "red-halts": "gate red before round 1",
-        }
-        if reason := next((before[mode] for mode in before if mode in modes), None):
-            folder.mkdir(parents=True, exist_ok=True)
-            (folder / "status_log.md").write_text(
-                "# t\n\n## Run 1 — d\n"
-                f"10:00:00 · round 1 · halt — {reason} · head {head}\n"
-            )
-            return
-        if "fix-surfaces" in modes:
-            _fix_surfaces(here, primary, str(change))
-            return
-        if "by-rule" in modes and (lines := _by_rule(here, folder)):
-            _write_by_rule(folder, head, lines)
-            return
-        if "amends" in modes or "amend-halts" in modes:
-            conformance = folder / "conformance.md"
-            text = conformance.read_text() if conformance.is_file() else ""
-            found = re.search(r"^head: (\S+)$", text, re.MULTILINE)
-            judged = found[1] if found else head
-            _findings(primary, str(change), head, round=2)
-            run = (
-                "## Run 2 — d · amend\n10:00:01 · round 2 · done — ok\n"
-                f"10:00:00 · round 2 · freeze — {judged}..{head}\n\n"
-            )
-            log.write_text(held.replace("## Run", run + "## Run", 1))
-        else:
-            mailed = re.findall(r" and (\w+)=mailbox\b", prompt)
-            _mailed(here, primary, str(change), mailed)
-            roles = ("conformance", "adversarial")
-            skipped = re.findall(r" and (\w+)=skip\b", prompt)
-            alone = tuple(r for r in roles if r not in mailed and r not in skipped)
-            _findings(primary, str(change), head, roles=alone)
-            if "keep-log" in modes:
-                log.write_text(held)
-            _stubbed(here, primary, str(change), skipped)
-            if " and shadow=yes" in prompt:
-                _mailed(here, primary, str(change), [f"shadow-{r}" for r in roles])
-        if "dies-converge" in modes:
-            log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · pickup — R1\n")
-            sys.exit(1)
     elif station == "integrate":
         message = f"chore(integrate): merge main into {change}"
         settled = "with settled=supervisor" in prompt

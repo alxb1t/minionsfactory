@@ -28,14 +28,17 @@ from typing import Any
 STAMP = re.compile(r"(\d{8})-(\d{6})(?:-(\d+))?")
 EVENT = re.compile(r"^(\d\d):(\d\d):(\d\d) · (\S+) · ([\w-]+) — (.*)$", re.MULTILINE)
 STATIONS = ("build", "converge", "integrate", "release", "rescue", "supervise")
-# The checkers converge's mailbox starts: no stage of their own, so no minutes.
-# Why: 0097-cross-model design D11.
+# The checkers an older converge's mailbox started: no stage of their own, so no
+# minutes. Why: 0097-cross-model design D11.
 CHECKERS = (
     "converge-conformance",
     "converge-adversarial",
     "converge-shadow-conformance",
     "converge-shadow-adversarial",
 )
+# A worker the converge script starts, as its checkers are: e.g. `converge-fix-r2`.
+# Why: 0108-converge-script design D4, D10.
+WORKER = re.compile(r"converge-[a-z-]+-r\d+")
 HALT = re.compile(r"(\w+) (?:check fail|worker exit|timed out)\b")
 # why: a clock set back an hour is no midnight
 MIDNIGHT = timedelta(hours=12)
@@ -99,13 +102,22 @@ class Event:
 
 @dataclass
 class Spawn:
-    """One station spawn: the n-th of its station in its stamp, and its finish."""
+    """One station spawn: the n-th of its station in its stamp, and its finish.
+
+    A `script` spawn, the converge script, writes no log of its own.
+    """
 
     stamp: str
     station: str
     n: int
     start: datetime
     end: datetime | None = None
+    script: bool = False
+
+
+def _checker(station: str) -> bool:
+    """Return whether a station is a converge checker or worker, read in its stage."""
+    return station in CHECKERS or WORKER.fullmatch(station) is not None
 
 
 def _git(root: Path, *args: str) -> str:
@@ -295,12 +307,15 @@ class Version:
         counts: Counter[tuple[str, str]] = Counter()
         for event in self.events:
             station = event.detail.split(" · ", 1)[0]
-            if event.who != self.change or station not in (*STATIONS, *CHECKERS):
+            if event.who != self.change or not (
+                station in STATIONS or _checker(station)
+            ):
                 continue
             if event.name == "spawn":
                 counts[event.stamp, station] += 1
                 n = counts[event.stamp, station]
-                spawns.append(Spawn(event.stamp, station, n, event.at))
+                script = event.detail == "converge · script"
+                spawns.append(Spawn(event.stamp, station, n, event.at, script=script))
             elif event.name == "finish":
                 running = (event.stamp, station, None)
                 if found := [
@@ -494,15 +509,15 @@ class Version:
         return self.folder / "logs" / log, f"{self.change}/logs/{log}"
 
     def checkers(self, stage: str) -> list[Spawn]:
-        """Return the checker spawns that started while one of a stage's spawns ran.
+        """Return the checker and worker spawns that started while a stage's spawn ran.
 
-        Why: 0097-cross-model design D11.
+        Why: 0097-cross-model design D11; 0108-converge-script design D10.
         """
         held = self.stage(stage)
         return [
             spawn
             for spawn in self.spawns
-            if spawn.station in CHECKERS
+            if _checker(spawn.station)
             and any(
                 run.start <= spawn.start and (run.end is None or spawn.start <= run.end)
                 for run in held
@@ -512,13 +527,15 @@ class Version:
     def spent(self, stages: tuple[str, ...], dollars: bool = True) -> tuple[float, int]:
         """Return the stages' dollars and tokens, each spawn's log read; none is 0.
 
-        A checker the mailbox started counts in the stage that held it. A log priced
+        A checker or a converge worker counts in the stage that held it, and the
+        converge script's spawn, which writes no log, counts nothing. A log priced
         to no dollars is a gap only when `dollars` are asked for.
         """
         logs = [
             self.log(spawn)
             for stage in stages
             for spawn in (*self.stage(stage), *self.checkers(stage))
+            if not spawn.script
         ]
         spent = [_spent(*log) for log in logs]
         costs = [cost for cost, _ in spent]
@@ -570,17 +587,22 @@ class Version:
         """Return a role's tokens: its subagents' over the converge logs, its checkers'.
 
         A subagent's `assistant` events carry its Task's `tool_use_id`, which the
-        log's `task_started` event names; a `converge-<role>` log is read as any log.
-        Why: 0077-run-metrics design D4; 0097-cross-model design D11.
+        log's `task_started` event names; a `converge-<role>` log, and a worker's
+        `converge-<role>-r<N>` or `converge-verify-<role>-r<N>`, is read as any log.
+        Why: 0077-run-metrics design D4; 0097-cross-model design D11;
+        0108-converge-script design D10.
         """
         total, seen = 0, set()
-        checked = [s for s in self.spawns if s.station == f"converge-{role}"]
+        own = re.compile(rf"converge-(?:verify-)?{role}(?:-r\d+)?")
+        checked = [s for s in self.spawns if own.fullmatch(s.station)]
         for spawn in checked:
             path, name = self.log(spawn)
             if not path.is_file():
                 raise Gap(f"no {name}")
             total += _spent(path, name)[1]
-        for spawn in (s for s in self.spawns if s.station == "converge"):
+        for spawn in (
+            s for s in self.spawns if s.station == "converge" and not s.script
+        ):
             path, name = self.log(spawn)
             if not path.is_file():
                 raise Gap(f"no {name}")

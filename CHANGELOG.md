@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.91.0] - 2026-11-10
+
+Gate: local 4m37s · CI not read under mf-ship · 0.90.1: local 2m49s · CI not read under mf-ship
+
+- `open_cards.py` fails closed: a Status is judged case folded, and an unknown word, a card with no Status or a Status
+  under no card exits 2 naming it (`0095·S1`). A findings file gains `files`, `commits`, `passes` and `inconclusive`, a
+  card `Amend:`, so a script reads fields, not prose; the fixer gets its own reference, `references/fix.md`, its report
+  ending on `plan check left:`, and each reference gains a `## Prompt` (change `0108-converge-script`, phase 1).
+- `skills/mf-converge/scripts/converge.py` starts converge as code: the preconditions, the freeze, the stubs, the
+  checkers in threads with prompts filled from each `## Prompt`, and the verdicts read by their fields. `sandboxed()`
+  takes `out`, so a version's thread keeps its commands' output apart (change `0108-converge-script`, phase 2).
+- `converge.py` runs the loop: the fixer on `fix=` always, one more pass on a red gate or a dirty tree, verify rounds to
+  the cap, the pickup and its check on the needed role, a granted round, the catch-up and by-rule rounds, round 1's
+  shadow, and a resume from the status log's latest event (change `0108-converge-script`, phase 3).
+- `converge.py` writes the debt under its lock, running each card's **Still true?** command sandboxed: exit 1 is moot,
+  prose goes unchecked. A failed worker gets one retry and a malformed findings file one rewrite worker, then a debt card,
+  so a run goes on where a script can; it closes on a report read from disk (change `0108-converge-script`, phase 4).
+- `conduct.py` runs converge in the version's thread through `converge.py`, starting no conducting worker; each checker,
+  fixer and verify worker is its own spawn with its own log, and `conduct.py converge <id>` runs it by hand. The checker
+  mailbox, its `checker` command and `surfaces.py` are gone; a converge skip is read once, with the plan (`0105·S2`)
+  (change `0108-converge-script`, phase 5).
+- `mf-converge` becomes a thin front for `conduct.py converge`; D78 records the script, and the decisions, principles,
+  threat model and `mf-ship` lose the mailbox. Review metrics book a converge worker by its log name, and `run.py` counts
+  each worker's log in the converge stage's cost and tokens. A status log that cannot be stamped now exits 2, not raising
+  (change `0108-converge-script`, phase 6).
+- `plan_check.py` skips a line of a living spec inside a requirement the change's delta lists under `## REMOVED
+  Requirements`: a change that removes a requirement naming the code it deletes no longer halts its close
+  (change `0108-converge-script`, phase 7).
+- `converge.py` halts on a red close-out gate, on a worker whose log asked for a tool its station lacks and on a cap
+  re-run with no grant or answer; an amend card with no command goes to the debt unchecked, and a catch-up's judge prompt
+  names its selected commits. The README, the spec delta and the docstrings match (change `0108-converge-script`, round 1).
+
 ## [0.90.1] - 2026-11-10
 
 Gate: local 2m49s · CI not read under mf-ship · 0.90.0: local 4m43s · CI not read under mf-ship

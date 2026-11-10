@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69, D77  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75
+     D5…D10, D38, D58, D59, D62, D65, D69, D77  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
@@ -39,7 +39,8 @@ header names a package the person approved, run from its own package and never c
 ### D3 · One line of stations, conducted by a person or by an LLM
 
 **The stations are the skills. A person conducts them, or `mf-ship`'s script starts each as a fresh agent process
-and checks it from disk (D47). No station is reimplemented: there is no third way to run the line.**
+and checks it from disk (D47). No station is reimplemented: converge's conductor is one script with two fronts, `mf-ship`
+and the skill ([D78](#d78--the-converge-conductor-is-a-script)); there is no third way to run the line.**
 
 - **Why:** one source for what a station does. A second implementation of every station drifts from the first.
 - **Rejected:** a runner that reimplements the stations · an LLM session waiting on long-running stations.
@@ -320,14 +321,13 @@ code. Fold and archive land in one commit.**
 ### D40 · Workers are fresh and observable
 
 **A checker, a verification worker or the cut's plan reviewer is a new host subagent or fresh agent process
-receiving explicit task inputs, without the producer's transcript. The conductor dispatches, waits and reads findings
-from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
+receiving explicit task inputs, without the producer's transcript. The conductor — converge's conductor is a script —
+dispatches, waits and reads findings from shared disk; role identity persists in that file. Dispatch prefers parallel; workers may run sequentially on one
 freeze. The plan reviewer answers the cut with its doubts, each with its `path:line`, and writes no findings file.
 Each plan review is a new worker, never a message to the reviewer before it. The cut's helpers are fresh read-only
 workers, as its plan reviewer is, answering in the cut's thread and writing no file, and read only a fact `facts.py`
-left unplaced: the cut writes their answers to its notes. A checker on another host than its
-conductor's is a fresh agent process `conduct.py`
-starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-another-host-and-a-shadow-round-measures-it)).**
+left unplaced: the cut writes their answers to its notes. A checker on another host than converge's is a fresh agent
+process the script starts through the run's checker call.**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
@@ -335,21 +335,19 @@ starts on the conductor's request ([D68](#d68--converges-checkers-may-run-on-ano
 
 ### D64 · Converge spends where judgment is
 
-**Converge's conductor runs on Sonnet 5.5 · high, its conformance worker on the mid tier · high,
-its adversarial worker on the strongest tier · high, and its fixer on the mid tier · medium, on adversarial's model,
-adversarial running on converge's host and not skipped, when a card it is sent blocks: the models file's `[converge]`,
-`[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and passes in the
-converge prompt. Verify runs at medium. Conformance reads `bundle.md` — the
+**Converge's checkers default to `[converge]`'s model, Sonnet 5.5 · high, its conformance worker on the mid tier · high,
+its adversarial worker on the strongest tier · high, and its fixer on the mid tier · medium always: the models file's
+`[converge]`, `[converge.conformance]`, `[converge.adversarial]` and `[converge.fix]`, which `conduct.py` reads once and
+passes to `converge.py`. Verify runs at medium. Conformance reads `bundle.md` — the
 decisions the change cites, in full, an index of all, and each requirement the delta modifies or removes,
-as a diff from the living spec — in place of the decisions file and the living spec. A fix that touches no `## Surfaces` path of `THREAT_MODEL.md`, with no
-adversarial card awaiting its checker, takes its adversarial head by recomputation.**
+as a diff from the living spec — in place of the decisions file and the living spec.**
 
 - **Why:** converge was most of a run's spend, its conductor judges nothing, and the decisions file was 47% of a worker's
   reading set.
-- **Accepts:** on Codex every worker on the conductor's host runs on the conductor's model; a decision the change does not
+- **Accepts:** a checker whose table names no model runs on `[converge]`'s; a decision the change does not
   cite is read by its index line alone; the build's model is `[build]`'s, a moderate phase's `[build.moderate]`'s.
 - **Rejected:** a mid-tier conductor alone — every worker follows it · the skill reading the models file — a worker can write
-  it · an adversarial verify skipped by the conductor's judgment.
+  it.
 
 ### D66 · Two checkers: conformance and adversarial
 
@@ -372,36 +370,31 @@ the diff's files to `debt-cards.md`, and no worker reads `.minions/debt.md`. A v
 ### D68 · Converge's checkers may run on another host, and a shadow round measures it
 
 **A conformance or adversarial table may name its executor, and the models line its host. A checker on another host than
-converge's runs through the checker mailbox, in the home folder's queue: the conductor writes the request, `conduct.py` spawns
-the checker on the plan's model and effort,
+converge's is started by the converge script through the run's checker call, on the plan's model and effort,
 within converge's remaining time, or on Claude while Codex is limited
-([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)), and answers naming the request,
-and the conductor reads its findings from disk. The fixer stays on converge's host.
+([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)),
+and the script reads its findings from disk. The fixer stays on converge's host.
 Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze, into shadow files that drive
 nothing, and `overlap.py` counts what each side alone caught. The review metrics read per role and executor.**
 
-- **Why:** a sandboxed Claude conductor cannot start Codex, and the person wanted Codex's review with Claude's fix, and the
-  numbers first.
-- **Accepts:** a mailbox the converge worker writes, bounded to `CHECKER_SPAWNS` a spawn · checkers served one at a time ·
-  a shadow pair's spend each round 1 it is on.
-- **Rejected:** `.minions/` as the mailbox — every worker writes it · a checker's model from its request · a fixer on another
-  host · a shadow on every round.
+- **Why:** the person wanted Codex's review with Claude's fix, and the numbers first.
+- **Accepts:** a shadow pair's spend each round 1 it is on.
+- **Rejected:** a fixer on another host · a shadow on every round.
 
 ### D71 · The cut and converge read what changed
 
 **The cut's plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a
 budget of 40 turns, and a second review judges only the change directory's diff since the first. The cut's helpers run on
 Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Round 1's fix pass takes the pickup with its blockers; once no blocker
-is open, a pickup's fix is checked by one verify worker at medium, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
+is open, a pickup's fix is checked by one verify worker at medium, on adversarial's model when a card it picked is
+adversarial's, else conformance's, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
 the diff's files have their own file, and the release reads the findings files' frontmatter and card lines alone.**
 
 - **Why:** 0097's plan reviews re-read everything, and its helpers, on the strongest model, re-read what another worker of
   the cut had read; 0096's last round verified only pickups; the bundles repeated the delta; the release read both findings
   files whole for their verdicts.
 - **Accepts:** a budget the reviewer counts itself, and a review that reaches it leaves the rest unread, its doubts the
-  person's or the switch's · a pickup check on conformance's model moves adversarial's head when `surfaces.py` exits 0 and
-  no adversarial card was picked, as the head by rule does · a pickup whose check needs a mailbox role verifies in a
-  counted round.
+  person's or the switch's.
 - **Rejected:** plan reviews on Sonnet — both of 0097's caught real defects · a commit between the reviews · the pickup
   verified in a full round · the release reading the frontmatter alone — a `fixed` blocker would pass.
 
@@ -505,6 +498,20 @@ pre-fills the line in `mf-plan` and the cut; `conduct.py` reads `models.toml` al
   accepts, as the `decide` switch is.
 - **Rejected:** a `**Converge:**` switch `conduct.py` reads — D56, D58 and D60 reject an `AGENTS.md` switch per version · a floor
   under an adversarial skip · `_unjudged` learning a skipped role.
+
+### D78 · The converge conductor is a script
+
+**Converge's conductor is `skills/mf-converge/scripts/converge.py`, which `conduct.py` loads in-process and calls in a version's
+thread; `conduct.py converge` runs it by hand, and `skills/mf-converge/SKILL.md` is its front. The checkers, the fixer and the
+verify workers are the only LLMs, each a fresh process the run starts, one log each; the gate, the check scripts and a card's
+**Still true?** command run under the sandbox runner. A script goes on where it can: one retry, one rewrite worker, one more fix
+pass; only the environment, a loop outcome, a red gate and a security card halt. The fixer runs on `fix=`'s model always.**
+
+- **Why:** the conductor was 17–24% of a converge and judged six things; a script reads fields.
+- **Accepts:** one implementation with two fronts · a card's **Still true?** prose is never checked · a command that exits 1 is
+  moot · a macOS-only converge until Linux has a runner.
+- **Rejected:** a runner that reimplements stations inside `conduct.py` · a python claim leader · a conducting LLM for a hand converge.
+- **Amends:** D3, D40, D47, D51, D53, D64, D68, D70, D71 and D76, each edited where it lives.
 
 ## The target repo
 
@@ -720,7 +727,8 @@ its gate, save a stacked one; it also merges a dependency's built head into its 
 **Run in the primary, `mf-ship` starts `conduct.py`, which builds and converges every open version in parallel,
 a dependent building on its dependency's built head ([D72](#d72--a-dependent-builds-on-its-dependencys-built-head)),
 then integrates, runs the catch-up round and releases each as it is ready, one at a time, with `merge=yes`. Each
-station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed, and is
+station is a fresh agent process in an OS sandbox, Claude Code's or Codex's, never with prompts bypassed — converge a
+script `conduct.py` calls, its workers such processes ([D78](#d78--the-converge-conductor-is-a-script)) — and is
 judged by its exit and a check on disk; a failed check halts its version, a halt blocks only what names it in
 `after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor;
 a probe a usage limit stopped, only the versions with a station on its executor
@@ -750,8 +758,7 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
   absent meaning converge's.
   One probe runs per executor, Codex's with a checker on a fixture, at the start or before a joining version's first worker
   on it, and a
-  worker reaches the primary and the open worktrees alone,
-  and a converge worker its checker mailbox. A mixed run's Codex station hands its writes to the next station's
+  worker reaches the primary and the open worktrees alone. A mixed run's Codex station hands its writes to the next station's
   sandbox, never to its start: a Claude worker loads no project settings.
 - **Origin down:** a failed read of `origin` waits, whatever its error, and so does a failed push a re-read cannot follow;
   a push `origin` refuses halts. Past `RETRIES` at the start, the run builds, converges and releases locally, judged against
@@ -759,7 +766,8 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
   `conduct.py anchor`, in their session.
 - **Accepts:** what a command `Ship tools:` names runs, inside the sandbox.
 - **Rejected:** an LLM conductor waiting on the workers — the supervisor is a station a halt starts
-  ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)) · `mfa-*` copies of the stations · a state file · workers that
+  ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)), and converge's conductor is a script `conduct.py` calls, whose
+  workers are the stations · `mfa-*` copies of the stations · a state file · workers that
   bypass permission prompts: the list blocks what is off it · telling an auth failure of `origin` from a network one · a
   version held until `origin` answers.
 
@@ -788,7 +796,8 @@ the run directory and its brief alone ([D58](#d58--a-settled-brief-is-cut-by-a-c
 the brief's folder, which then holds the brief alone, and a brief or `.minions` that is a link starts no cutter — and its scripts
 reach no unlisted domain. A plain command a run starts on a builder's code — the gate, a check script, a `Verify:` —
 runs under `sandboxed()`: macOS Seatbelt, writes inside the version's trees alone, no credential read and no network, and
-no OS sandbox ends it with exit 2. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out
+no OS sandbox ends it with exit 2. The converge script runs at the conductor's rights and runs each command of a builder's
+code under the sandbox runner. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out
 refused, and on Codex one checker. `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
 It pushes only a release a run took to its release, by a ledger there. The threat is a confused or prompt-injected agent; a
 hostile repo needs a container.**
@@ -825,14 +834,13 @@ runs one conformance checker on a fixture, passing on a findings file to the con
 
 ### D70 · A worker starts lean
 
-**A Claude worker starts with its station's tools alone — the cut and converge `Agent` too, the probe `Bash` and `Read` —
+**A Claude worker starts with its station's tools alone — the cut `Agent` too, the probe `Bash` and `Read` —
 with the operator's plugins, output style and auto-memory off and the dynamic prompt sections moved out, and reaches only the
-worktrees of open versions and queued cuts. The cut and converge ask for the 1-hour cache, every other station the 5-minute
-one. A tool its station lacks halts the version. The cut and the build read the decisions they cite and an index; the
-converge conductor reads no mandatory context.**
+worktrees of open versions and queued cuts. The cut asks for the 1-hour cache, every other station the 5-minute
+one. A tool its station lacks halts the version. The cut and the build read the decisions they cite and an index.**
 
 - **Why:** a worker's first turn was ~28.6k tokens before any work, re-read every turn; build carried all 55 decisions for
-  206 turns; only the cut's and converge's waits outlast 5 minutes.
+  206 turns; only the cut's waits outlast 5 minutes.
 - **Accepts:** a station that needs a new tool halts until its row changes · a decision the build does not cite is read by
   its index line alone.
 - **Rejected:** `Agent` for every station · `--setting-sources` without user settings · 1h for every station.
@@ -840,19 +848,19 @@ converge conductor reads no mandatory context.**
 ### D76 · A Codex usage limit falls back, and halts only what runs on Codex
 
 **A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>`, and only a version or cut with a
-station on Codex halts, alone, with no rescue. A mailbox checker on Codex that is limited — a limit recorded, or a primary
+station on Codex halts, alone, with no rescue. A converge checker on Codex that is limited — a limit recorded, or a primary
 window at 90% or more by Codex's rollout file — runs on Claude on converge's model and effort until the reset, save a reset at
 most 15 minutes away inside converge's time, which it waits for; its answer names `fallback: codex usage limit`. The reset
 comes from the rollout the log's `thread_id` names, else the `try again at` text. Each Codex spawn records its share of the
 5-hour and weekly windows, never dollars.**
 
 - **Why:** one operator session at 99% of a Plus window stopped run 20261108-200117 whole, a Claude-only version included;
-  a wait in the mailbox blocks its thread and costs conductor turns; Codex here is plan quota.
+  a wait costs a version's thread; Codex here is plan quota.
 - **Accepts:** the headroom read counts any Codex use, the operator's too · a limited shadow on Codex answers exit 1 and
   drives nothing · a Codex station still halts its version · a forged `thread_id` reads another rollout, misstating a reset
   or a share.
 - **Rejected:** a wait until any reset · dollar prices for Codex · the conductor telling a limit from a failure — `conduct.py`
-  falls back inside the mailbox.
+  falls back inside the run's checker call.
 
 ### D53 · A rescue amends the plan, never the code or a decision
 
@@ -870,7 +878,7 @@ ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none f
 sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
 command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
-`## Decisions` section and a `Fix note` closing a decision's entry, which the run reads as no decision change: a card whose
+`## Decisions`, `## Tests` and `## Dependencies` sections, and a `Fix note` closing a decision's entry, which the run reads as no decision change: a card whose
 fix needs any other plan edit halts `amend needed`. A
 timeout, a usage limit, a converge halt naming one, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 

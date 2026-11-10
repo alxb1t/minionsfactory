@@ -231,6 +231,24 @@ def test_a_plan_check_finds_what_the_plan_left(
     spec.write_text("`Old` `LIMIT` `OTHER` `LEGACY` `legacy.py` `_gone`\n")
     names = ["LEGACY", "_gone", "Old", "LIMIT", "OTHER", "legacy.py"]
     assert check() == (1, [_GONE.format(name) for name in names])
+
+    # A line in a living requirement the delta removes names it without harm; the
+    # same name in the next requirement, which the delta keeps, does not.
+    spec.write_text(
+        "## Requirements\n\n### Requirement: Capped reads\n\nIt holds `LIMIT`.\n\n"
+        "### Requirement: Kept reads\n\nIt holds `LIMIT` too.\n"
+    )
+    held = f"plan: {_SPEC}:{{}} names LIMIT, which the diff removes"
+    assert check() == (1, [held.format(5), held.format(9)])
+    delta = root / _FOLDER / "specs/cap/spec.md"
+    delta.parent.mkdir(parents=True)
+    delta.write_text(
+        "## MODIFIED Requirements\n\n### Requirement: Kept reads\n\nIt reads.\n\n"
+        "## REMOVED Requirements\n\n### Requirement: Capped reads\n\n"
+        "**Reason**: unread.\n"
+    )
+    assert check() == (1, [held.format(9)])
+    delta.unlink()
     spec.write_text("The `_gone` helper is removed.\n")
 
     # The tasks never name a removed name to the plan's harm.
