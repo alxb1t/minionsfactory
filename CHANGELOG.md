@@ -29,6 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-derive a line it holds and judge its judgment half; `CONTRIBUTING.md` states that a rule a tool can hold goes to the
   gate (change `0110-gate-hardening`, phase 7).
 
+## [0.91.1] - 2026-11-10
+
+Gate: local 4m40s · CI not read under mf-ship · 0.91.0: local 4m37s · CI not read under mf-ship
+
+- `tests/conftest.py` sets `GIT_CEILING_DIRECTORIES` at pytest's base temp for every test, and the planted-key test scans
+  a folder that is its own repository, so a gate run with `TMPDIR` inside the primary agrees with a bare one (change
+  `0111-sandbox-tmp`, phase 1).
+- `sandboxed()` gives each command a fresh `TMPDIR` outside every repository, writable and removed after it; a conductor
+  whose `TMPDIR` lies in a repository stops with 2. The tests' `TMPDIR` is a folder beside `tmp_path` (change
+  `0111-sandbox-tmp`, phase 2).
+- `argv()` gives a Codex worker its own `TMPDIR` and `TMPPREFIX` in a fresh folder outside every repository, its one extra
+  writable root, which `conduct.py` removes when the worker ends; `SHELL_RULES` forbids a here-document; `mf-release` says
+  where a worker's scratch folder lies (change `0111-sandbox-tmp`, phase 3).
+- The planted-key test scans `.` from inside a folder under a `.minions` of its own, so the gate's `.minions/` allowlist
+  never matches the path above the scanned folder and the scan reads the keys wherever `tmp_path` lies (change
+  `0111-sandbox-tmp`, phase 4).
+
 ## [0.91.0] - 2026-11-10
 
 Gate: local 4m37s · CI not read under mf-ship · 0.90.1: local 2m49s · CI not read under mf-ship

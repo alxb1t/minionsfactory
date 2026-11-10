@@ -5377,11 +5377,16 @@ def test_the_run_hands_converge_its_trees_and_sandbox(
 
     assert run.trees() == conduct["reach"](root) == [root, tree]
     out = io.StringIO()
-    shown = [sys.executable, "-c", "import os; print(os.getcwd())"]
+    shown = [
+        sys.executable,
+        "-c",
+        'import os; print(os.getcwd()); print(os.environ["TMPDIR"])',
+    ]
     assert run.sandboxed(shown, tree, run.trees(), out) == 0
-    assert Path(out.getvalue().strip()).resolve() == tree
+    cwd, temp = out.getvalue().splitlines()
+    assert Path(cwd).resolve() == tree
     assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        run.trees(), Path.home()
+        [*run.trees(), Path(temp)], Path.home()
     )
     assert (
         run.sandboxed([sys.executable, "-c", "raise SystemExit(3)"], tree, [tree]) == 3
@@ -10104,8 +10109,8 @@ def test_a_claude_worker_starts_in_the_sandbox(
     lean = command.index("--exclude-dynamic-system-prompt-sections")
     assert lean < command.index("--allowedTools")
 
-    # The conductor's uv environment is not the worker's `.venv`, and its scratch
-    # folder stands inside the sandbox.
+    # The conductor's uv environment is not the worker's `.venv`, and each worker's
+    # temp folder stands inside its sandbox.
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "conductor-venv"))
     scratch = root / ".minions" / "tmp"
     for executor in ("claude", "codex"):
@@ -10114,8 +10119,14 @@ def test_a_claude_worker_starts_in_the_sandbox(
         prefix = command[: command.index(executor)]
         shown = subprocess.run([*prefix, "env"], capture_output=True, text=True)
         assert "UV_CACHE_DIR=" in shown.stdout
-        assert f"TMPDIR={scratch}\n" in shown.stdout
-        assert scratch.is_dir()
+        if executor == "claude":
+            assert f"TMPDIR={scratch}\n" in shown.stdout
+            assert scratch.is_dir()
+        else:
+            temp = conduct["_temp_of"](command)
+            assert f"TMPDIR={temp}\n" in shown.stdout
+            assert f"TMPPREFIX={temp}/zsh\n" in shown.stdout
+            assert temp.is_dir() and not scratch.exists()
         assert "VIRTUAL_ENV=" not in shown.stdout
 
     # No worker binds loopback, and a leftover line halts.
@@ -10684,6 +10695,110 @@ def test_a_codex_worker_starts_on_mf_settings_alone(
     assert json.loads(events[-1])["type"] == "turn.completed"
 
 
+def test_a_codex_worker_gets_its_own_temporary_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+    argv = conduct["argv"]
+    after = len(conduct["HOOKS_OFF"]) + 3
+    codex = argv("codex", "Do it.", tree, None, None, repo)
+    cache, scratch, prefix, path = codex[after : after + 4]
+    folder = Path(scratch.removeprefix("TMPDIR="))
+    assert cache.startswith("UV_CACHE_DIR=") and path.startswith("PATH=")
+    assert folder.name.startswith("mf-codex-")
+    assert folder.parent == Path(os.environ["TMPDIR"]).resolve()
+    inside = subprocess.run(
+        ["git", "-C", str(folder), "rev-parse"], capture_output=True
+    )
+    assert folder.is_dir() and inside.returncode != 0
+    assert prefix == f"TMPPREFIX={folder}/zsh"
+    key = "sandbox_workspace_write.writable_roots="
+    found = next(arg for arg in codex if arg.startswith(key))
+    roots = json.loads(found.removeprefix(key))
+    before = [str(root / ".git"), *conduct["_gitdirs"](root / ".git")]
+    assert roots == [*map(str, before), str(root), str(tree), str(folder)]
+    # The folder is a root by its name alone: Codex's own root of `TMPDIR` stays off.
+    exclude = "sandbox_workspace_write.exclude_tmpdir_env_var=true"
+    assert codex[codex.index(exclude) - 1] == "-c"
+    # A Codex worker never has `.minions/tmp`; a Claude worker keeps it.
+    scratch_folder = root / ".minions" / "tmp"
+    assert not scratch_folder.exists()
+    claude = argv("claude", "Do it.", tree, None, None, repo)
+    assert f"TMPDIR={scratch_folder}" in claude[: claude.index("claude")]
+    assert scratch_folder.is_dir()
+    # A `TMPDIR` in a repository starts no Codex worker, and makes no folder.
+    beside = sorted(os.listdir(root))
+    monkeypatch.setenv("TMPDIR", str(root))
+    with pytest.raises(conduct["Stop"]) as stop:
+        argv("codex", "Do it.", tree, None, None, repo)
+    assert stop.value.code == 2
+    assert str(stop.value) == (
+        f"conduct: cannot run — TMPDIR {root} lies inside a git repository"
+    )
+    assert sorted(os.listdir(root)) == beside
+
+
+def test_a_codex_temp_folder_is_removed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_codex: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+    fake_codex("")
+    codex = conduct["argv"]("codex", "Do it.", tree, None, None, repo)
+    folder = conduct["_temp_of"](codex)
+    assert folder.is_dir()
+    (folder / "zsh1234").write_text("a here-document's file\n")
+    locked = folder / "locked" / "inner"
+    locked.mkdir(parents=True)
+    (locked / "file").write_text("held\n")
+    locked.chmod(0)
+    locked.parent.chmod(0)
+    conduct["_temp_gone"](codex)
+    assert not folder.exists()
+    conduct["_temp_gone"](codex)
+    claude = conduct["argv"]("claude", "Do it.", tree, None, None, repo)
+    assert conduct["_temp_of"](claude) is None
+
+    # A folder `_temp_folder` did not make stays, and so does a link's target.
+    other = tmp_path / "other"
+    other.mkdir()
+    named = ["env", f"TMPDIR={other}", "codex"]
+    assert conduct["_temp_of"](named) is None
+    conduct["_temp_gone"](named)
+    assert other.is_dir()
+    kept = tmp_path / "kept"
+    kept.mkdir()
+    (kept / "note.txt").write_text("kept\n")
+    link = tmp_path / "mf-codex-link"
+    link.symlink_to(kept)
+    conduct["_temp_gone"](["env", f"TMPDIR={link}", "codex"])
+    assert (kept / "note.txt").is_file()
+
+    # `agent` removes the folder when the worker ends.
+    made: list[Path] = []
+    ran = conduct["work"]
+
+    def worker(
+        command: list[str], cwd: Path, out: Path | int, claim: Path | None
+    ) -> tuple[int, bool]:
+        made.append(conduct["_temp_of"](command))
+        assert made[-1].is_dir()
+        return ran(command, cwd, out, claim)
+
+    monkeypatch.setitem(conduct["agent"].__globals__, "work", worker)
+    prompt = "Run the mf-build skill for change 0001-todo with phase=1."
+    assert conduct["agent"](tree, "codex", prompt) == 0
+    assert len(made) == 1 and not made[0].exists()
+
+
 def test_a_swapped_root_halts_a_codex_spawn(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -10693,6 +10808,7 @@ def test_a_swapped_root_halts_a_codex_spawn(
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     repo = (root, root / ".git")
     argv = conduct["argv"]
+    (root / ".minions").mkdir()
     sibling = tmp_path / "sibling"
     sibling.mkdir()
 
@@ -10779,6 +10895,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert rules.endswith(
         "Give these rules, word for word, to every subagent you start."
     )
+    assert "no here-document (<<): write a file with your editing tool;" in rules
     root = _primary(tmp_path, agents=_WORKTREES + "- **Ship tools:** `npm`, `pnpm`\n")
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     container = root.parent.resolve()
@@ -10924,16 +11041,20 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     ):
         assert not refused(command), command
     codex = argv("codex", "Do it.", root, None, None, repo)
-    roots = json.dumps([str(root / ".git"), *gitdir_roots, str(root), str(tree)])
-    assert codex[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
-    codex = codex[len(hooks_off) + 5 :]
+    temp = conduct["_temp_of"](codex)
+    own = [f"TMPDIR={temp}", f"TMPPREFIX={temp}/zsh"]
+    roots = json.dumps(
+        [str(root / ".git"), *gitdir_roots, str(root), str(tree), str(temp)]
+    )
+    assert codex[: len(hooks_off) + 6] == [*unset, *hooks_off, cache, *own]
+    codex = codex[len(hooks_off) + 6 :]
     assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
     assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
     assert codex[5:7] == ["--ignore-user-config", "--json"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
-    # `TMPDIR` is no writable root of its own: a worker can link `.minions/tmp`
-    # anywhere, and the primary root already holds the folder. Why: D51.
+    # The temp folder is a root by its name alone: Codex's own root of `TMPDIR`,
+    # links resolved, stays off.
     exclude = "sandbox_workspace_write.exclude_tmpdir_env_var=true"
     assert exclude in codex
     assert codex[codex.index(exclude) - 1] == "-c"
@@ -10971,9 +11092,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     writes = [str(tree), str(minions), str(brief), str(root / ".git")]
     assert settings["sandbox"]["filesystem"]["allowWrite"] == writes
     codex = argv("codex", "Cut.", tree, None, None, repo, brief=brief)
-    roots = json.dumps(
-        [str(root / ".git"), *gitdir_roots, str(tree), str(minions), str(brief.parent)]
-    )
+    folders = [
+        str(tree),
+        str(minions),
+        str(brief.parent),
+        str(conduct["_temp_of"](codex)),
+    ]
+    roots = json.dumps([str(root / ".git"), *gitdir_roots, *folders])
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     # A Codex cutter's root is the brief's folder: it holds the brief alone, and the
     # queued brief stays where it is.
@@ -11031,7 +11156,8 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
         conductor.spawn("0001-todo", "build", tree, "Do it.", models)
         key = "sandbox_workspace_write.writable_roots="
         found = next(arg for arg in spawned[-1] if arg.startswith(key))
-        return json.loads(found.removeprefix(key))
+        # The last root is the worker's own temp folder, gone when it ends.
+        return json.loads(found.removeprefix(key))[:-1]
 
     pointer.write_text(f"gitdir: {neighbour}/.git\n")
     assert next_roots() == [str(root / ".git"), *gitdir_roots, str(root)]

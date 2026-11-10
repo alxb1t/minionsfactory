@@ -53,6 +53,11 @@ def test_the_isolation_fixture_holds_home_under_tmp_path(tmp_path: Path) -> None
     names = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "GIT_CONFIG_GLOBAL")
     assert Path.home().is_relative_to(tmp_path)
     assert all(Path(os.environ[name]).is_relative_to(tmp_path) for name in names)
+    assert os.environ["GIT_CEILING_DIRECTORIES"] == str(tmp_path.parent)
+    temp = Path(os.environ["TMPDIR"])
+    assert temp.is_dir()
+    assert temp.is_relative_to(tmp_path.parent)
+    assert not temp.is_relative_to(tmp_path)
 
     subprocess.run(["git", "config", "--global", "mf.probe", "yes"], check=True)
 
@@ -99,17 +104,20 @@ def test_betterleaks_finds_a_planted_key(tmp_path: Path) -> None:
             "PRIVATE KEY-----",
         ),
     ]
-    scanned = tmp_path / "scanned"
-    scanned.mkdir()
+    # Why: 0111-sandbox-tmp design D9
+    scanned = tmp_path / ".minions" / "scanned"
+    scanned.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(scanned)], check=True)
     for number, (rule, key) in enumerate(planted):
         (scanned / f"{number}-{rule}.txt").write_text(f"value: {key}\n")
     report = tmp_path / "report.json"
 
     # The gate's own config, so a rule it drops fails here.
     done = subprocess.run(
-        ["betterleaks", "dir", str(scanned), "--no-banner", "--redact"]
+        ["betterleaks", "dir", ".", "--no-banner", "--redact"]
         + ["--config", str(_REPO / ".betterleaks.toml")]
         + ["--report-format", "json", "--report-path", str(report)],
+        cwd=scanned,
         capture_output=True,
         text=True,
     )

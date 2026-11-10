@@ -5,6 +5,7 @@ Why: 0107-sandbox-runner design D5.
 
 import io
 import json
+import os
 import runpy
 import shutil
 import signal
@@ -109,12 +110,17 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     assert env["KEPT"] == "yes"
     assert env["UV_OFFLINE"] == "1"
     assert env["UV_CACHE_DIR"] == str(trees[0] / ".minions" / "uv-cache")
-    assert env["TMPDIR"] == str(trees[0] / ".minions" / "tmp")
-    assert (trees[0] / ".minions" / "tmp").is_dir()
+    temp = Path(env["TMPDIR"])
+    assert temp.parent == Path(os.environ["TMPDIR"]).resolve()
+    assert temp.name.startswith("mf-sandbox-")
+    assert not temp.exists()
+    assert not (trees[0] / ".minions" / "tmp").exists()
     for pair in conduct["HOOKS_OFF"]:
         key, value = pair.split("=", 1)
         assert env[key] == value
-    assert fake_sandbox_exec.read_text() == conduct["_profile"](trees, Path.home())
+    assert fake_sandbox_exec.read_text() == conduct["_profile"](
+        [*trees, Path(env["TMPDIR"])], Path.home()
+    )
 
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -244,17 +250,70 @@ def test_the_command_runs_a_command_in_the_cwd(
     monkeypatch.chdir(repo)
 
     shown = conduct["main"](
-        ["sandboxed", "--", *_python("import os; print(os.getcwd())")]
+        [
+            *("sandboxed", "--"),
+            *_python("import os; print(os.getcwd()); print(os.environ['TMPDIR'])"),
+        ]
     )
 
     seen = capsys.readouterr()
+    cwd, temp = seen.out.splitlines()
     assert shown == 0
-    assert Path(seen.out.strip()).resolve() == repo
-    assert fake_sandbox_exec.read_text() == conduct["_profile"]([repo], Path.home())
+    assert Path(cwd).resolve() == repo
+    assert fake_sandbox_exec.read_text() == conduct["_profile"](
+        [repo, Path(temp)], Path.home()
+    )
     assert conduct["main"](["sandboxed", "--", *_python("raise SystemExit(3)")]) == 3
     for argv in (["sandboxed"], ["sandboxed", "--"]):
         assert conduct["main"](argv) == 2
         assert "sandboxed: cannot run — no command" in capsys.readouterr().out
+
+
+_TEMP_PROBE = (
+    "import json, os, subprocess; tmp = os.environ['TMPDIR'];"
+    " git = subprocess.run(['git', 'rev-parse', '--git-dir'], cwd=tmp,"
+    " capture_output=True);"
+    " open(os.path.join(tmp, 'x'), 'w').close();"
+    " print(json.dumps({'tmp': tmp, 'git': git.returncode,"
+    " 'wrote': os.path.isfile(os.path.join(tmp, 'x'))}))"
+)
+
+
+def test_a_command_gets_a_fresh_tmpdir_outside_every_repository(
+    tmp_path: Path, fake_sandbox_exec: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sandboxed = _conduct()["sandboxed"]
+    trees = _trees(tmp_path)
+    seen = []
+
+    for _ in range(2):
+        assert sandboxed(_python(_TEMP_PROBE), trees[0], trees) == 0
+        seen.append(json.loads(capsys.readouterr().out))
+
+    first, second = seen
+    assert first["git"] != 0
+    assert first["wrote"]
+    assert not Path(first["tmp"]).exists()
+    assert second["tmp"] != first["tmp"]
+    assert not Path(second["tmp"]).exists()
+
+
+def test_a_tmpdir_in_a_repository_runs_nothing(
+    tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    trees = _trees(tmp_path)
+    repo = _repo(tmp_path)
+    marker = tmp_path / "ran.txt"
+    command = _python(f"open({str(marker)!r}, 'w').close()")
+
+    for folder in (repo, tmp_path / "missing"):
+        monkeypatch.setenv("TMPDIR", str(folder))
+        with pytest.raises(conduct["Stop"]) as stop:
+            conduct["sandboxed"](command, trees[0], trees)
+        assert stop.value.code == 2
+        assert f"TMPDIR {folder}" in str(stop.value)
+        assert not marker.exists()
 
 
 def test_the_command_exits_2_with_no_os_sandbox(
@@ -314,6 +373,18 @@ def test_a_write_outside_the_trees_is_denied(
     assert write(outside) != 0
     assert not (outside / "x").exists()
     assert _DENIAL in capsys.readouterr().err
+
+    beside = (
+        "import os, pathlib; tmp = pathlib.Path(os.environ['TMPDIR']);"
+        " (tmp / 'in').touch(); print('in', flush=True);"
+        " (tmp.parent / 'beside').touch()"
+    )
+    code = conduct["sandboxed"](_python(beside), trees[0], trees)
+    seen = capsys.readouterr()
+    assert code != 0
+    assert seen.out.splitlines()[0] == "in"
+    assert not (Path(os.environ["TMPDIR"]) / "beside").exists()
+    assert _DENIAL in seen.err
 
 
 def test_a_secret_read_is_denied(
