@@ -55,6 +55,17 @@ def test_a_docstring_over_three_non_blank_lines_is_flagged(
     assert (done.returncode, done.stdout) == (1, f"a.py:2: {_OVER}\n")
 
 
+def test_a_file_named_with_unicode_or_a_newline_is_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path / "repo")
+    (root / "café.py").write_text(_LONG)
+    (root / "a\nb.py").write_text(_LONG)
+    monkeypatch.chdir(root)
+    assert docstrings.main([]) == 1
+    assert capsys.readouterr().out == f"a\nb.py:2: {_OVER}\ncafé.py:2: {_OVER}\n"
+
+
 def test_a_first_line_of_two_sentences_is_flagged() -> None:
     assert docstrings.check(_TWO_SENTENCES, "a.py") == [f"a.py:2: {_NOT_ONE}"]
     assert docstrings.check('"""Do it.\n\nThen stop.\n"""\n', "b.py") == []

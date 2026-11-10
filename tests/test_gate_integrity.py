@@ -32,6 +32,25 @@ def _patch(path: str, *body: str) -> str:
     return head + "@@ -10,9 +10,9 @@\n" + "".join(f"{line}\n" for line in body)
 
 
+def test_a_path_with_a_space_or_quotes_keeps_its_own_lines() -> None:
+    spaced = _patch("tests/with space.py", "+x = f()  # noqa: A")
+    plain = _patch("a.py", "+y = 1  # noqa: B")
+    name = "caf\\303\\251.py"
+    quoted = f'diff --git "a/{name}" "b/{name}"\n@@ -10,9 +10,9 @@\n+z = 1  # noqa: C\n'
+    assert gate_integrity.lines(spaced) == [
+        "noqa · tests/with space.py:10 · x = f()  # noqa: A"
+    ]
+    # Each file keeps its own lines, whichever comes first.
+    assert gate_integrity.lines(plain + spaced) == [
+        "noqa · a.py:10 · y = 1  # noqa: B",
+        "noqa · tests/with space.py:10 · x = f()  # noqa: A",
+    ]
+    assert gate_integrity.lines(plain + quoted) == [
+        "noqa · a.py:10 · y = 1  # noqa: B",
+        f"noqa · {name}:10 · z = 1  # noqa: C",
+    ]
+
+
 def test_an_added_noqa_is_a_line() -> None:
     added = _patch("skills/x/a.py", " ctx", "+x = f()  # noqa: BLE001")
     assert gate_integrity.lines(added) == [

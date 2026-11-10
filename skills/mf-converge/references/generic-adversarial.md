@@ -68,7 +68,7 @@ review skill and start no workers of your own.
    counterevidence: where untrusted input enters, the closest control, where it lands, the boundary it crosses, and
    what you checked that could defeat it. Its Priority's category is `security`. Start from `evidence.md`'s *Gate
    integrity* section, never re-derive a line it holds, and judge its judgment half: whether an allowlist, suppression or
-   swallowed error it lists opens a route.
+   swallowed error it lists opens a route; a card its line supports cites that line.
 
 ## The bar a finding clears
 

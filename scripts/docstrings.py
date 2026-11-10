@@ -44,7 +44,16 @@ def main(argv: list[str] | None = None) -> int:
     """Print each site in the tracked and new Python files; return 1 on any."""
     argparse.ArgumentParser(description=__doc__).parse_args(argv)
     listed = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.py"],
+        [
+            "git",
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "--",
+            "*.py",
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -52,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     lines = [
         line
-        for name in sorted(set(listed.stdout.splitlines()))
+        for name in sorted(set(listed.stdout.split("\0")) - {""})
         if Path(name).is_file()
         for line in check(Path(name).read_text(encoding="utf-8"), name)
     ]

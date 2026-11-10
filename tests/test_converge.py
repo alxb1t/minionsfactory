@@ -477,7 +477,8 @@ def test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards(host: Host) -
     host.printed["git"] = "docs/guide.md:41:call A to start\nsrc/a.py:1:B = 1\n"
     (host.tree / ".minions").mkdir()
     (host.tree / ".minions" / "test-report.xml").write_text(
-        '<testsuites><testcase classname="t" name="test_x" time="0.25"/></testsuites>'
+        '<testsuites><testcase classname="tests.test_x" name="test_x"'
+        ' time="0.25"/></testsuites>'
     )
     context.base = base
     fixed = _commit(

@@ -52,7 +52,10 @@ def cards(text: str) -> list[str]:
 
 
 def anchors(card: str) -> list[Anchor]:
-    """Return the path and lines of each path span of a card's `What it affects`."""
+    """Return the path and lines of each path span of a card's `What it affects`.
+
+    e.g. "`f()` in `a.py:12-14`, `b.py`" → [("a.py", 12, 14), ("b.py", None, None)]
+    """
     affects = AFFECTS.search(card)
     found: list[Anchor] = []
     for span in SPAN.findall(affects[1]) if affects else []:

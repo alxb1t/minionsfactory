@@ -162,7 +162,7 @@ field — never a heading, since the debt's headings are its changes. This refer
 | **Why it's a problem** | the harm, in one or two sentences |
 | **When you'd hit it** | a concrete scenario: what you run, and what happens |
 | **What it affects** | the section name, then `path:line` — a section name survives edits a line number does not |
-| **Evidence** | the offending line quoted, the rule or spec line it breaks, and how it is known: `read`, `traced` or `ran` |
+| **Evidence** | the offending line quoted, the rule or spec line it breaks, and how it is known: `read`, `traced` or `ran`; a card an `evidence.md` line supports cites that line |
 | **Verdict** | `confirmed`, or `plausible` and what would confirm it |
 | **Priority** | `<severity> · conformance · <category>`, the id `R<n>`, or `<severity> · adversarial · <category>`, the id `S<n>` — category one of `security` · `stability` · `data integrity` · `functional correctness` · `performance` · `maintainability`; and why that severity. An anchored finding names its anchor; a repeat says `repeat of <id>` and that it went up one level, a mechanism repeat that it kept its grade. A **security card** is an adversarial card of category `security` |
 | **Round** | the round the card was found |

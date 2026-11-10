@@ -3890,6 +3890,7 @@ sys.exit(int(os.environ.get("FAKE_UV_EXIT", "0")))
 """
 
 
+@pytest.mark.slow
 def test_a_cut_prefetches_its_approved_wheels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

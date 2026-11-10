@@ -118,11 +118,31 @@ def test_a_test_is_read_with_its_seconds() -> None:
         "boot · tests/test_b.py:12 · _main(conduct, root, 'run')",
         'boot · tests/test_b.py:16 · _main(conduct, root, "run", "x")',
     ]
+    # A test is timed by its own module: a name shared with another file is not summed.
+    twin = (
+        '<testcase classname="tests.test_a" name="test_main" time="0.1"/>'
+        '<testcase classname="tests.test_b" name="test_main" time="9.0"/>'
+    )
+    assert evidence.test_cost(
+        _patch("tests/test_a.py", "+def test_main(): ..."), twin, ""
+    ) == ["added · tests/test_a.py:10 · test_main · 0.10 s"]
     # With no report every added test has no time, and none added reads None.
     assert evidence.test_cost(_patch("tests/t.py", "+def test_e(): ..."), "", "") == [
         "added · tests/t.py:10 · test_e · no time in the report"
     ]
     assert evidence.test_cost(_patch("a.py", "+x = 1"), "", "") == []
+
+
+def test_a_path_with_a_space_is_read_as_its_own_file() -> None:
+    spaced = _patch("tests/with space.py", "+def test_s(): ...")
+    plain = _patch("a.py", "+x = 1")
+    assert evidence.touched(spaced) == {"tests/with space.py"}
+    assert evidence.touched(plain + spaced) == {"a.py", "tests/with space.py"}
+    assert evidence.test_cost(plain + spaced, "", "") == [
+        "added · tests/with space.py:10 · test_s · no time in the report"
+    ]
+    deleted = "diff --git a/old name.py b/old name.py\ndeleted file mode 100644\n"
+    assert evidence.candidates(deleted) == ["old name.py"]
 
 
 def test_a_removed_test_is_read_against_the_design() -> None:

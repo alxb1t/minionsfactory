@@ -72,7 +72,7 @@ review skill and start no workers of your own.
    enforces. A contradiction between standards files is a `drift` card, inside the diff or not: the person settles it.
 5. **Gate integrity.** A test removed, skipped or loosened; a relaxed threshold; a new suppression; a swallowed error.
    Start from `evidence.md`'s *Gate integrity* section, never re-derive a line it holds, and judge its judgment half: which
-   lines are a defect. A defect is always a card, never left to the fixer's judgement.
+   lines are a defect; a card the section supports cites its line. A defect is always a card, never left to the fixer's judgement.
 
 Then run the contract's stale-claim, test-cost and coverage-trace passes, and
 check repeats against `debt-cards.md`.

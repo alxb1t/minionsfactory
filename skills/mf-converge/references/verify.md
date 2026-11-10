@@ -56,7 +56,7 @@ skipped gives you neither file: its findings file is a stub, `mode: skipped`, wh
 ```
 
 - **Judge each open card** against the fix diff, the source and its regression proof.
-  Start from `evidence.md`, never re-derive a line it holds, and judge its judgment half.
+  Start from `evidence.md`, never re-derive a line it holds, and judge its judgment half. A card the line supports cites it.
 - **A card whose Fix size includes `a test`** is reopened when its **Status** note holds no red run, or the new test
   does not exercise the card's **When you'd hit it** scenario. You cannot re-run the test on the parent: check that
   the run is there and fits the scenario.

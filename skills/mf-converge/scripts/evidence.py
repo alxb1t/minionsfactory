@@ -14,8 +14,9 @@ from pathlib import Path
 LIMIT = 40
 WIDTH = 120
 NO_TIME = "no time in the report"
-FILE = re.compile(r"^diff --git a/\S+ b/(\S+)$", re.MULTILINE)
-DELETED = re.compile(r"^diff --git a/\S+ b/(\S+)\ndeleted file mode", re.MULTILINE)
+HEADER = r'diff --git (?:"a/.*"|a/.*?) "?b/(.*?)"?'
+FILE = re.compile(rf"^{HEADER}$", re.MULTILINE)
+DELETED = re.compile(rf"^{HEADER}\ndeleted file mode", re.MULTILINE)
 HUNK = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 MATCH = re.compile(r"^(.+?):(\d+):(.*)$", re.MULTILINE)
 DEFINED = re.compile(r"\s*(?:async\s+)?(?:def|class) (\w+)")
@@ -24,6 +25,7 @@ TEST_DEF = re.compile(r"\s*(?:async\s+)?def (test_\w+)")
 BOOT = re.compile(r"_main\(.*[\"']run[\"']")
 CASE = re.compile(r"<testcase\b([^>]*)>")
 NAME = re.compile(r'\bname="([^"]*)"')
+CLASS = re.compile(r'\bclassname="([^"]*)"')
 SECONDS = re.compile(r'\btime="([\d.]+)"')
 TESTS = re.compile(r"^## Tests\b.*?(?=^## |\Z)", re.MULTILINE | re.DOTALL)
 
@@ -99,18 +101,32 @@ def _tests(texts: Iterable[str]) -> list[str]:
     return [match[1] for text in texts if (match := TEST_DEF.match(text))]
 
 
-def _seconds(report: str) -> dict[str, str]:
-    """Return each test's seconds from a junit report, a parametrized test summed.
+def _seconds(report: str) -> dict[tuple[str, str], float]:
+    """Return each test's seconds by its class and name, a parametrized test summed.
 
-    e.g. name="t[1]" time="0.1" and name="t[2]" time="0.25" → {"t": "0.35 s"}
+    e.g. m's t[1] 0.1 s and t[2] 0.25 s → {("m", "t"): 0.35}
     """
-    total: dict[str, float] = {}
+    total: dict[tuple[str, str], float] = {}
     for case in CASE.findall(report):
-        name, time = NAME.search(case), SECONDS.search(case)
+        where, name, time = CLASS.search(case), NAME.search(case), SECONDS.search(case)
         if name and time:
-            key = name[1].partition("[")[0]
+            key = (where[1] if where else "", name[1].partition("[")[0])
             total[key] = total.get(key, 0.0) + float(time[1])
-    return {name: f"{seconds:.2f} s" for name, seconds in total.items()}
+    return total
+
+
+def _time(seconds: dict[tuple[str, str], float], path: str, name: str) -> str:
+    """Return the seconds of the test `name` defined in `path`, or `NO_TIME`.
+
+    e.g. tests/test_a.py with class `tests.test_a.TestX` → the time of that class's test
+    """
+    module = path.removesuffix(".py").replace("/", ".")
+    found = [
+        time
+        for (where, test), time in seconds.items()
+        if test == name and (where == module or where.startswith(f"{module}."))
+    ]
+    return f"{sum(found):.2f} s" if found else NO_TIME
 
 
 def _naming(name: str, section: str) -> str:
@@ -131,7 +147,7 @@ def test_cost(patch: str, report: str, design: str) -> list[str]:
     held = section[0] if section else ""
     return [
         *(
-            f"added · {path}:{number} · {name} · {seconds.get(name, NO_TIME)}"
+            f"added · {path}:{number} · {name} · {_time(seconds, path, name)}"
             for path, number, text in plus
             for name in _tests([text])
             if name not in lost

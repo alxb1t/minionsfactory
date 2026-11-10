@@ -16,7 +16,7 @@ from pathlib import Path
 WIDTH = 120
 ALLOWLIST = ".betterleaks.toml"
 PYPROJECT = "pyproject.toml"
-FILE = re.compile(r"^diff --git a/\S+ b/(\S+)$")
+FILE = re.compile(r'^diff --git (?:"a/.*"|a/.*?) "?b/(.*?)"?$')
 HUNK = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 ADDED = {
     "noqa": re.compile(r"#\s*noqa"),
