@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.91.0] - 2026-11-10
+
+Gate: local 4m37s · CI not read under mf-ship · 0.90.1: local 2m49s · CI not read under mf-ship
+
 - `open_cards.py` fails closed: a Status is judged case folded, and an unknown word, a card with no Status or a Status
   under no card exits 2 naming it (`0095·S1`). A findings file gains `files`, `commits`, `passes` and `inconclusive`, a
   card `Amend:`, so a script reads fields, not prose; the fixer gets its own reference, `references/fix.md`, its report
