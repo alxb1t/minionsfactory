@@ -8,7 +8,7 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 - [x] 1 — The tests stop depending on where tmp lies · moderate
 - [x] 2 — `sandboxed()` gives each command its own `TMPDIR` · hard
-- [ ] 3 — A Codex worker's own `TMPDIR`, the shell rules and the release text · hard
+- [x] 3 — A Codex worker's own `TMPDIR`, the shell rules and the release text · hard
 
 ## 1 — The tests stop depending on where tmp lies
 
@@ -44,19 +44,19 @@ Build the settled [design](design.md), one phase at a time; each test step goes 
 
 ## 3 — A Codex worker's own `TMPDIR`, the shell rules and the release text
 
-- [ ] 3.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
+- [x] 3.1 **HALT CHECK** The base stands as the design's [Context](design.md#context) reads it.
   Verify: `git grep -n -e '^def argv(' -e '^def _unswapped(' -e '^def agent(' -e '^SHELL_RULES = ' -e '^    def worker(' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 3.2 In `X` add `test_a_codex_worker_gets_its_own_temporary_folder` and `test_a_codex_temp_folder_is_removed` as [the Tests table](design.md#tests) says.
+- [x] 3.2 In `X` add `test_a_codex_worker_gets_its_own_temporary_folder` and `test_a_codex_temp_folder_is_removed` as [the Tests table](design.md#tests) says.
   Verify: `git grep -n -e 'def test_a_codex_worker_gets_its_own_temporary_folder' -e 'def test_a_codex_temp_folder_is_removed' -- tests/test_conduct.py` prints a line for each.
-- [ ] 3.3 In `X` move the Codex assertions of the executor loop at `:9929`, the argv blocks at `:10662` and `:10745`, the cutter block at `:10793` and the root lists at `:10856` and `:10903` to the folder and `TMPPREFIX` of [D5](design.md#d5), read in the env order of 3.4, the lists compared up to the last root; `test_a_worker_carries_the_allowlist_and_a_denial_is_named` also asserts `here-document` in the rules.
+- [x] 3.3 In `X` move the Codex assertions of the executor loop at `:9929`, the argv blocks at `:10662` and `:10745`, the cutter block at `:10793` and the root lists at `:10856` and `:10903` to the folder and `TMPPREFIX` of [D5](design.md#d5), read in the env order of 3.4, the lists compared up to the last root; `test_a_worker_carries_the_allowlist_and_a_denial_is_named` also asserts `here-document` in the rules.
   Verify: `git grep -n 'here-document' -- tests/test_conduct.py` prints a line.
-- [ ] 3.4 In `argv()` make `_temp_folder("mf-codex-")` for a Codex worker after `_unswapped`, as [D5](design.md#d5) says: last writable root, the env prefix `cache`, `TMPDIR=<folder>`, `TMPPREFIX=<folder>/zsh`, then `PATH`, the comment above `exclude_tmpdir_env_var` rewritten; `.minions/tmp` stays in the Claude branch, and `_fresh_tmp`'s docstring names the Claude workers' `TMPDIR`.
+- [x] 3.4 In `argv()` make `_temp_folder("mf-codex-")` for a Codex worker after `_unswapped`, as [D5](design.md#d5) says: last writable root, the env prefix `cache`, `TMPDIR=<folder>`, `TMPPREFIX=<folder>/zsh`, then `PATH`, the comment above `exclude_tmpdir_env_var` rewritten; `.minions/tmp` stays in the Claude branch, and `_fresh_tmp`'s docstring names the Claude workers' `TMPDIR`.
   Verify: `git grep -n 'mf-codex-' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.5 Add `_temp_of` and `_temp_gone` to `C` after `argv()`, per [D6](design.md#d6); in `Run.worker` and `agent` call `_temp_gone(command)` in a `finally` around `work()`.
+- [x] 3.5 Add `_temp_of` and `_temp_gone` to `C` after `argv()`, per [D6](design.md#d6); in `Run.worker` and `agent` call `_temp_gone(command)` in a `finally` around `work()`.
   Verify: `uv run pytest -q tests/test_conduct.py -k "codex_worker_gets_its_own or codex_temp_folder"` exits 0.
-- [ ] 3.6 In `SHELL_RULES` insert ` no here-document (<<): write a file with your editing tool;` after `use its output literally;`, per [D7](design.md#d7); its last words stay.
+- [x] 3.6 In `SHELL_RULES` insert ` no here-document (<<): write a file with your editing tool;` after `use its output literally;`, per [D7](design.md#d7); its last words stay.
   Verify: `uv run pytest -q tests/test_conduct.py -k worker_carries_the_allowlist` exits 0.
-- [ ] 3.7 In `skills/mf-release/SKILL.md` replace lines 175-176 per [D8](design.md#d8): `.minions/tmp/` on Claude, a fresh folder outside every repository on Codex.
+- [x] 3.7 In `skills/mf-release/SKILL.md` replace lines 175-176 per [D8](design.md#d8): `.minions/tmp/` on Claude, a fresh folder outside every repository on Codex.
   Verify: `git grep -n 'outside every repository' -- skills/mf-release/SKILL.md` prints a line.
-- [ ] 3.8 Run the brief's acceptance tests at pytest's default base temp, as 1.6 does.
+- [x] 3.8 Run the brief's acceptance tests at pytest's default base temp, as 1.6 does.
   Verify: `uv run pytest -q tests/test_sandboxed.py tests/test_corpus.py tests/test_facts.py tests/test_plan_check.py tests/test_skip_stub.py tests/test_verify_check.py tests/test_next_tag.py tests/test_pin.py tests/test_guardrails.py` exits 0.

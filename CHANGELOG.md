@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sandboxed()` gives each command a fresh `TMPDIR` outside every repository, writable and removed after it; a conductor
   whose `TMPDIR` lies in a repository stops with 2. The tests' `TMPDIR` is a folder beside `tmp_path` (change
   `0111-sandbox-tmp`, phase 2).
+- `argv()` gives a Codex worker its own `TMPDIR` and `TMPPREFIX` in a fresh folder outside every repository, its one extra
+  writable root, which `conduct.py` removes when the worker ends; `SHELL_RULES` forbids a here-document; `mf-release` says
+  where a worker's scratch folder lies (change `0111-sandbox-tmp`, phase 3).
 
 ## [0.91.0] - 2026-11-10
 

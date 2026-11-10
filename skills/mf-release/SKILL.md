@@ -172,8 +172,9 @@ Apply the change's `specs/` delta into `openspec/specs/`:
 
 A rename arrives as REMOVED (old title) + ADDED (new title): the fold has no rename operation.
 
-A scratch file for the fold is made with `mktemp`, inside a run's worker's sandbox: its environment names `.minions/tmp/`,
-and a Claude worker's sandboxed command may use Claude Code's own `TMPDIR` instead.
+A scratch file for the fold is made with `mktemp`, inside a run's worker's sandbox: on Claude its environment names
+`.minions/tmp/`, and a sandboxed command may use Claude Code's own `TMPDIR` instead; on Codex it names a fresh folder
+outside every repository.
 
 **Capability preamble prose is kept verbatim.** The fold cannot reach it, so read it by eye: where the change made
 it false, **flag it for a hand-edit** in your report. Never silently rewrite it, and never silently leave it wrong.

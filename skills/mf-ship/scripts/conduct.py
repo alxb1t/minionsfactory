@@ -269,7 +269,8 @@ PROMPTS = {
 }
 SHELL_RULES = (
     "Shell rules for this run: one command per Bash call; no `$(…)`, shell variables"
-    " or loops — run the inner command first and use its output literally; use"
+    " or loops — run the inner command first and use its output literally;"
+    " no here-document (<<): write a file with your editing tool; use"
     " `git -C <dir>`, never `cd`; never retry a denied command in a rewritten form"
     " to get past the list. Give these rules, word for word,"
     " to every subagent you start."
@@ -1097,7 +1098,7 @@ def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
 
 
 def _fresh_tmp(primary: Path) -> str | None:
-    """Leave `.minions/tmp/`, the workers' `TMPDIR`, empty; return why to halt.
+    """Leave `.minions/tmp/`, the Claude workers' `TMPDIR`, empty; return why to halt.
 
     A link or a file there is unlinked, never followed. A link at `.minions` halts
     with nothing removed: the delete runs through a descriptor on the folder itself.
@@ -3480,8 +3481,9 @@ def argv(
     `lines`; without them, `AGENTS.md` is read here. A cutter's `brief` narrows its
     reach to `cwd`, the run directory and the brief; a brief `_brief_refused` names,
     or a `.minions` that is a link, stops with 1. A Claude worker of a `station` starts
-    with its tools and cache lifetime; with none, the host's. Why: 0082-cut-station
-    design D5; 0100-worker-diet design D1–D4.
+    with its tools and cache lifetime; with none, the host's. A Codex worker gets a
+    fresh temp folder, which `_temp_gone` removes. Why: 0082-cut-station design D5;
+    0100-worker-diet design D1–D4; 0111-sandbox-tmp design D5.
     """
     prompt = f"{prompt}\n\n{SHELL_RULES}"
     if agent := os.environ.get("MF_SHIP_AGENT"):
@@ -3493,11 +3495,12 @@ def argv(
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
-    # A worker's `mktemp` lands inside its sandbox. Why: 0084-ship-fixes-2 design D6.
-    tmp = primary / ".minions" / "tmp"
-    tmp.mkdir(parents=True, exist_ok=True)
-    scratch = f"TMPDIR={tmp}"
     if executor == "claude":
+        # A worker's `mktemp` lands inside its sandbox.
+        # Why: 0084-ship-fixes-2 design D6.
+        tmp = primary / ".minions" / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        scratch = f"TMPDIR={tmp}"
         tools, network = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         allowed += [f"Edit(/{path})" for path in edits]
@@ -3536,11 +3539,15 @@ def argv(
         *(path.parent for path in edits),
     ]
     _unswapped([*folders, cwd])
-    roots = [str(folder) for folder in folders]
+    # The worker's own temp folder; zsh makes a here-document's file under `TMPPREFIX`.
+    # Why: 0111-sandbox-tmp design D5.
+    temp = _temp_folder("mf-codex-")
+    roots = [*(str(folder) for folder in folders), str(temp)]
     # Why: 0050-codex-review design D4.
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
-    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch, path)
+    own = (f"TMPDIR={temp}", f"TMPPREFIX={temp}/zsh")
+    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, *own, path)
     return [
         *env,
         *("codex", "exec"),
@@ -3552,8 +3559,8 @@ def argv(
         *("--ignore-user-config", "--json"),
         *("-c", "allow_login_shell=false"),
         *("-c", f"sandbox_workspace_write.writable_roots={json.dumps(roots)}"),
-        # Codex makes `TMPDIR` a root, links resolved; a worker can link
-        # `.minions/tmp` anywhere, and the primary's root holds it. Why: D51.
+        # The temp folder is a root by its name in `roots` alone: Codex's own root of
+        # `TMPDIR`, links resolved, stays off. Why: D51; 0111-sandbox-tmp design D5.
         *("-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true"),
         # No `/tmp` root; a Claude worker's own temp folder can still hold a forged
         # entry's folder, which Known gaps names. Why: 0096-codex-ready design D7.
@@ -3564,6 +3571,25 @@ def argv(
         *codex_trust([cwd, *trees], "untrusted"),
         *("-C", str(cwd), prompt),
     ]
+
+
+def _temp_of(command: list[str]) -> Path | None:
+    """Return the folder `argv` made for a Codex `command`, else None.
+
+    e.g. `["env", "TMPDIR=/t/mf-codex-k3j9x2", "codex"]` → `/t/mf-codex-k3j9x2`.
+    Why: 0111-sandbox-tmp design D6.
+    """
+    for element in command:
+        name, _, value = element.partition("=")
+        if name == "TMPDIR" and Path(value).name.startswith("mf-codex-"):
+            return Path(value)
+    return None
+
+
+def _temp_gone(command: list[str]) -> None:
+    """Remove the folder `_temp_of` names; a link is left, its target untouched."""
+    if folder := _temp_of(command):
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def codex_trust(paths: list[Path], level: str) -> list[str]:
@@ -4806,10 +4832,13 @@ class Run:
             os.write(sink, f"{json.dumps(line)}\n".encode())
         before = _windows(_rollout(None)) if executor == "codex" else {}
         started = time.monotonic()
-        if timeout is not None:
-            code, killed = work(command, cwd, sink, self.claim, timeout=timeout)
-        else:
-            code, killed = work(command, cwd, sink, self.claim)
+        try:
+            if timeout is not None:
+                code, killed = work(command, cwd, sink, self.claim, timeout=timeout)
+            else:
+                code, killed = work(command, cwd, sink, self.claim)
+        finally:
+            _temp_gone(command)
         seconds = round(time.monotonic() - started)
         self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
         if executor == "codex":
@@ -7572,7 +7601,11 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
     stamp = time.strftime(STAMP)
     repo = _repo(cwd)
     out = repo[0] / ".minions" / "runs" / f"agent-{stamp}.log"
-    code, killed = work(argv(executor, prompt, cwd, None, None, repo), cwd, out, None)
+    command = argv(executor, prompt, cwd, None, None, repo)
+    try:
+        code, killed = work(command, cwd, out, None)
+    finally:
+        _temp_gone(command)
     for denied in denials(out):
         print(f"agent: denied — {denied}")
     print(f"agent: exit {code}{' · timed out' if killed else ''} · {out}")
