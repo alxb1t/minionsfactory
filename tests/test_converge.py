@@ -1269,10 +1269,14 @@ def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
     assert f"commit {amended}\n" in patch
     assert "src/moved.txt" not in patch
     parents = _git(host.tree, "rev-list", "--parents", "-n", "1", merged).split()[1:]
-    assert (
-        f"- {merged} (parents {' '.join(parents)}): remerge-diff\n"
-        f"- {amended} (parents {merged}): ordinary diff\n"
-    ) in host.checks[0][3]
+    assert len(host.checks) == 2
+    for _, _, _, text in host.checks:
+        assert (
+            "The scope: a catch-up round of 2 commits and 1 file.\n"
+            f"- {merged} (parents {' '.join(parents)}): remerge-diff\n"
+            f"- {amended} (parents {merged}): ordinary diff\n"
+        ) in text
+        assert "src/moved.txt" not in text
     written = events(host)
     assert written[0].endswith(f"HEAD {amended[:7]} · its own count")
     assert written[2].endswith(" · 2 commits · 1 file")
