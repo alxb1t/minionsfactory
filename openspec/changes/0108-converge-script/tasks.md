@@ -81,8 +81,8 @@ only the phase's end is green.
   `debt_match.py` and `replay`; then `retried` (the one retry) and `rewrite` (the rewrite worker, then the debt card) per
   [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n -e '^def retried(' -e '^def rewrite(' -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [x] 4.3 Add `test_the_report_names_the_verdicts`; then `report`, and the module docstring that names each script `converge.py`
-  loads or runs and the hand command of [D1](design.md#d1).
+- [x] 4.3 Add `test_the_report_names_the_verdicts`; then `report`, and the module docstring that names the hand command of
+  [D1](design.md#d1); the catalogue of each script `converge.py` loads or runs lives in `SKILL.md`.
   Verify: `uv run pytest -q tests/test_converge.py` exits 0; `git grep -n 'conduct.py converge' -- skills/mf-converge/scripts/converge.py` prints a line.
 
 ## 5 — `conduct.py`: the in-process call and the retirements
