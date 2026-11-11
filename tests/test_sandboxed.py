@@ -150,6 +150,27 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     assert not (outside / "tmp").exists()
 
 
+def test_a_sandboxed_command_has_npm_offline_with_scripts_off(
+    tmp_path: Path,
+    fake_sandbox_exec: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    conduct = _conduct()
+    trees = _trees(tmp_path)
+    monkeypatch.setenv("npm_config_offline", "false")
+    monkeypatch.setenv("npm_config_ignore_scripts", "false")
+    monkeypatch.setenv("npm_config_cache", str(tmp_path / "other-cache"))
+
+    code = conduct["sandboxed"](_python(_DUMP), trees[1], trees)
+
+    env = json.loads(capsys.readouterr().out)["env"]
+    assert code == 0
+    assert env["npm_config_cache"] == str(trees[0] / ".minions" / "npm-cache")
+    assert env["npm_config_offline"] == "true"
+    assert env["npm_config_ignore_scripts"] == "true"
+
+
 @pytest.mark.parametrize(
     ("code", "exit_code"),
     [

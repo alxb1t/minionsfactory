@@ -326,6 +326,9 @@ HOOKS_OFF = (
     *("GIT_CONFIG_KEY_0=core.hooksPath", "GIT_CONFIG_VALUE_0=/dev/null"),
     *("GIT_CONFIG_KEY_1=core.fsmonitor", "GIT_CONFIG_VALUE_1=false"),
 )
+# A worker's npm reads the run's cache offline and runs no install script.
+# Why: 0121-ui-prepare design D4.
+NPM_SETTINGS = ("npm_config_offline=true", "npm_config_ignore_scripts=true")
 # A primary checkout and its common directory, None outside a repo.
 type Repo = tuple[Path, Path | None]
 # The URLs git fetches `origin` from, then the ones it pushes to.
@@ -3346,6 +3349,12 @@ def sandboxed(
         env[key] = value
     env["UV_OFFLINE"] = "1"
     env["UV_CACHE_DIR"] = str(trees[0] / ".minions" / "uv-cache")
+    for pair in (
+        f"npm_config_cache={trees[0] / '.minions' / 'npm-cache'}",
+        *NPM_SETTINGS,
+    ):
+        key, _, value = pair.partition("=")
+        env[key] = value
     env["TMPDIR"] = str(tmp)
     denied = False
     done, expired = threading.Event(), threading.Event()
@@ -3502,6 +3511,7 @@ def argv(
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
+    npm = f"npm_config_cache={primary / '.minions' / 'npm-cache'}"
     if executor == "claude":
         # A worker's `mktemp` lands inside its sandbox.
         # Why: 0084-ship-fixes-2 design D6.
@@ -3513,6 +3523,7 @@ def argv(
         allowed += [f"Edit(/{path})" for path in edits]
         return [
             *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch),
+            *(npm, *NPM_SETTINGS),
             *(("FORCE_PROMPT_CACHING_5M=1",) if station else ()),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
@@ -3552,7 +3563,17 @@ def argv(
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
     own = (f"TMPDIR={temp}", f"TMPPREFIX={temp}/zsh")
-    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, *own, path)
+    env = (
+        "env",
+        "-u",
+        "VIRTUAL_ENV",
+        *HOOKS_OFF,
+        cache,
+        *own,
+        path,
+        npm,
+        *NPM_SETTINGS,
+    )
     return [
         *env,
         *("codex", "exec"),

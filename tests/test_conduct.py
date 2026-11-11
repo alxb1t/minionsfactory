@@ -11988,6 +11988,30 @@ def test_a_linked_tree_writes_under_the_codex_sandbox(
     assert done.returncode == 0, done.stderr
 
 
+def test_a_worker_carries_the_npm_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+    argv = conduct["argv"]
+    cache = f"npm_config_cache={root / '.minions' / 'npm-cache'}"
+    settings = ["npm_config_offline=true", "npm_config_ignore_scripts=true"]
+    assert list(conduct["NPM_SETTINGS"]) == settings
+
+    claude = argv("claude", "Do it.", tree, None, None, repo)
+    prefix = claude[: claude.index("claude")]
+    tmp = f"TMPDIR={root / '.minions' / 'tmp'}"
+    assert prefix[prefix.index(tmp) + 1 :] == [cache, *settings]
+
+    codex = argv("codex", "Do it.", tree, None, None, repo)
+    prefix = codex[: codex.index("codex")]
+    assert prefix[-3:] == [cache, *settings]
+    assert prefix[-4].startswith("PATH=")
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -12064,8 +12088,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp = f"TMPDIR={root / '.minions' / 'tmp'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
     unset = ["env", "-u", "VIRTUAL_ENV"]
-    assert claude[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
-    claude = claude[len(hooks_off) + 5 :]
+    assert claude[: claude.index("claude")][: len(hooks_off) + 5] == [
+        *unset,
+        *hooks_off,
+        cache,
+        tmp,
+    ]
+    claude = claude[claude.index("claude") :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     assert "--settings" in claude
@@ -12150,11 +12179,12 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     roots = json.dumps(
         [str(root / ".git"), *gitdir_roots, str(root), str(tree), str(temp)]
     )
-    assert codex[: len(hooks_off) + 6] == [*unset, *hooks_off, cache, *own]
-    codex = codex[len(hooks_off) + 6 :]
-    assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
-    assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
-    assert codex[5:7] == ["--ignore-user-config", "--json"]
+    prefix = codex[: codex.index("codex")]
+    assert prefix[: len(hooks_off) + 6] == [*unset, *hooks_off, cache, *own]
+    assert prefix[len(hooks_off) + 6].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
+    codex = codex[codex.index("codex") :]
+    assert codex[:4] == ["codex", "exec", "-s", "workspace-write"]
+    assert codex[4:6] == ["--ignore-user-config", "--json"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     # The temp folder is a root by its name alone: Codex's own root of `TMPDIR`,

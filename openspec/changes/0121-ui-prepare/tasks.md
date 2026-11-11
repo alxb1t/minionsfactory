@@ -6,7 +6,7 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 
 - [x] 1 — The rows · moderate
 - [x] 2 — The fetch · hard
-- [ ] 3 — The workers · moderate
+- [x] 3 — The workers · moderate
 - [ ] 4 — The halt · hard
 - [ ] 5 — The record · moderate
 
@@ -40,11 +40,11 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 
 ## 3 — The workers
 
-- [ ] 3.1 Add `NPM_SETTINGS` to `conduct.py` and build `npm_config_cache=<primary>/.minions/npm-cache` beside `cache` in `argv`, per [D4](design.md#d4): after `scratch` in a Claude worker's `env` prefix, after `path` in a Codex worker's. Test both lines in `test_a_worker_carries_the_npm_settings`, `tests/test_conduct.py`.
+- [x] 3.1 Add `NPM_SETTINGS` to `conduct.py` and build `npm_config_cache=<primary>/.minions/npm-cache` beside `cache` in `argv`, per [D4](design.md#d4): after `scratch` in a Claude worker's `env` prefix, after `path` in a Codex worker's. Test both lines in `test_a_worker_carries_the_npm_settings`, `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_worker_carries_the_npm_settings` exits 0.
-- [ ] 3.2 Make `test_a_worker_carries_the_allowlist_and_a_denial_is_named` in `tests/test_conduct.py` slice a Claude worker's prefix up to `claude`, not at `len(hooks_off) + 5`, and a Codex worker's up to `codex`, not at `len(hooks_off) + 6`.
+- [x] 3.2 Make `test_a_worker_carries_the_allowlist_and_a_denial_is_named` in `tests/test_conduct.py` slice a Claude worker's prefix up to `claude`, not at `len(hooks_off) + 5`, and a Codex worker's up to `codex`, not at `len(hooks_off) + 6`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_worker_carries_the_allowlist_and_a_denial_is_named` exits 0.
-- [ ] 3.3 Set `npm_config_cache`, `npm_config_offline` and `npm_config_ignore_scripts` in `sandboxed()`'s environment beside `UV_CACHE_DIR`. Test them in `test_a_sandboxed_command_has_npm_offline_with_scripts_off`, `tests/test_sandboxed.py`.
+- [x] 3.3 Set `npm_config_cache`, `npm_config_offline` and `npm_config_ignore_scripts` in `sandboxed()`'s environment beside `UV_CACHE_DIR`. Test them in `test_a_sandboxed_command_has_npm_offline_with_scripts_off`, `tests/test_sandboxed.py`.
   Verify: `uv run pytest -q tests/test_sandboxed.py -k a_sandboxed_command_has_npm_offline_with_scripts_off` exits 0.
 
 ## 4 — The halt
