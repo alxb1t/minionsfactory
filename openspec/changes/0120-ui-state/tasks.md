@@ -4,7 +4,7 @@ The phases: the projector, the server, the page, the record, and a person's chec
 
 ## Progress
 
-- [ ] 1 — The projector · hard
+- [x] 1 — The projector · hard
 - [ ] 2 — The server · hard
 - [ ] 3 — The page · moderate
 - [ ] 4 — The record · moderate
@@ -14,36 +14,36 @@ The phases: the projector, the server, the page, the record, and a person's chec
 
 `viewer.py project <primary>` prints a project's tree; every sub-task adds its own tests to `tests/test_viewer.py`.
 
-- [ ] 1.1 **HALT CHECK** The readers the projector calls stand: `stage_of`, `open_versions`, `_progress`, `_cuts`, `_claim`, `_bounded` and `_run_end` in `conduct.py`; `CAP` and `FALLBACK` in `converge.py`.
+- [x] 1.1 **HALT CHECK** The readers the projector calls stand: `stage_of`, `open_versions`, `_progress`, `_cuts`, `_claim`, `_bounded` and `_run_end` in `conduct.py`; `CAP` and `FALLBACK` in `converge.py`.
   Verify: `git grep -n -e '^def stage_of' -e '^def open_versions' -e '^def _progress' -e '^def _cuts' -e '^def _claim' -e '^def _bounded' -e '^def _run_end' -e '^CAP = ' -e '^FALLBACK = ' -- skills/mf-ship/scripts/conduct.py skills/mf-converge/scripts/converge.py` prints each line.
-- [ ] 1.2 Create `skills/mf-ui/scripts/viewer.py`: header, `load`, `read_part`, and `main` with its usage exit 2 ([D1](design.md#d1), [D2](design.md#d2)).
+- [x] 1.2 Create `skills/mf-ui/scripts/viewer.py`: header, `load`, `read_part`, and `main` with its usage exit 2 ([D1](design.md#d1), [D2](design.md#d2)).
   Add `tests/test_viewer.py` with `_primary` and `_version` helpers and `test_read_part_reads_a_regular_file_only`.
   Verify: `uv run pytest tests/test_viewer.py -k read_part -q` exits 0.
-- [ ] 1.3 `project <primary>` prints the tree of [D3](design.md#d3), every list empty.
+- [x] 1.3 `project <primary>` prints the tree of [D3](design.md#d3), every list empty.
   Add `test_main_dispatches_its_commands`.
   Verify: `uv run pytest tests/test_viewer.py -k main_dispatches -q` exits 0.
-- [ ] 1.4 List `open_versions` with each version's `phases` as [D5](design.md#d5) says, ticks from the worktree's `tasks.md`.
+- [x] 1.4 List `open_versions` with each version's `phases` as [D5](design.md#d5) says, ticks from the worktree's `tasks.md`.
   Add `test_a_version_shows_its_phases_with_the_trees_ticks`.
   Verify: `uv run pytest tests/test_viewer.py -k phases_with_the_trees_ticks -q` exits 0.
-- [ ] 1.5 Fill `workers` from the newest run log and the `run` line from the claim, per [D5](design.md#d5).
+- [x] 1.5 Fill `workers` from the newest run log and the `run` line from the claim, per [D5](design.md#d5).
   Add `test_workers_are_the_unfinished_spawns`.
   Verify: `uv run pytest tests/test_viewer.py -k unfinished_spawns -q` exits 0.
-- [ ] 1.6 Give each version its `stage`, `why` and `state` by the table of [D4](design.md#d4); a version whose read raises is `unread` alone.
+- [x] 1.6 Give each version its `stage`, `why` and `state` by the table of [D4](design.md#d4); a version whose read raises is `unread` alone.
   Add `test_the_projector_gives_each_state_its_why` and `test_a_version_that_raises_is_unread_alone`.
   Verify: `uv run pytest tests/test_viewer.py -k "each_state_its_why or raises_is_unread" -q` exits 0.
-- [ ] 1.7 Fill `converge` from the status log, `conformance.md`, `adversarial.md` and `CAP`, per [D5](design.md#d5).
+- [x] 1.7 Fill `converge` from the status log, `conformance.md`, `adversarial.md` and `CAP`, per [D5](design.md#d5).
   Add `test_converge_shows_its_round_cap_blockers_and_each_role`.
   Verify: `uv run pytest tests/test_viewer.py -k round_cap_blockers -q` exits 0.
-- [ ] 1.8 Fill `liveness` for each version with a worker, per [D5](design.md#d5).
+- [x] 1.8 Fill `liveness` for each version with a worker, per [D5](design.md#d5).
   Add `test_liveness_is_active_then_quiet`.
   Verify: `uv run pytest tests/test_viewer.py -k active_then_quiet -q` exits 0.
-- [ ] 1.9 Fill `for_you`, the `notes` and the `queue` from `_cuts`, per [D4](design.md#d4).
+- [x] 1.9 Fill `for_you`, the `notes` and the `queue` from `_cuts`, per [D4](design.md#d4).
   Add `test_for_you_holds_what_needs_a_person`.
   Verify: `uv run pytest tests/test_viewer.py -k for_you_holds -q` exits 0.
-- [ ] 1.10 Add `project --only liveness` and `--only fingerprint`, per [D7](design.md#d7).
+- [x] 1.10 Add `project --only liveness` and `--only fingerprint`, per [D7](design.md#d7).
   Add `test_the_only_options_print_liveness_and_the_fingerprint` and `test_the_projector_writes_nothing`.
   Verify: `uv run pytest tests/test_viewer.py -k "only_options or writes_nothing" -q` exits 0.
-- [ ] 1.11 Read the claim once per project, a `Stop` from it the claim `unread` ([D5](design.md#d5)); add the case `viewer` to `scripts/corpus.toml` ([D11](design.md#d11)), then run the readers over this checkout's run directory.
+- [x] 1.11 Read the claim once per project, a `Stop` from it the claim `unread` ([D5](design.md#d5)); add the case `viewer` to `scripts/corpus.toml` ([D11](design.md#d11)), then run the readers over this checkout's run directory.
   Add `test_a_claim_ps_cannot_read_is_unread`.
   Verify: `make corpus` prints `corpus: viewer · 1 runs · pass`.
 

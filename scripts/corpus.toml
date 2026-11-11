@@ -34,3 +34,10 @@ each = ["changes/*/diff.patch"]
 argv = [
     "uv", "run", "--script", "skills/mf-converge/scripts/gate_integrity.py", "{input}",
 ]
+
+[[case]]
+name = "viewer"
+reads = "the run directory, worktrees and queue of a project, read to its state tree"
+argv = [
+    "uv", "run", "--script", "skills/mf-ui/scripts/viewer.py", "project", "{primary}",
+]
