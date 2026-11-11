@@ -2411,6 +2411,36 @@ def test_a_rescue_amends_at_amend_needed(
         card.replace("· adversarial · security — why.", "· adversarial")
     )
     assert blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
+    adversarial.write_text(
+        card.replace(
+            "· adversarial · security — why.",
+            "· adversarial · security (exposure of secrets) — why.",
+        )
+    )
+    assert blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
+
+
+def test_a_link_planted_after_the_removal_truncates_no_models_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0119-debt-paydown-3b design D5.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    victim = tmp_path / "victim.md"
+    victim.write_text("keep me\n")
+    write = conduct["_write_models"]
+    real = write.__globals__["_remove_in"]
+
+    def plant(base: Path, *parts: str, name: str) -> None:
+        real(base, *parts, name=name)
+        folder = root / ".minions" / "changes" / "0001-todo"
+        os.link(victim, folder / "models.toml")
+
+    monkeypatch.setitem(write.__globals__, "_remove_in", plant)
+    with pytest.raises(conduct["Stop"]) as stopped:
+        write(root, "0001-todo", "[build]\n")
+    assert stopped.value.code == 2
+    assert victim.read_text() == "keep me\n"
 
 
 def test_a_stub_bars_no_rescue(tmp_path: Path) -> None:
@@ -3394,6 +3424,14 @@ def test_a_supervisor_settle_outside_the_text_halts(
     fixed = {"tests/test_a.py": "assert True\n"}
     repo, staged = merged("test-fixed", fixed, "tests/test_a.py: test fixed — kept")
     assert kept(repo, staged) is None
+
+    # Only a test folder is exempt, and a commit past the merge is held.
+    outside = {"src.py": "x = 1\n"}
+    repo, staged = merged("fixed-outside", outside, "src.py: test fixed — kept")
+    assert kept(repo, staged) == "the merge holds src.py past the supervisor's settle"
+    repo, staged = merged("past-the-merge", {}, "docs/a.md: the supervisor")
+    _commit(repo, {"src.py": "x = 1\n"}, "more")
+    assert kept(repo, staged) == "integrate committed past its merge"
 
 
 def test_a_linked_rejoin_folder_deletes_nothing(
@@ -4699,6 +4737,20 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
             f"rejoin: cannot run — {refusal}",
         )
         assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
+    # A new row with a control character stops the rejoin before it prints the row.
+    packages.write_text(
+        "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
+        "|---|---|---|---|\n| p | left-pad | 1.3.0 | a pad |\n"
+        "| p | right-pad\x1b[2K | ^2 | a pad |\n"
+    )
+    with pytest.raises(conduct["Stop"]) as hidden:
+        conduct["rejoin"](root, "0020-p")
+    assert hidden.value.code == 2
+    assert str(hidden.value) == (
+        "rejoin: cannot run — the brief's row ['right-pad\\x1b[2K', '^2']"
+        " holds a character a terminal may act on"
+    )
+    assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
     packages.write_text(
         "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
         "|---|---|---|---|\n| p | left-pad | 1.3.0 | a pad |\n"
@@ -6574,6 +6626,33 @@ def test_a_run_moves_an_old_layout(
         assert sorted(path.name for path in outside.iterdir()) == held
         (minions / old).unlink()
         kept.rename(minions / old)
+
+    # A link swapped in after the link check is unlinked, never followed.
+    folder = minions / "changes" / "0001-todo"
+    (folder / "conformance.md").unlink()
+    swapped = folder / "review.md"
+    swapped.write_text("old\n")
+    victim = tmp_path / "victim.txt"
+    victim.write_text("theirs\n")
+    mover = conduct["Run"](root, "claude")
+    real = mover.migrate_layout.__globals__["_folder_fd"]
+
+    swaps = []
+
+    def swap(base: Path, *parts: str) -> int:
+        if not swaps:
+            swaps.append(swapped)
+            swapped.unlink()
+            swapped.symlink_to(victim)
+        return real(base, *parts)
+
+    monkeypatch.setitem(mover.migrate_layout.__globals__, "_folder_fd", swap)
+    assert mover.migrate_layout() == (
+        ".minions/changes/0001-todo/review.md became a link:"
+        " a person settles what it names"
+    )
+    assert victim.stat().st_nlink == 1 and victim.read_text() == "theirs\n"
+    assert swapped.is_symlink() and not (folder / "conformance.md").exists()
 
 
 def test_status_names_an_old_layout(
@@ -11205,6 +11284,22 @@ def test_a_codex_temp_folder_is_removed(
     conduct["_temp_gone"](codex)
     claude = conduct["argv"]("claude", "Do it.", tree, None, None, repo)
     assert conduct["_temp_of"](claude) is None
+
+    # A root that is unreadable is unlocked, and its parent is never chmoded.
+    again = conduct["argv"]("codex", "Do it.", tree, None, None, repo)
+    sealed = conduct["_temp_of"](again)
+    sealed.chmod(0)
+    chmod = os.chmod
+
+    def guarded(path: str | Path, mode: int) -> None:
+        if os.fspath(path) == os.fspath(sealed.parent):
+            raise PermissionError("the system's temp folder")
+        chmod(path, mode)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "chmod", guarded)
+        conduct["_temp_gone"](again)
+    assert not sealed.exists()
 
     # A folder `_temp_folder` did not make stays, and so does a link's target.
     other = tmp_path / "other"

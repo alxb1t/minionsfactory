@@ -4,23 +4,23 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 ## Progress
 
-- [ ] 1 — The security and link cards · hard
+- [x] 1 — The security and link cards · hard
 - [ ] 2 — The stacking, tool, probe, rejoin and converge cards · hard
 - [ ] 3 — The test-cost reasons and the docstrings · moderate
 
 ## 1 — The security and link cards
 
-- [ ] 1.1 Add a step to `test_a_rescue_amends_at_amend_needed` in `tests/test_conduct.py` with an adversarial card whose Priority category is `security (exposure of secrets)`, then add `NON_SECURITY` beside `BLOCKS` in `skills/mf-ship/scripts/conduct.py` and change `_security_card` to read `_category(card) not in NON_SECURITY`, per [D3](design.md#d3).
+- [x] 1.1 Add a step to `test_a_rescue_amends_at_amend_needed` in `tests/test_conduct.py` with an adversarial card whose Priority category is `security (exposure of secrets)`, then add `NON_SECURITY` beside `BLOCKS` in `skills/mf-ship/scripts/conduct.py` and change `_security_card` to read `_category(card) not in NON_SECURITY`, per [D3](design.md#d3).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_rescue_amends_at_amend_needed` exits 0.
-- [ ] 1.2 Add a step to `test_a_run_moves_an_old_layout` in `tests/test_conduct.py` that swaps an old `review.md` for a link to a file outside `.minions` between the link check and the move (patch `_folder_fd` in the method's globals to do the swap), and asserts the method returns the `became a link` reason and the target file keeps one name. Then change `Run.migrate_layout` in `skills/mf-ship/scripts/conduct.py` per [D4](design.md#d4).
+- [x] 1.2 Add a step to `test_a_run_moves_an_old_layout` in `tests/test_conduct.py` that swaps an old `review.md` for a link to a file outside `.minions` between the link check and the move (patch `_folder_fd` in the method's globals to do the swap), and asserts the method returns the `became a link` reason and the target file keeps one name. Then change `Run.migrate_layout` in `skills/mf-ship/scripts/conduct.py` per [D4](design.md#d4).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_run_moves_an_old_layout` exits 0.
-- [ ] 1.3 Add `test_a_link_planted_after_the_removal_truncates_no_models_file` to `tests/test_conduct.py`: patch `_remove_in` in `_write_models`'s globals to remove the file and plant a hard link to a victim file, call `_write_models`, and assert it stops with 2 and the victim keeps its text. Then add `fresh` to `_write_in_change` and pass it from `_write_models` in `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
+- [x] 1.3 Add `test_a_link_planted_after_the_removal_truncates_no_models_file` to `tests/test_conduct.py`: patch `_remove_in` in `_write_models`'s globals to remove the file and plant a hard link to a victim file, call `_write_models`, and assert it stops with 2 and the victim keeps its text. Then add `fresh` to `_write_in_change` and pass it from `_write_models` in `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_link_planted_after_the_removal_truncates_no_models_file` exits 0.
-- [ ] 1.4 Add a step to `test_a_codex_temp_folder_is_removed` in `tests/test_conduct.py` that leaves the folder's root at mode `000` and wraps `os.chmod` to raise `PermissionError` for the root's parent, and asserts the folder is removed. Then guard the parent `chmod` in `_remove_temp.unlock` of `skills/mf-ship/scripts/conduct.py` on `os.fspath(path)`, per [D6](design.md#d6).
+- [x] 1.4 Add a step to `test_a_codex_temp_folder_is_removed` in `tests/test_conduct.py` that leaves the folder's root at mode `000` and wraps `os.chmod` to raise `PermissionError` for the root's parent, and asserts the folder is removed. Then guard the parent `chmod` in `_remove_temp.unlock` of `skills/mf-ship/scripts/conduct.py` on `os.fspath(path)`, per [D6](design.md#d6).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_codex_temp_folder_is_removed` exits 0.
-- [ ] 1.5 Add steps to `test_a_supervisor_settle_outside_the_text_halts` in `tests/test_conduct.py`: a merge whose body names `src.py: test fixed — kept` is reported as holding `src.py`, and a commit on top of a settled merge is reported as `integrate committed past its merge`. Then add `TEST_PATHS` beside `SETTLES` and change `_settle_kept` in `skills/mf-ship/scripts/conduct.py`, per [D7](design.md#d7).
+- [x] 1.5 Add steps to `test_a_supervisor_settle_outside_the_text_halts` in `tests/test_conduct.py`: a merge whose body names `src.py: test fixed — kept` is reported as holding `src.py`, and a commit on top of a settled merge is reported as `integrate committed past its merge`. Then add `TEST_PATHS` beside `SETTLES` and change `_settle_kept` in `skills/mf-ship/scripts/conduct.py`, per [D7](design.md#d7).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_supervisor_settle_outside_the_text_halts` exits 0.
-- [ ] 1.6 Add a step to `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`: a brief whose new package row holds `\x1b[2K` in a cell makes `rejoin` raise `Stop` with code 2 naming the row by `repr`. Then add the check to `rejoin` in `skills/mf-ship/scripts/conduct.py`, per [D8](design.md#d8).
+- [x] 1.6 Add a step to `test_a_cut_halt_is_shown_and_rejoin_cuts_again` in `tests/test_conduct.py`: a brief whose new package row holds `\x1b[2K` in a cell makes `rejoin` raise `Stop` with code 2 naming the row by `repr`. Then add the check to `rejoin` in `skills/mf-ship/scripts/conduct.py`, per [D8](design.md#d8).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_cut_halt_is_shown_and_rejoin_cuts_again` exits 0.
 
 ## 2 — The stacking, tool, probe, rejoin and converge cards

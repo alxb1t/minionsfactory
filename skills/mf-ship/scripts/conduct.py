@@ -146,6 +146,7 @@ SUPERVISES = 2
 # A supervisor at an integrate note stages Markdown under these alone.
 # Why: 0090-supervisor-merge design D3.
 SETTLES = ("openspec/", "docs/")
+TEST_PATHS = ("tests/", "test/")
 SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
 CHECKER_DEFAULT = ("claude-sonnet-5-5", "high")
@@ -180,6 +181,13 @@ OLD_STAMP = re.compile(r"\d{8}-\d{6}(?:-\d+)?")
 OLD_LOG = re.compile(rf"{OLD_ID}_([a-z][a-z-]*?)(-\d+)?\.log")
 # A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
 BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
+NON_SECURITY = (
+    "stability",
+    "data integrity",
+    "functional correctness",
+    "performance",
+    "maintainability",
+)
 SMALL = ("one line", "a test", "one line and a test")
 CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
@@ -680,13 +688,17 @@ def _folder_fd(root: Path, *parts: str) -> int:
     return fd
 
 
-def _write_in_change(primary: Path, change: str, name: str, text: str) -> None:
+def _write_in_change(
+    primary: Path, change: str, name: str, text: str, fresh: bool = False
+) -> None:
     """Write `text` to the change's file `name`, through no link; one raises `OSError`.
 
-    Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
+    A `fresh` write creates the file and never truncates one.
+    Why: 0071-ship-fixes design D8; 0119-debt-paydown-3b design D5.
     """
     fd = _folder_fd(primary / ".minions", "changes", change)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+    flags |= os.O_EXCL if fresh else os.O_TRUNC
     try:
         file = os.open(name, flags, 0o644, dir_fd=fd)
     finally:
@@ -2784,13 +2796,12 @@ def _security_blocks(runs: Path, change: str, halt: str) -> bool:
 
 
 def _security_card(card: str) -> bool:
-    """Return whether an adversarial card blocks, of category `security` or none.
+    """Return whether an adversarial card blocks, in a security or unread category.
 
-    Why: 0095-converge-roles design D2.
+    Why: 0095-converge-roles design D2; 0119-debt-paydown-3b design D3.
     """
-    return _severity(card) in BLOCKS["adversarial"] and _category(card) in (
-        "security",
-        "",
+    return (
+        _severity(card) in BLOCKS["adversarial"] and _category(card) not in NON_SECURITY
     )
 
 
@@ -2977,9 +2988,14 @@ def _settle_kept(tree: Path, staged: str) -> str | None:
     Why: 0090-supervisor-merge security S2.
     """
     merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
+    if _git(tree, "rev-parse", "HEAD").strip() != merge:
+        return "integrate committed past its merge"
     body = _git(tree, "log", "-1", "--format=%b", merge).splitlines()
     fixed = {
-        line.split(": test fixed", 1)[0] for line in body if ": test fixed" in line
+        path
+        for line in body
+        if ": test fixed" in line
+        if (path := line.split(": test fixed", 1)[0]).startswith(TEST_PATHS)
     }
     moved = set(_git(tree, "diff", "--name-only", staged, f"{merge}^{{tree}}").split())
     if past := sorted(moved - fixed):
@@ -3542,7 +3558,7 @@ def _remove_temp(folder: Path, err: TextIO | None = None) -> None:
     """Remove `folder`, unlocking what a worker left unreadable; say so if it stays.
 
     e.g. a `000` subfolder is made `700`, then removed; a link is left.
-    Why: 0111-sandbox-tmp design D3.
+    Why: 0111-sandbox-tmp design D3; 0119-debt-paydown-3b design D6.
     """
     seen: set[str] = set()
 
@@ -3550,7 +3566,8 @@ def _remove_temp(folder: Path, err: TextIO | None = None) -> None:
         if isinstance(error, PermissionError) and not os.path.islink(path):
             seen.add(path)
             os.chmod(path, 0o700)
-            os.chmod(os.path.dirname(path), 0o700)
+            if os.fspath(path) != os.fspath(folder):
+                os.chmod(os.path.dirname(path), 0o700)
 
     previous: set[str] | None = None
     while os.path.lexists(folder) and seen != previous:
@@ -6480,7 +6497,7 @@ class Run:
         """Move each change's old-layout files into its folder; return why to halt.
 
         Why: 0080-minions-layout design
-        D4, D6; 0095-converge-roles design D2.
+        D4, D6; 0095-converge-roles design D2; 0119-debt-paydown-3b design D4.
         """
         found = _old_files(self.primary)
         minions = self.primary / ".minions"
@@ -6519,7 +6536,13 @@ class Run:
                     if old.is_dir():
                         os.rename(old, name, dst_dir_fd=fd)
                     else:
-                        os.link(old, name, dst_dir_fd=fd)
+                        os.link(old, name, dst_dir_fd=fd, follow_symlinks=False)
+                        if not stat.S_ISREG(os.lstat(name, dir_fd=fd).st_mode):
+                            os.unlink(name, dir_fd=fd)
+                            return (
+                                f"{old.relative_to(self.primary)} became a link:"
+                                " a person settles what it names"
+                            )
                         old.unlink()
                 finally:
                     os.close(fd)
@@ -7181,7 +7204,7 @@ def _write_models(primary: Path, change: str, text: str) -> None:
     try:
         # A fresh file: truncating the old one would write through a hard link.
         _remove_in(primary / ".minions", "changes", change, name="models.toml")
-        _write_in_change(primary, change, "models.toml", text)
+        _write_in_change(primary, change, "models.toml", text, fresh=True)
     except OSError as error:
         raise Stop(
             2,
@@ -7333,7 +7356,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
     Why: 0063-rejoin design D1; 0082-cut-station design D3, D6;
-    0091-cut-halts design D3.
+    0091-cut-halts design D3; 0119-debt-paydown-3b design D8.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
@@ -7351,6 +7374,13 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
             queued = entry.get("dependencies", [])
             approved = _approval(Path(entry["brief"]), slug, "rejoin")
             if new := [row for row in approved if row not in queued]:
+                for row in new:
+                    if not all(cell.isascii() and cell.isprintable() for cell in row):
+                        raise Stop(
+                            2,
+                            f"rejoin: cannot run — the brief's row {row!r} holds a"
+                            " character a terminal may act on",
+                        )
                 if yes != (hashed := _rows_hash(new)):
                     rows = ", ".join(" ".join(row) for row in new)
                     raise Stop(

@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (0118-debt-paydown-3a, phase 3).
 - `cut_check.py` row `V6` fails a `Verify:` search whose needle a later sub-task naming the file removes in a fenced
   `diff` block, unless that task adds it back (0118-debt-paydown-3a, phase 4).
+- `conduct.py` bars a rescue on any card outside the non-security categories; the run-start move unlinks a name that
+  turned into a link; a restored `models.toml` is created, never truncated; cleanup chmods no parent of its root; the
+  settle check exempts `tests/` and `test/` alone and halts on a commit past integrate's merge; a rejoin stops on a
+  brief row with a control character (0119-debt-paydown-3b, phase 1).
 
 ## [0.97.0] - 2026-11-11
 
