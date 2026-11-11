@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and phase headings from the brief, and writes none when one exists. Row `V2` of `cut_check.py` evaluates a `-k`
   expression against each changed test name, so a nested negation no longer halts on a test it leaves out (change
   `0116-cut-diet`, phase 2).
+- `mf-cut-change` reads the context pack once in place of `facts.py place`, writes the rest of each artifact into the
+  scaffold, and runs each plan review in the foreground; `CACHE_HOUR` goes, so the cut runs on the 5-minute cache as
+  every station does, and D70, D77 and D80 say so (change `0116-cut-diet`, phase 3).
 
 ## [0.95.0] - 2026-11-11
 

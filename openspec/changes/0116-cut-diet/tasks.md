@@ -6,7 +6,7 @@ The phases: the context pack, the scaffold with the `V2` fix, then the skill, th
 
 - [x] 1 — cut_context.py: the context pack · hard
 - [x] 2 — cut_context.py --scaffold, and row V2 on a negated -k · hard
-- [ ] 3 — The skill, the cache, the decisions and the skill's tests · hard
+- [x] 3 — The skill, the cache, the decisions and the skill's tests · hard
 
 ## 1 — cut_context.py: the context pack
 
@@ -52,21 +52,21 @@ The phases: the context pack, the scaffold with the `V2` fix, then the skill, th
 
 ## 3 — The skill, the cache, the decisions and the skill's tests
 
-- [ ] 3.1 **HALT CHECK** `conduct.py` holds the cut's cache constant ([D3](design.md#d3)).
+- [x] 3.1 **HALT CHECK** `conduct.py` holds the cut's cache constant ([D3](design.md#d3)).
   Verify: `git grep -n 'CACHE_HOUR' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` delete `CACHE_HOUR` and the `ENABLE_PROMPT_CACHING_1H=1` line, so `argv` sets `FORCE_PROMPT_CACHING_5M=1` for every station; in `tests/test_conduct.py` expect it for `cut` in `test_every_station_starts_lean` ([D3](design.md#d3)).
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` delete `CACHE_HOUR` and the `ENABLE_PROMPT_CACHING_1H=1` line, so `argv` sets `FORCE_PROMPT_CACHING_5M=1` for every station; in `tests/test_conduct.py` expect it for `cut` in `test_every_station_starts_lean` ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_conduct.py -k every_station_starts_lean` exits 0.
-- [ ] 3.3 In the reading step and Step 2 of `skills/mf-cut-change/SKILL.md` have the cut run `uv run --script scripts/cut_context.py <brief> <change-id>` in place of `facts.py place`, read `context.md` once, and read an unplaced fact's code from it; the reading step keeps naming `bundle.py --decisions <brief>` ([D9](design.md#d9)).
+- [x] 3.3 In the reading step and Step 2 of `skills/mf-cut-change/SKILL.md` have the cut run `uv run --script scripts/cut_context.py <brief> <change-id>` in place of `facts.py place`, read `context.md` once, and read an unplaced fact's code from it; the reading step keeps naming `bundle.py --decisions <brief>` ([D9](design.md#d9)).
   Verify: `git grep -n 'cut_context.py' -- skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.4 In Step 6 of `skills/mf-cut-change/SKILL.md` have the cut run `cut_context.py` with `--scaffold` first, write the rest into the files, and take the skeletons from the pack in place of `openspec instructions` and archived changes read as examples ([D9](design.md#d9)).
+- [x] 3.4 In Step 6 of `skills/mf-cut-change/SKILL.md` have the cut run `cut_context.py` with `--scaffold` first, write the rest into the files, and take the skeletons from the pack in place of `openspec instructions` and archived changes read as examples ([D9](design.md#d9)).
   Verify: `git grep -n -e '--scaffold' -- skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.5 In Step 8.5 of `skills/mf-cut-change/SKILL.md` say each review runs in the foreground: the cut starts the worker, waits for its result and starts no background task for it ([D2](design.md#d2)).
+- [x] 3.5 In Step 8.5 of `skills/mf-cut-change/SKILL.md` say each review runs in the foreground: the cut starts the worker, waits for its result and starts no background task for it ([D2](design.md#d2)).
   Verify: `git grep -n 'foreground' -- skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 3.6 In `tests/test_skills.py` add `("mf-cut-change", "scripts/cut_context.py")` to `_METRICS_SCRIPTS` after the `facts.py` row, and its line to `_CUT_UNNAMED` in the same place ([D9](design.md#d9)).
+- [x] 3.6 In `tests/test_skills.py` add `("mf-cut-change", "scripts/cut_context.py")` to `_METRICS_SCRIPTS` after the `facts.py` row, and its line to `_CUT_UNNAMED` in the same place ([D9](design.md#d9)).
   Verify: `git grep -n 'scripts/cut_context.py' -- tests/test_skills.py` prints a line.
-- [ ] 3.7 In `docs/decisions.md` D77 names `the scaffold of its artifacts` and the context the cut reads among the scripts, and its `Rejected` line adds the cut reading archived changes as examples ([D10](design.md#d10)).
+- [x] 3.7 In `docs/decisions.md` D77 names `the scaffold of its artifacts` and the context the cut reads among the scripts, and its `Rejected` line adds the cut reading archived changes as examples ([D10](design.md#d10)).
   Verify: `git grep -n 'the scaffold of its artifacts' -- docs/decisions.md` prints a line.
-- [ ] 3.8 In `docs/decisions.md` D80 replaces its last bold sentence `The cut keeps the 1-hour cache.` with `Each review runs in the foreground, the cut waiting on it, and the cut runs on the 5-minute cache with its reviews.`, and its `Rejected` line is changed as [D10](design.md#d10) says.
+- [x] 3.8 In `docs/decisions.md` D80 replaces its last bold sentence `The cut keeps the 1-hour cache.` with `Each review runs in the foreground, the cut waiting on it, and the cut runs on the 5-minute cache with its reviews.`, and its `Rejected` line is changed as [D10](design.md#d10) says.
   Verify: `git grep -n 'Each review runs in the foreground' -- docs/decisions.md` prints a line.
-- [ ] 3.9 In `docs/decisions.md` D70 replaces `The cut asks for the 1-hour cache, every other station the 5-minute one.` with `Every station asks for the 5-minute cache.`, and its `Why` and `Accepts` lines change as [D10](design.md#d10) says.
+- [x] 3.9 In `docs/decisions.md` D70 replaces `The cut asks for the 1-hour cache, every other station the 5-minute one.` with `Every station asks for the 5-minute cache.`, and its `Why` and `Accepts` lines change as [D10](design.md#d10) says.
   Verify: `git grep -n 'Every station asks for the 5-minute cache' -- docs/decisions.md` prints a line.

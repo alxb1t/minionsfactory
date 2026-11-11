@@ -10405,17 +10405,13 @@ def test_every_station_starts_lean(
     conduct["_record_repo"](root)
     assert repos.read_text() == f"{root}\n"
 
-    # The cut waits past 5 minutes; no station, the host's default.
+    # Every station takes the 5-minute cache; no station, the host's default.
     repo = (root, root / ".git")
     argv = conduct["argv"]
-    hour, minutes = "ENABLE_PROMPT_CACHING_1H=1", "FORCE_PROMPT_CACHING_5M=1"
-    for station, ttl in (
-        ("cut", hour),
-        ("build", minutes),
-        ("converge-adversarial", minutes),
-    ):
+    minutes = "FORCE_PROMPT_CACHING_5M=1"
+    for station in ("cut", "build", "converge-adversarial"):
         command = argv("claude", "Do it.", root, None, None, repo, station=station)
-        assert command[command.index("claude") - 1] == ttl
+        assert command[command.index("claude") - 1] == minutes
     bare = argv("claude", "Do it.", root, None, None, repo)
     assert not any("PROMPT_CACHING" in arg for arg in bare)
     assert "--tools" not in bare
