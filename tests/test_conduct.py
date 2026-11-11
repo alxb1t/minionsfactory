@@ -19,6 +19,7 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -3929,6 +3930,35 @@ def test_a_cut_queues_its_models_file(
     assert sorted(os.listdir(root / ".minions" / "cuts")) == before[0]
 
 
+def test_a_cut_queues_a_codex_fixer(tmp_path: Path, fake: Callable[..., Path]) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    brief = tmp_path / "brief.md"
+    items = _items("a").replace(
+        "cut opus high", "cut opus high · fix codex/gpt-6.1-sol medium"
+    )
+    brief.write_text(f"# brief\n\n{items}")
+    said = conduct["cut"](
+        root, "a", "minor", f"brief={brief}", [], "claude", None, None
+    )
+    assert said == "cut: queued 0001-a · the live run takes it"
+    written = root / ".minions" / "changes" / "0001-a" / "models.toml"
+    assert tomllib.loads(written.read_text())["converge"]["fix"] == {
+        "executor": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "medium",
+    }
+    assert conduct["_models"](
+        root / ".minions", "0001-a", "converge.fix", "claude"
+    ) == (
+        "codex",
+        "gpt-6.1-sol",
+        "medium",
+    )
+
+
 _FAKE_UV = """
 import json
 import os
@@ -5013,8 +5043,8 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
     for station, text, said in (
         (
             "converge.fix",
-            '[converge.fix]\nexecutor = "codex"\n',
-            f"{file}: converge.fix names an executor",
+            '[converge.fix]\nexecutor = "codex"\nmodel = "claude-sonnet-5-5"\n',
+            f"{file}: converge.fix on codex, model claude-sonnet-5-5",
         ),
         (
             "converge.adversarial",
@@ -5093,25 +5123,36 @@ def test_a_limited_checker_falls_back_to_claude(
     monkeypatch.setattr(time, "time", lambda: now[0])
     monkeypatch.setattr(time, "sleep", sleep)
 
-    def windows(
-        primary: float, secondary: float, primary_in: int, second_in: int
-    ) -> None:
+    def written(path: Path, *shares: tuple[float, int]) -> None:
         rates = {
             name: {
                 "used_percent": used,
                 "window_minutes": 300,
                 "resets_at": now[0] + wait,
             }
-            for name, used, wait in (
-                ("primary", primary, primary_in),
-                ("secondary", secondary, second_in),
-            )
+            for name, (used, wait) in zip(("primary", "secondary"), shares, strict=True)
         }
         payload = {"type": "token_count", "rate_limits": rates}
         event = {"type": "event_msg", "payload": payload}
-        (sessions / "rollout-2026-11-08T10-00-00-fake.jsonl").write_text(
-            json.dumps(event) + "\n"
-        )
+        path.write_text(json.dumps(event) + "\n")
+
+    def windows(
+        primary: float,
+        secondary: float,
+        primary_in: int,
+        second_in: int,
+        at_exit: bool = False,
+    ) -> None:
+        # The rollout the fake's thread names is what a limited exit's reset reads. At
+        # `at_exit`, a newer rollout of another thread holds the headroom's read quiet.
+        thread = sessions / "rollout-2026-11-08T10-00-00-fake.jsonl"
+        quiet = sessions / "rollout-2026-11-08T10-00-00-quiet.jsonl"
+        quiet.unlink(missing_ok=True)
+        written(thread, (primary, primary_in), (secondary, second_in))
+        if at_exit:
+            written(quiet, (0, primary_in), (0, second_in))
+            newer = thread.stat().st_mtime + 10
+            os.utime(quiet, (newer, newer))
 
     def spawned() -> tuple[int, int]:
         claudes = (
@@ -5139,19 +5180,19 @@ def test_a_limited_checker_falls_back_to_claude(
     models(on_codex)
 
     # A Codex exit on a limit two hours off: the checker runs on Claude, once.
-    windows(50, 100, 3600, 7200)
+    windows(50, 100, 3600, 7200, at_exit=True)
     assert check() == fell
     assert spawned() == (1, 1) and sleeps == []
     assert run.limited_until("codex") is not None
     # Twin: a limit a quarter hour off is waited for, then Codex runs again.
     run.limited.clear()
-    windows(50, 100, 3600, 600)
+    windows(50, 100, 3600, 600, at_exit=True)
     after[0] = ""
     assert check() == coded
     assert spawned() == (3, 1) and len(sleeps) == 1 and 599 <= sleeps[0] <= 601
     # A second limited exit, on Claude: Codex never runs a third time.
     run.limited.clear()
-    windows(50, 100, 3600, 600)
+    windows(50, 100, 3600, 600, at_exit=True)
     fake_codex("", "limit")
     after[0] = "limit"
     assert check() == fell
@@ -5184,7 +5225,7 @@ def test_a_limited_checker_falls_back_to_claude(
     assert check("shadow-conformance") == stopped
     assert spawned() == (6, 4)
     run.limited.clear()
-    windows(50, 100, 3600, 7200)
+    windows(50, 100, 3600, 7200, at_exit=True)
     fake_codex("", "limit")
     assert check("shadow-conformance") == stopped
     assert spawned() == (7, 4)
@@ -5815,11 +5856,23 @@ def test_a_station_runs_on_its_executor(
         "gpt-6.1-sol",
         "high",
     )
+    # A fixer with no own executor runs on Claude, whatever converge's is.
     assert models(minions, "0001-todo", "converge.fix", "claude") == (
-        "codex",
+        "claude",
         None,
         None,
     )
+    (minions / "changes" / "0001-todo" / "models.toml").write_text(
+        table
+        + '[converge.fix]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n'
+        + 'effort = "medium"\n'
+    )
+    assert models(minions, "0001-todo", "converge.fix", "claude") == (
+        "codex",
+        "gpt-6.1-sol",
+        "medium",
+    )
+    (minions / "changes" / "0001-todo" / "models.toml").write_text(table)
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -10232,16 +10285,21 @@ def test_the_codex_limit_data_is_read_from_its_rollout(
     assert reset_at(log_of("t4", unnamed), ten) == float("inf")
     assert reset_at(log_of("t4"), ten) == float("inf")
 
-    # The headroom: the newest rollout's primary window at 90% or more, still ahead.
+    # The headroom: the newest rollout's latest-resetting window at 90% or more, still
+    # ahead, with its name.
     headroom = conduct["_headroom"]
     assert headroom(ten) is None
     rollout("h1", limits(primary=(92, ten + 600)))
-    assert headroom(ten) == ten + 600
+    assert headroom(ten) == (ten + 600, "5-hour")
     assert headroom(ten + 700) is None
     rollout("h2", limits(primary=(89, ten + 600), secondary=(95, ten + 600)))
-    assert headroom(ten) is None
+    assert headroom(ten) == (ten + 600, "weekly")
     rollout("h3", limits(secondary=(95, ten + 600)))
-    assert headroom(ten) is None
+    assert headroom(ten) == (ten + 600, "weekly")
+    rollout("h4", limits(primary=(10, ten + 600), secondary=(98, ten + 9000)))
+    assert headroom(ten) == (ten + 9000, "weekly")
+    rollout("h5", limits(primary=(95, ten + 900), secondary=(91, ten + 500)))
+    assert headroom(ten) == (ten + 900, "5-hour")
 
 
 def test_run_refuses_without_worktrees_declared(
@@ -10815,9 +10873,9 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     run.probed.add("codex")
     clock = [time.time()]
 
-    def headroom(now: float) -> float:
+    def headroom(now: float) -> tuple[float, str]:
         clock[0] += 2
-        return now + 1
+        return now + 1, "5-hour"
 
     with monkeypatch.context() as patched:
         patched.setattr(time, "time", lambda: clock[0])
@@ -10854,6 +10912,184 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     run.catch_up = lambda version: pytest.fail("a halted version is taken no further")
     run.take(build, {})
     assert [who for who, _ in run.halts] == ["0001-build", "0003-a"]
+
+
+def test_a_codex_fixer_halts_at_a_limit_and_never_falls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    (root / ".minions" / "changes" / "0001-todo").mkdir(parents=True)
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    (tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08").mkdir(parents=True)
+    models = ("codex", "gpt-6.1-sol", "medium")
+    run = conduct["Run"](root, "claude")
+    run.probed.update({"claude", "codex"})
+    fake_codex("", "limit")
+
+    def fix() -> tuple[int, bool, tuple[str, str | None, str | None], str]:
+        deadline = time.monotonic() + 3000
+        ask = f"{_ask(root, 'conformance')}fix it\n"
+        done = run.fix("0001-todo", "converge-fix-r1", tree, ask, models, deadline)
+        return done.code, done.killed, done.models, done.limit
+
+    def told() -> int:
+        return sum("fix it" in " ".join(argv) for argv in _codex_argvs(tmp_path))
+
+    def until(reset: float) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(reset))
+
+    text = "codex usage limit — the fixer · resets "
+    claude_argvs = tmp_path / "claude-argv.jsonl"
+
+    # A limit hours away: no worker of any executor starts.
+    reset = time.time() + 7200
+    run.limited["codex"] = reset
+    assert fix() == (1, False, models, f"{text}{until(reset)}")
+    assert told() == 0 and not claude_argvs.is_file()
+
+    # Codex not ready, and no limit recorded: a failed probe names no reset.
+    run.limited.clear()
+    run.probed.discard("codex")
+    fake_codex("unsandboxed", "")
+    assert fix()[3] == f"{text}unknown"
+    assert told() == 0 and not claude_argvs.is_file()
+
+    # Ready, and the worker meets a Codex usage limit: the same text, the limit kept.
+    run.probed.add("codex")
+    fake_codex("", "limit")
+    limit = fix()[3]
+    recorded = run.limited_until("codex")
+    assert recorded is not None and limit == f"{text}{until(recorded)}"
+    assert told() == 1 and not claude_argvs.is_file()
+
+    # A worker that exits 0 is no limit.
+    run.limited.clear()
+    fake_codex("", "")
+    assert fix() == (0, False, models, "")
+    assert told() == 2 and not claude_argvs.is_file()
+
+
+def test_a_checker_falls_back_when_the_weekly_window_is_spent(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    sessions = tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08"
+    sessions.mkdir(parents=True)
+    now = time.time()
+
+    def windows(weekly: float) -> None:
+        rates = {
+            name: {"used_percent": used, "window_minutes": 300, "resets_at": reset}
+            for name, used, reset in (
+                ("primary", 10, now + 600),
+                ("secondary", weekly, now + 7200),
+            )
+        }
+        payload = {"type": "token_count", "rate_limits": rates}
+        event = json.dumps({"type": "event_msg", "payload": payload})
+        (sessions / "rollout-2026-11-08T10-00-00-fake.jsonl").write_text(event + "\n")
+
+    run = conduct["Run"](root, "claude")
+    run.probed.update({"claude", "codex"})
+    models = ("codex", "gpt-6.1-sol", "medium")
+    deadline = time.monotonic() + 3000
+
+    # The weekly window at 98%, two hours from its reset: Codex is not ready, and the
+    # fixer's limit names the window and starts no Codex worker.
+    windows(98)
+    assert not run.codex_ready("0001-todo", deadline)
+    done = run.fix("0001-todo", "converge-fix-r1", tree, "fix it\n", models, deadline)
+    reset = time.strftime("%Y-%m-%d %H:%M", time.localtime(now + 7200))
+    text = f"codex usage limit — the fixer · resets {reset} · the weekly window"
+    assert (done.code, done.limit) == (1, text)
+    assert _codex_argvs(tmp_path) == []
+    # Twin: at 85% the same window leaves Codex ready.
+    windows(85)
+    assert run.codex_ready("0001-todo", deadline)
+
+
+def test_a_limit_halts_only_the_stations_ahead(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+
+    def joined(change: str, table: str) -> object:
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True)
+        (folder / "models.toml").write_text(table)
+        return conduct["Version"](change, _version(root, change, "- [ ] 1 — Todo\n"))
+
+    build = joined("0001-build", '[build]\nexecutor = "codex"\n[converge]\n')
+    rescue = joined("0002-rescue", '[rescue]\nexecutor = "codex"\n[converge]\n')
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, rescue])
+    run.limited["codex"] = time.time() + 3600
+
+    assert run.on_stations("0001-build") == ["codex", "claude"]
+    assert run.on_stations("0001-build", "build") == ["codex", "claude"]
+    assert run.on_stations("0001-build", "converge") == ["claude"]
+    assert run.on_stations("0001-build", "release") == ["claude"]
+    assert run.on_stations("0002-rescue") == ["claude", "codex"]
+    assert run.on_stations("0002-rescue", "build") == ["claude"]
+
+    changes = ["0001-build", "0002-rescue"]
+    stages = {"0001-build": "release", "0002-rescue": "build"}
+    assert run.hold_limited(changes, [], stages) == set()
+    assert run.halts == []
+
+    run.hold_limited(changes, [], {"0001-build": "build", "0002-rescue": "release"})
+    assert [who for who, _ in run.halts] == ["0001-build"]
+
+    # A live rejoin filters by the stage it joins at, as the start does: a Codex
+    # build behind a release, or an optional Codex rescue, halts nothing.
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, rescue])
+    run.probed.add("claude")
+    run.limited["codex"] = time.time() + 3600
+    assert run.admit(build, "release") and run.admit(rescue, "build")
+    assert run.halts == [] and run.refused == {}
+    assert not run.admit(build, "build")
+    assert [who for who, _ in run.halts] == ["0001-build"]
+
+
+def test_a_fixer_probe_the_deadline_kills_is_no_run_wide_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    (tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08").mkdir(parents=True)
+    log = tmp_path / "killed.log"
+    log.write_text("")
+    run = conduct["Run"](root, "claude")
+    run.probed.add("claude")
+    run.outs["0001-todo", "probe-codex"] = log
+
+    def killed(*_: object, **__: object) -> tuple[int, bool, Path, list[str]]:
+        return 1, True, log, []
+
+    run.worker = killed
+    models = ("codex", "gpt-6.1-sol", "medium")
+    done = run.fix(
+        "0001-todo", "converge-fix-r1", tree, "fix it\n", models, time.monotonic() + 90
+    )
+    assert done.code == 1 and done.limit.startswith("codex usage limit — the fixer")
+    # The timeout halts the fixer's version alone: no refusal is kept for Codex.
+    assert [who for who, _ in run.halts] == ["0001-todo"]
+    assert run.refused == {} and "codex" not in run.probed
+    # A joining version probes Codex afresh instead of inheriting the timeout.
+    fake_codex("")
+    run.worker = conduct["Run"].worker.__get__(run)
+    run.probe_for("0002-b", ["codex"], ["codex"])
+    assert "0002-b" not in [who for who, _ in run.halts]
 
 
 def test_a_codex_worker_starts_on_mf_settings_alone(

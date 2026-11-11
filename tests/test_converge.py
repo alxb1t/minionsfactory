@@ -137,6 +137,9 @@ class Host:
         self.results: dict[str, Checked | list[Checked]] = {}
         self.fixers: list[Callable[[Host], int | None]] = []
         self.fixed: list[tuple[str, tuple[str, str | None, str | None], str]] = []
+        # A Codex fixer starts through `fix`: its calls, and the results it returns.
+        self.codexed: list[tuple[str, tuple[str, str | None, str | None], str]] = []
+        self.fixes: list[Checked] = []
         # The tools a station's log shows it asked for and lacks, by station.
         self.lacking: dict[str, list[str]] = {}
         # False is no OS sandbox; an exception is a runner that breaks.
@@ -218,10 +221,31 @@ class Host:
         code = (self.fixers.pop(0) if self.fixers else fixing)(self)
         return code or 0, False, self.folder() / "logs" / f"x-{station}.log", []
 
+    def fix(
+        self,
+        change: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        deadline: float,
+    ) -> Checked:
+        assert (change, cwd) == (_CHANGE, self.tree)
+        assert deadline > time.monotonic()
+        self.codexed.append((station, models, prompt))
+        result = (
+            self.fixes.pop(0)
+            if self.fixes
+            else Checked(0, False, models, "", False, None)
+        )
+        if result.code == 0:
+            (self.fixers.pop(0) if self.fixers else fixing)(self)
+        return result
+
 
 def fixing(host: Host, left: str = "none") -> None:
     """Commit one fix and write the fixer's report, `plan check left: <left>`."""
-    count = len(host.fixed)
+    count = len(host.fixed) + len(host.codexed)
     _commit(host.tree, {f"src/fix{count}.py": f"F = {count}\n"}, "fix(0001-a): it")
     (host.folder() / "fix.md").write_text(
         f"fixed: R1\nwontfix: none\ncommit: x\nplan check left: {left}\n"
@@ -2086,6 +2110,55 @@ def test_a_failed_worker_gets_one_retry(host: Host) -> None:
         "round 1 · halt — converge-conformance-r1 asked for a tool its station"
         f" lacks: Agent · head {_head(host)}"
     )
+
+
+def test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit(host: Host) -> None:
+    codex = ("codex", "gpt-6.1-sol", "medium")
+    workers = {**_WORKERS, "fix": codex}
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    assert run(host, workers) == 0
+
+    assert host.fixed == []
+    assert [(station, models) for station, models, _ in host.codexed] == [
+        ("converge-fix-r1", codex)
+    ]
+
+    limit = "codex usage limit — the fixer · resets 5:50 PM"
+    host.fixes = [Checked(1, False, codex, limit, False, None)]
+
+    assert run(host, workers) == 1
+
+    assert len(host.codexed) == 2
+    assert events(host)[-1] == f"round 1 · halt — {limit} · head {_head(host)}"
+
+    host.fixes = [Checked(1, False, codex, "", False, None)]
+
+    assert run(host, workers) == 0
+
+    assert len(host.codexed) == 4
+    assert host.fixed == []
+
+
+def test_a_codex_fixers_prompt_names_its_attribution(host: Host) -> None:
+    codex = ("codex", "gpt-6.1-sol", "medium")
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    assert run(host, {**_WORKERS, "fix": codex}) == 0
+
+    assert (
+        "Co-Authored-By: Codex gpt-6.1-sol <noreply@openai.com>" in host.codexed[0][2]
+    )
+    assert host.fixed == []
+
+    assert run(host, _WORKERS) == 0
+
+    assert "the attribution line your session names" in host.fixed[0][2]
+    assert len(host.codexed) == 1
 
 
 def _twice(

@@ -221,6 +221,17 @@ def test_models_prints_the_items_toml(
         },
         "release": {"model": "claude-sonnet-5-5", "effort": "medium"},
     }
+    # A host on fix is written as the fixer table's executor.
+    codex = _READY + (
+        "2. **codex-fix** · minor · after: none\n"
+        "   - models: build a b · converge a b · release a b · cut a b"
+        " · fix codex/gpt-6.1-sol medium\n"
+    )
+    assert printed(codex, "codex-fix")["converge"] == {
+        "model": "a",
+        "effort": "b",
+        "fix": {"model": "gpt-6.1-sol", "effort": "medium", "executor": "codex"},
+    }
     # `converge skip` writes no worker table; a checker's skip is `skip = true` alone.
     stations = "build a b · converge a b · release a b · cut a b"
     skipped = _READY + (
@@ -431,14 +442,13 @@ def test_a_brief_out_of_shape_halts(
         " conformance and adversarial, then shadow",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
-    # A host it does not know, a host on fix, cut or build-moderate, shadow before
+    # A host it does not know, a host on cut or build-moderate, shadow before
     # fix, a second shadow, and a checker or build-moderate part out of order.
     stations = "build a b · converge a b · release a b"
     hosted = _READY + "".join(
         f"{n}. **ok** · minor · after: none\n   - models: {line}\n"
         for n, line in (
             (2, f"{stations} · cut a b · conformance gemini/x b"),
-            (3, f"{stations} · cut a b · fix codex/x b"),
             (4, f"{stations} · cut claude/a b"),
             (5, f"{stations} · cut a b · shadow · fix a b"),
             (6, f"{stations} · cut a b · shadow · shadow"),
@@ -451,7 +461,6 @@ def test_a_brief_out_of_shape_halts(
     assert brief_check.main([str(_write(tmp_path, hosted))]) == 1
     assert capsys.readouterr().out.splitlines() == [
         "brief: halt — ## For the cut: item 2 — not a host: `gemini`",
-        "brief: halt — ## For the cut: item 3 — fix takes no host: `codex/x`",
         "brief: halt — ## For the cut: item 4 — cut takes no host: `claude/a`",
         *(
             f"brief: halt — ## For the cut: item {n} — the models line is not"

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.97.0] - 2026-11-11
+
+Gate: local 6m58s · CI not read under mf-ship · 0.96.0: local 6m24s · CI not read under mf-ship
+
+- A brief's `fix codex/<model> <effort>` and `[converge.fix] executor = "codex"` are valid; a fixer naming no host
+  runs on Claude and no longer inherits `[converge]`'s executor (0117-codex-converge, phase 1).
+- A Codex fixer starts through the new `Host.fix` and `Run.fix`; Codex not ready, or a usage limit, halts the
+  version `codex usage limit — the fixer · resets <time>`, with no fallback to Claude (0117-codex-converge, phase 2).
+- A limit halts a version only for the stations ahead of its stage, and for neither `rescue` nor `supervise`
+  (debt card 0104·S4; 0117-codex-converge, phase 2).
+- `_headroom` reads the 5-hour and the weekly window, and a spent one names itself in a Codex fixer's limit; a
+  Codex fixer's prompt carries its own `Co-Authored-By:` line and `fix.md` says a fixer adds no package. D68, D76
+  and D40 record it (0117-codex-converge, phase 3).
+
 ## [0.96.0] - 2026-11-11
 
 Gate: local 6m24s · CI not read under mf-ship · 0.95.0: local 6m55s · CI not read under mf-ship

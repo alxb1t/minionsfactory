@@ -63,6 +63,7 @@ REFERENCES = HERE.parent / "references"
 PLACEHOLDERS = (
     *("change", "role", "round", "base", "head", "range", "scope", "findings", "patch"),
     *("bundle", "debt_cards", "open", "ids", "models", "mode", "evidence"),
+    "attribution",
 )
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -190,6 +191,17 @@ class Host(Protocol):
         timeout: float | None = None,
     ) -> tuple[int, bool, Path, list[str]]:
         """Run one worker; return its exit, whether it was killed, its log, denials."""
+
+    def fix(
+        self,
+        change: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        deadline: float,
+    ) -> Checked:
+        """Run the Codex fixer; return what it did."""
 
 
 class SendBack(Exception):
@@ -1037,13 +1049,16 @@ def unequipped(context: Context, station: str) -> None:
 
 
 def fixer(context: Context, ids: str) -> None:
-    """Run one fixer through `host.worker` on `fix=`'s model, retried once.
+    """Run one fixer on `fix=`'s model, Codex's through `host.fix`, retried once.
 
-    A kill or a second failure halts; its effort is `medium` unless `fix=` names one.
-    Why: design D4, D5.
+    A Codex limit, a kill or a second failure halts; effort is `medium` unless named.
+    Why: design D4, D5; 0117-codex-converge design D3, D7.
     """
     executor, model, effort = context.workers["fix"]
     station = f"converge-fix-r{context.round}"
+    attribution = "the attribution line your session names"
+    if executor == "codex":
+        attribution = f"Co-Authored-By: Codex {model} <noreply@openai.com>"
     told = prompt(
         "fix.md",
         role="fix",
@@ -1053,14 +1068,23 @@ def fixer(context: Context, ids: str) -> None:
         findings=" and ".join(str(context.folder / f"{r}.md") for r in ROLES),
         base=context.base,
         evidence=context.folder / "evidence.md",
+        attribution=attribution,
     )
     models = (executor, model, effort or "medium")
     for last in (False, True):
         (context.folder / "fix.md").unlink(missing_ok=True)
         seconds = remaining(context)
-        code, killed, _, _ = context.host.worker(
-            context.change, station, context.tree, told, models, timeout=seconds
-        )
+        if executor == "codex":
+            result = context.host.fix(
+                context.change, station, context.tree, told, models, context.deadline
+            )
+            if result.limit:
+                raise Halt(result.limit)
+            code, killed = result.code, result.killed
+        else:
+            code, killed, _, _ = context.host.worker(
+                context.change, station, context.tree, told, models, timeout=seconds
+            )
         if not killed:
             unequipped(context, station)
         why = failure(station, seconds, code, killed)

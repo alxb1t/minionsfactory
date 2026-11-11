@@ -56,10 +56,11 @@ OLD_DEBT_LOCK = ".minions/backlog.lock"
 REJOIN_POLL = 10
 # The most of a file a worker leaves that `_bounded` reads.
 READ_BYTES = 65536
-# A Codex limit: the longest wait for a reset, and the primary window's share that
-# counts as a limit. Why: 0104-codex-limits design D1.
+# A Codex limit: the longest wait for a reset, and a window's share that counts as a
+# limit. Why: 0104-codex-limits design D1; 0117-codex-converge design D4.
 LIMIT_WAIT = 900
 HEADROOM = 90
+WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
 STAMP_SCRIPT = Path(__file__).resolve().parents[2] / "mf-converge/scripts/stamp.py"
@@ -127,6 +128,17 @@ MODERATE = "build.moderate"
 # each is planned with the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor
 # design D2; 0094-lighter-converge design D1; 0102-build-per-phase design D5.
 PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE)
+# The stations a version is past at a stage: a limit halts it for none of them.
+# Why: 0117-codex-converge design D8.
+_BUILT = ("build", MODERATE)
+_CONVERGED = (*_BUILT, "converge", FIXER)
+PAST = {
+    "converge": _BUILT,
+    "converge-halted": _BUILT,
+    "integrate": _CONVERGED,
+    "integrating": _CONVERGED,
+    "release": (*_CONVERGED, "integrate"),
+}
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
@@ -2591,7 +2603,7 @@ def _models(
     """Return the station's executor, model and effort from the cut's models file.
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
-    Why: 0067 D5; 0089 D2; 0094 D1; 0095 D2; 0097 D3; 0100 D8; 0102 D5; 0108 D8.
+    Why: 0067 D5; 0089 D2; 0094 D1; 0095 D2; 0097 D3; 0100 D8; 0102 D5; 0108 D8; 0117 D2
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2602,7 +2614,7 @@ def _models(
     file = f"changes/{change}/models.toml"
     own = "executor" in table
     if station in (*WORKERS, MODERATE):
-        if own and station in (FIXER, MODERATE):
+        if own and station == MODERATE:
             raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
         for value in (model, effort):
             if isinstance(value, str) and not TOKEN.fullmatch(value):
@@ -2613,9 +2625,9 @@ def _models(
                 )
     if station == MODERATE:
         executor = _models(runs, change, "build", run)[0]
-    if station in WORKERS:
+    if station in WORKERS and not own:
         converge = _models(runs, change, "converge", run)[0]
-        executor = executor if own else converge
+        executor = "claude" if station == FIXER else converge
     model = model if isinstance(model, str) else None
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]
@@ -3955,12 +3967,17 @@ def _reset_at(log: Path, now: float) -> float:
     return math.inf if clock is None else clock
 
 
-def _headroom(now: float) -> float | None:
-    """Return the reset of a primary window at `HEADROOM` or more, else None."""
-    primary = _windows(_rollout(None)).get("primary")
-    if primary and primary.used >= HEADROOM and primary.resets > now:
-        return primary.resets
-    return None
+def _headroom(now: float) -> tuple[float, str] | None:
+    """Return the reset and name of the latest-resetting spent window, else None.
+
+    A window is spent at `HEADROOM` or more with its reset ahead.
+    """
+    spent = [
+        (window.resets, WINDOWS[name])
+        for name, window in _windows(_rollout(None)).items()
+        if name in WINDOWS and window.used >= HEADROOM and window.resets > now
+    ]
+    return max(spent, default=None)
 
 
 def tokens_of(log: Path) -> int | None:
@@ -4480,12 +4497,15 @@ class Run:
             reset = self.limited.get(executor, math.inf)
         return f"{station} — {executor} limited until {_until(reset)}"
 
-    def on_stations(self, change: str) -> list[str]:
+    def on_stations(self, change: str, stage: str | None = None) -> list[str]:
         """Return the executors of a version's planned stations, its checkers' left out.
 
-        A skipped station names none. Why: 0104-codex-limits design D2.
+        A skipped station names none; a `stage` leaves out those behind it, and
+        `rescue` and `supervise`. Why: 0104-codex-limits D2; 0117-codex-converge D8.
         """
         left = {*WORKERS[:2], *self.skipped.get(change, frozenset())}
+        if stage is not None:
+            left |= {*PAST.get(stage, ()), "rescue", "supervise"}
         stations = (station for station in PLANNED if station not in left)
         named = (
             models[0]
@@ -4494,14 +4514,19 @@ class Run:
         )
         return list(dict.fromkeys(named))
 
-    def hold_limited(self, changes: list[str], cuts: list[str]) -> set[str]:
+    def hold_limited(
+        self,
+        changes: list[str],
+        cuts: list[str],
+        stages: dict[str, str] | None = None,
+    ) -> set[str]:
         """Halt what has a station on a limited executor; return the cuts it halted.
 
-        Each planned change halts, and each queued cut whose executor is limited
-        halts as a cut. Why: 0104-codex-limits design D2.
+        Each planned change halts, by the stations ahead of its `stages` entry, and
+        each queued cut halts as a cut. Why: 0104 design D2; 0117-codex-converge D8.
         """
         for change in changes:
-            for executor in self.on_stations(change):
+            for executor in self.on_stations(change, (stages or {}).get(change)):
                 if self.limited_until(executor) is not None:
                     self.halt(change, self.limited_reason(executor))
                     break
@@ -4691,6 +4716,38 @@ class Run:
                 return Checked(code, killed, models, usage_limit(out), fallback, tokens)
             codex_runs += 1
 
+    def fix(
+        self,
+        change: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        deadline: float,
+    ) -> Checked:
+        """Run converge's Codex fixer as `station`; halt nothing, fall back nowhere.
+
+        Codex not ready, or a usage limit, is its `limit`; a spent window is named.
+        Why: 0117 design D3, D4, D7.
+        """
+
+        def stopped() -> Checked:
+            reset, window = self.limited_until("codex"), ""
+            if reset is None and (held := _headroom(time.time())):
+                reset, window = held[0], f" · the {held[1]} window"
+            when = "unknown" if reset is None else _until(reset)
+            text = f"codex usage limit — the fixer · resets {when}{window}"
+            return Checked(1, False, models, text, False, None)
+
+        if not self.codex_ready(change, deadline):
+            return stopped()
+        code, killed, out, _ = self.worker(
+            change, station, cwd, prompt, models, timeout=deadline - time.monotonic()
+        )
+        if code != 0 and usage_limit(out):
+            return stopped()
+        return Checked(code, killed, models, "", False, None)
+
     def lacks(self, who: str, station: str) -> list[str]:
         """Return each tool the station's last log asked for and its station lacks.
 
@@ -4724,9 +4781,10 @@ class Run:
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.
 
-        Why: 0104-codex-limits design D3.
+        Why: 0104-codex-limits design D3; 0117-codex-converge design D4.
         """
-        resets = [self.limited_until("codex"), _headroom(time.time())]
+        held = _headroom(time.time())
+        resets = [self.limited_until("codex"), held[0] if held else None]
         if reset := max((at for at in resets if at is not None), default=None):
             ahead = reset - time.time()
             if ahead > LIMIT_WAIT or time.monotonic() + ahead >= deadline:
@@ -6099,7 +6157,7 @@ class Run:
             moved = f"changes/{change}/models.toml changed during the run"
             self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
             return False
-        if not self.admit(version):
+        if not self.admit(version, stage):
             return False
         self.log.event("run", "rejoin", f"{change}: {stage}")
         threads[change] = threading.Thread(
@@ -6108,11 +6166,11 @@ class Run:
         threads[change].start()
         return True
 
-    def admit(self, version: Version) -> bool:
+    def admit(self, version: Version, stage: str | None = None) -> bool:
         """Clear a joining version's halts, read its plan, probe its new executors.
 
-        Why: 0063-rejoin design D2, D3; 0082-cut-station design
-        D4; 0085-self-healing-ship design D7.
+        A `stage` leaves out the stations behind it. Why: 0063-rejoin D2, D3;
+        0082-cut-station D4; 0085-self-healing-ship D7; 0117-codex-converge D8.
         """
         change = version.change
         with self.guard:
@@ -6121,7 +6179,8 @@ class Run:
             self.diagnosed.discard(change)
         if change not in self.planned:
             self.read_plan([version])
-        self.probe_for(change, self.named(change), self.on_stations(change))
+        stations = self.on_stations(change, stage)
+        self.probe_for(change, self.named(change), stations)
         return not self.stopped(change)
 
     def probe_for(
@@ -6153,7 +6212,11 @@ class Run:
                         reason for who, reason in self.halts[::-1] if who == change
                     )
                     refused = next(halts, None)
-                    if refused is not None:
+                    # A probe a supplied deadline killed is that request's, not Codex's.
+                    cut_short = deadline is not None and " timed out after " in (
+                        refused or ""
+                    )
+                    if refused is not None and not cut_short:
                         self.refused[executor] = refused
                 if refused is None and executor in stations:
                     self.halt(change, self.limited_reason(executor))
@@ -6572,7 +6635,8 @@ class Run:
         cut_held: set[str] = set()
         if not halted:
             changes = [version.change for version in versions]
-            cut_held = self.hold_limited(changes, sorted(takeable))
+            at = {change: stage for change, (stage, _) in stages.items()}
+            cut_held = self.hold_limited(changes, sorted(takeable), at)
         if not (halted or self.blocked):
             threads: dict[str, threading.Thread] = {}
             for version in versions:

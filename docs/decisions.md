@@ -346,7 +346,7 @@ freeze. The plan reviewer answers the cut with its doubts, each with its `path:l
 Each plan review is a new worker, never a message to the reviewer before it. The cut's helpers are fresh read-only
 workers, as its plan reviewer is, answering in the cut's thread and writing no file, and read only a fact `facts.py`
 left unplaced: the cut writes their answers to its notes. A checker on another host than converge's is a fresh agent
-process the script starts through the run's checker call.**
+process the script starts through the run's checker call, and a Codex fixer through the run's fixer call.**
 
 - **Why:** fresh context and observed output provide independence across hosts with different worker APIs.
 - **Rejected:** inherited producer history, resumed verification conversations, inline self-review and
@@ -392,13 +392,13 @@ the diff's files to `debt-cards.md`, and no worker reads `.minions/debt.md`. A v
 converge's is started by the converge script through the run's checker call, on the plan's model and effort,
 within converge's remaining time, or on Claude while Codex is limited
 ([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)),
-and the script reads its findings from disk. The fixer stays on converge's host.
+and the script reads its findings from disk. A fixer table may name Codex; it halts at a limit and never falls back.
 Under `[converge] shadow = true`, round 1 also runs the other host's checkers on the same freeze, into shadow files that drive
 nothing, and `overlap.py` counts what each side alone caught. The review metrics read per role and executor.**
 
 - **Why:** the person wanted Codex's review with Claude's fix, and the numbers first.
 - **Accepts:** a shadow pair's spend each round 1 it is on.
-- **Rejected:** a fixer on another host · a shadow on every round.
+- **Rejected:** a shadow on every round.
 
 ### D71 · The cut and converge read what changed
 
@@ -884,8 +884,8 @@ A tool its station lacks halts the version. The cut and the build read the decis
 ### D76 · A Codex usage limit falls back, and halts only what runs on Codex
 
 **A usage limit at the run's probe is no refusal: the run logs `codex limited until <time>`, and only a version or cut with a
-station on Codex halts, alone, with no rescue. A converge checker on Codex that is limited — a limit recorded, or a primary
-window at 90% or more by Codex's rollout file — runs on Claude on converge's model and effort until the reset, save a reset at
+station on Codex halts, alone, with no rescue. A converge checker on Codex that is limited — a limit recorded, or the 5-hour or
+weekly window at 90% or more by Codex's rollout file — runs on Claude on converge's model and effort until the reset, save a reset at
 most 15 minutes away inside converge's time, which it waits for; its answer names `fallback: codex usage limit`. The reset
 comes from the rollout the log's `thread_id` names, else the `try again at` text. Each Codex spawn records its share of the
 5-hour and weekly windows, never dollars.**
@@ -893,7 +893,8 @@ comes from the rollout the log's `thread_id` names, else the `try again at` text
 - **Why:** one operator session at 99% of a Plus window stopped run 20261108-200117 whole, a Claude-only version included;
   a wait costs a version's thread; Codex here is plan quota.
 - **Accepts:** the headroom read counts any Codex use, the operator's too · a limited shadow on Codex answers exit 1 and
-  drives nothing · a Codex station still halts its version · a forged `thread_id` reads another rollout, misstating a reset
+  drives nothing · a Codex station still halts its version · a Codex fixer halts its version at a limit, with no
+  fallback · a forged `thread_id` reads another rollout, misstating a reset
   or a share.
 - **Rejected:** a wait until any reset · dollar prices for Codex · the conductor telling a limit from a failure — `conduct.py`
   falls back inside the run's checker call.

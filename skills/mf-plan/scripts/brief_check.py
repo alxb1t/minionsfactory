@@ -70,7 +70,7 @@ CHECKS = ("conformance", "adversarial", "fix")
 # The optional parts, in order. Why: 0102-build-per-phase design D6.
 PARTS = ("build-moderate", *CHECKS)
 HOSTS = ("claude", "codex")
-HOSTLESS = ("cut", "fix", "build-moderate")
+HOSTLESS = ("cut", "build-moderate")
 SKIPPABLE = ("converge", "conformance", "adversarial")
 SHADOW = ["shadow"]
 LIGHT = "the title says light: /mf-plan <what> depth=hard from=<brief>"

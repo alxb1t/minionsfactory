@@ -23,7 +23,7 @@ description: Converge a built change through its conductor script — `conduct.p
 |---|---|---|
 | `change-id` | the change to converge | inferred, as below |
 | `conformance=`, `adversarial=` | `<model>/<effort>`, `default` for none; or `skip`, which stubs that checker | the executor's default |
-| `fix=` | `<model>/<effort>`: the fixer's, whatever card it is sent | the executor's default |
+| `fix=` | `<model>/<effort>`: the fixer's, whatever card it is sent; it runs on the executor its table names, Claude when it names none, and a Codex fixer at a limit halts the version | the executor's default |
 | `grant=yes` | one round past the cap, for a cap the person granted | no grant |
 | `--executor` | `claude` or `codex`: the host every worker runs on | `claude` |
 
