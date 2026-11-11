@@ -82,6 +82,9 @@ BLOCK_HEADING = re.compile(r"<h[12](?:[\s/>]|$)", re.IGNORECASE)
 APPROVED = ["item", "package", "constraint", "why"]
 PACKAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 SPECIFIER = re.compile(r"[<>=!~][<>=!~,.0-9A-Za-z*+ -]*")
+NPM_PREFIX = "npm:"
+NPM_NAME = re.compile(r"(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*")
+NPM_VERSION = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
 UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -7080,18 +7083,38 @@ def _approval(path: Path, slug: str, command: str) -> list[list[str]]:
     return approved
 
 
+def _plain_row(package: str, constraint: str) -> bool:
+    """Return whether a `## Dependencies` row is plain, as its ecosystem reads it.
+
+    e.g. `("npm:vue", "3.5.43")` is plain, `("npm:vue", "^3.5.43")` is not.
+    Why: 0121-ui-prepare design D1.
+    """
+    if package.startswith(NPM_PREFIX):
+        return bool(
+            NPM_NAME.fullmatch(package.removeprefix(NPM_PREFIX))
+            and NPM_VERSION.fullmatch(constraint)
+        )
+    return bool(PACKAGE.fullmatch(package) and SPECIFIER.fullmatch(constraint))
+
+
 def _prefetch(primary: Path, rows: list[list[str]]) -> None:
     """Fetch each approved row's wheel into the primary's uv cache, or stop with 2.
 
-    Why: 0110-gate-hardening design D4.
+    An npm row is checked here, not fetched. Why: 0110-gate-hardening design D4.
     """
     for package, constraint in rows:
-        if not (PACKAGE.fullmatch(package) and SPECIFIER.fullmatch(constraint)):
+        if not _plain_row(package, constraint):
+            plain = (
+                f"{NPM_PREFIX}<name> at an exact version"
+                if package.startswith(NPM_PREFIX)
+                else "a package name and a plain version specifier"
+            )
             raise Stop(
                 2,
-                f"cut: cannot run — the brief's row {package} {constraint} is not a"
-                " package name and a plain version specifier",
+                f"cut: cannot run — the brief's row {package} {constraint} is not"
+                f" {plain}",
             )
+    rows = [row for row in rows if not row[0].startswith(NPM_PREFIX)]
     scratch = primary / ".minions" / "tmp"
     env = {
         name: value

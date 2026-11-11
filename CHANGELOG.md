@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A `## Dependencies` row `npm:<name>` at an exact version is plain; a range, a tag, a URL, a path, a git reference or an
+  alias exits `cut` with 2, and the plan's brief check names it first (0121-ui-prepare, phase 1).
+
 ## [0.97.0] - 2026-11-11
 
 Gate: local 6m58s · CI not read under mf-ship · 0.96.0: local 6m24s · CI not read under mf-ship

@@ -3959,6 +3959,37 @@ def test_a_cut_queues_a_codex_fixer(tmp_path: Path, fake: Callable[..., Path]) -
     )
 
 
+def test_an_npm_row_is_plain_only_at_an_exact_version() -> None:
+    plain_row = _conduct()["_plain_row"]
+    plain = (
+        ("npm:vue", "3.5.43"),
+        ("npm:@vitejs/plugin-vue", "6.0.1"),
+        ("npm:vue", "3.5.43-beta.1"),
+        ("left-pad", ">=1.3,<2"),
+        ("right-pad", "==2.0.1"),
+    )
+    refused = (
+        ("npm:vue", "^3.5.43"),
+        ("npm:vue", "~3.5.43"),
+        ("npm:vue", "3.5"),
+        ("npm:vue", "latest"),
+        ("npm:vue", ">=3.5.43"),
+        ("npm:vue", "https://registry.invalid/vue-3.5.43.tgz"),
+        ("npm:vue", "./vendor/vue"),
+        ("npm:vue", "github:vuejs/core"),
+        ("npm:vue", "git+https://example.invalid/vue.git#3.5.43"),
+        ("npm:vue@npm:other", "1.0.0"),
+        ("npm:Vue", "3.5.43"),
+        ("npm:", "3.5.43"),
+        ("npm:@scope", "3.5.43"),
+        ("left-pad", "1.3.0"),
+        ("left-pad", "^2"),
+        ("https://index.invalid/left-pad.whl", ">=1"),
+    )
+    assert [plain_row(*row) for row in plain] == [True] * len(plain)
+    assert [plain_row(*row) for row in refused] == [False] * len(refused)
+
+
 _FAKE_UV = """
 import json
 import os
@@ -4097,6 +4128,71 @@ def test_a_cut_prefetches_its_approved_wheels(
     assert linked.value.code == 2
     assert fetched() == []
     assert os.listdir(elsewhere) == []
+
+
+@pytest.mark.slow
+def test_a_cut_refuses_an_npm_row_that_is_no_exact_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    names["_prefetch"] = conduct["_prefetch"]
+    bin_ = tmp_path / "uv-bin"
+    bin_.mkdir()
+    (bin_ / "uv").write_text(f"#!{sys.executable} -S{_FAKE_UV}")
+    (bin_ / "uv").chmod(0o755)
+    record = tmp_path / "uv-record.jsonl"
+    monkeypatch.setenv("PATH", str(bin_), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_UV_RECORD", str(record))
+    brief = tmp_path / "brief.md"
+
+    def cut(*rows: str) -> str:
+        table = "".join(f"| a | {row} | a pad |\n" for row in rows)
+        head = "| item | package | constraint | why |\n|---|---|---|---|\n"
+        brief.write_text(f"# brief\n\n## Dependencies\n{head}{table}\n{_items('a')}")
+        return conduct["cut"](
+            root, "a", "minor", f"brief={brief}", [], "claude", None, None
+        )
+
+    def fetched() -> list[list[str]]:
+        lines = record.read_text().splitlines() if record.is_file() else []
+        record.unlink(missing_ok=True)
+        return [json.loads(line)["argv"] for line in lines]
+
+    # A plain npm row is no wheel: the Python row beside it is the only fetch.
+    assert cut("npm:vue | 3.5.43", "left-pad | >=1.3") == (
+        "cut: queued 0001-a · the live run takes it"
+    )
+    assert [argv[-1] for argv in fetched()] == ["left-pad>=1.3"]
+
+    # A row out of shape stops the cut before any fetch, the good rows included.
+    before = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+    refused = (
+        "npm:vue | ^3.5.43",
+        "npm:vue | latest",
+        "npm:vue | https://registry.invalid/vue-3.5.43.tgz",
+        "npm:vue | ./vendor/vue",
+        "npm:vue | github:vuejs/core",
+        "npm:vue@npm:other | 1.0.0",
+    )
+    for row in refused:
+        with pytest.raises(conduct["Stop"]) as stopped:
+            cut("left-pad | >=1.3", row)
+        assert stopped.value.code == 2
+        package, constraint = row.split(" | ")
+        assert str(stopped.value) == (
+            f"cut: cannot run — the brief's row {package} {constraint} is not"
+            " npm:<name> at an exact version"
+        )
+        assert fetched() == []
+        after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+        assert after == before
+        assert not (root / ".minions" / "changes" / "0002-a").exists()
 
 
 def test_a_started_run_is_seen_by_its_claim_or_its_end(

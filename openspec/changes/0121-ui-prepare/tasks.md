@@ -4,7 +4,7 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 
 ## Progress
 
-- [ ] 1 — The rows · moderate
+- [x] 1 — The rows · moderate
 - [ ] 2 — The fetch · hard
 - [ ] 3 — The workers · moderate
 - [ ] 4 — The halt · hard
@@ -12,15 +12,15 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 
 ## 1 — The rows
 
-- [ ] 1.1 **HALT CHECK** `PACKAGE`, `SPECIFIER` and `_prefetch` stand in `skills/mf-ship/scripts/conduct.py` where [D1](design.md#d1) reads them.
+- [x] 1.1 **HALT CHECK** `PACKAGE`, `SPECIFIER` and `_prefetch` stand in `skills/mf-ship/scripts/conduct.py` where [D1](design.md#d1) reads them.
   Verify: `git grep -n -e '^PACKAGE = ' -e '^SPECIFIER = ' -e '^def _prefetch' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 1.2 Add `NPM_PREFIX`, `NPM_NAME`, `NPM_VERSION` and `_plain_row(package, constraint) -> bool` after `SPECIFIER` in `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1): a Python row is plain when `PACKAGE` and `SPECIFIER` match it, as `_prefetch` reads it today. Test each row of its table in `test_an_npm_row_is_plain_only_at_an_exact_version`, `tests/test_conduct.py`.
+- [x] 1.2 Add `NPM_PREFIX`, `NPM_NAME`, `NPM_VERSION` and `_plain_row(package, constraint) -> bool` after `SPECIFIER` in `skills/mf-ship/scripts/conduct.py`, per [D1](design.md#d1): a Python row is plain when `PACKAGE` and `SPECIFIER` match it, as `_prefetch` reads it today. Test each row of its table in `test_an_npm_row_is_plain_only_at_an_exact_version`, `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k an_npm_row_is_plain_only_at_an_exact_version` exits 0.
-- [ ] 1.3 Make `_prefetch` check every row with `_plain_row` before any fetch, and fetch only the rows that do not start `npm:`. An npm row's refusal reads `not npm:<name> at an exact version`; a Python row's text is unchanged. Test each refusal of the spec's scenario in `test_a_cut_refuses_an_npm_row_that_is_no_exact_version`, `tests/test_conduct.py`, beside the wheel prefetch's test.
+- [x] 1.3 Make `_prefetch` check every row with `_plain_row` before any fetch, and fetch only the rows that do not start `npm:`. An npm row's refusal reads `not npm:<name> at an exact version`; a Python row's text is unchanged. Test each refusal of the spec's scenario in `test_a_cut_refuses_an_npm_row_that_is_no_exact_version`, `tests/test_conduct.py`, beside the wheel prefetch's test.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_cut_refuses_an_npm_row_that_is_no_exact_version` exits 0.
-- [ ] 1.4 In `packages` of `skills/mf-plan/scripts/brief_check.py`, add a halt `## Dependencies row <n> — not an npm package at an exact version: <package> <constraint>` for each `npm:` row `conduct["_plain_row"]` refuses; Python rows read as before. Test it in `test_an_npm_row_is_checked_at_the_plan`, `tests/test_brief_check.py`.
+- [x] 1.4 In `packages` of `skills/mf-plan/scripts/brief_check.py`, add a halt `## Dependencies row <n> — not an npm package at an exact version: <package> <constraint>` for each `npm:` row `conduct["_plain_row"]` refuses; Python rows read as before. Test it in `test_an_npm_row_is_checked_at_the_plan`, `tests/test_brief_check.py`.
   Verify: `uv run pytest -q tests/test_brief_check.py -k an_npm_row_is_checked_at_the_plan` exits 0.
-- [ ] 1.5 Pin that `I11` of `skills/mf-cut-change/scripts/cut_check.py` holds a `| npm:vue | 3.5.43 | … |` table in `test_an_npm_row_in_the_dependencies_table_is_read`, `tests/test_cut_check.py`, beside `test_a_dependencies_table_is_read`.
+- [x] 1.5 Pin that `I11` of `skills/mf-cut-change/scripts/cut_check.py` holds a `| npm:vue | 3.5.43 | … |` table in `test_an_npm_row_in_the_dependencies_table_is_read`, `tests/test_cut_check.py`, beside `test_a_dependencies_table_is_read`.
   Verify: `uv run pytest -q tests/test_cut_check.py -k an_npm_row_in_the_dependencies_table_is_read` exits 0.
 
 ## 2 — The fetch
