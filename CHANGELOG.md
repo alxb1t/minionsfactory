@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prose and archive cards corrected in place; the threat model records C4 under *Out of scope* and a plugin gap under
   *Known gaps*; the threat-model surfaces rule reaches `AGENTS.md`, `mf-build` and `mf-cut-change`
   (0118-debt-paydown-3a, phase 2).
+- A corpus case may hold a `shape`: an input it does not match is skipped and counted, so `open-cards` passes over
+  findings older than the card shape; a linked case folder stops the run. Plan metrics reads `$NAME` in a cut's brief,
+  books operator work to the session's own repo, and counts only agent tasks as workers
+  (0118-debt-paydown-3a, phase 3).
 
 ## [0.97.0] - 2026-11-11
 
