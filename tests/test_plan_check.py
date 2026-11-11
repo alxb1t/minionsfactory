@@ -377,7 +377,12 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     (root / "tests").mkdir(exist_ok=True)
     (root / "tests/test_here.py").write_text("def test_here():\n    pass\n")
     here = "tests/test_here.py::test_here"
-    for named in ("tests/test_gone.py", "tests/test_here.py::test_gone"):
+    # A parameter id cannot be proved to exist without collecting: it runs too.
+    for named in (
+        "tests/test_gone.py",
+        "tests/test_here.py::test_gone",
+        "tests/test_here.py::test_here[missing]",
+    ):
         _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
         record()
         assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])

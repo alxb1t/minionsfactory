@@ -385,7 +385,7 @@ def names_tests(argv: list[str], root: Path) -> bool:
     """Return whether each test path or node a pytest argv names exists in `root`.
 
     An operand has a `/`, a `.py` or a `::`; its file and each `::` node must exist.
-    An option's value may read as an operand: that command runs, not skips.
+    A `[` parameter id is never vouched for, nor an option value read as an operand.
     """
     for word in argv:
         if word.startswith("-") or not ("/" in word or ".py" in word or "::" in word):
@@ -396,8 +396,9 @@ def names_tests(argv: list[str], root: Path) -> bool:
             return False
         text = _read(file) if nodes else ""
         for node in nodes:
-            name = re.escape(node.partition("[")[0])
-            if not re.search(rf"\b(?:def|class)\s+{name}\b", text):
+            if "[" in node:  # a parameter id exists only on collection: run it
+                return False
+            if not re.search(rf"\b(?:def|class)\s+{re.escape(node)}\b", text):
                 return False
     return True
 
