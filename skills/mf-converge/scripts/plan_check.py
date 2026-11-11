@@ -28,13 +28,13 @@ from types import FrameType
 from typing import Any, NamedTuple
 
 TIMEOUT_SECONDS = 600
+DRAIN_SECONDS = 5
 CPUS = os.cpu_count() or 1
 RUNNING: set[subprocess.Popen[str]] = set()
 PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
 REVISION = re.compile(r"[0-9a-f]{7,40}")
 TEST_MODULE = re.compile(r"test_.*\.py|.*_test\.py")
 QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
-# A node id line, a per-file count line, or a summary of at least one test collected.
 COLLECTED = re.compile(
     r"^\S+::\S|^\S+: [1-9]\d*$|(?<![/\d])[1-9]\d* tests? collected", re.M
 )
@@ -230,7 +230,12 @@ def run(command: str, root: Path) -> Result:
         output, _ = process.communicate(timeout=TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         _kill(process)
-        process.communicate()
+        try:
+            process.communicate(timeout=DRAIN_SECONDS)
+        except subprocess.TimeoutExpired:
+            if process.stdout:
+                process.stdout.close()
+            process.wait()
         return Result(-1, "", True)
     finally:
         RUNNING.discard(process)
@@ -410,10 +415,27 @@ def names_tests(argv: list[str], root: Path) -> bool:
     return True
 
 
+def gate_discovers(operand: str, root: Path) -> bool:
+    """Return whether the gate's bare pytest reaches an operand's file.
+
+    The repo's `testpaths` name where it looks; with none, it looks everywhere.
+    """
+    try:
+        config = tomllib.loads((root / "pyproject.toml").read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        config = {}
+    options = config.get("tool", {}).get("pytest", {}).get("ini_options", {})
+    paths = options.get("testpaths") or ["."]
+    file = (root / operand.split("::", maxsplit=1)[0]).resolve()
+    return any(file.is_relative_to((root / str(path)).resolve()) for path in paths)
+
+
 def _vouched(word: str, root: Path) -> bool:
     """Return whether a word after the pytest prefix keeps the gate's proof."""
     return word in QUIET_OPTIONS or (
-        not word.startswith("-") and names_tests([word], root)
+        not word.startswith("-")
+        and names_tests([word], root)
+        and gate_discovers(word, root)
     )
 
 
@@ -452,11 +474,11 @@ def collecting(texts: list[str], root: Path) -> set[str]:
 def names_revision(argv: list[str]) -> bool:
     """Return whether a command reads a revision, so `HEAD` is part of its key.
 
-    A word starting `HEAD` or a hex sha, or a `git` command but `grep` and `ls-files`.
+    A word starting `HEAD` or a hex sha, or a `git` command but `ls-files`.
     """
     if any(word.startswith("HEAD") or REVISION.fullmatch(word) for word in argv):
         return True
-    return argv[:1] == ["git"] and argv[1:2] not in (["grep"], ["ls-files"])
+    return argv[:1] == ["git"] and argv[1:2] != ["ls-files"]
 
 
 def keyed(text: str, head: str) -> str:

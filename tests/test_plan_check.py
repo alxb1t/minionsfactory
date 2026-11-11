@@ -339,6 +339,7 @@ def test_a_command_named_twice_runs_once(
     assert ran.read_text() == "r\n"
 
 
+@pytest.mark.slow
 def test_a_green_gate_record_passes_a_bare_pytest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -346,7 +347,6 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     base = _repo(root, monkeypatch)
     stub = tmp_path / "bin"
     stub.mkdir()
-    # The stub fails a run, and hands a collection to the real pytest.
     collect = (
         f'case "$*" in *--collect-only*) exec {sys.executable} -m pytest "$@";; esac'
     )
@@ -405,7 +405,6 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {here}`.\n")
     record()
     assert check() == (0, ["plan: clean"])
-    # A selection or another option is no quiet flag: the pytest runs.
     file = "tests/test_here.py"
     for named in (f"{file} -k gone", f"{file} -m gone", f"-c other.ini {file}"):
         _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
@@ -437,10 +436,10 @@ def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
         "git diff HEAD~1 --stat",
         "printf deadbeef",
         "git",
+        "git grep -q marker other -- src",
     ):
         assert plan_check.keyed(text, "abc") == f"{text}\nabc"
     for text in (
-        "git grep -n x -- src",
         "git ls-files src",
         "printf 1",
         "ruff check .",
@@ -465,6 +464,58 @@ def test_another_branch_moving_ends_the_reuse_of_a_result(
     # `other` moves; HEAD and the tree stay: the kept success is not read again.
     _git(root, "branch", "-f", "other", "HEAD~1")
     assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
+
+
+def test_a_git_grep_of_another_branch_is_not_reused_once_it_moves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    command = "git grep -q LEGACY other -- src/legacy.py"
+    _commit_tasks(root, f"- [x] 1.1 Same.\n  Verify: `{command}`.\n")
+    _git(root, "branch", "other")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    assert check() == (0, ["plan: clean"])
+    empty = _git(root, "hash-object", "-t", "tree", "/dev/null")
+    _git(root, "branch", "-f", "other", _git(root, "commit-tree", empty, "-m", "x"))
+    assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
+
+
+def test_the_gate_vouches_only_for_tests_it_discovers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    assert plan_check.gate_discovers("extras/test_x.py", root)
+    (root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n'
+    )
+    assert plan_check.gate_discovers("tests/test_mod.py::test_gone", root)
+    assert not plan_check.gate_discovers("extras/test_x.py", root)
+    assert not plan_check.gate_discovers("tests/../extras/test_x.py", root)
+
+
+def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.3)
+    monkeypatch.setattr(plan_check, "DRAIN_SECONDS", 0.3)
+    child = (
+        "import subprocess, sys; "
+        "subprocess.Popen(['sleep', '20'], start_new_session=True); "
+        "import time; time.sleep(20)"
+    )
+    command = f'{sys.executable} -c "{child}"'
+    started = time.monotonic()
+    assert plan_check.run(command, root) == plan_check.Result(-1, "", True)
+    assert time.monotonic() - started < 5
+    subprocess.run(["pkill", "-f", "sleep 20"], check=False)
 
 
 def test_a_result_is_kept_by_tree_and_reused(
