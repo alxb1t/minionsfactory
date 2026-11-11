@@ -252,9 +252,7 @@ Fix note (2026-11-09, S1): `_spent`'s `(0.0, 0)` also needs the log to hold no `
 - **The real check** — `test_a_linked_tree_writes_under_the_codex_sandbox`, marked `slow`, skipped unless
   `MF_REAL_CODEX=1` and `codex` is on `PATH`: a `tmp_path` repo with a linked worktree; the `-c sandbox_workspace_write.*`
   pairs `argv("codex", …)` gives for that worktree; then
-  `codex sandbox -c 'sandbox_mode="workspace-write"' <those pairs> -C <the worktree> -- git write-tree` exits 0.
-
-Fix note (2026-11-09, R1): codex-cli 0.163's `codex sandbox` needs a permission profile and ignores `sandbox_mode` and `sandbox_workspace_write.*` under one, so the test runs `codex sandbox -P mf -c <profile>`, a `permissions.mf` profile extending `:workspace` that makes those roots writable, `:slash_tmp` and `:tmpdir` read-only.
+  `codex sandbox -P mf -c <profile> -C <the worktree> -- git write-tree` exits 0, `<profile>` a `permissions.mf` profile extending `:workspace` that makes those roots writable and `:slash_tmp` and `:tmpdir` read-only.
 
 ### D7
 

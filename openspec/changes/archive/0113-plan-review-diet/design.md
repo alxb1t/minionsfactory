@@ -96,9 +96,9 @@ Rows of `cut_check.py`, in the same halt form. A **path span** is a backtick spa
 | flag | kind | a hit is |
 |---|---|---|
 | `--signature <name>` | `stand-in` | a line defining `def <name>`, `class <name>` or `<name> = lambda`: every definition of the name, the real one too |
-| `--signature <name>` | `monkeypatch` | a line holding `setattr` or `patch` and `<name>` in quotes or after a dot |
+| `--signature <name>` | `monkeypatch` | a line holding the name in quotes or after a dot, inside a `setattr` or `patch` call that may span lines |
 | `--file <path>` | `runpy reader` | a line holding the file's basename in quotes: how `runpy.run_path`, `spec_from_file_location` and a `uv run --script` argv name a script |
-| `--file <path>` | `import reader` | a line `import <stem>` or `from <stem> import`, `<stem>` the file's name without its suffix |
+| `--file <path>` | `import reader` | a line `import <stem>`, `from <pkg> import <stem>` or `from . import <stem>`, `<stem>` the file's name without its suffix |
 | `--string <text>` | `string reader` | a line holding the text as written, searched with `git grep -F` and no word bound |
 
 ### D5

@@ -82,8 +82,7 @@ case: base D58, ours plans `D59 · x`, theirs heads `D59 · y` → `{59: 60}`.
 
 - **`C`.** `merge_in` calls `settle` on each merge it opens itself, failed or clean:
   `if not opened and (_maybe(tree, *merge) is None or _merge_open(tree))`. `settle` runs the `CHANGELOG.md` rule on a conflicted
-  `CHANGELOG.md` and the `docs/decisions.md` rule on every merge, in `self.rules`' order; its halt names `left or first`, else
-  `docs/decisions.md`. Its docstring says so. A merge already open stays unsettled, as today.
+  `CHANGELOG.md` and the `docs/decisions.md` rule on every merge, in `self.rules`' order; its halt names `left or first`; a clean merge whose `decisions` rule halts names that halt and `git -C <tree> merge --no-ff --no-commit <default>`. Its docstring says so. A merge already open stays unsettled, as today.
 - **C4, decided by the cutter.** A merge a dead run left open is not settled again: `_renumber_changelog` reads its own earlier
   output, so a second `decisions` chains a move (`{59: 61, 61: 62}`) twice in `CHANGELOG.md`. A planned id missed there halts the
   build's own `Verify:`, as today.
@@ -166,7 +165,8 @@ none `slow`. No end-to-end test.
   as uv run --script <the script>`; with the real `git`, a folder outside any repository still prints `is not a worktree root`.
 - `test_a_merge_in_renumbers_a_planned_decision` (`tests/test_conduct.py`, new) — `Run.merge_in`, called as
   `test_a_merge_in_refuses_a_planted_hook` calls it, on a cut-only `0002-marks` whose plan cites `D59 · Marks rule` while main heads
-  `### D59 · Main rule`: the merge commits as `chore(integrate): merge main into 0002-marks`, and the plan cites `D60`.
+  `### D59 · Main rule`: the merge commits as `chore(integrate): merge main into 0002-marks`, and the plan cites `D60`. A further step:
+  the `decisions` rule halting on a clean merge, the halt naming `git -C <tree> merge --no-ff --no-commit <default>`.
 - `test_a_git_failure_names_its_line_and_uv` (`tests/test_conduct.py`, new) — the fake `git`: `status` exits 2 with
   `conduct: cannot run — git rev-parse failed: <that line>; run it as uv run --script <the script>`; the real `git` outside any
   repository, `GIT_CEILING_DIRECTORIES` set, still prints `conduct: cannot run — not in a git repository`.
