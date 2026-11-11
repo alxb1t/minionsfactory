@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.93.0] - 2026-11-11
+
+Gate: local 5m6s · CI not read under mf-ship · 0.92.1: local 4m56s · CI not read under mf-ship
+
 - `cut_check.py` settles `Verify:` sequencing by rows `V1`–`V4` and the record's consistency by rows `K1`–`K6`, each a halt
   line by name, so the plan review no longer reads what a text match finds. `search_parts` reads the literal needles and files
   of a `grep` (change `0113-plan-review-diet`, phase 1).

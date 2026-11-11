@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.93
 debt: [0100·R4]
 ---
 
