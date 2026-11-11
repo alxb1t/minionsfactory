@@ -5918,6 +5918,9 @@ def test_a_codex_limit_at_the_probe_halts_its_stations_alone(
 def test_a_shadow_round_drives_no_fix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
+    # T2: its fake `shadow-blocks` mode and a models file of Codex checkers with
+    # `shadow = true` are the state; no other run test reaches it;
+    # 0119-debt-paydown-3b design D15.
     conduct = _conduct()
     calls = fake_codex("shadow-blocks")
     found = conduct["main"].__globals__
@@ -10591,6 +10594,9 @@ def test_a_claude_worker_starts_in_the_sandbox(
 def test_every_station_starts_lean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
+    # T2: it writes the operator's `settings.json` with plugins before the run and
+    # reads each Claude station's argv; no other run test holds that state;
+    # 0119-debt-paydown-3b design D15.
     conduct = _conduct()
     fake_codex("")
     found = conduct["main"].__globals__

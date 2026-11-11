@@ -2988,7 +2988,8 @@ def _settled(
 def _settle_kept(tree: Path, staged: str) -> str | None:
     """Return why integrate's merge holds more than the settled tree, or None.
 
-    Why: 0090-supervisor-merge security S2.
+    Why: 0090-supervisor-merge design D4, its delta's *A supervisor answers what the
+    rescue leaves*.
     """
     merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
     if _git(tree, "rev-parse", "HEAD").strip() != merge:
@@ -3208,7 +3209,6 @@ def _plugins_off() -> dict[str, bool]:
 def _temp_folder(prefix: str) -> Path:
     """Return a fresh folder under `TMPDIR`, else stop with 2.
 
-    e.g. `_temp_folder("mf-sandbox-")` → `<TMPDIR>/mf-sandbox-k3j9x2`.
     Why: 0111-sandbox-tmp design D2.
     """
     parent = Path(os.environ.get("TMPDIR") or "/tmp")  # noqa: S108
@@ -3560,7 +3560,6 @@ def argv(
 def _remove_temp(folder: Path, err: TextIO | None = None) -> None:
     """Remove `folder`, unlocking what a worker left unreadable; say so if it stays.
 
-    e.g. a `000` subfolder is made `700`, then removed; a link is left.
     Why: 0111-sandbox-tmp design D3; 0119-debt-paydown-3b design D6.
     """
     seen: set[str] = set()

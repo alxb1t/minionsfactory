@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   checks, with `PROBE_ROOM` of converge's time left; a request for a version whose rescue runs is kept for the next
   poll. `converge.py` prints a halt on a log whose run ended and stamps nothing, but a halt that names a lock still
   stamps (0119-debt-paydown-3b, phase 2).
+- Three run tests state why they cost what they do; the `_temp_folder` and `_remove_temp` docstrings keep a summary
+  and a `Why:` line; `_settle_kept` cites a design and a requirement in place of a findings card
+  (0119-debt-paydown-3b, phase 3).
 
 ## [0.97.0] - 2026-11-11
 
