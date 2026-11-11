@@ -35,8 +35,8 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
   Verify: `uv run pytest -q tests/test_conduct.py -k a_checker_falls_back_when_the_weekly_window_is_spent` exits 0.
 - [ ] 2.5 Add a step to `test_a_fixed_version_rejoins_a_live_run` in `tests/test_conduct.py`: a request for a version whose thread lives and whose last log event is a `rescue` spawn is present again after `take_requests`, and a poll after the thread ends takes it. Then add `self.kept` beside `self.candidates` in `Run.__init__` and the write in `Run.take_requests` of `skills/mf-ship/scripts/conduct.py`, per [D13](design.md#d13).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_fixed_version_rejoins_a_live_run` exits 0.
-- [ ] 2.6 Add `test_a_halt_on_an_ended_log_is_printed_not_stamped` to `tests/test_converge.py`: on a status log whose newest run ends on `done`, `converge["halt"](context, "git failed")` raises nothing and the log keeps its bytes. Then add the early return to `halt` in `skills/mf-converge/scripts/converge.py`, per [D14](design.md#d14).
-  Verify: `uv run pytest -q tests/test_converge.py -k a_halt_on_an_ended_log_is_printed_not_stamped` exits 0.
+- [ ] 2.6 Add `test_a_halt_on_an_ended_log_is_printed_not_stamped` to `tests/test_converge.py`: on a status log whose newest run ends on `done`, `converge["halt"](context, "git failed")` raises nothing and the log keeps its bytes. Then add the early return to `halt` in `skills/mf-converge/scripts/converge.py`, skipped when the top event is a `halt` whose detail `LOCKED` matches, per [D14](design.md#d14): `test_the_debt_is_written_once_under_its_lock` stamps a halt on top of a lock halt.
+  Verify: `uv run pytest -q tests/test_converge.py -k "a_halt_on_an_ended_log_is_printed_not_stamped or the_debt_is_written_once_under_its_lock"` exits 0.
 
 ## 3 — The test-cost reasons and the docstrings
 

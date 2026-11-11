@@ -29,7 +29,7 @@ The brief's plan splits the debt paydown by file: `0118-debt-paydown-3a` touches
 | [D11](#d11) | `lacked` takes a result whose text opens with the missing-tool message (`0100·S3`) | a failed command that prints the phrase is no missing tool | a check of the use's name against the station's tools |
 | [D12](#d12) | `codex_ready` skips the probe, and returns False, with less than `PROBE_ROOM` of converge's time left (`0104·S7`) | a probe killed by a spent deadline halts a version for a budget artifact | a floor in `probe_for` |
 | [D13](#d13) | a request for a version whose rescue runs is written again and logged once (the rejoin idea) | `take_requests` deletes every request before it skips a live thread | a request that waits in the run |
-| [D14](#d14) | `converge.halt` stamps nothing on a log whose newest run ended (the ended-log idea) | `stamp.py` refuses an event after `halt` or `done` | a stamp that rewrites the end |
+| [D14](#d14) | `converge.halt` stamps nothing on a log whose newest run ended (the ended-log idea); a halt that names a lock ends no run | `stamp.py` refuses an event after `done`, or after a `halt` that names no lock; `resume` goes on from a lock halt | a stamp that rewrites the end |
 | [D15](#d15) | each test-cost card closes on a stated reason beside its test; a docstring over the comment limit is cut to the comment limit | `T2` asks for a reason; `C7` sets the limit | a merge of run tests |
 | [D16](#d16) | a card closed without code shows its evidence here | paydown 2's method | none |
 
@@ -92,7 +92,7 @@ A new constant `PROBE_ROOM = 120` seconds. `Run.codex_ready` returns False befor
 
 ### D14
 
-`converge.halt` reads `latest(context)` first and returns when its newest event is `halt` or `done`: the caller has printed the reason, and the log stays as it was. A halt on a run that is open stamps as before.
+`converge.halt` reads `latest(context)` first and returns when its newest event is `done`, or a `halt` whose detail `LOCKED` does not match: the caller has printed the reason, and the log stays as it was. A lock halt ends no run: `stamp.py` takes an event after it (`LOCKS`), and `resume` sends it to `unlocked`, so `halt` stamps after it as before. A halt on a run that is open stamps as before.
 
 ### D15
 
