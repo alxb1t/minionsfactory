@@ -2,7 +2,7 @@
 bump: minor
 version: 0.76
 after: [0088-paydown-2, 0090-supervisor-merge]
-debt: [0082·S5, 0083·S3]
+debt: [0082·S5, 0083·S3, 0088·S9, 0088·S10]
 ---
 
 # Cut halts

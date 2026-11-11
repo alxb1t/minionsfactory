@@ -22,7 +22,7 @@ decisions it cites, in full, and an index — Step 2's context pack holds that o
 from the conversation, read the `### D` headings of `docs/decisions.md` as the index, and in full each decision
 the conversation settles against. Read `ARCHITECTURE.md` and `docs/adr/*.md` whole, when present, and the principles
 and the threat model — `docs/principles.md` and `THREAT_MODEL.md`, or the ones `AGENTS.md` names — when the source's
-phases name the file. They are shared context, not your source: design within the decisions in force, and read in
+phases name the file or a path `## Surfaces` of the threat model matches. They are shared context, not your source: design within the decisions in force, and read in
 full any decision whose index line the change touches. A target's own test rule that conflicts with `T1`–`T6` wins:
 plan to it, and name the conflict in Step 9. Missing root `AGENTS.md` → **halt**, naming it.
 

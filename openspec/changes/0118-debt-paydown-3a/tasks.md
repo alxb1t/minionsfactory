@@ -5,7 +5,7 @@ Premise checks for the cards that close without code, the prose and archive fixe
 ## Progress
 
 - [x] 1 — the cards closed without code, each Still true? recorded · moderate
-- [ ] 2 — the prose and archive cards; C4 under the threat model's Out of scope · moderate
+- [x] 2 — the prose and archive cards; C4 under the threat model's Out of scope · moderate
 - [ ] 3 — corpus.py skips old findings and follows no linked case; review_metrics $NAME and per-repo marks; 0100·S4, 0101·R7, 0114·R7 · hard
 - [ ] 4 — cut_check.py's row for a Verify: needle a later task removes · hard
 
@@ -62,42 +62,42 @@ Each sub-task checks one premise of the context table in [design](design.md), pe
 
 Each sub-task edits one file as the card's Fix says, before → after, and its `Verify:` finds the new text or the lack of the old. A quoted before-text may span a line break of its file: join the lines when replacing, and keep each new needle on one line.
 
-- [ ] 2.1 0086·R3. In `openspec/changes/archive/0086-ship-fixes-3/design.md`, `D3`'s "its halt names `left or first`, else …" sentence becomes "its halt names `left or first`; a clean merge whose `decisions` rule halts names that halt and `git -C <tree> merge --no-ff --no-commit <default>`", and the `## Tests` bullet for `test_a_merge_in_renumbers_a_planned_decision` gains that halt as a step.
+- [x] 2.1 0086·R3. In `openspec/changes/archive/0086-ship-fixes-3/design.md`, `D3`'s "its halt names `left or first`, else …" sentence becomes "its halt names `left or first`; a clean merge whose `decisions` rule halts names that halt and `git -C <tree> merge --no-ff --no-commit <default>`", and the `## Tests` bullet for `test_a_merge_in_renumbers_a_planned_decision` gains that halt as a step.
   Verify: `git grep -c -h 'a clean merge whose .decisions. rule halts names that halt' -- openspec/changes/archive/0086-ship-fixes-3/design.md` prints `1`.
-- [ ] 2.2 0086·R3. In `openspec/changes/archive/0086-ship-fixes-3/proposal.md`, add to *Modified Capabilities* the line "MODIFIED *The ship station takes cut versions to the default branch*: a clean merge whose `decisions` rule halts names the hand merge",
+- [x] 2.2 0086·R3. In `openspec/changes/archive/0086-ship-fixes-3/proposal.md`, add to *Modified Capabilities* the line "MODIFIED *The ship station takes cut versions to the default branch*: a clean merge whose `decisions` rule halts names the hand merge",
   and add `skills/mf-ship/SKILL.md` to its *Impact*.
   Verify: `git grep -c -h 'MODIFIED \*The ship station takes cut versions to the default branch\*' -- openspec/changes/archive/0086-ship-fixes-3/proposal.md` prints `1`.
-- [ ] 2.3 0089·R5. In `skills/mf-release/SKILL.md`, the gate-check step's "the person's `docs(<change-id>): amend the change directory` commit does" gains ", or under the version's switch its supervisor's ([D61](../../docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses))".
+- [x] 2.3 0089·R5. In `skills/mf-release/SKILL.md`, the gate-check step's "the person's `docs(<change-id>): amend the change directory` commit does" gains ", or under the version's switch its supervisor's ([D61](../../docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses))".
   Verify: `git grep -c -h "or under the version's switch its supervisor's" -- skills/mf-release/SKILL.md` prints `1`.
-- [ ] 2.4 0089·R6. In `CHANGELOG.md`, the `0089-supervisor` phase 2 line "no supervisor runs over a blocking security card" becomes "no supervisor runs over a blocking security card at a converge halt".
+- [x] 2.4 0089·R6. In `CHANGELOG.md`, the `0089-supervisor` phase 2 line "no supervisor runs over a blocking security card" becomes "no supervisor runs over a blocking security card at a converge halt".
   Verify: `git grep -c -h 'blocking security card at a converge halt' -- CHANGELOG.md` prints `1`.
-- [ ] 2.5 0091·R2. In `openspec/changes/archive/0091-cut-halts/proposal.md`, the frontmatter line becomes `debt: [0082·S5, 0083·S3, 0088·S9, 0088·S10]`.
+- [x] 2.5 0091·R2. In `openspec/changes/archive/0091-cut-halts/proposal.md`, the frontmatter line becomes `debt: [0082·S5, 0083·S3, 0088·S9, 0088·S10]`.
   Verify: `git grep -c -h -F 'debt: [0082·S5, 0083·S3, 0088·S9, 0088·S10]' -- openspec/changes/archive/0091-cut-halts/proposal.md` prints `1`.
-- [ ] 2.6 0096·R2. In `openspec/changes/archive/0096-codex-ready/design.md`, `D7`'s clause "so a forged worktree entry under `/tmp` names no folder a Codex worker could make" becomes "so a Claude worker's own temp folder can still hold the folder a forged worktree entry under `/tmp` names, as *Known gaps* says".
+- [x] 2.6 0096·R2. In `openspec/changes/archive/0096-codex-ready/design.md`, `D7`'s clause "so a forged worktree entry under `/tmp` names no folder a Codex worker could make" becomes "so a Claude worker's own temp folder can still hold the folder a forged worktree entry under `/tmp` names, as *Known gaps* says".
   Verify: `git grep -n 'names no folder a Codex worker could make' -- openspec/changes/archive` prints nothing.
-- [ ] 2.7 0099·R2. In `docs/decisions.md`, D45's bold sentence "`integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note" becomes "`integrate.py delta` on the open default-branch merge, commits when that passes, and else leaves the merge open with its note; the conductor's own `chore(stack)` merge runs no delta check".
+- [x] 2.7 0099·R2. In `docs/decisions.md`, D45's bold sentence "`integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note" becomes "`integrate.py delta` on the open default-branch merge, commits when that passes, and else leaves the merge open with its note; the conductor's own `chore(stack)` merge runs no delta check".
   Verify: `git grep -c -h 'merge runs no delta check' -- docs/decisions.md` prints `1`.
-- [ ] 2.8 0099·R6. In `openspec/changes/archive/0099-stacked-builds/proposal.md`, "it stacks again on the dependency's next build." becomes "it stacks again on the dependency's next build while that dependency is unreleased; once it has released, the dependent builds on the default branch."
+- [x] 2.8 0099·R6. In `openspec/changes/archive/0099-stacked-builds/proposal.md`, "it stacks again on the dependency's next build." becomes "it stacks again on the dependency's next build while that dependency is unreleased; once it has released, the dependent builds on the default branch."
   Verify: `git grep -c -h 'once it has released, the dependent builds on the default branch' -- openspec/changes/archive/0099-stacked-builds/proposal.md` prints `1`.
-- [ ] 2.9 0104·R5. In `openspec/changes/archive/0104-codex-limits/design.md`, `D6`'s "The real check" bullet ends "then `codex sandbox -P mf -c <profile> -C <the worktree> -- git write-tree` exits 0, `<profile>` a `permissions.mf` profile extending `:workspace` that makes those roots writable and `:slash_tmp` and `:tmpdir` read-only"; delete its `Fix note (2026-11-09, R1)` paragraph.
+- [x] 2.9 0104·R5. In `openspec/changes/archive/0104-codex-limits/design.md`, `D6`'s "The real check" bullet ends "then `codex sandbox -P mf -c <profile> -C <the worktree> -- git write-tree` exits 0, `<profile>` a `permissions.mf` profile extending `:workspace` that makes those roots writable and `:slash_tmp` and `:tmpdir` read-only"; delete its `Fix note (2026-11-09, R1)` paragraph.
   Verify: `git grep -n 'Fix note (2026-11-09, R1)' -- openspec/changes/archive/0104-codex-limits/design.md` prints nothing.
-- [ ] 2.10 0111·R5. In `openspec/changes/archive/0111-sandbox-tmp/design.md`, the *Risks / Trade-offs* cell's first clause "phase 1 alone makes its gate green" becomes "phase 1 leaves its gate red until phase 4's repair ([D9](#d9))", the rest of the cell kept.
+- [x] 2.10 0111·R5. In `openspec/changes/archive/0111-sandbox-tmp/design.md`, the *Risks / Trade-offs* cell's first clause "phase 1 alone makes its gate green" becomes "phase 1 leaves its gate red until phase 4's repair ([D9](#d9))", the rest of the cell kept.
   Verify: `git grep -n 'phase 1 alone makes its gate green' -- openspec/changes/archive` prints nothing.
-- [ ] 2.11 0113·R2. In `openspec/changes/archive/0113-plan-review-diet/design.md`, `D4`'s `monkeypatch` row reads "a line holding the name in quotes or after a dot, inside a `setattr` or `patch` call that may span lines", and its `import reader` row reads "a line `import <stem>`, `from <pkg> import <stem>` or `from . import <stem>`, `<stem>` the file's name without its suffix".
+- [x] 2.11 0113·R2. In `openspec/changes/archive/0113-plan-review-diet/design.md`, `D4`'s `monkeypatch` row reads "a line holding the name in quotes or after a dot, inside a `setattr` or `patch` call that may span lines", and its `import reader` row reads "a line `import <stem>`, `from <pkg> import <stem>` or `from . import <stem>`, `<stem>` the file's name without its suffix".
   Verify: `git grep -c -h 'inside a .setattr. or .patch. call that may span lines' -- openspec/changes/archive/0113-plan-review-diet/design.md` prints `1`.
-- [ ] 2.12 0115·R4. In `openspec/changes/archive/0115-plan-metrics/design.md`, `D6`'s "The first repo that holds both gives the row's `repo`" becomes "The one repo that holds both gives the row's `repo`; two such repos are ambiguous, and the row binds to none".
+- [x] 2.12 0115·R4. In `openspec/changes/archive/0115-plan-metrics/design.md`, `D6`'s "The first repo that holds both gives the row's `repo`" becomes "The one repo that holds both gives the row's `repo`; two such repos are ambiguous, and the row binds to none".
   Verify: `git grep -n 'first repo that holds both' -- openspec/changes/archive` prints nothing.
-- [ ] 2.13 0100·R3. In `skills/mf-build/SKILL.md`, make the `bundle.py --decisions` command end `tasks.md openspec/changes/<change-id>/specs/*/spec.md`, the delta's files after the tasks file.
+- [x] 2.13 0100·R3. In `skills/mf-build/SKILL.md`, make the `bundle.py --decisions` command end `tasks.md openspec/changes/<change-id>/specs/*/spec.md`, the delta's files after the tasks file.
   Verify: `git grep -c -h -F 'tasks.md openspec/changes/<change-id>/specs/*/spec.md' -- skills/mf-build/SKILL.md` prints `1`.
-- [ ] 2.14 0100·S6. In `THREAT_MODEL.md`, add to *Known gaps* the bullet "A plugin enabled outside the user settings file, managed settings among them, still starts in a Claude worker (`0100·S6`)."
+- [x] 2.14 0100·S6. In `THREAT_MODEL.md`, add to *Known gaps* the bullet "A plugin enabled outside the user settings file, managed settings among them, still starts in a Claude worker (`0100·S6`)."
   Verify: `git grep -c -h 'enabled outside the user settings file' -- THREAT_MODEL.md` prints `1`.
-- [ ] 2.15 0100·S7. In `AGENTS.md`, "when a task names the file" becomes "when a task names the file or a path `## Surfaces` of the threat model matches".
+- [x] 2.15 0100·S7. In `AGENTS.md`, "when a task names the file" becomes "when a task names the file or a path `## Surfaces` of the threat model matches".
   Verify: `git grep -c -h 'or a path .## Surfaces. of the threat model matches' -- AGENTS.md` prints `1`.
-- [ ] 2.16 0100·S7. In `skills/mf-build/SKILL.md`, "when a task names the file" becomes "when a task names the file or a path `## Surfaces` of the threat model matches".
+- [x] 2.16 0100·S7. In `skills/mf-build/SKILL.md`, "when a task names the file" becomes "when a task names the file or a path `## Surfaces` of the threat model matches".
   Verify: `git grep -c -h 'or a path .## Surfaces. of the threat model matches' -- skills/mf-build/SKILL.md` prints `1`.
-- [ ] 2.17 0100·S7. In `skills/mf-cut-change/SKILL.md`, the reading line's "when the source's phases name the file" becomes "when the source's phases name the file or a path `## Surfaces` of the threat model matches".
+- [x] 2.17 0100·S7. In `skills/mf-cut-change/SKILL.md`, the reading line's "when the source's phases name the file" becomes "when the source's phases name the file or a path `## Surfaces` of the threat model matches".
   Verify: `git grep -c -h 'name the file or a path .## Surfaces. of the threat model matches' -- skills/mf-cut-change/SKILL.md` prints `1`.
-- [ ] 2.18 0095·S3 per [D3](design.md#d3). In `THREAT_MODEL.md`, add to *Out of scope*, before the bullet "A planted skip.", the bullet "**A security card is the category its checker writes.** C4 of `0095-converge-roles`, confirmed by the person on 2026-11-11: the rescue and the supervisor are barred from a card whose Priority's category is `security`, so a security harm graded under another category reaches them under the version's switch ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts), [D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses))."
+- [x] 2.18 0095·S3 per [D3](design.md#d3). In `THREAT_MODEL.md`, add to *Out of scope*, before the bullet "A planted skip.", the bullet "**A security card is the category its checker writes.** C4 of `0095-converge-roles`, confirmed by the person on 2026-11-11: the rescue and the supervisor are barred from a card whose Priority's category is `security`, so a security harm graded under another category reaches them under the version's switch ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts), [D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses))."
   Verify: `git grep -c -h 'C4' -- THREAT_MODEL.md` prints `1`.
 
 ## 3 — corpus.py skips old findings and follows no linked case; review_metrics $NAME and per-repo marks; 0100·S4, 0101·R7, 0114·R7

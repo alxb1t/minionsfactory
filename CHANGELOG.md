@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Each debt card whose premise is gone, or whose class closed wontfix or accepted, has its Still true? re-run and
   passing; no file but the plan changes (0118-debt-paydown-3a, phase 1).
+- Prose and archive cards corrected in place; the threat model records C4 under *Out of scope* and a plugin gap under
+  *Known gaps*; the threat-model surfaces rule reaches `AGENTS.md`, `mf-build` and `mf-cut-change`
+  (0118-debt-paydown-3a, phase 2).
 
 ## [0.97.0] - 2026-11-11
 
@@ -535,7 +538,7 @@ Gate: local 2m3s · CI not read under mf-ship · 0.71.1: local 1m58s · CI not r
   spent on it, once a halt and `SUPERVISES = 2` a version a run, `claude-opus-5-5` at `high` when `[supervise]` names
   none; its checked amend goes on in the thread (change `0089-supervisor`, phase 1).
 - A refused supervisor amend is held as a rescue's, never taken as the person's; a grant waits while the supervisor
-  runs, and no supervisor runs over a blocking security card (change `0089-supervisor`, phase 2).
+  runs, and no supervisor runs over a blocking security card at a converge halt (change `0089-supervisor`, phase 2).
 - A new skill, `mf-supervise`, writes the supervisor's one amend; `mf-rescue` and `mf-ship` put an amend's new sub-task
   in a new phase after the last, and converge reads a `Supervisor:` amend in a round, never by rule (change
   `0089-supervisor`, phase 3).

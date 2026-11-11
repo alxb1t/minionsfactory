@@ -174,6 +174,7 @@ hooks reshape the whole run, is on it.
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
   one a version a run.
+- **A security card is the category its checker writes.** C4 of `0095-converge-roles`, confirmed by the person on 2026-11-11: the rescue and the supervisor are barred from a card whose Priority's category is `security`, so a security harm graded under another category reaches them under the version's switch ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts), [D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)).
 - **A planted skip.** `models.toml` is worker-writable, so a worker can write `skip = true` under `[converge]` or a checker's
   table and skip the check that would catch it ([D75](docs/decisions.md#d75--a-person-may-skip-converge-or-a-checker-per-version)).
   Accepted, as the `decide` switch is. The fix is moving the switches where no worker writes.
@@ -181,6 +182,8 @@ hooks reshape the whole run, is on it.
 ## Known gaps
 
 Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts `Ship tools:`.
+
+- A plugin enabled outside the user settings file, managed settings among them, still starts in a Claude worker (`0100·S6`).
 
 - A Codex worker can read `~`.
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
