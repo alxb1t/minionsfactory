@@ -6,7 +6,7 @@ The plan check runs its commands side by side, passes a bare `pytest` on the gat
 
 `plan_check.py` re-runs each ticked `Verify:` command in task order, one at a time, as argv with no shell, each under a 600 s timeout that kills only the direct child. See [proposal](proposal.md) for what that cost 0110.
 
-Most of the time was the whole-suite `pytest` lines; the gate runs the same suite under `-n auto` in about 330 s. `gate_run.py` already records a green gate by the settled tree and the hash of `make -n gate`, in `.minions/gate/<tree>`.
+Most of the time was the whole-suite `pytest` lines; the gate runs the same suite under `-n auto`, in far less. `gate_run.py` already records a green gate by the settled tree and the hash of `make -n gate`, in `.minions/gate/<tree>`.
 
 Callers: the build's close and the fixer run the script through their own Bash tool, whose foreground limit is 600 s. Converge's Step 7, through `sandboxed()`, which has no deadline, runs it. `converge.py` and `cut_check.py` load `subtasks`, `verify_of`, `commands`, `tokens`, `passed`, `phases`, `check_corpus` and `Stop` from it by `runpy`.
 
@@ -56,18 +56,18 @@ The hazards of running side by side: every `pytest` writes `.pytest_cache`, `mak
 
 A **pytest command** is one whose argv starts `pytest`, `uv run pytest` or `python -m pytest`; `is_pytest(argv)` reads it for this decision, for [D4](#d4) and, through `plan_check.py`'s names, for `V5` of [D7](#d7). A word `pytest` elsewhere, as in `git grep -e pytest`, makes no pytest command.
 
-A **bare pytest** is a pytest command whose `Command` has no `count` and no `nothing`: its `Verify:` says it exits 0 and no more. It passes unrun when `gate_green()` holds and every word after its pytest prefix is one of `-q`, `-qq`, `-v`, `-vv`, `-x` or `-s`, or an operand whose file or folder exists and each of whose `::` nodes a `def` or `class` of that file names, a `[` parameter id never among them. Any other word runs it: a `-k`, `-m` or `--deselect` selection, which the gate's run does not prove selects a test, and any other option, such as `-c` or `-p`, which can change what pytest collects. A `-k` that selects nothing exits 5 run alone, and so fails here: the plan check exists to catch a ticked `Verify:` that a later task broke, which the build's run before the tick cannot. Decided by the supervisor under the person's delegation, 2026-11-11, on adversarial card S1.
+A **bare pytest** is a pytest command whose `Command` has no `count` and no `nothing`: its `Verify:` says it exits 0 and no more. It passes unrun when `gate_green()` holds and every word after its pytest prefix is one of `-q`, `-qq`, `-v`, `-vv`, `-x` or `-s`, or an operand that is an existing test module, a file named `test_*.py` or `*_test.py` that the repo's `testpaths` reach, each of whose `::` nodes is a `test…` `def` or a `Test…` `class` of that file, a `[` parameter id never among them. Any other word runs it, a directory, a file that is no test module and a node that is no test among them: a `-k`, `-m` or `--deselect` selection, which the gate's run does not prove selects a test, and any other option, such as `-c` or `-p`, which can change what pytest collects. A `-k` that selects nothing exits 5 run alone, and so fails here: the plan check exists to catch a ticked `Verify:` that a later task broke, which the build's run before the tick cannot. Decided by the supervisor under the person's delegation, 2026-11-11, on adversarial card S1.
 
 **Collection proves it, not the text.** A bare pytest passes unrun only when, besides the above, the same argv with
 `--collect-only -q` appended exits 0 and prints at least one collected test; any other result runs the command. pytest
 itself then settles a node's ancestry, a parameter id, a file whose tests moved and a selection: the textual checks
 cannot, as rounds 1–5 found one case after another. The collection runs under the same deadline and group kill as any
-command and takes seconds. Re-planned by the planner under the person's delegation, 2026-11-11: S1 came back three times
+command and takes seconds. Re-planned by the planner under the person's delegation, 2026-11-11: S1 returned
 with a new case of one invariant, a re-plan and not a grant.
 
 ### D3
 
-The store is `records().parent / "plan-check" / <tree>/`, beside `gate` in the primary's `.minions`. A file is named by the sha256 of the **key**: the command text, and `HEAD`'s sha after a newline when the command **names a revision** — a word that starts `HEAD`, a word that fully matches `[0-9a-f]{7,40}`, or a `git` command whose second word is not `grep` or `ls-files`, which read the tree alone. It holds JSON, `{"exit": <code>, "output": <text>}`, which `passed()` reads again.
+The store is `records().parent / "plan-check" / <tree>/`, beside `gate` in the primary's `.minions`. A file is named by the sha256 of the **key**: the command text, and `HEAD`'s sha after a newline when the command **names a revision** — a word that starts `HEAD`, a word that fully matches `[0-9a-f]{7,40}`, or any `git` command but `ls-files`, which reads the tree alone; the sha is then `HEAD`'s and every ref's, so another branch moving ends a reuse. It holds JSON, `{"exit": <code>, "output": <text>}`, which `passed()` reads again.
 
 `check_verifies` reads `HEAD`'s sha once by `git rev-parse HEAD`, reads results before a run, and writes them after the batch ends, only when `settled_tree()` still equals the tree the check began on; a timed-out command is never written. A store that is a link keeps nothing, as `write_record` does. An unsettled tree — the fixer's before its commit — reads and writes none, and a hex-looking word that is no sha only adds `HEAD` to a key.
 
