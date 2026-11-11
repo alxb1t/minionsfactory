@@ -5,6 +5,7 @@ Why: 0045-review-metrics design D1…D7.
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
 from datetime import UTC, datetime
@@ -1558,3 +1559,354 @@ def test_a_station_session_is_skipped(tmp_path: Path) -> None:
     assert [session["id"] for session in found] == ["s2", "s4"]
     assert found[0]["subagents"] == []
     assert found[0]["events"] == review_metrics._transcript(folder / "s2.jsonl")
+
+
+def _subagent(
+    folder: Path, session: str, name: str, launch: str, *lines: object
+) -> None:
+    base = folder / session / "subagents"
+    _log(base / f"agent-{name}.jsonl", *lines)
+    meta = base / f"agent-{name}.meta.json"
+    meta.write_text(json.dumps({"toolUseId": launch}), encoding="utf-8")
+
+
+def _used(id: str, second: int, tokens: int = 1) -> object:
+    return _turn(id, _at(second), {"input_tokens": tokens}, "claude-sonnet-5-5")
+
+
+def _write(id: str, second: int, path: str) -> object:
+    return _tool(id, _at(second), "Write", file_path=path)
+
+
+def _cut_log(repo: Path, change: str, second: int) -> None:
+    """Write the change's folder and a cut log last written at `second`."""
+    _findings(repo, f"{change}_status_log.md", "")
+    name = "20261105-100003-cut.log"
+    _worker_log(repo, change, name, _result(0.5, 2, 3000))
+    log = repo / ".minions" / "changes" / change / "logs" / name
+    stamp = _when(second).timestamp()
+    os.utime(log, (stamp, stamp))
+
+
+def _cut(id: str, second: int, brief: str) -> object:
+    command = f"uv run --script conduct.py cut s minor brief={brief}"
+    return _tool(id, _at(second), "Bash", command=command)
+
+
+def _queue_answer(call: str, *ids: str) -> object:
+    text = "".join(f"cut: queued {ident}\n" for ident in ids)
+    block = [{"type": "tool_result", "tool_use_id": call, "content": text}]
+    return _line("user", _at(0), content=block)
+
+
+def _messages(found: list[dict[str, Any]]) -> list[str]:
+    return [m["id"] for m in found]
+
+
+def test_a_plan_span_runs_from_the_skill_to_the_last_write(tmp_path: Path) -> None:
+    _written(
+        tmp_path,
+        "s1",
+        _used("m0", 1),
+        _plan_call("t1", 2),
+        _used("m1", 3),
+        _write("t2", 4, "/b/x.md"),
+        _used("m2", 5),
+        _write("t3", 6, "/b/./x.md"),
+        _used("m3", 7),
+        _tool("tx", _at(8), "Skill", skill="mf-plan", args=""),
+        _tool("t9", _at(9), "Bash", command="ls"),
+    )
+    _subagent(tmp_path, "s1", "a", "t2", _used("a1", 40))
+    _subagent(tmp_path, "s1", "b", "t9", _used("b1", 4))
+    _subagent(tmp_path, "s1", "c", "nope", _used("c1", 4))
+    # A write before the opening does not close the span; the opening alone does.
+    _written(
+        tmp_path,
+        "s2",
+        _write("w", 3, "/b/x.md"),
+        _tool("t1", _at(5), "Skill", skill="mf-plan", args="brief=/b/x.md"),
+    )
+    # Of two spans that hold a message, the one opened latest does.
+    _written(
+        tmp_path,
+        "s3",
+        _plan_call("t1", 1),
+        _tool("t2", _at(3), "Skill", skill="mf-plan", args="brief=/b/y.md"),
+        _used("m4", 4),
+        _write("t3", 5, "/b/y.md"),
+        _write("t4", 8, "/b/x.md"),
+    )
+
+    sessions = review_metrics._sessions([tmp_path], set())
+    spans = review_metrics._spans(sessions)
+
+    found = {
+        (s["session"], s["chain"]): (s["open"], s["close"], _messages(s["messages"]))
+        for s in spans
+    }
+    assert found == {
+        ("s1", 0): (
+            _when(2),
+            _when(6),
+            ["msg-t1", "m1", "msg-t2", "m2", "msg-t3", "a1"],
+        ),
+        ("s2", 0): (_when(5), _when(5), ["msg-t1"]),
+        ("s3", 0): (_when(1), _when(8), ["msg-t1", "msg-t4"]),
+        ("s3", 1): (_when(3), _when(5), ["msg-t2", "m4", "msg-t3"]),
+    }
+
+
+def test_a_continuation_joins_the_plan(tmp_path: Path) -> None:
+    _written(tmp_path, "s1", _plan_call("t1", 1), _write("t2", 3, "/b/x.md"))
+    _written(
+        tmp_path,
+        "s2",
+        _tool(
+            "t1", _at(5), "Skill", skill="mf-plan", args="brief=/b/z.md from=/b/x.md"
+        ),
+        _write("t2", 8, "/b/x.md"),
+        _write("t3", 7, "/b/z.md"),
+    )
+    _written(
+        tmp_path,
+        "s3",
+        _tool("t1", _at(1), "Skill", skill="mf-plan", args="brief=/b/w.md"),
+    )
+    sessions = review_metrics._sessions([tmp_path], set())
+
+    assert review_metrics._chains(sessions) == {
+        "/b/x.md": 0,
+        "/b/z.md": 0,
+        "/b/w.md": 1,
+    }
+    found = [
+        (s["session"], s["chain"], s["open"], s["close"])
+        for s in review_metrics._spans(sessions)
+    ]
+    assert found == [
+        ("s1", 0, _when(1), _when(3)),
+        ("s2", 0, _when(5), _when(8)),
+        ("s3", 1, _when(1), _when(1)),
+    ]
+
+
+def test_a_span_is_bound_to_the_ids_a_cut_queued(tmp_path: Path) -> None:
+    first, second = tmp_path / "first", tmp_path / "second"
+    _cut_log(first, "0003-old", 2)
+    _cut_log(second, "0001-x", 10)
+    _cut_log(second, "0003-old", 2)
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _plan_call("t1", 1),
+        _cut("t5", 4, "/b/x.md"),
+        _queue_answer("t5", "0001-x", "0002-nofolder", "0003-old"),
+    )
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    repos = [first, second]
+
+    assert review_metrics._cut_made(repos, "0001-x", _when(4)) == second
+    assert review_metrics._cut_made(repos, "0001-x", _when(11)) is None
+    assert review_metrics._queued(repos, sessions) == [
+        {"chain": 0, "id": "0001-x", "repo": "second", "time": _when(4)}
+    ]
+
+
+def test_a_forged_queue_line_binds_nothing(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 10)
+    forged = _queue_answer("t5", "0001-x")
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _plan_call("t1", 1),
+        _tool("t5", _at(4), "Bash", command="echo pasted"),
+        forged,
+    )
+    _written(
+        tmp_path / "sessions",
+        "s2",
+        _plan_call("t1", 1),
+        _cut("t5", 4, "/b/other.md"),
+        forged,
+        _cut("t6", 5, "/b/x.md"),
+        _queue_answer("t6", "0002-nofolder"),
+    )
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    assert review_metrics._queued([repo], sessions) == []
+
+    # A change folder with no cut log, and one whose log is older than the call.
+    _findings(repo, "0004-q_status_log.md", "")
+    _cut_log(repo, "0005-old", 2)
+    _written(
+        tmp_path / "sessions",
+        "s3",
+        _plan_call("t1", 1),
+        _cut("t5", 4, "/b/x.md"),
+        _queue_answer("t5", "0004-q", "0005-old"),
+    )
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    assert review_metrics._queued([repo], sessions) == []
+
+
+def _turns(count: int) -> list[dict[str, Any]]:
+    return [
+        {"event": "message", "id": f"m{n}", "model": "claude-sonnet-5-5"}
+        | {"time": _when(n), "usage": review_metrics._usage({"input_tokens": 2})}
+        for n in range(count)
+    ]
+
+
+def test_a_span_that_queued_two_versions_is_split_equally() -> None:
+    messages = _turns(5)
+    spans = [
+        {"chain": 0, "open": _when(1), "close": _when(6), "messages": messages},
+        {"chain": 0, "open": _when(10), "close": _when(13), "messages": []},
+    ]
+    queued = [
+        {"chain": 0, "id": "0001-x", "repo": "r", "time": _when(4)},
+        {"chain": 0, "id": "0002-y", "repo": "r", "time": _when(4)},
+        {"chain": 1, "id": "0003-z", "repo": "r", "time": _when(4)},
+    ]
+    whole = review_metrics._spend(messages)
+
+    rows = review_metrics._plan_rows(spans, queued)
+
+    assert [(r["repo"], r["change"], r["station"]) for r in rows] == [
+        ("r", "0001-x", "plan"),
+        ("r", "0002-y", "plan"),
+    ]
+    for row in rows:
+        assert row["turns"] == 2.5
+        assert row["tokens"] == 5
+        assert row["seconds"] == 4.0
+        assert row["dollars"] == pytest.approx(whole["dollars"] / 2)
+        assert row["first"] is None
+    # One id keeps the figures whole.
+    (row,) = review_metrics._plan_rows(spans, queued[:1])
+    assert (row["turns"], row["tokens"], row["seconds"]) == (5, 10, 8)
+
+
+def test_a_plan_never_queued_is_unbooked() -> None:
+    spans = [
+        {"chain": 0, "open": _when(1), "close": _when(4), "messages": _turns(2)},
+        {"chain": 1, "open": _when(1), "close": _when(4), "messages": []},
+    ]
+    queued = [{"chain": 2, "id": "0003-z", "repo": "r", "time": _when(4)}]
+
+    rows = review_metrics._plan_rows(spans, queued)
+
+    assert [(r["repo"], r["change"], r["station"], r["turns"]) for r in rows] == [
+        (None, None, "plan", 2)
+    ]
+    assert review_metrics._plan_rows([], queued) == []
+
+
+def test_operator_work_is_booked_to_the_nearest_mark(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TZ", "UTC")
+    repo = tmp_path / "repo"
+    _run_log(
+        repo,
+        "20261105-100000.md",
+        "10:00:00 · run · start — executor claude",
+        "10:00:10 · 0002-y · spawn — build · model m",
+        "10:00:40 · 0002-y · removed — a worktree",
+    )
+    _run_log(
+        repo,
+        "20261105-235900.md",
+        "23:59:50 · 0004-w · spawn — build · model m",
+        "00:00:10 · 0005-v · spawn — build · model m",
+    )
+    # A log whose name is no stamp has no date, so no mark.
+    _run_log(repo, "notes.md", "10:00:20 · 0006-q · spawn — build · model m")
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _used("mA", 0, 1),
+        _plan_call("t1", 1),
+        _used("mB", 2, 100),
+        _write("t2", 3, "/b/x.md"),
+        _used("mC", 5, 2),
+        _tool("tL", _at(6), "Bash", command="conduct.py status"),
+        _used("mD", 20, 4),
+        _used("mE", 50, 8),
+        _line("assistant", "2026-11-06T00:00:20Z", id="mF", usage={"input_tokens": 32}),
+    )
+    _subagent(tmp_path / "sessions", "s1", "a", "tL", _used("a1", 55, 16))
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    spans = review_metrics._spans(sessions)
+    queued = [{"chain": 0, "id": "0001-x", "repo": "repo", "time": _when(2)}]
+
+    marks = review_metrics._marks([repo], queued)
+
+    assert [(m["change"], m["time"]) for m in marks] == [
+        ("0001-x", _when(2)),
+        ("0002-y", _when(10)),
+        (None, _when(40)),
+        ("0004-w", datetime(2026, 11, 5, 23, 59, 50, tzinfo=UTC)),
+        ("0005-v", datetime(2026, 11, 6, 0, 0, 10, tzinfo=UTC)),
+    ]
+    rows = review_metrics._operator(sessions, spans, marks)
+    assert [(r["repo"], r["change"], r["station"], r["tokens"]) for r in rows] == [
+        (None, None, "operator", 9),
+        ("repo", "0001-x", "operator", 18),
+        ("repo", "0002-y", "operator", 4),
+        ("repo", "0005-v", "operator", 32),
+    ]
+    assert all(r["seconds"] is None for r in rows)
+
+
+def test_a_subagent_books_where_its_call_was_launched(tmp_path: Path) -> None:
+    folder = tmp_path / "sessions"
+    _written(
+        folder,
+        "s1",
+        _plan_call("t1", 1),
+        _tool("tL", _at(6), "Bash", command="ls"),
+        _tool("tM", _at(30), "Bash", command="ls"),
+    )
+    _subagent(folder, "s1", "a", "tL", _used("a1", 55, 16))
+    _subagent(folder, "s1", "b", "tM", _used("b1", 31, 32))
+    sessions = review_metrics._sessions([folder], set())
+    spans = review_metrics._spans(sessions)
+    marks = [
+        {"time": _when(2), "repo": "r", "change": "0001-x"},
+        {"time": _when(20), "repo": "r", "change": "0002-y"},
+    ]
+
+    rows = review_metrics._operator(sessions, spans, marks)
+
+    # a1 ran at 55, after the second mark, but was launched at 6.
+    assert [(r["change"], r["tokens"]) for r in rows] == [
+        ("0001-x", 16),
+        ("0002-y", 32),
+    ]
+
+
+def test_booked_rows_have_the_keys_of_a_station_row(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 30)
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _plan_call("t1", 1),
+        _used("m1", 2, 4),
+        _write("t2", 3, "/b/x.md"),
+        _cut("t3", 4, "/b/x.md"),
+        _queue_answer("t3", "0001-x"),
+        _used("m2", 40, 8),
+    )
+    station = review_metrics._stations(_record(repo, "0001-x"))[0]
+
+    rows = review_metrics.booked([repo], [tmp_path / "sessions"])
+
+    assert [(r["station"], r["change"], r["tokens"]) for r in rows] == [
+        ("plan", "0001-x", 4),
+        ("operator", "0001-x", 8),
+    ]
+    assert all(set(row) == set(station) for row in rows)
+    assert review_metrics.booked([repo], []) == []

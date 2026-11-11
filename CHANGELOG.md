@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `review_metrics.py` reads the `sessions` key of the config and reduces each transcript of those folders to numbers,
   ids and times, a message priced once by its id, its subagents beside it; a session a station log's `init` names is
   skipped, and one with no `mf-*` marker is not read (change `0115-plan-metrics`, phase 1).
+- `review_metrics.py` books the transcripts' `plan` spans, from an `mf-plan` call to the last write of its brief, to the
+  ids a matched `conduct.py cut` queued, split equally or `unbooked`, and the rest as `operator` work to the nearest
+  earlier mark of a queued id or a run-log line (change `0115-plan-metrics`, phase 2).
 
 ## [0.94.0] - 2026-11-11
 

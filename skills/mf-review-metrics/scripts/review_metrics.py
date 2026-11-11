@@ -108,6 +108,8 @@ INIT_LINES = 5
 # A `conduct.py cut` command, and the line it prints for each version it queued.
 _CUT = re.compile(r"conduct\.py\s+(?:-\S+\s+)*cut\b")
 _QUEUED = re.compile(r"^cut: queued (\d{4}-[a-z0-9-]+)", re.MULTILINE)
+_MARK = re.compile(r"^(\d\d:\d\d:\d\d) · (\S+) · (\w+)", re.MULTILINE)
+_CHANGE_ID = re.compile(r"\d{4}-[a-z0-9-]+")
 CHARTS = {
     "rounds": "rounds",
     "findings": "findings",
@@ -1155,6 +1157,235 @@ def _sessions(folders: Iterable[Path], skipped: set[str]) -> list[Record]:
                     {"id": path.stem, "events": events, "subagents": subagents}
                 )
     return found
+
+
+def _chains(sessions: Sequence[Record]) -> dict[str, int]:
+    """Return each brief and origin path of the `mf-plan` calls with its chain's number.
+
+    e.g. a call with `from=a.md` and `brief=b.md` → {"a.md": 0, "b.md": 0}
+    Why: 0115-plan-metrics design D5.
+    """
+    ties = (
+        {call["brief"], call["origin"]} - {None}
+        for session in sessions
+        for call in session["events"]
+        if call["event"] == "call" and call["plan"]
+    )
+    groups: list[set[str]] = []
+    for paths in filter(None, ties):
+        tied = [group for group in groups if group & paths]
+        groups = [group for group in groups if not group & paths]
+        groups.append(set().union(paths, *tied))
+    return {path: n for n, group in enumerate(groups) for path in group}
+
+
+def _stamped(session: Record) -> list[tuple[datetime, Record]]:
+    """Return a session's messages and its subagents', each with the time it books at.
+
+    A subagent's message books at its launching call's time; one with no time books
+    nowhere. Why: 0115-plan-metrics design D5, D7.
+    """
+    launched = {e["id"]: e["time"] for e in session["events"] if e["event"] == "call"}
+    own = [(e["time"], e) for e in session["events"] if e["event"] == "message"]
+    sub = [
+        (launched.get(found["launch"]), message)
+        for found in session["subagents"]
+        for message in found["messages"]
+    ]
+    return [(time, message) for time, message in own + sub if time is not None]
+
+
+def _spans(sessions: Sequence[Record]) -> list[Record]:
+    """Return each chain's span in each session, with the messages that belong to it.
+
+    A span opens at the chain's first `mf-plan` call and closes at the last write of
+    a path of the chain. Why: 0115-plan-metrics design D5.
+    """
+    chains = _chains(sessions)
+    spans: list[Record] = []
+    for session in sessions:
+        calls = [e for e in session["events"] if e["event"] == "call" and e["time"]]
+        opened: dict[int, datetime] = {}
+        for call in (c for c in calls if c["plan"]):
+            chain = chains.get(call["brief"] or call["origin"])
+            if chain is not None:
+                opened.setdefault(chain, call["time"])
+        mine: list[Record] = [
+            {
+                "session": session["id"],
+                "chain": chain,
+                "open": start,
+                "close": max(
+                    (
+                        c["time"]
+                        for c in calls
+                        if chains.get(c["touched"]) == chain and c["time"] >= start
+                    ),
+                    default=start,
+                ),
+                "messages": [],
+            }
+            for chain, start in opened.items()
+        ]
+        for time, message in _stamped(session):
+            held = [s for s in mine if s["open"] <= time <= s["close"]]
+            if held:
+                max(held, key=lambda s: s["open"])["messages"].append(message)
+        spans += mine
+    return spans
+
+
+def _cut_made(repos: Sequence[Path], ident: str, time: datetime) -> Path | None:
+    """Return the first repo holding change `ident` and a cut log not older than `time`.
+
+    Why: 0115-plan-metrics design D6.
+    """
+    for repo in repos:
+        held = _change_dir(repo, ident).is_dir()
+        logs = _station_logs(repo, ident, "cut") if held else []
+        if any(
+            datetime.fromtimestamp(log.stat().st_mtime, UTC) >= time for log in logs
+        ):
+            return repo
+    return None
+
+
+def _queued(repos: Sequence[Path], sessions: Sequence[Record]) -> list[Record]:
+    """Return each valid id a `conduct.py cut` of a chain's brief queued.
+
+    e.g. {"chain": 0, "id": "0001-x", "repo": "r", "time": <the call's time>}
+    Why: 0115-plan-metrics design D6.
+    """
+    chains = _chains(sessions)
+    found: dict[tuple[object, str], Record] = {}
+    for session in sessions:
+        cuts = {
+            e["id"]: e
+            for e in session["events"]
+            if e["event"] == "call" and e["cut"] and e["time"]
+        }
+        for result in (e for e in session["events"] if e["event"] == "result"):
+            call = cuts.get(result["call"], {})
+            chain = chains.get(call.get("brief"))
+            for ident in result["ids"] if chain is not None else ():
+                repo = _cut_made(repos, ident, call["time"])
+                if repo is not None:
+                    row: Record = {
+                        "chain": chain,
+                        "id": ident,
+                        "repo": repo.name,
+                        "time": call["time"],
+                    }
+                    found.setdefault((chain, ident), row)
+    return list(found.values())
+
+
+def _share(value: Number | None, count: int) -> Number | None:
+    """Return one of `count` equal shares of a figure; a gap stays a gap."""
+    return value if value is None or count == 1 else value / count
+
+
+def _booked_row(
+    key: tuple[str | None, str | None],
+    station: str,
+    spend: Record,
+    seconds: Number | None,
+    count: int = 1,
+) -> Record:
+    """Return a `_stations` row of a station, one of `count` equal shares of a spend."""
+    return {
+        "repo": key[0],
+        "change": key[1],
+        "station": station,
+        "dollars": _share(spend["dollars"], count),
+        "turns": _share(spend["turns"], count),
+        "tokens": _share(spend["tokens"], count),
+        "seconds": _share(seconds, count),
+        "first": None,
+    }
+
+
+def _plan_rows(spans: Sequence[Record], queued: Sequence[Record]) -> list[Record]:
+    """Return a `plan` row per chain and valid id; a chain with none is `unbooked`.
+
+    e.g. five turns over two ids → 2.5 turns each
+    Why: 0115-plan-metrics design D5, D6.
+    """
+    rows: list[Record] = []
+    for chain in sorted({span["chain"] for span in spans}):
+        mine = [span for span in spans if span["chain"] == chain]
+        messages = [message for span in mine for message in span["messages"]]
+        seconds = round(sum((s["close"] - s["open"]).total_seconds() for s in mine))
+        keys = [(q["repo"], q["id"]) for q in queued if q["chain"] == chain]
+        keys = keys or [(None, None)]
+        spend = _spend(messages)
+        rows += [
+            _booked_row(key, "plan", spend, seconds, len(keys))
+            for key in keys
+            if messages
+        ]
+    return rows
+
+
+def _marks(repos: Sequence[Path], queued: Sequence[Record]) -> list[Record]:
+    """Return the marks, oldest first: a queued id's call, a run-log line of a change.
+
+    A `removed` line is a mark with no change. Why: 0115-plan-metrics design D7.
+    """
+    marks = [{"time": q["time"], "repo": q["repo"], "change": q["id"]} for q in queued]
+    for repo in repos:
+        for log in sorted((repo / RUNS).glob("*.md")):
+            last = datetime.min
+            text = log.read_text(encoding="utf-8", errors="replace")
+            for clock, name, event in _MARK.findall(text):
+                try:
+                    at = datetime.strptime(f"{log.stem[:8]} {clock}", "%Y%m%d %H:%M:%S")
+                except ValueError:
+                    continue
+                last = at + timedelta(days=1) if last - at > HALF_DAY else at
+                if _CHANGE_ID.fullmatch(name):
+                    change = None if event == "removed" else name
+                    marks.append(
+                        {"time": _utc(last), "repo": repo.name, "change": change}
+                    )
+    return sorted(marks, key=lambda mark: mark["time"])
+
+
+def _operator(
+    sessions: Sequence[Record], spans: Sequence[Record], marks: Sequence[Record]
+) -> list[Record]:
+    """Return an `operator` row per repo and change, and one `unbooked`.
+
+    A message outside every span books to the latest mark not after it.
+    Why: 0115-plan-metrics design D7.
+    """
+    inside = {id(message) for span in spans for message in span["messages"]}
+    buckets: dict[tuple[str | None, str | None], list[Record]] = {}
+    for session in sessions:
+        for time, message in _stamped(session):
+            earlier = [mark for mark in marks if mark["time"] <= time]
+            mark = earlier[-1] if earlier and earlier[-1]["change"] else {}
+            key = (mark.get("repo"), mark.get("change"))
+            if id(message) not in inside:
+                buckets.setdefault(key, []).append(message)
+    return [
+        _booked_row(key, "operator", _spend(messages), None)
+        for key, messages in sorted(
+            buckets.items(), key=lambda b: (b[0][0] or "", b[0][1] or "")
+        )
+    ]
+
+
+def booked(repos: Sequence[Path], folders: Sequence[Path]) -> list[Record]:
+    """Return the `plan` and `operator` rows of the transcripts in `folders`.
+
+    Why: 0115-plan-metrics design D8.
+    """
+    sessions = _sessions(folders, _station_sessions(repos))
+    spans = _spans(sessions)
+    queued = _queued(repos, sessions)
+    marks = _marks(repos, queued)
+    return [*_plan_rows(spans, queued), *_operator(sessions, spans, marks)]
 
 
 def _converge_workers(repo: Path, change: str) -> list[Record]:

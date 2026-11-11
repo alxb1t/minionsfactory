@@ -5,7 +5,7 @@ The phases: the transcript reader, then the spans and their booking, then the ro
 ## Progress
 
 - [x] 1 — The transcript reader · hard
-- [ ] 2 — The spans, the binding and the operator booking · hard
+- [x] 2 — The spans, the binding and the operator booking · hard
 - [ ] 3 — The rows in the data and the page, and the record · moderate
 
 ## 1 — The transcript reader
@@ -27,19 +27,19 @@ The phases: the transcript reader, then the spans and their booking, then the ro
 
 ## 2 — The spans, the binding and the operator booking
 
-- [ ] 2.1 **HALT CHECK** `review_metrics.py` holds the seams this phase uses ([D5](design.md#d5), [D7](design.md#d7)).
+- [x] 2.1 **HALT CHECK** `review_metrics.py` holds the seams this phase uses ([D5](design.md#d5), [D7](design.md#d7)).
   Verify: `git grep -n -e '^HALF_DAY = ' -e '^def _changes' -e '^def _utc' -e '^def _total' -- skills/mf-review-metrics/scripts/review_metrics.py` prints a line for each.
-- [ ] 2.2 In `review_metrics.py` add `_chains(sessions)`, which groups the `brief` and `origin` paths of the `mf-plan` calls, and `_spans(sessions)` of [D5](design.md#d5); add `test_a_plan_span_runs_from_the_skill_to_the_last_write` to `tests/test_review_metrics.py`: messages before the call, inside, and after the last write of the brief book as outside, inside and outside, a span with no write holds its opening alone, and a subagent launched inside the span joins it.
+- [x] 2.2 In `review_metrics.py` add `_chains(sessions)`, which groups the `brief` and `origin` paths of the `mf-plan` calls, and `_spans(sessions)` of [D5](design.md#d5); add `test_a_plan_span_runs_from_the_skill_to_the_last_write` to `tests/test_review_metrics.py`: messages before the call, inside, and after the last write of the brief book as outside, inside and outside, a span with no write holds its opening alone, and a subagent launched inside the span joins it.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k skill_to_the_last_write` exits 0.
-- [ ] 2.3 In `_chains` tie a `from=` path to the `brief=` of its call, across sessions ([D5](design.md#d5)); add `test_a_continuation_joins_the_plan` to `tests/test_review_metrics.py`: a second session's `mf-plan` call with `from=` naming the first brief gives a chain of both briefs and a span in each session.
+- [x] 2.3 In `_chains` tie a `from=` path to the `brief=` of its call, across sessions ([D5](design.md#d5)); add `test_a_continuation_joins_the_plan` to `tests/test_review_metrics.py`: a second session's `mf-plan` call with `from=` naming the first brief gives a chain of both briefs and a span in each session.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k continuation_joins` exits 0.
-- [ ] 2.4 **CORPUS** `review-metrics` In `review_metrics.py` add `_cut_made(repos, id, time)` and `_queued(repos, sessions)` of [D6](design.md#d6), which return the valid ids of each chain with each one's repo and call time; add `test_a_span_is_bound_to_the_ids_a_cut_queued` and `test_a_forged_queue_line_binds_nothing` to `tests/test_review_metrics.py`: a line in the result of a `Bash` call that is no `conduct.py cut`, an id with no change folder, and an id whose cut log is older than the call each bind nothing.
+- [x] 2.4 **CORPUS** `review-metrics` In `review_metrics.py` add `_cut_made(repos, id, time)` and `_queued(repos, sessions)` of [D6](design.md#d6), which return the valid ids of each chain with each one's repo and call time; add `test_a_span_is_bound_to_the_ids_a_cut_queued` and `test_a_forged_queue_line_binds_nothing` to `tests/test_review_metrics.py`: a line in the result of a `Bash` call that is no `conduct.py cut`, an id with no change folder, and an id whose cut log is older than the call each bind nothing.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k 'cut_queued or forged_queue'` exits 0.
-- [ ] 2.5 In `review_metrics.py` add `_plan_rows(spans, queued)`, which books each chain's spans' `_spend` and `seconds` to its ids, each taking an equal share, unrounded, and a chain with no valid id as `unbooked` ([D6](design.md#d6), [D5](design.md#d5)); add `test_a_span_that_queued_two_versions_is_split_equally`, in which five turns book 2.5 to each id, and `test_a_plan_never_queued_is_unbooked` to `tests/test_review_metrics.py`.
+- [x] 2.5 In `review_metrics.py` add `_plan_rows(spans, queued)`, which books each chain's spans' `_spend` and `seconds` to its ids, each taking an equal share, unrounded, and a chain with no valid id as `unbooked` ([D6](design.md#d6), [D5](design.md#d5)); add `test_a_span_that_queued_two_versions_is_split_equally`, in which five turns book 2.5 to each id, and `test_a_plan_never_queued_is_unbooked` to `tests/test_review_metrics.py`.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k 'split_equally or never_queued'` exits 0.
-- [ ] 2.6 **CORPUS** `review-metrics` In `review_metrics.py` add `_marks(repos, queued)` and `_operator(sessions, spans, marks)` of [D7](design.md#d7), which return the `operator` rows; add `test_operator_work_is_booked_to_the_nearest_mark` and `test_a_subagent_books_where_its_call_was_launched` to `tests/test_review_metrics.py`: a run-log line of change `0002-y` before an operator message books it to `0002-y`, a line of `run` books nothing, a later `removed` line leaves the next message `unbooked`, and a subagent launched after a mark books to that mark though it ran later.
+- [x] 2.6 **CORPUS** `review-metrics` In `review_metrics.py` add `_marks(repos, queued)` and `_operator(sessions, spans, marks)` of [D7](design.md#d7), which return the `operator` rows; add `test_operator_work_is_booked_to_the_nearest_mark` and `test_a_subagent_books_where_its_call_was_launched` to `tests/test_review_metrics.py`: a run-log line of change `0002-y` before an operator message books it to `0002-y`, a line of `run` books nothing, a later `removed` line leaves the next message `unbooked`, and a subagent launched after a mark books to that mark though it ran later.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k 'nearest_mark or books_where'` exits 0.
-- [ ] 2.7 In `review_metrics.py` add `booked(repos, folders)`, which returns the `plan` and `operator` rows of [D8](design.md#d8) from `_station_sessions`, `_sessions`, `_spans`, `_queued`, `_plan_rows` and `_operator`, a row with the keys of a `_stations` row; add `test_booked_rows_have_the_keys_of_a_station_row` to `tests/test_review_metrics.py`.
+- [x] 2.7 In `review_metrics.py` add `booked(repos, folders)`, which returns the `plan` and `operator` rows of [D8](design.md#d8) from `_station_sessions`, `_sessions`, `_spans`, `_queued`, `_plan_rows` and `_operator`, a row with the keys of a `_stations` row; add `test_booked_rows_have_the_keys_of_a_station_row` to `tests/test_review_metrics.py`.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k keys_of_a_station_row` exits 0.
 
 ## 3 — The rows in the data and the page, and the record
