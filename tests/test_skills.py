@@ -518,6 +518,7 @@ _METRICS_SCRIPTS = [
     ("mf-cut-change", "scripts/cut_pre.py"),
     ("mf-cut-change", "scripts/cut_check.py"),
     ("mf-cut-change", "scripts/facts.py"),
+    ("mf-cut-change", "scripts/cut_context.py"),
     ("mf-plan", "../mf-cut-change/scripts/facts.py"),
 ]
 _BUNDLE_UNNAMED = [
@@ -529,6 +530,7 @@ _CUT_UNNAMED = [
     "skills/mf-cut-change/SKILL.md: scripts/cut_pre.py: not named",
     "skills/mf-cut-change/SKILL.md: scripts/cut_check.py: not named",
     "skills/mf-cut-change/SKILL.md: scripts/facts.py: not named",
+    "skills/mf-cut-change/SKILL.md: scripts/cut_context.py: not named",
     "skills/mf-plan/SKILL.md: ../mf-cut-change/scripts/facts.py: not named",
 ]
 

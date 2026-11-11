@@ -609,29 +609,91 @@ def row_v1(change: Change, plan: dict[str, Any]) -> str | None:
     return " · ".join(found) or None
 
 
+class _KExpression:
+    """Evaluate one `-k` expression against one test name, by recursive descent."""
+
+    def __init__(self, tokens: list[str], name: str) -> None:
+        """Hold the tokens, the lowercased name and the cursor."""
+        self.tokens = tokens
+        self.name = name.lower()
+        self.at = 0
+        self.positive = False
+
+    def accept(self, word: str) -> bool:
+        """Return whether the next token is `word`, and step over it when it is."""
+        found = self.at < len(self.tokens) and self.tokens[self.at] == word
+        self.at += found
+        return found
+
+    def either(self, depth: int) -> bool:
+        """Evaluate `a or b`; `depth` counts the `not`s around it."""
+        value = self.both(depth)
+        while self.accept("or"):
+            value = self.both(depth) or value
+        return value
+
+    def both(self, depth: int) -> bool:
+        """Evaluate `a and b`."""
+        value = self.operand(depth)
+        while self.accept("and"):
+            value = self.operand(depth) and value
+        return value
+
+    def operand(self, depth: int) -> bool:
+        """Evaluate `not x`, `( … )` or an identifier; anything else is an error."""
+        if self.accept("not"):
+            return not self.operand(depth + 1)
+        if self.accept("("):
+            value = self.either(depth)
+            if not self.accept(")"):
+                raise ValueError("no closing parenthesis")
+            return value
+        word = self.tokens[self.at] if self.at < len(self.tokens) else ""
+        if word in ("", "and", "or", ")"):
+            raise ValueError("no identifier")
+        self.at += 1
+        held = word.lower() in self.name
+        self.positive |= held and depth == 0
+        return held
+
+
+def selects(expression: str, name: str) -> bool:
+    """Return whether a `-k` expression picks the test `name` by a positive match.
+
+    The expression is true for the name and an identifier outside every `not` holds
+    in it; one that does not parse picks nothing. e.g. "not a and b", "test_b" → True
+    """
+    tokens = re.findall(r"[()]|[\w:+\-.\[\]\\/]+", expression)
+    if "".join(tokens) != "".join(expression.split()):
+        return False
+    parsed = _KExpression(tokens, name)
+    try:
+        value = parsed.either(0)
+    except (ValueError, RecursionError):
+        return False
+    return value and parsed.positive and parsed.at == len(tokens)
+
+
 def _selected(text: str, plan: dict[str, Any]) -> list[str]:
-    """Return the words the `pytest` commands of a sub-task text select by `-k`."""
+    """Return the `-k` expression of each `pytest` command of a sub-task text."""
     found: list[str] = []
     for command in _commands(text, plan):
         words = _words(command)
         if "pytest" in words:
-            for flag, expression in itertools.pairwise(words):
-                if flag == "-k":
-                    kept = re.sub(r"\bnot\s*(?:\([^)]*\)|\w+)", " ", expression)
-                    found += re.findall(r"\b(?!(?:and|or|not)\b)\w+", kept)
+            found += [e for flag, e in itertools.pairwise(words) if flag == "-k"]
     return found
 
 
 def row_v2(change: Change, plan: dict[str, Any]) -> str | None:
-    """Return each `-k` word that selects a test a later sub-task changes."""
+    """Return each `-k` expression that selects a test a later sub-task changes."""
     tasks = plan["subtasks"](change.tasks)
     found = [
-        f"{task.name}: `-k {word}` selects a test that {later.name} changes"
+        f"{task.name}: `-k {expression}` selects a test that {later.name} changes"
         for at, task in enumerate(tasks)
-        for word in _selected(task.text, plan)
+        for expression in _selected(task.text, plan)
         for later in tasks[at + 1 :]
         if CHANGES_TEST.search(later.text)
-        and any(word.lower() in n.lower() for n in re.findall(r"test_\w+", later.text))
+        and any(selects(expression, n) for n in re.findall(r"test_\w+", later.text))
     ]
     return " · ".join(found) or None
 

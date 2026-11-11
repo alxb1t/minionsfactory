@@ -207,15 +207,16 @@ moved base.**
 
 ### D77 · A mechanical step is a script
 
-**The cut's preconditions, the placing of the brief's facts, the readers of a deleted name, the self-check's mechanical rows
-and the models file are scripts; the cut's LLM writes the plan and judges what no script can check. `conduct.py cut` writes
+**The cut's preconditions, the context it reads and the placing of the brief's facts in it, the scaffold of its artifacts,
+the readers of a deleted name, the self-check's mechanical rows and the models file are scripts; the cut's LLM writes the
+plan and judges what no script can check. `conduct.py cut` writes
 `models.toml` from `brief_check.py --models` when it queues the cut, and a cut halts on a changed file.**
 
 - **Why:** the cut's main session was $3.39 of a $6.99 cut, most of it turns that ran a rule: the preconditions, a fact's
   moved state, the self-check table. A script holds a rule the same way each run.
 - **Accepts:** the file is checked at the cut alone; a later plant stays the class the threat model accepts.
 - **Rejected:** a checker that judges the deterministic rows ([D66](#d66--two-checkers-conformance-and-adversarial)) · the
-  cut's LLM writing the models file, which a worker can edit.
+  cut's LLM writing the models file, which a worker can edit · the cut reading archived changes as examples.
 - **Amends:** D7, D40 and D41, each edited where it lives.
 
 ### D80 · The plan reviews run on Sonnet
@@ -224,14 +225,16 @@ and the models file are scripts; the cut's LLM writes the plan and judges what n
 or a task. `cut_check.py` settles what a script finds in the plan — `Verify:` sequencing and the record's consistency — and
 `facts.py readers` the stand-ins, monkeypatches and readers of a changed name; the packet marks each as settled, and the
 reviewer judges the rest. The reviewer's budget is 25 turns, its tool calls counted by the cut from its transcript, an
-overrun recorded in `cut-notes.md`. The cut keeps the 1-hour cache.**
+overrun recorded in `cut-notes.md`. Each review runs in the foreground, the cut waiting on it, and the cut runs on the
+5-minute cache with its reviews.**
 
 - **Why:** the reviews were the cut's dearest worker beside its own context, Sonnet 5.5 is half Opus 5.5's price on every
   rate, and a class of what they raised a script finds; converge's Codex checkers stand behind the plan review.
 - **Accepts:** a first review that finds less than Opus 5.5 did · a measure that can put it back: a cut's reviews at most
   $1.40 together, converge's plan-side blockers at most one a version, failing over three versions.
 - **Rejected:** plan reviews on Opus 5.5 · a Codex plan review, which needs the conductor to start it between the cutter's
-  staging and its commit · the 5-minute cache — a lapse while the cut waits re-writes its context.
+  staging and its commit · a review in the background, which wakes the cut and re-reads its context at each wake · the
+  1-hour cache, for waits the Sonnet reviews no longer make.
 - **Amends:** D65, D71 and D74, each edited where it lives.
 
 ## The check loop and the release
@@ -869,13 +872,13 @@ runs one conformance checker on a fixture, passing on a findings file to the con
 
 **A Claude worker starts with its station's tools alone — the cut `Agent` too, the probe `Bash` and `Read` —
 with the operator's plugins, output style and auto-memory off and the dynamic prompt sections moved out, and reaches only the
-worktrees of open versions and queued cuts. The cut asks for the 1-hour cache, every other station the 5-minute
-one. A tool its station lacks halts the version. The cut and the build read the decisions they cite and an index.**
+worktrees of open versions and queued cuts. Every station asks for the 5-minute cache.
+A tool its station lacks halts the version. The cut and the build read the decisions they cite and an index.**
 
 - **Why:** a worker's first turn was ~28.6k tokens before any work, re-read every turn; build carried all 55 decisions for
-  206 turns; only the cut's waits outlast 5 minutes.
+  206 turns; no station's wait outlasts 5 minutes.
 - **Accepts:** a station that needs a new tool halts until its row changes · a decision the build does not cite is read by
-  its index line alone.
+  its index line alone · a review past the cache's lapse re-writes the cut's context.
 - **Rejected:** `Agent` for every station · `--setting-sources` without user settings · 1h for every station.
 
 ### D76 · A Codex usage limit falls back, and halts only what runs on Codex

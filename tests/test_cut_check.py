@@ -650,13 +650,62 @@ def test_a_search_names_its_literal_needle() -> None:
     assert parts("grep 'a' a.py \"|\" wc") == (["a"], ["a.py", "|", "wc"])
     assert cut_check._selected(
         "Verify: `pytest -k 'not widget and gadget'` passes.", cut_check._plan()
-    ) == ["gadget"]
+    ) == ["not widget and gadget"]
+    assert cut_check._selected(
+        "Verify: `pytest -k 'not (a or b)'` passes.", cut_check._plan()
+    ) == ["not (a or b)"]
     assert (
-        cut_check._selected(
-            "Verify: `pytest -k 'not (a or b)'` passes.", cut_check._plan()
-        )
-        == []
+        cut_check._selected("Verify: `pytest -q a.py` passes.", cut_check._plan()) == []
     )
+
+
+def test_v2_halts_only_on_a_selected_test() -> None:
+    plan = cut_check._plan()
+
+    def halts(expression: str, later: str) -> str | None:
+        tasks = (
+            "- [ ] 1.1 Run.\n"
+            f"  Verify: `uv run pytest -q test_a.py -k '{expression}'` exits 0.\n"
+            f"- [ ] 1.2 Add `{later}` to the suite.\n"
+            "  Verify: `make check` exits 0.\n"
+        )
+        return cut_check.row_v2(cut_check.Change("x", Path("x"), "", "", tasks), plan)
+
+    assert halts("not (a and (b) and d)", "test_d") is None
+    assert halts("widget", "test_widget") == (
+        "1.1: `-k widget` selects a test that 1.2 changes"
+    )
+    assert halts("not widget and gadget", "test_gadget") == (
+        "1.1: `-k not widget and gadget` selects a test that 1.2 changes"
+    )
+    assert halts("not widget and gadget", "test_widget") is None
+    assert halts("not widget", "test_widget") is None
+    assert halts("not widget", "test_gadget") is None
+    assert halts("not (a or b)", "test_a") is None
+    assert halts("a and", "test_a") is None
+
+
+def test_a_k_expression_selects_by_pytests_rules() -> None:
+    selects = cut_check.selects
+    assert selects("widget", "test_Widget_works")
+    assert selects("WIDGET", "test_widget")
+    assert not selects("widget", "test_gadget")
+    assert selects("widget or gadget", "test_gadget")
+    assert not selects("widget and gadget", "test_gadget")
+    assert selects("widget and gadget", "test_gadget_widget")
+    assert selects("a or b and c", "test_a")
+    assert not selects("(a or b) and c", "test_a")
+    assert selects("(a or (b and (c))) and d", "test_c_b_d")
+    assert selects("not widget and gadget", "test_gadget")
+    assert not selects("not widget and gadget", "test_gadget_widget")
+    assert not selects("not widget", "test_gadget")
+    assert not selects("not (a and (b) and d)", "test_d")
+    assert not selects("not not a", "test_a")
+    assert selects("a or not b", "test_a_b")
+    assert selects("test_a[x-1]", "test_a[x-1]")
+    for unparsable in ("", "and", "a and", "a b", "(a", "a)", "a ,", "not", "()"):
+        assert not selects(unparsable, "test_a")
+    assert not selects("(" * 500 + "a" + ")" * 500, "test_a")
 
 
 def test_a_pytest_command_names_a_test_path_or_none() -> None:

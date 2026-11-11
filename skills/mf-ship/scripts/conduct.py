@@ -191,9 +191,6 @@ STATION_TOOLS = {
     "probe": ("Bash", "Read"),
 }
 WORKER_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill")
-# Only these stations wait past 5 minutes. Why: 0100-worker-diet design D3;
-# 0108-converge-script design D4.
-CACHE_HOUR = ("cut",)
 # A Claude worker's error for a tool its station lacks. Why: 0100-worker-diet design D5.
 MISSING = "No such tool available"
 COMMANDS = (
@@ -3462,11 +3459,9 @@ def argv(
         tools, network = lines or ship_lines(primary)
         allowed, denied = allowlist(trees, tools)
         allowed += [f"Edit(/{path})" for path in edits]
-        hour = "ENABLE_PROMPT_CACHING_1H=1"
-        ttl = hour if station in CACHE_HOUR else "FORCE_PROMPT_CACHING_5M=1"
         return [
             *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch),
-            *((ttl,) if station else ()),
+            *(("FORCE_PROMPT_CACHING_5M=1",) if station else ()),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
             *(("--effort", effort) if effort else ()),
