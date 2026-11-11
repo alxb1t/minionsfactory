@@ -4,7 +4,7 @@ Premise checks for the cards that close without code, the prose and archive fixe
 
 ## Progress
 
-- [ ] 1 — the cards closed without code, each Still true? recorded · moderate
+- [x] 1 — the cards closed without code, each Still true? recorded · moderate
 - [ ] 2 — the prose and archive cards; C4 under the threat model's Out of scope · moderate
 - [ ] 3 — corpus.py skips old findings and follows no linked case; review_metrics $NAME and per-repo marks; 0100·S4, 0101·R7, 0114·R7 · hard
 - [ ] 4 — cut_check.py's row for a Verify: needle a later task removes · hard
@@ -13,49 +13,49 @@ Premise checks for the cards that close without code, the prose and archive fixe
 
 Each sub-task checks one premise of the context table in [design](design.md), per [D8](design.md#d8). No file changes in this phase.
 
-- [ ] 1.1 **HALT CHECK** 0097·R1: `skills/mf-ship/scripts/conduct.py` no longer defines the checker mailbox, so D51's "alone" holds.
+- [x] 1.1 **HALT CHECK** 0097·R1: `skills/mf-ship/scripts/conduct.py` no longer defines the checker mailbox, so D51's "alone" holds.
   Verify: `git grep -n 'def _open_mailbox' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 1.2 **HALT CHECK** 0097·R5: the mailbox reply write is gone from `skills/mf-ship/scripts/conduct.py`.
+- [x] 1.2 **HALT CHECK** 0097·R5: the mailbox reply write is gone from `skills/mf-ship/scripts/conduct.py`.
   Verify: `git grep -n '_place(fd, f"{role}.answer"' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 1.3 **HALT CHECK** 0097·R6: the mailbox folder creation is gone from `skills/mf-ship/scripts/conduct.py`.
+- [x] 1.3 **HALT CHECK** 0097·R6: the mailbox folder creation is gone from `skills/mf-ship/scripts/conduct.py`.
   Verify: `git grep -n 'mailbox.parent.mkdir' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 1.4 **HALT CHECK** 0097·S4: no served checker request reaches a spawn in `skills/mf-ship/scripts/conduct.py`.
+- [x] 1.4 **HALT CHECK** 0097·S4: no served checker request reaches a spawn in `skills/mf-ship/scripts/conduct.py`.
   Verify: `git grep -n 'serve_requests' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 1.5 **HALT CHECK** 0097·S5: the halt that called a mailbox a link is gone from `skills/mf-ship/scripts/conduct.py`.
+- [x] 1.5 **HALT CHECK** 0097·S5: the halt that called a mailbox a link is gone from `skills/mf-ship/scripts/conduct.py`.
   Verify: `git grep -n 'the checker mailbox' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 1.6 **HALT CHECK** 0101·S8: `skills/mf-converge/SKILL.md` holds no resume table; `converge.py` resumes.
+- [x] 1.6 **HALT CHECK** 0101·S8: `skills/mf-converge/SKILL.md` holds no resume table; `converge.py` resumes.
   Verify: `git grep -n 'Resuming a run' -- skills/mf-converge/SKILL.md` prints nothing.
-- [ ] 1.7 **HALT CHECK** 0100·R2: `skills/mf-converge/SKILL.md` dispatches no worker by description.
+- [x] 1.7 **HALT CHECK** 0100·R2: `skills/mf-converge/SKILL.md` dispatches no worker by description.
   Verify: `git grep -n 'round <N>' -- skills/mf-converge/SKILL.md` prints nothing.
-- [ ] 1.8 **HALT CHECK** 0094·S7 and 0094·S8: the script that matched surfaces is retired.
+- [x] 1.8 **HALT CHECK** 0094·S7 and 0094·S8: the script that matched surfaces is retired.
   Verify: `git ls-files skills/mf-converge/scripts/surfaces.py` prints nothing.
-- [ ] 1.9 **HALT CHECK** 0114·R3: the comment is gone from `tests/test_plan_check.py`.
+- [x] 1.9 **HALT CHECK** 0114·R3: the comment is gone from `tests/test_plan_check.py`.
   Verify: `git grep -n -F '# A selection or another option is no quiet flag' -- tests/test_plan_check.py` prints nothing.
-- [ ] 1.10 **HALT CHECK** 0114·R5: the comment is gone from `skills/mf-converge/scripts/plan_check.py`.
+- [x] 1.10 **HALT CHECK** 0114·R5: the comment is gone from `skills/mf-converge/scripts/plan_check.py`.
   Verify: `git grep -n -F 'A node id line, a per-file count line' -- skills/mf-converge/scripts/plan_check.py` prints nothing.
-- [ ] 1.11 **HALT CHECK** 0114·R4: the archived design of 0114 no longer promises the directory shortcut.
+- [x] 1.11 **HALT CHECK** 0114·R4: the archived design of 0114 no longer promises the directory shortcut.
   Verify: `git grep -n 'an operand whose file or folder exists' -- openspec/changes/archive` prints nothing.
-- [ ] 1.12 **HALT CHECK** 0114·R6: the archived design of 0114 no longer counts the recurrence.
+- [x] 1.12 **HALT CHECK** 0114·R6: the archived design of 0114 no longer counts the recurrence.
   Verify: `git grep -n 'came back three times' -- openspec/changes/archive` prints nothing.
-- [ ] 1.13 **HALT CHECK** 0100·R1 stays wontfix by the class of 0098·R1: the count stands in `docs/decisions.md`.
+- [x] 1.13 **HALT CHECK** 0100·R1 stays wontfix by the class of 0098·R1: the count stands in `docs/decisions.md`.
   Verify: `git grep -c -h '28.6k' -- docs/decisions.md` prints `1`.
-- [ ] 1.14 **HALT CHECK** 0117·R1 stays wontfix by the same class: the figure stands in the archived proposal of 0117.
+- [x] 1.14 **HALT CHECK** 0117·R1 stays wontfix by the same class: the figure stands in the archived proposal of 0117.
   Verify: `git grep -c -h -F '9.87 over' -- openspec/changes/archive/0117-codex-converge/proposal.md` prints `1`.
-- [ ] 1.15 **HALT CHECK** 0089·R4 stays accepted: its test stands in `tests/test_conduct.py`.
+- [x] 1.15 **HALT CHECK** 0089·R4 stays accepted: its test stands in `tests/test_conduct.py`.
   Verify: `git grep -c -h 'fake("halt-0002-marks", "rescue-diagnose", "supervise-delta")' -- tests/test_conduct.py` prints `1`.
-- [ ] 1.16 **HALT CHECK** 0102·R2 stays accepted: its test stands in `tests/test_conduct.py`.
+- [x] 1.16 **HALT CHECK** 0102·R2 stays accepted: its test stands in `tests/test_conduct.py`.
   Verify: `git grep -c -h 'def test_a_halt_in_a_phase_resumes_there' -- tests/test_conduct.py` prints `1`.
-- [ ] 1.17 **HALT CHECK** 0105·R6 stays accepted: its test stands in `tests/test_conduct.py`.
+- [x] 1.17 **HALT CHECK** 0105·R6 stays accepted: its test stands in `tests/test_conduct.py`.
   Verify: `git grep -c -h 'def test_a_version_with_adversarial_skipped_ships_on_a_stub' -- tests/test_conduct.py` prints `1`.
-- [ ] 1.18 **HALT CHECK** 0108·R10 stays accepted: its test stands in `tests/test_conduct.py`.
+- [x] 1.18 **HALT CHECK** 0108·R10 stays accepted: its test stands in `tests/test_conduct.py`.
   Verify: `git grep -c -h 'def test_a_version_converges_with_no_conducting_worker' -- tests/test_conduct.py` prints `1`.
-- [ ] 1.19 **HALT CHECK** 0098·R1: the suite total it counted is gone from the archived design of 0098.
+- [x] 1.19 **HALT CHECK** 0098·R1: the suite total it counted is gone from the archived design of 0098.
   Verify: `git grep -n 'sums to 278' -- openspec/changes/archive` prints nothing.
-- [ ] 1.20 **HALT CHECK** 0113·R1 stays wontfix: the range stands in the archived design of 0113.
+- [x] 1.20 **HALT CHECK** 0113·R1 stays wontfix: the range stands in the archived design of 0113.
   Verify: `git grep -c -h 'context of 100–275k tokens' -- openspec/changes/archive/0113-plan-review-diet/design.md` prints `1`.
-- [ ] 1.21 **HALT CHECK** 0114·R2: the timing is gone from the archived design of 0114.
+- [x] 1.21 **HALT CHECK** 0114·R2: the timing is gone from the archived design of 0114.
   Verify: `git grep -n 'about 330 s' -- openspec/changes/archive` prints nothing.
-- [ ] 1.22 **HALT CHECK** 0116·R1 stays wontfix: the requirement stands in `openspec/specs/sdd/spec.md`.
+- [x] 1.22 **HALT CHECK** 0116·R1 stays wontfix: the requirement stands in `openspec/specs/sdd/spec.md`.
   Verify: `git grep -c -h 'SHALL write three files' -- openspec/specs/sdd/spec.md` prints `1`.
 
 ## 2 — the prose and archive cards; C4 under the threat model's Out of scope
