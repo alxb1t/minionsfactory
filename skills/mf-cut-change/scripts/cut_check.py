@@ -9,10 +9,14 @@ Exit 0 ready · 1 a row failed · 2 unrunnable. Why: 0106-cut-scripts design D6.
 """
 
 import argparse
+import functools
+import itertools
 import re
 import runpy
 import subprocess
 import sys
+from collections.abc import Callable
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -43,6 +47,19 @@ RITUAL = re.compile(
     r"|(?:tick|commit|tag|archive|release)\b)",
     re.IGNORECASE,
 )
+HALT_CHECK = "**HALT CHECK**"
+OPERATORS = set("();<>|&")
+REGEX_META = set("^$.*+?()[]{}|")
+PATH_SUFFIXES = (".py", ".md", ".toml", ".yaml", ".yml", ".mk")
+RUN_PATHS = ("openspec/changes/", ".minions/")
+CITED_LINES = re.compile(r":\d+(?:-\d+)?$")
+CITE = re.compile(r"[\w./-]+\.\w+:\d+(?:-\d+)?")
+DESIGN_LINK = re.compile(r"design\.md#([a-z]\d+)")
+TABLE_ID = re.compile(r"^\|\s*\[?([A-Z]\d+)\b")
+STEP = re.compile(r"\bStep (\d+(?:\.\d+)?)")
+CONSTANT = re.compile(r"(?=.*[A-Z])[A-Z0-9_]{3,}")
+NEW_FILE = re.compile(r"\b(?:add|new|create)\b", re.IGNORECASE)
+CHANGES_TEST = re.compile(r"\b(?:adds?|removes?|merges?|renames?)\b", re.IGNORECASE)
 PROPOSAL_HEADINGS = [
     "Why",
     "What Changes",
@@ -74,6 +91,16 @@ ROWS = [
     "A2",
     "P9",
     "P13",
+    "V1",
+    "V2",
+    "V3",
+    "V4",
+    "K1",
+    "K2",
+    "K3",
+    "K4",
+    "K5",
+    "K6",
     "corpus",
 ]
 JUDGED = {
@@ -396,6 +423,331 @@ def row_p13(change: Change) -> str | None:
     return f"{', '.join(long)} hold more than 3 lines" if long else None
 
 
+@functools.cache
+def _plan() -> dict[str, Any]:
+    """Return the names of `plan_check.py`, loaded once."""
+    return runpy.run_path(str(PLAN_CHECK))
+
+
+def _git(*argv: str) -> tuple[int, list[str]]:
+    """Return a git command's exit code and output lines; an exit above 1 stops."""
+    code, lines = _spawn(["git", *argv], "git")
+    if code > 1:
+        raise Stop(f"git {argv[0]} failed: {' '.join(lines)}")
+    return code, lines
+
+
+def _words(command: str) -> list[str]:
+    """Return a command's shell words, none when it does not parse."""
+    try:
+        return _plan()["tokens"](command)
+    except ValueError:
+        return []
+
+
+def _literal(pattern: str, fixed: bool) -> str:
+    """Return the text a search pattern matches, empty when it is a regex.
+
+    e.g. ("a-b", False) → "a-b"; ("^a", False) → ""
+    """
+    if fixed:
+        return pattern
+    text = pattern.replace("\\", "")
+    return "" if REGEX_META & set(text) else text
+
+
+def search_parts(command: str) -> tuple[list[str], list[str]]:
+    """Return the literal needles and file operands of a `grep` or `git grep`.
+
+    A command that is no search gives none. e.g. `git grep -n -e 'a b' HEAD -- x.py`
+    → (["a b"], ["x.py"])
+    """
+    words = _words(command)
+    ends = [i for i, word in enumerate(words) if word and set(word) <= OPERATORS]
+    words = words[: (ends or [len(words)])[0]]
+    if words[:1] == ["grep"]:
+        rest = words[1:]
+    elif words[:2] == ["git", "grep"]:
+        rest = words[2:]
+    else:
+        return [], []
+    patterns: list[str] = []
+    operands: list[str] = []
+    fixed = takes = ended = False
+    for word in rest:
+        if takes:
+            patterns.append(word)
+            takes = False
+        elif ended or not word.startswith("-"):
+            operands.append(word)
+        elif word == "--":
+            ended = True
+        elif word.startswith("--"):
+            fixed = fixed or word == "--fixed-strings"
+        else:
+            fixed = fixed or "F" in word
+            takes = word.endswith("e")
+    if not patterns:
+        patterns, operands = operands[:1], operands[1:]
+    needles = [needle for pattern in patterns if (needle := _literal(pattern, fixed))]
+    return needles, [operand for operand in operands if operand != "HEAD"]
+
+
+def _commands(text: str, plan: dict[str, Any]) -> list[str]:
+    """Return the commands of a sub-task's `Verify:`, none when it parses no span."""
+    try:
+        return [c.text for c in plan["commands"](plan["verify_of"](text) or "")]
+    except ValueError:
+        return []
+
+
+def _body(text: str, plan: dict[str, Any]) -> str:
+    """Return a sub-task's text before its `Verify:`."""
+    verify = plan["verify_of"](text)
+    if verify is None:
+        return text
+    return text[: len(text) - len(verify) - len("Verify:")]
+
+
+def _searches(text: str, plan: dict[str, Any]) -> list[tuple[list[str], list[str]]]:
+    """Return the needles and files of each search in a sub-task text's `Verify:`."""
+    return [search_parts(command) for command in _commands(text, plan)]
+
+
+def _phase(name: str) -> str:
+    """Return the phase number of a sub-task's name, as `1` for `1.2`."""
+    return name.split(".", maxsplit=1)[0]
+
+
+def _at_head(path: str, tree: set[str]) -> bool:
+    """Return whether a file, a directory or a glob matches a path of `HEAD`'s tree."""
+    prefix = path.rstrip("/") + "/"
+    return path in tree or any(
+        p.startswith(prefix) or fnmatchcase(p, path) for p in tree
+    )
+
+
+def _same(path: str, other: str) -> bool:
+    """Return whether two paths are equal, or one is a directory holding the other."""
+    return (
+        path == other
+        or (other.endswith("/") and path.startswith(other))
+        or (path.endswith("/") and other.startswith(path))
+    )
+
+
+def decision_texts(design: str) -> dict[str, str]:
+    """Return the text of each `### D<n>` section of a design, by its lowercase id."""
+    found: dict[str, list[str]] = {}
+    current, fenced = "", False
+    for line in design.splitlines():
+        fenced ^= line.lstrip().startswith("```")
+        heading = None if fenced else DEFINED.match(line)
+        if not fenced and line.startswith("## "):
+            current = ""
+        elif heading:
+            current = heading[1].lower()
+            found[current] = []
+        elif current:
+            found[current].append(line)
+    return {key: "\n".join(lines) for key, lines in found.items()}
+
+
+def path_spans(text: str) -> list[str]:
+    """Return each code span of a text that names a path, the run's own apart.
+
+    e.g. "Edit `a/b.py:3` and `make gate`" → ["a/b.py"]
+    """
+    spans = [CITED_LINES.sub("", match[2]) for match in SPAN.finditer(text)]
+    return [
+        span
+        for span in spans
+        if " " not in span
+        and ("/" in span or span.endswith(PATH_SUFFIXES) or span == "Makefile")
+        and not span.startswith(RUN_PATHS)
+    ]
+
+
+def row_v1(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each search whose needle an earlier sub-task naming its file quotes."""
+    tasks = plan["subtasks"](change.tasks)
+    found: list[str] = []
+    for at, task in enumerate(tasks):
+        if HALT_CHECK in task.text:
+            continue
+        for needles, files in _searches(task.text, plan):
+            for needle in needles:
+                earlier = next(
+                    (
+                        other
+                        for other in tasks[:at]
+                        if needle in other.text and any(f in other.text for f in files)
+                    ),
+                    None,
+                )
+                if earlier is not None:
+                    found.append(f"{task.name}: `{needle}` is quoted in {earlier.name}")
+    return " · ".join(found) or None
+
+
+def _selected(text: str, plan: dict[str, Any]) -> list[str]:
+    """Return the words the `pytest` commands of a sub-task text select by `-k`."""
+    found: list[str] = []
+    for command in _commands(text, plan):
+        words = _words(command)
+        if "pytest" in words:
+            for flag, expression in itertools.pairwise(words):
+                if flag == "-k":
+                    found += re.findall(r"\b(?!(?:and|or|not)\b)\w+", expression)
+    return found
+
+
+def row_v2(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each `-k` word that selects a test a later sub-task changes."""
+    tasks = plan["subtasks"](change.tasks)
+    found = [
+        f"{task.name}: `-k {word}` selects a test that {later.name} changes"
+        for at, task in enumerate(tasks)
+        for word in _selected(task.text, plan)
+        for later in tasks[at + 1 :]
+        if CHANGES_TEST.search(later.text)
+        and any(word.lower() in n.lower() for n in re.findall(r"test_\w+", later.text))
+    ]
+    return " · ".join(found) or None
+
+
+def head_files() -> set[str]:
+    """Return the paths of `HEAD`'s tree."""
+    return set(_git("ls-tree", "-r", "--name-only", "HEAD")[1])
+
+
+def row_v3(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
+    """Return each `git grep` of a file `HEAD` lacks that its own phase first names."""
+    tasks = plan["subtasks"](change.tasks)
+    found: list[str] = []
+    for task in tasks:
+        for command in _commands(task.text, plan):
+            if command.split()[:2] != ["git", "grep"]:
+                continue
+            for file in search_parts(command)[1]:
+                first = next((other for other in tasks if file in other.text), task)
+                if not _at_head(file, tree) and _phase(first.name) == _phase(task.name):
+                    found.append(f"{task.name}: `{file}` is no file of HEAD yet")
+    return " · ".join(found) or None
+
+
+def row_v4(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each needle a sub-task and the decisions it links never name."""
+    sections = decision_texts(change.design)
+    found: list[str] = []
+    for task in plan["subtasks"](change.tasks):
+        if HALT_CHECK in task.text:
+            continue
+        linked = [sections.get(cited, "") for cited in DESIGN_LINK.findall(task.text)]
+        named = "\n".join([_body(task.text, plan), *linked])
+        found += [
+            f"{task.name}: `{needle}` is in neither the task nor a decision it links"
+            for needles, _ in _searches(task.text, plan)
+            for needle in needles
+            if needle not in named
+        ]
+    return " · ".join(found) or None
+
+
+def _record(
+    heading: str,
+    spans: list[str],
+    change: Change,
+    plan: dict[str, Any],
+    applies: Callable[[str], bool],
+) -> str | None:
+    """Return the paths of a record section no sub-task holds, and those it lacks."""
+    tasks = plan["subtasks"](change.tasks)
+    found = [
+        f"`{path}` of `## {heading}` is held by no sub-task"
+        for path in spans
+        if not any(path in task.text for task in tasks)
+    ]
+    found += [
+        f"{name}: `{path}` is absent from `## {heading}`"
+        for name, lines in blocks(change.tasks)
+        for path in path_spans(lines[0])
+        if applies(path) and not any(_same(path, kept) for kept in spans)
+    ]
+    return " · ".join(found) or None
+
+
+def row_k1(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
+    """Return the paths `## Impact` and the sub-tasks disagree on."""
+    spans = path_spans(" ".join(section(change.proposal, "Impact") or []))
+    return _record("Impact", spans, change, plan, lambda path: _at_head(path, tree))
+
+
+def row_k2(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return the `tests/` paths `## Tests` and the sub-tasks disagree on."""
+    spans = path_spans(" ".join(section(change.design, "Tests") or []))
+    kept = [span for span in spans if span.startswith("tests/")]
+    return _record("Tests", kept, change, plan, lambda path: path.startswith("tests/"))
+
+
+def row_k3(change: Change) -> str | None:
+    """Return why the `## Decisions` table and the `### D` headings differ."""
+    table = [
+        m[1]
+        for line in section(change.design, "Decisions") or []
+        if (m := TABLE_ID.match(line))
+    ]
+    headed = [
+        m[1] for _, line in prose_lines(change.design) if (m := DEFINED.match(line))
+    ]
+    if table == headed:
+        return None
+    return f"the table holds {', '.join(table)} and the headings {', '.join(headed)}"
+
+
+def row_k4(change: Change) -> str | None:
+    """Return each `design.md#d<n>` link that no `### D<n>` heading answers."""
+    defined = set(decision_texts(change.design))
+    cited = {
+        f"{name} links design.md#{link}"
+        for name, text in (("tasks.md", change.tasks), ("proposal.md", change.proposal))
+        for link in DESIGN_LINK.findall(text)
+        if link not in defined
+    }
+    return " · ".join(sorted(cited)) or None
+
+
+def row_k5(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each step and constant a sub-task's one file lacks at HEAD."""
+    found: list[str] = []
+    for task in plan["subtasks"](change.tasks):
+        paths = set(path_spans(task.text))
+        if len(paths) != 1 or NEW_FILE.search(task.text):
+            continue
+        (path,) = paths
+        for step in STEP.findall(task.text):
+            pattern = rf"^## Step {re.escape(step)}( |$)"
+            if _git("grep", "-q", "-E", pattern, "HEAD", "--", path)[0]:
+                found.append(f"{task.name}: {path} has no `## Step {step}` at HEAD")
+        constants = {m[2] for m in SPAN.finditer(task.text) if CONSTANT.fullmatch(m[2])}
+        found += [
+            f"{task.name}: {path} has no `{constant}` at HEAD"
+            for constant in sorted(constants - {"HEAD"})
+            if _git("grep", "-q", "-w", "-F", "-e", constant, "HEAD", "--", path)[0]
+        ]
+    return " · ".join(found) or None
+
+
+def row_k6(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each `path:line` cite that stands in two sub-tasks."""
+    cited: dict[str, list[str]] = {}
+    for task in plan["subtasks"](change.tasks):
+        for cite in sorted(set(CITE.findall(task.text))):
+            cited.setdefault(cite, []).append(task.name)
+    found = [f"`{c}` stands in {', '.join(n)}" for c, n in cited.items() if len(n) > 1]
+    return " · ".join(found) or None
+
+
 def counted_lines(change: Change) -> list[str]:
     """Return each line naming a number before a plural noun, as `path:line: text`."""
     texts = (
@@ -466,7 +818,10 @@ def check(
     )
     change = Change(identifier, folder, proposal, design, tasks)
     pre = runpy.run_path(str(CUT_PRE))
-    plan = runpy.run_path(str(PLAN_CHECK))
+    plan = _plan()
+    tree = head_files()
+    if why := row_v3(change, plan, tree):
+        return [Failure("V3", why, [])], [], []
     failures, matches = folded(change)
     try:
         corpus = plan["check_corpus"](plan["subtasks"](tasks), Path.cwd())
@@ -482,6 +837,15 @@ def check(
             ("A2", row_a2(change)),
             ("P9", row_p9(change)),
             ("P13", row_p13(change)),
+            ("V1", row_v1(change, plan)),
+            ("V2", row_v2(change, plan)),
+            ("V4", row_v4(change, plan)),
+            ("K1", row_k1(change, plan, tree)),
+            ("K2", row_k2(change, plan)),
+            ("K3", row_k3(change)),
+            ("K4", row_k4(change)),
+            ("K5", row_k5(change, plan)),
+            ("K6", row_k6(change, plan)),
             *[("corpus", line.removeprefix("plan: ")) for line in corpus],
         ]
     except (pre["Stop"], plan["Stop"]) as error:

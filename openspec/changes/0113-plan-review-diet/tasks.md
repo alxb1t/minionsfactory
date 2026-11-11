@@ -4,39 +4,39 @@ The phases: the rows of `cut_check.py`, the reader kinds of `facts.py`, then the
 
 ## Progress
 
-- [ ] 1 — cut_check.py: Verify sequencing and record consistency · hard
+- [x] 1 — cut_check.py: Verify sequencing and record consistency · hard
 - [ ] 2 — facts.py readers: signatures, files and strings · hard
 - [ ] 3 — Step 8.5, the decision and the reading step · hard
 
 ## 1 — cut_check.py: Verify sequencing and record consistency
 
-- [ ] 1.1 **HALT CHECK** `cut_check.py` holds the seams the rows extend ([D2](design.md#d2)).
+- [x] 1.1 **HALT CHECK** `cut_check.py` holds the seams the rows extend ([D2](design.md#d2)).
   Verify: `git grep -n -e '^ROWS = ' -e '^def blocks(' -e '^def row_p9(' -- skills/mf-cut-change/scripts/cut_check.py` prints a line for each.
-- [ ] 1.2 In `tests/test_cut_check.py` add the line `It keeps the line x.` to the decision section of `_DESIGN`, and keep a decision link in the replaced text of `test_a_fenced_block_does_not_count_toward_the_limit` and in the defect `_id_outside_a_link` ([D2](design.md#d2)).
+- [x] 1.2 In `tests/test_cut_check.py` add the line `It keeps the line x.` to the decision section of `_DESIGN`, and keep a decision link in the replaced text of `test_a_fenced_block_does_not_count_toward_the_limit` and in the defect `_id_outside_a_link` ([D2](design.md#d2)).
   Verify: `git grep -n 'It keeps the line x' -- tests/test_cut_check.py` prints a line.
-- [ ] 1.3 In `tests/test_cut_check.py` make `_PROPOSAL`'s `## Impact` read ``Edits the file `a.py`.`` ([D3](design.md#d3)).
+- [x] 1.3 In `tests/test_cut_check.py` make `_PROPOSAL`'s `## Impact` read ``Edits the file `a.py`.`` ([D3](design.md#d3)).
   Verify: `git grep -n 'Edits the file' -- tests/test_cut_check.py` prints a line.
-- [ ] 1.4 In `cut_check.py` add `search_parts(command)`, which returns the literal needles and the file operands of a `grep` or `git grep`, else none, as [D2](design.md#d2) says; add `test_a_search_names_its_literal_needle` to `tests/test_cut_check.py`.
+- [x] 1.4 In `cut_check.py` add `search_parts(command)`, which returns the literal needles and the file operands of a `grep` or `git grep`, else none, as [D2](design.md#d2) says; add `test_a_search_names_its_literal_needle` to `tests/test_cut_check.py`.
   Verify: `uv run pytest -q tests/test_cut_check.py -k literal_needle` exits 0.
-- [ ] 1.5 In `cut_check.py` add `row_v1`, with `V1` in `ROWS` and in `check`'s `rows`, skipping a HALT CHECK; in `tests/test_cut_check.py` add a defect for `V1` to `test_each_mechanical_row_fails_by_name` that trips `V1` alone ([D2](design.md#d2)).
+- [x] 1.5 In `cut_check.py` add `row_v1`, with `V1` in `ROWS` and in `check`'s `rows`, skipping a HALT CHECK; in `tests/test_cut_check.py` add a defect for `V1` to `test_each_mechanical_row_fails_by_name` that trips `V1` alone ([D2](design.md#d2)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k V1` exits 0.
-- [ ] 1.6 In `cut_check.py` add `row_v2`, with `V2` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect to `test_each_mechanical_row_fails_by_name` ([D2](design.md#d2)).
+- [x] 1.6 In `cut_check.py` add `row_v2`, with `V2` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect to `test_each_mechanical_row_fails_by_name` ([D2](design.md#d2)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k V2` exits 0.
-- [ ] 1.7 In `cut_check.py` add `row_v3`, with `V3` in `ROWS`, computed in `check` before `folded`, a hit returning that failure alone; in `tests/test_cut_check.py` add its defect ([D2](design.md#d2)).
+- [x] 1.7 In `cut_check.py` add `row_v3`, with `V3` in `ROWS`, computed in `check` before `folded`, a hit returning that failure alone; in `tests/test_cut_check.py` add its defect ([D2](design.md#d2)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k V3` exits 0.
-- [ ] 1.8 In `cut_check.py` add `row_v4`, with `V4` in `ROWS` and in `rows`, skipping a HALT CHECK; in `tests/test_cut_check.py` add its defect ([D2](design.md#d2)).
+- [x] 1.8 In `cut_check.py` add `row_v4`, with `V4` in `ROWS` and in `rows`, skipping a HALT CHECK; in `tests/test_cut_check.py` add its defect ([D2](design.md#d2)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k V4` exits 0.
-- [ ] 1.9 In `cut_check.py` add `path_spans(text)` and `row_k1`, with `K1` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
+- [x] 1.9 In `cut_check.py` add `path_spans(text)` and `row_k1`, with `K1` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k K1` exits 0.
-- [ ] 1.10 In `cut_check.py` add `row_k2`, with `K2` in `ROWS` and in `rows`, reading `design.md`'s `## Tests` through `section`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
+- [x] 1.10 In `cut_check.py` add `row_k2`, with `K2` in `ROWS` and in `rows`, reading `design.md`'s `## Tests` through `section`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k K2` exits 0.
-- [ ] 1.11 In `cut_check.py` add `row_k3`, with `K3` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
+- [x] 1.11 In `cut_check.py` add `row_k3`, with `K3` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k K3` exits 0.
-- [ ] 1.12 In `cut_check.py` add `row_k4`, with `K4` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
+- [x] 1.12 In `cut_check.py` add `row_k4`, with `K4` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k K4` exits 0.
-- [ ] 1.13 In `cut_check.py` add `row_k5`, which asks `git grep` at `HEAD` for each `Step` heading and constant, with `K5` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
+- [x] 1.13 In `cut_check.py` add `row_k5`, which asks `git grep` at `HEAD` for each `Step` heading and constant, with `K5` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k K5` exits 0.
-- [ ] 1.14 In `cut_check.py` add `row_k6`, with `K6` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
+- [x] 1.14 In `cut_check.py` add `row_k6`, with `K6` in `ROWS` and in `rows`; in `tests/test_cut_check.py` add its defect ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_cut_check.py -k K6` exits 0.
 
 ## 2 — facts.py readers: signatures, files and strings
