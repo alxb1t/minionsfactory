@@ -13,6 +13,7 @@ argv = [
 name = "open-cards"
 reads = "a findings file's cards, to the open cards a verify worker judges"
 each = ["changes/*/conformance.md", "changes/*/adversarial.md"]
+shape = '^[ \t]+- \*\*Status:\*\*'
 argv = [
     "uv", "run", "--script", "skills/mf-converge/scripts/open_cards.py",
     "{input}", "{out}/open.md",

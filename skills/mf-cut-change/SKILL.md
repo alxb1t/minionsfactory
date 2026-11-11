@@ -22,7 +22,7 @@ decisions it cites, in full, and an index — Step 2's context pack holds that o
 from the conversation, read the `### D` headings of `docs/decisions.md` as the index, and in full each decision
 the conversation settles against. Read `ARCHITECTURE.md` and `docs/adr/*.md` whole, when present, and the principles
 and the threat model — `docs/principles.md` and `THREAT_MODEL.md`, or the ones `AGENTS.md` names — when the source's
-phases name the file. They are shared context, not your source: design within the decisions in force, and read in
+phases name the file or a path `## Surfaces` of the threat model matches. They are shared context, not your source: design within the decisions in force, and read in
 full any decision whose index line the change touches. A target's own test rule that conflicts with `T1`–`T6` wins:
 plan to it, and name the conflict in Step 9. Missing root `AGENTS.md` → **halt**, naming it.
 
@@ -202,7 +202,7 @@ before each artifact, run `openspec instructions <artifact> --change <change-id>
 
 Run `uv run --script scripts/cut_check.py <change-id> --bump <bump>`, `scripts/` resolved from this skill's package. It
 decides the mechanical rows `I2`, `I3`, `I4`, `I11`, `I12`, `I13`, `I14`, `I17`, `I18`, `I19`, `A1`, `A2`, `P9`, `P13`,
-`V1`–`V5` and `K1`–`K6`, and the corpus check; it runs the validator, the gate-edit check (`../mf-converge/scripts/gate_check.py
+`V1`–`V6` and `K1`–`K6`, and the corpus check; it runs the validator, the gate-edit check (`../mf-converge/scripts/gate_check.py
 --tasks`) and the search script (`scripts/verify_check.py`) and prints their lines under their rows. `I1` is met by Step
 10's commit. It prints:
 
@@ -218,7 +218,7 @@ the judgment rows alone.
 
 - **Judge `I5`–`I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs** — each `judge` line names what to read, `P12` and `P13`
   with candidates as `path:line`, which only you or the reviewer judge.
-- **Read every `Verify:`; run none as written.** `V1`–`V5` settle a search's sequence, its needles and a `pytest`'s test files; read what
+- **Read every `Verify:`; run none as written.** `V1`–`V6` settle a search's sequence, its needles, a needle a later task removes and a `pytest`'s test files; read what
   they leave: a pattern that is no literal. The build runs them, once the human starts it. Rewrite a check you
   can see will not run as written — an unknown flag, bad syntax. Flag to the human a check that already holds, its
   needle already in the file: true before the build, it may prove nothing. Except a `**HALT CHECK**`: it checks a

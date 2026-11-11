@@ -31,7 +31,7 @@ built head, and still be judged only against the released dependency.
   coverage take its sha as their base. `I17` also passes on that head holding the dependency's change; integrate's Ready and
   release precondition 10 still need the dependency released.
 - **The reset** — an amend of the dependency's change directory past the stacked-on head that changes a decision resets the
-  dependent to its cut commit and removes `stacked-on`; it stacks again on the dependency's next build.
+  dependent to its cut commit and removes `stacked-on`; it stacks again on the dependency's next build while that dependency is unreleased; once it has released, the dependent builds on the default branch.
 - **The metric** — `after-wait-minutes`, the time a dependent waits on its `after:` ids, from the run log's new `wait` events.
 - **The debt** — `merge_in` compares the git config again right before its commit (`0050·R5`); D63 says conformance alone
   keeps the full plan (`0095·R6`).

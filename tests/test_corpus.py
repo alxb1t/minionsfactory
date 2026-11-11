@@ -166,6 +166,62 @@ def test_the_corpus_runs_each_case(
     assert Path(written).resolve() == (root / ".minions").resolve()
 
 
+def test_a_case_skips_an_input_its_shape_does_not_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path / "repo")
+    monkeypatch.chdir(root)
+    minions = tmp_path / "run"
+    (minions / "changes" / "a").mkdir(parents=True)
+    (minions / "changes" / "a" / "x.md").write_text("ok\n")
+    (minions / "changes" / "b").mkdir(parents=True)
+    (minions / "changes" / "b" / "x.md").write_bytes(b"old \xff\n")
+
+    def run(shape: str) -> list[str]:
+        found = _cases(
+            tmp_path / "cases.toml",
+            _case(
+                "shaped",
+                [sys.executable, "-c", _COPY, "{input}", "{out}/copy.txt"],
+                each=["changes/*/x.md"],
+                shape=shape,
+            ),
+        )
+        argv = ["--cases", str(found), "--minions", str(minions)]
+        assert corpus.main(argv) == 0
+        return capsys.readouterr().out.splitlines()
+
+    assert run("^ok") == ["corpus: shaped · 1 runs · 1 skipped · pass"]
+    assert run("^nothing") == ["corpus: shaped · no input"]
+
+
+def test_a_linked_case_directory_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path / "repo")
+    monkeypatch.chdir(root)
+    minions = tmp_path / "run"
+    (minions / "changes" / "a").mkdir(parents=True)
+    (minions / "changes" / "a" / "x.md").write_text("A")
+    kept = tmp_path / "elsewhere"
+    (kept / "1").mkdir(parents=True)
+    (kept / "1" / "keep.txt").write_text("keep")
+    (minions / "corpus").mkdir()
+    (minions / "corpus" / "linked").symlink_to(kept)
+    found = _cases(
+        tmp_path / "cases.toml",
+        _case(
+            "linked",
+            [sys.executable, "-c", _COPY, "{input}", "{out}/c.txt"],
+            each=["changes/*/x.md"],
+        ),
+    )
+    code = corpus.main(["--cases", str(found), "--minions", str(minions)])
+    assert code == 2
+    assert capsys.readouterr().out == f"{_PREFIX}corpus/linked is a link\n"
+    assert (kept / "1" / "keep.txt").read_text() == "keep"
+
+
 def test_a_corpus_run_holds_its_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -222,6 +278,8 @@ def test_a_corpus_it_cannot_read_exits_2(
         [_case("a", ok, each="changes/*")],
         [_case("a", ok, each=["../outside/*"])],
         [_case("a", ok, each=["/etc/*"])],
+        [_case("a", ok, each=["changes/*"], shape=1)],
+        [_case("a", ok, each=["changes/*"], shape="(")],
     ]
     for cases in broken:
         _cases(found, *cases)

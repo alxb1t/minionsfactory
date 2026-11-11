@@ -2290,3 +2290,19 @@ def test_the_report_names_the_verdicts(
     assert capsys.readouterr().out.endswith(
         "converge: halt — the gate is red before round 1: gate_run.py exit 2\n"
     )
+
+
+def test_a_halt_on_an_ended_log_is_printed_not_stamped(host: Host) -> None:
+    converge = _converge()
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    converge["open_run"](context)
+    converge["stamp"](context, "done — converged in 1 round · 0 cards to debt")
+    ended = context.log.read_bytes()
+
+    converge["halt"](context, "git failed")
+
+    assert context.log.read_bytes() == ended
+    # Twin: a halt on an open run stamps as before.
+    converge["open_run"](context)
+    converge["halt"](context, "git failed")
+    assert events(host)[-1] == f"round 1 · halt — git failed · head {_head(host)}"

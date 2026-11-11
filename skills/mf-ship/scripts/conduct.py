@@ -57,8 +57,10 @@ REJOIN_POLL = 10
 # The most of a file a worker leaves that `_bounded` reads.
 READ_BYTES = 65536
 # A Codex limit: the longest wait for a reset, and a window's share that counts as a
-# limit. Why: 0104-codex-limits design D1; 0117-codex-converge design D4.
+# limit, and the converge time a Codex probe needs. Why: 0104-codex-limits design D1;
+# 0117-codex-converge design D4; 0119-debt-paydown-3b design D12.
 LIMIT_WAIT = 900
+PROBE_ROOM = 120
 HEADROOM = 90
 WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
@@ -152,6 +154,7 @@ SUPERVISES = 2
 # A supervisor at an integrate note stages Markdown under these alone.
 # Why: 0090-supervisor-merge design D3.
 SETTLES = ("openspec/", "docs/")
+TEST_PATHS = ("tests/", "test/")
 SETTLED = "the supervisor settled the note: integrate commits it"
 SUPERVISOR = ("claude-opus-5-5", "high")
 CHECKER_DEFAULT = ("claude-sonnet-5-5", "high")
@@ -186,6 +189,13 @@ OLD_STAMP = re.compile(r"\d{8}-\d{6}(?:-\d+)?")
 OLD_LOG = re.compile(rf"{OLD_ID}_([a-z][a-z-]*?)(-\d+)?\.log")
 # A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
 BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
+NON_SECURITY = (
+    "stability",
+    "data integrity",
+    "functional correctness",
+    "performance",
+    "maintainability",
+)
 SMALL = ("one line", "a test", "one line and a test")
 CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
@@ -686,13 +696,17 @@ def _folder_fd(root: Path, *parts: str) -> int:
     return fd
 
 
-def _write_in_change(primary: Path, change: str, name: str, text: str) -> None:
+def _write_in_change(
+    primary: Path, change: str, name: str, text: str, fresh: bool = False
+) -> None:
     """Write `text` to the change's file `name`, through no link; one raises `OSError`.
 
-    Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
+    A `fresh` write creates the file and never truncates one.
+    Why: 0071-ship-fixes design D8; 0119-debt-paydown-3b design D5.
     """
     fd = _folder_fd(primary / ".minions", "changes", change)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
+    flags |= os.O_EXCL if fresh else os.O_TRUNC
     try:
         file = os.open(name, flags, 0o644, dir_fd=fd)
     finally:
@@ -1570,10 +1584,11 @@ def stage_of(
     ):
         return "build", "closing steps left"
     lacking = [name for name in after if not _shipped(tree, "HEAD", name)]
-    if stacked is not None and lacking:
+    if stacked is not None and (lacking or missing):
         return (
             "stacked",
-            f"built on {' '.join(lacking)} at {stacked[:7]}: waits for its release",
+            f"built on {' '.join(lacking or missing)} at {stacked[:7]}:"
+            " waits for its release",
         )
     # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
     skipped = "converge" in (_skips(runs, change) if skips is None else skips)
@@ -2802,13 +2817,12 @@ def _security_blocks(runs: Path, change: str, halt: str) -> bool:
 
 
 def _security_card(card: str) -> bool:
-    """Return whether an adversarial card blocks, of category `security` or none.
+    """Return whether an adversarial card blocks, in a security or unread category.
 
-    Why: 0095-converge-roles design D2.
+    Why: 0095-converge-roles design D2; 0119-debt-paydown-3b design D3.
     """
-    return _severity(card) in BLOCKS["adversarial"] and _category(card) in (
-        "security",
-        "",
+    return (
+        _severity(card) in BLOCKS["adversarial"] and _category(card) not in NON_SECURITY
     )
 
 
@@ -2992,12 +3006,18 @@ def _settled(
 def _settle_kept(tree: Path, staged: str) -> str | None:
     """Return why integrate's merge holds more than the settled tree, or None.
 
-    Why: 0090-supervisor-merge security S2.
+    Why: 0090-supervisor-merge design D4, its delta's *A supervisor answers what the
+    rescue leaves*.
     """
     merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
+    if _git(tree, "rev-parse", "HEAD").strip() != merge:
+        return "integrate committed past its merge"
     body = _git(tree, "log", "-1", "--format=%b", merge).splitlines()
     fixed = {
-        line.split(": test fixed", 1)[0] for line in body if ": test fixed" in line
+        path
+        for line in body
+        if ": test fixed" in line
+        if (path := line.split(": test fixed", 1)[0]).startswith(TEST_PATHS)
     }
     moved = set(_git(tree, "diff", "--name-only", staged, f"{merge}^{{tree}}").split())
     if past := sorted(moved - fixed):
@@ -3207,7 +3227,6 @@ def _plugins_off() -> dict[str, bool]:
 def _temp_folder(prefix: str) -> Path:
     """Return a fresh folder under `TMPDIR`, else stop with 2.
 
-    e.g. `_temp_folder("mf-sandbox-")` → `<TMPDIR>/mf-sandbox-k3j9x2`.
     Why: 0111-sandbox-tmp design D2.
     """
     parent = Path(os.environ.get("TMPDIR") or "/tmp")  # noqa: S108
@@ -3562,8 +3581,7 @@ def argv(
 def _remove_temp(folder: Path, err: TextIO | None = None) -> None:
     """Remove `folder`, unlocking what a worker left unreadable; say so if it stays.
 
-    e.g. a `000` subfolder is made `700`, then removed; a link is left.
-    Why: 0111-sandbox-tmp design D3.
+    Why: 0111-sandbox-tmp design D3; 0119-debt-paydown-3b design D6.
     """
     seen: set[str] = set()
 
@@ -3571,7 +3589,8 @@ def _remove_temp(folder: Path, err: TextIO | None = None) -> None:
         if isinstance(error, PermissionError) and not os.path.islink(path):
             seen.add(path)
             os.chmod(path, 0o700)
-            os.chmod(os.path.dirname(path), 0o700)
+            if os.fspath(path) != os.fspath(folder):
+                os.chmod(os.path.dirname(path), 0o700)
 
     previous: set[str] | None = None
     while os.path.lexists(folder) and seen != previous:
@@ -3783,7 +3802,11 @@ def lacked(log: Path) -> list[str]:
                     names[str(block.get("id"))] = str(block.get("name"))
                 elif block.get("type") == "tool_result" and block.get("is_error"):
                     text = _text(block.get("content"))
-                    if MISSING in text:
+                    if (
+                        text.removeprefix("<tool_use_error>")
+                        .lstrip()
+                        .startswith(MISSING)
+                    ):
                         name = names.get(str(block.get("tool_use_id")))
                         found.append(name or text.strip())
     return found
@@ -4440,6 +4463,9 @@ class Run:
         # change from it the re-check read once. Why: 0085-self-healing-ship design D6.
         self.seen_halts: dict[str, tuple[str, str, str] | None] = {}
         self.candidates: dict[str, tuple[str, str, str]] = {}
+        # The versions whose rejoin a running rescue holds, logged once each.
+        # Why: 0119-debt-paydown-3b design D13.
+        self.kept: set[str] = set()
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
         self.outs: dict[tuple[str, str], Path] = {}
@@ -4812,6 +4838,8 @@ class Run:
                 return False
             time.sleep(max(ahead, 0))
         if "codex" not in self.probed:
+            if deadline - time.monotonic() < PROBE_ROOM:
+                return False
             self.probe_for(change, ["codex"], [], deadline)
         return "codex" in self.probed
 
@@ -5517,16 +5545,17 @@ class Run:
         version: Version,
         dependency: str,
         threads: dict[str, threading.Thread],
-        stack: bool,
+        still: Callable[[], list[str]],
     ) -> None:
-        """Wait while the dependency's thread lives; with `stack`, until it may stack.
+        """Wait while the dependency's thread lives, until the version may stack.
 
+        `still` returns the unreleased dependencies, read at each poll.
         Why: 0099-stacked-builds design D1.
         """
         logged = False
         with self.built:
             while self.live(dependency, threads):
-                if stack and self.stackable(version, [dependency]):
+                if self.stackable(version, still()):
                     return
                 if not logged:
                     self.log.event(version.change, "wait", f"after {dependency}")
@@ -5552,7 +5581,7 @@ class Run:
                     dependency in threads
                     and _change_number(dependency) < version.number
                 ):
-                    self.until(version, dependency, threads, left == [dependency])
+                    self.until(version, dependency, threads, unreleased)
             left = unreleased()
         if self.stopped(change):
             return False
@@ -6033,7 +6062,15 @@ class Run:
         for version in versions:
             change = version.change
             thread = threads.get(change)
-            if not names & {"all", change} or (thread and thread.is_alive()):
+            if not names & {"all", change}:
+                continue
+            if thread and thread.is_alive():
+                if change in names and _rescuing(self.runs, change):
+                    _request(self.primary, change)
+                    if change not in self.kept:
+                        self.kept.add(change)
+                        held = f"{change}: still running — its rescue holds the request"
+                        self.log.event("run", "rejoin", held)
                 continue
             if change in cuts:
                 continue
@@ -6501,7 +6538,7 @@ class Run:
         """Move each change's old-layout files into its folder; return why to halt.
 
         Why: 0080-minions-layout design
-        D4, D6; 0095-converge-roles design D2.
+        D4, D6; 0095-converge-roles design D2; 0119-debt-paydown-3b design D4.
         """
         found = _old_files(self.primary)
         minions = self.primary / ".minions"
@@ -6540,7 +6577,13 @@ class Run:
                     if old.is_dir():
                         os.rename(old, name, dst_dir_fd=fd)
                     else:
-                        os.link(old, name, dst_dir_fd=fd)
+                        os.link(old, name, dst_dir_fd=fd, follow_symlinks=False)
+                        if not stat.S_ISREG(os.lstat(name, dir_fd=fd).st_mode):
+                            os.unlink(name, dir_fd=fd)
+                            return (
+                                f"{old.relative_to(self.primary)} became a link:"
+                                " a person settles what it names"
+                            )
                         old.unlink()
                 finally:
                     os.close(fd)
@@ -7381,7 +7424,7 @@ def _write_models(primary: Path, change: str, text: str) -> None:
     try:
         # A fresh file: truncating the old one would write through a hard link.
         _remove_in(primary / ".minions", "changes", change, name="models.toml")
-        _write_in_change(primary, change, "models.toml", text)
+        _write_in_change(primary, change, "models.toml", text, fresh=True)
     except OSError as error:
         raise Stop(
             2,
@@ -7534,7 +7577,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
     Why: 0063-rejoin design D1; 0082-cut-station design D3, D6;
-    0091-cut-halts design D3.
+    0091-cut-halts design D3; 0119-debt-paydown-3b design D8.
     """
     primary = primary_of(cwd)
     runs = primary / ".minions" / "runs"
@@ -7552,6 +7595,13 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
             queued = entry.get("dependencies", [])
             approved = _approval(Path(entry["brief"]), slug, "rejoin")
             if new := [row for row in approved if row not in queued]:
+                for row in new:
+                    if not all(cell.isascii() and cell.isprintable() for cell in row):
+                        raise Stop(
+                            2,
+                            f"rejoin: cannot run — the brief's row {row!r} holds a"
+                            " character a terminal may act on",
+                        )
                 if yes != (hashed := _rows_hash(new)):
                     rows = ", ".join(" ".join(row) for row in new)
                     raise Stop(

@@ -1,4 +1,4 @@
-"""Converge's bundle: the decisions and living requirements a change cites.
+"""Converge's bundle: the decisions it cites and the requirements its delta changes.
 
 Each tree built under `tmp_path`. Why: 0094-lighter-converge design D5.
 """

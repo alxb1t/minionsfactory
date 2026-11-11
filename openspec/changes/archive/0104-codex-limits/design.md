@@ -170,7 +170,8 @@ Fix note (2026-11-09, R2): `on_stations` leaves out the stations the version's `
   `checker-sleep`.
 - **`Run.codex_ready(change: str, deadline: float) -> bool`** — `reset` is the later of `limited_until("codex")` and
   `_headroom(time.time())`. A `reset` with `reset - time.time() <= LIMIT_WAIT` and before `deadline` on the monotonic
-  clock → `time.sleep` until it, then go on; any other `reset` → False. Then, Codex unprobed,
+  clock → `time.sleep` until it, then go on; any other `reset` → False. Then, Codex unprobed, False when less than
+  `PROBE_ROOM` is left before `deadline`, per 0119-debt-paydown-3b design D12, and otherwise
   `self.probe_for(change, ["codex"], [])`; return whether `"codex"` is in `self.probed`.
 - **`Run.checker`** — the rule keys on the executor the role runs on, a shadow's after `_shadow`: on `codex` with
   `codex_ready` False, a shadow answers `_answer(1, False, models, " · stopped by a usage limit")`, spawning nothing, and
@@ -252,9 +253,7 @@ Fix note (2026-11-09, S1): `_spent`'s `(0.0, 0)` also needs the log to hold no `
 - **The real check** — `test_a_linked_tree_writes_under_the_codex_sandbox`, marked `slow`, skipped unless
   `MF_REAL_CODEX=1` and `codex` is on `PATH`: a `tmp_path` repo with a linked worktree; the `-c sandbox_workspace_write.*`
   pairs `argv("codex", …)` gives for that worktree; then
-  `codex sandbox -c 'sandbox_mode="workspace-write"' <those pairs> -C <the worktree> -- git write-tree` exits 0.
-
-Fix note (2026-11-09, R1): codex-cli 0.163's `codex sandbox` needs a permission profile and ignores `sandbox_mode` and `sandbox_workspace_write.*` under one, so the test runs `codex sandbox -P mf -c <profile>`, a `permissions.mf` profile extending `:workspace` that makes those roots writable, `:slash_tmp` and `:tmpdir` read-only.
+  `codex sandbox -P mf -c <profile> -C <the worktree> -- git write-tree` exits 0, `<profile>` a `permissions.mf` profile extending `:workspace` that makes those roots writable and `:slash_tmp` and `:tmpdir` read-only.
 
 ### D7
 

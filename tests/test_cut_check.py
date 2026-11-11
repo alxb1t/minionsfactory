@@ -295,6 +295,17 @@ def _pytest_names_no_test_file(root: Path) -> None:
     )
 
 
+def _later_task_diffs_a(root: Path, lines: str) -> None:
+    old = "Run `make gate`.\n  Verify: `git tag` prints v1."
+    block = f"  ```diff\n{lines}  ```\n"
+    new = f"Drop a line of `a.py`.\n{block}  Verify: `git tag` prints v1."
+    _edit(root, "tasks.md", old, new)
+
+
+def _needle_removed_by_a_later_task(root: Path) -> None:
+    _later_task_diffs_a(root, "  -x\n")
+
+
 def _impact_names_a_stranger(root: Path) -> None:
     old = "Edits the file `a.py`."
     _edit(root, "proposal.md", old, "Edits the files `a.py` and `b.py`.")
@@ -344,6 +355,7 @@ def _cite_in_two_tasks(root: Path) -> None:
         ("V3", _git_grep_of_a_file_the_phase_adds),
         ("V4", _needle_named_nowhere),
         ("V5", _pytest_names_no_test_file),
+        ("V6", _needle_removed_by_a_later_task),
         ("K1", _impact_names_a_stranger),
         ("K2", _tests_names_a_stranger),
         ("K3", _table_without_a_heading),
@@ -366,6 +378,19 @@ def test_each_mechanical_row_fails_by_name(
     assert _halted(lines) == [row]
     assert code == 1
     assert lines[-1] == "cut_check: halt — 1 rows failed"
+
+
+def test_a_needle_a_later_task_adds_back_passes_v6(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _later_task_diffs_a(root, "  -x\n  +x\n")
+    _tools(tmp_path, monkeypatch)
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == []
+    assert code == 0
 
 
 def test_a_bump_that_differs_from_the_given_one_fails(

@@ -80,7 +80,7 @@ None.
 | the planted-key test's own repository is what the scan needs, a premise the brief measured only for the ceiling | converge's round-1 gate disproved it: the scan still read nothing, the gate's `.minions/` allowlist matching the path above the scanned folder; [D9](#d9) scans from inside a folder under a `.minions` of its own, so phase 4's run at pytest's default base temp proves what converge's gate, under the pinned `sandboxed()`, runs ([F7](#context)) |
 | the escape drill calls `argv()` for Codex and removes nothing | its folder is empty, outside the gate, and the OS clears it |
 | a test's `TMPDIR` under the base temp hides a test that relied on the system one | `tests/test_guardrails.py` holds the fixture's variables, and converge's gate runs under the pinned `sandboxed()`, with `TMPDIR` inside the primary |
-| this version's own converge runs the pinned `sandboxed()` | phase 1 alone makes its gate green; phases 2 and 3 are green there through D4 ([F7](#context)) |
+| this version's own converge runs the pinned `sandboxed()` | phase 1 leaves its gate red until phase 4's repair ([D9](#d9)); phases 2 and 3 are green there through D4 ([F7](#context)) |
 | 0110-gate-hardening meets the new rule when it integrates | its tests run under the same fixture; its round-1 fixes stand (the brief's Q5) |
 
 ## Verdict
