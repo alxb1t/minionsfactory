@@ -4,25 +4,25 @@ The phases: the transcript reader, then the spans and their booking, then the ro
 
 ## Progress
 
-- [ ] 1 — The transcript reader · hard
+- [x] 1 — The transcript reader · hard
 - [ ] 2 — The spans, the binding and the operator booking · hard
 - [ ] 3 — The rows in the data and the page, and the record · moderate
 
 ## 1 — The transcript reader
 
-- [ ] 1.1 **HALT CHECK** `review_metrics.py` holds the seams this phase uses ([D1](design.md#d1), [D3](design.md#d3)).
+- [x] 1.1 **HALT CHECK** `review_metrics.py` holds the seams this phase uses ([D1](design.md#d1), [D3](design.md#d3)).
   Verify: `git grep -n -e '^def settings' -e '^def _read_config' -e '^class CannotRun' -e '^def _usage' -e '^def _priced_worker' -e '^def _station_logs' -e '^def _moment' -- skills/mf-review-metrics/scripts/review_metrics.py` prints a line for each.
-- [ ] 1.2 In `skills/mf-review-metrics/scripts/review_metrics.py` add `session_folders(config)`, as [D1](design.md#d1) says; add `test_the_sessions_key_names_the_folders` to `tests/test_review_metrics.py`: a config with `sessions = ["a", "b"]` gives both folders resolved against the config's folder, no key gives an empty list, and `sessions = "a"` raises `CannotRun`.
+- [x] 1.2 In `skills/mf-review-metrics/scripts/review_metrics.py` add `session_folders(config)`, as [D1](design.md#d1) says; add `test_the_sessions_key_names_the_folders` to `tests/test_review_metrics.py`: a config with `sessions = ["a", "b"]` gives both folders resolved against the config's folder, no key gives an empty list, and `sessions = "a"` raises `CannotRun`.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k sessions_key` exits 0.
-- [ ] 1.3 In `tests/test_review_metrics.py` add the helpers `_line(kind, time, **message)`, `_turn(id, time, usage, model)` and `_tool(id, time, name, **input)`, which each build one JSON line of a transcript, and `_written(folder, session, *lines)`, which writes `<session>.jsonl`; in `review_metrics.py` add `_transcript(path)` with the `message`, `call` and `result` events of [D2](design.md#d2)'s table; add `test_a_transcript_is_reduced_to_numbers_and_ids`: a `Skill` call of `mf-plan` with `brief=` and `from=`, a `Write` of the brief, a `Bash` of `conduct.py cut` and its result `cut: queued 0001-x` give the matching events, and the planted text of each line is in no event.
+- [x] 1.3 In `tests/test_review_metrics.py` add the helpers `_line(kind, time, **message)`, `_turn(id, time, usage, model)` and `_tool(id, time, name, **input)`, which each build one JSON line of a transcript, and `_written(folder, session, *lines)`, which writes `<session>.jsonl`; in `review_metrics.py` add `_transcript(path)` with the `message`, `call` and `result` events of [D2](design.md#d2)'s table; add `test_a_transcript_is_reduced_to_numbers_and_ids`: a `Skill` call of `mf-plan` with `brief=` and `from=`, a `Write` of the brief, a `Bash` of `conduct.py cut` and its result `cut: queued 0001-x` give the matching events, and the planted text of each line is in no event.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k reduced_to_numbers` exits 0.
-- [ ] 1.4 In `_transcript` return `[]` when no `call` holds a marker ([D2](design.md#d2)); add `test_a_session_with_no_marker_is_not_read` to `tests/test_review_metrics.py`: a session of messages and a `Bash` call of `ls` alone gives `[]`, and the same with a `Skill` call of `mf-plan` gives events.
+- [x] 1.4 In `_transcript` return `[]` when no `call` holds a marker ([D2](design.md#d2)); add `test_a_session_with_no_marker_is_not_read` to `tests/test_review_metrics.py`: a session of messages and a `Bash` call of `ls` alone gives `[]`, and the same with a `Skill` call of `mf-plan` gives events.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k no_marker` exits 0.
-- [ ] 1.5 In `_transcript` keep one `message` event per `id`, the first line's ([D3](design.md#d3)); in `review_metrics.py` add `_spend(messages)`, which returns `dollars`, `turns` and `tokens` as [D3](design.md#d3) says; add `test_a_message_is_priced_once_by_its_id`: the streamed lines of one id price as a single turn, a message with no token is no turn, and a model with no `prices.toml` row gives `dollars` of `None` and its tokens.
+- [x] 1.5 In `_transcript` keep one `message` event per `id`, the first line's ([D3](design.md#d3)); in `review_metrics.py` add `_spend(messages)`, which returns `dollars`, `turns` and `tokens` as [D3](design.md#d3) says; add `test_a_message_is_priced_once_by_its_id`: the streamed lines of one id price as a single turn, a message with no token is no turn, and a model with no `prices.toml` row gives `dollars` of `None` and its tokens.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k priced_once` exits 0.
-- [ ] 1.6 In `review_metrics.py` add `_subagents(folder, id)`, as [D2](design.md#d2) says; add `test_a_subagent_is_read_with_its_launching_call` to `tests/test_review_metrics.py`: a `<id>/subagents/agent-a.jsonl` beside `agent-a.meta.json` with a `toolUseId` is read as `{"launch", "messages"}`, and the meta file's other keys are in no event.
+- [x] 1.6 In `review_metrics.py` add `_subagents(folder, id)`, as [D2](design.md#d2) says; add `test_a_subagent_is_read_with_its_launching_call` to `tests/test_review_metrics.py`: a `<id>/subagents/agent-a.jsonl` beside `agent-a.meta.json` with a `toolUseId` is read as `{"launch", "messages"}`, and the meta file's other keys are in no event.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k subagent_is_read` exits 0.
-- [ ] 1.7 **CORPUS** `review-metrics` In `review_metrics.py` add `_station_sessions(repos)` of [D4](design.md#d4) and `_sessions(folders, skipped)` of [D2](design.md#d2); add `test_a_station_session_is_skipped` to `tests/test_review_metrics.py`: a station log of a change whose `init` line names session `s1`, in the moved layout and in the old one, makes `_sessions` skip `s1.jsonl` and its subagents and read `s2.jsonl`.
+- [x] 1.7 **CORPUS** `review-metrics` In `review_metrics.py` add `_station_sessions(repos)` of [D4](design.md#d4) and `_sessions(folders, skipped)` of [D2](design.md#d2); add `test_a_station_session_is_skipped` to `tests/test_review_metrics.py`: a station log of a change whose `init` line names session `s1`, in the moved layout and in the old one, makes `_sessions` skip `s1.jsonl` and its subagents and read `s2.jsonl`.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k station_session_is_skipped` exits 0.
 
 ## 2 — The spans, the binding and the operator booking

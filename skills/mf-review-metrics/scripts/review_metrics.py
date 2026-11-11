@@ -23,6 +23,7 @@ import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime, timedelta
+from itertools import islice
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -102,6 +103,11 @@ OLDER = re.compile(
 # The events a worker's tokens are read from.
 WORKED = ('"task_started"', '"assistant"', '"turn.completed"', '"result"', '"mf.spawn"')
 DAY_SECONDS = 86400
+# A station log's `init` event is in its first lines. Why: 0115-plan-metrics design D4.
+INIT_LINES = 5
+# A `conduct.py cut` command, and the line it prints for each version it queued.
+_CUT = re.compile(r"conduct\.py\s+(?:-\S+\s+)*cut\b")
+_QUEUED = re.compile(r"^cut: queued (\d{4}-[a-z0-9-]+)", re.MULTILINE)
 CHARTS = {
     "rounds": "rounds",
     "findings": "findings",
@@ -175,11 +181,16 @@ def _read_config(path: Path) -> dict[str, Any]:
         raise CannotRun(f"{path}: does not parse: {exc}") from exc
 
 
-def _strings(path: Path, repos: object) -> list[str]:
-    """Return the config's `repos`, or raise when it is not a list of strings."""
-    if not isinstance(repos, list) or not all(isinstance(r, str) for r in repos):
-        raise CannotRun(f"{path}: `repos` is not a list of strings")
-    return repos
+def _strings(path: Path, key: str, value: object) -> list[str]:
+    """Return the config's list at `key`, or raise when it is not a list of strings."""
+    if not isinstance(value, list) or not all(isinstance(r, str) for r in value):
+        raise CannotRun(f"{path}: `{key}` is not a list of strings")
+    return value
+
+
+def _inside(path: Path, text: str) -> Path:
+    """Return `text`, `~`-expanded, resolved against the config file's folder."""
+    return (path.parent / Path(text).expanduser()).resolve()
 
 
 def settings(
@@ -191,23 +202,30 @@ def settings(
     """
     path = config or config_path()
     data = _read_config(path)
-    named = _strings(path, data.get("repos", []))
+    named = _strings(path, "repos", data.get("repos", []))
     page = data.get("out")
     if page is not None and not isinstance(page, str):
         raise CannotRun(f"{path}: `out` is not a string")
-
-    def inside(text: str) -> Path:
-        return (path.parent / Path(text).expanduser()).resolve()
-
     if repos:
         chosen = [r.resolve() for r in repos]
     else:
-        chosen = list(dict.fromkeys([*(inside(r) for r in named), *_recorded_repos()]))
+        found = [_inside(path, r) for r in named]
+        chosen = list(dict.fromkeys([*found, *_recorded_repos()]))
     if not chosen:
         raise CannotRun(f"no repo named: looked for {path}")
     if out is None and page is None:
         raise CannotRun(f"no page path: no --out, and no `out` in {path}")
-    return chosen, out.resolve() if out else inside(str(page))
+    return chosen, out.resolve() if out else _inside(path, str(page))
+
+
+def session_folders(config: Path | None) -> list[Path]:
+    """Return the transcript folders the config's `sessions` lists; none, none.
+
+    Why: 0115-plan-metrics design D1.
+    """
+    path = config or config_path()
+    named = _strings(path, "sessions", _read_config(path).get("sessions", []))
+    return [_inside(path, text) for text in named]
 
 
 def _bullet(name: str) -> re.Pattern[str]:
@@ -947,6 +965,196 @@ def _priced_worker(row: object, usage: dict[str, int]) -> float | None:
     if any(price is None for _, price in priced):
         return None
     return sum(n * (price or 0) for n, price in priced) / 1_000_000
+
+
+def _path(text: str) -> str:
+    """Return a path as text compared: `~` expanded, normalized, quotes dropped."""
+    return os.path.normpath(os.path.expanduser(text.strip("\"'")))
+
+
+def _token(words: str, key: str) -> str | None:
+    """Return the path a `key=<path>` word names, else None.
+
+    e.g. ("x brief=/b/./y.md", "brief") → "/b/y.md"
+    """
+    found = re.search(rf"(?:^|\s){key}=(\S+)", words)
+    return _path(found[1]) if found else None
+
+
+def _call(block: Record, time: datetime | None) -> Record:
+    """Return a `tool_use` block as an event of flags and paths, never its text.
+
+    e.g. a `Skill` of `mf-plan` with `brief=/b.md` → `plan` True, `brief` "/b.md"
+    """
+    name, given = block.get("name"), block.get("input")
+    given = given if isinstance(given, dict) else {}
+    skill = str(given.get("skill")) if name == "Skill" else ""
+    command = str(given.get("command")) if name == "Bash" else ""
+    cut = bool(_CUT.search(command))
+    plan = skill == "mf-plan"
+    words = command if cut else str(given.get("args")) if plan else ""
+    touched = given.get("file_path") if name in ("Write", "Edit") else None
+    return {
+        "event": "call",
+        "id": block.get("id"),
+        "time": time,
+        "mf": skill.startswith("mf-"),
+        "conduct": "conduct.py" in command,
+        "plan": plan,
+        "cut": cut,
+        "brief": _token(words, "brief"),
+        "origin": _token(words, "from"),
+        "touched": _path(touched) if isinstance(touched, str) else None,
+    }
+
+
+def _answer(block: Record) -> Record:
+    """Return a `tool_result` block as its call's id and the ids its lines queued."""
+    content = block.get("content")
+    parts = content if isinstance(content, list) else [{"text": content}]
+    text = "\n".join(str(p.get("text") or "") for p in parts if isinstance(p, dict))
+    return {
+        "event": "result",
+        "call": block.get("tool_use_id"),
+        "ids": _QUEUED.findall(text),
+    }
+
+
+def _events(path: Path) -> list[Record]:
+    """Return a transcript's events in file order, a message once by its first line.
+
+    Why: 0115-plan-metrics design D2, D3.
+    """
+    events: list[Record] = []
+    first: dict[str, datetime | None] = {}
+    with path.open(encoding="utf-8", errors="replace") as lines:
+        for line in lines:
+            row = _object(line)
+            message = row.get("message")
+            message = message if isinstance(message, dict) else {}
+            content = message.get("content")
+            blocks = (
+                [b for b in content if isinstance(b, dict)]
+                if isinstance(content, list)
+                else []
+            )
+            time, ident = _moment(row.get("timestamp")), message.get("id")
+            if row.get("type") == "assistant" and isinstance(ident, str):
+                if ident not in first:
+                    first[ident] = time
+                    model = message.get("model")
+                    events.append(
+                        {
+                            "event": "message",
+                            "id": ident,
+                            "time": time,
+                            "model": model if isinstance(model, str) else None,
+                            "usage": _usage(message.get("usage")),
+                        }
+                    )
+                events += [
+                    _call(b, first[ident])
+                    for b in blocks
+                    if b.get("type") == "tool_use"
+                ]
+            elif row.get("type") == "user":
+                events += [_answer(b) for b in blocks if b.get("type") == "tool_result"]
+    return events
+
+
+def _transcript(path: Path) -> list[Record]:
+    """Return a session's events, none when no call holds a marker.
+
+    A marker is a call of a skill named `mf-*` or of `conduct.py`.
+    Why: 0115-plan-metrics design D2.
+    """
+    events = _events(path)
+    marked = any(e["mf"] or e["conduct"] for e in events if e["event"] == "call")
+    return events if marked else []
+
+
+def _spend(messages: Iterable[Record]) -> Record:
+    """Return the dollars, turns and tokens of the messages, each id priced once.
+
+    A message with no token is no turn; one with no price row makes the dollars a gap.
+    Why: 0115-plan-metrics design D3.
+    """
+    once: dict[str, Record] = {}
+    for message in messages:
+        once.setdefault(message["id"], message)
+    turns = [m for m in once.values() if m["usage"] and sum(m["usage"].values())]
+    prices = _prices()
+    return {
+        "dollars": _total(
+            _priced_worker(prices.get(m["model"]), m["usage"]) for m in turns
+        ),
+        "turns": len(turns),
+        "tokens": sum(sum(m["usage"].values()) for m in turns),
+    }
+
+
+def _subagents(folder: Path, ident: str) -> list[Record]:
+    """Return each subagent of session `ident`: its launching call and its messages.
+
+    e.g. a meta file naming `toolUseId` "t1" → {"launch": "t1", "messages": [...]}
+    Why: 0115-plan-metrics design D2.
+    """
+    found: list[Record] = []
+    for meta in sorted((folder / ident / "subagents").glob("agent-*.meta.json")):
+        log = meta.with_name(meta.name.removesuffix(".meta.json") + ".jsonl")
+        if log.is_file():
+            launch = _object(meta.read_text(encoding="utf-8", errors="replace"))
+            launch = launch.get("toolUseId")
+            messages = [e for e in _events(log) if e["event"] == "message"]
+            found.append(
+                {
+                    "launch": launch if isinstance(launch, str) else None,
+                    "messages": messages,
+                }
+            )
+    return found
+
+
+def _station_sessions(repos: Iterable[Path]) -> set[str]:
+    """Return the session ids the `init` events of the repos' station logs name.
+
+    e.g. a log opening with {"subtype": "init", "session_id": "s1"} → {"s1"}
+    Why: 0115-plan-metrics design D4.
+    """
+    logs = [
+        log
+        for repo in repos
+        for found in (
+            (repo / CHANGES).glob("*/logs/*.log"),
+            (repo / RUNS).glob("*/*.log"),
+        )
+        for log in found
+    ]
+    sessions: set[str] = set()
+    for log in logs:
+        with log.open(encoding="utf-8", errors="replace") as lines:
+            head = [_object(line) for line in islice(lines, INIT_LINES)]
+        named = (e.get("session_id") for e in head if e.get("subtype") == "init")
+        sessions.update(s for s in named if isinstance(s, str))
+    return sessions
+
+
+def _sessions(folders: Iterable[Path], skipped: set[str]) -> list[Record]:
+    """Return each session of the folders with a marker and no station's own.
+
+    e.g. `<folder>/s2.jsonl` → {"id": "s2", "events": [...], "subagents": [...]}
+    Why: 0115-plan-metrics design D2, D4.
+    """
+    found: list[Record] = []
+    for folder in folders:
+        for path in sorted(folder.glob("*.jsonl")):
+            events = [] if path.stem in skipped else _transcript(path)
+            if events:
+                subagents = _subagents(folder, path.stem)
+                found.append(
+                    {"id": path.stem, "events": events, "subagents": subagents}
+                )
+    return found
 
 
 def _converge_workers(repo: Path, change: str) -> list[Record]:

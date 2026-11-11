@@ -7,6 +7,7 @@ import importlib.util
 import json
 import re
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -1348,3 +1349,212 @@ def test_both_layouts_are_read(tmp_path: Path) -> None:
         "conformance"
     }
     assert sorted(tmp_path.rglob("*")) == before
+
+
+def _at(second: int) -> str:
+    return f"2026-11-05T10:00:{second:02d}Z"
+
+
+def _when(second: int) -> datetime:
+    return datetime(2026, 11, 5, 10, 0, second, tzinfo=UTC)
+
+
+def _line(kind: str, time: str, **message: object) -> object:
+    return {"type": kind, "timestamp": time, "message": message}
+
+
+def _turn(id: str, time: str, usage: dict[str, int], model: str) -> object:
+    return _line("assistant", time, id=id, model=model, usage=usage)
+
+
+def _tool(id: str, time: str, name: str, **input: object) -> object:
+    blocks = [{"type": "tool_use", "id": id, "name": name, "input": input}]
+    return _line("assistant", time, id=f"msg-{id}", content=blocks)
+
+
+def _written(folder: Path, session: str, *lines: object) -> Path:
+    path = folder / f"{session}.jsonl"
+    _log(path, *lines)
+    return path
+
+
+def _plan_call(id: str = "t1", second: int = 1) -> object:
+    return _tool(id, _at(second), "Skill", skill="mf-plan", args="brief=/b/x.md")
+
+
+def test_the_sessions_key_names_the_folders(tmp_path: Path) -> None:
+    config = tmp_path / "conf" / "review-metrics.toml"
+    config.parent.mkdir()
+    config.write_text('sessions = ["a", "b"]\n', encoding="utf-8")
+
+    folders = review_metrics.session_folders(config)
+    assert folders == [(config.parent / "a").resolve(), (config.parent / "b").resolve()]
+
+    # Twin: no key, and no file, name no folder.
+    config.write_text('out = "page.html"\n', encoding="utf-8")
+    assert review_metrics.session_folders(config) == []
+    assert review_metrics.session_folders(tmp_path / "missing.toml") == []
+
+    config.write_text('sessions = "a"\n', encoding="utf-8")
+    with pytest.raises(review_metrics.CannotRun, match="`sessions` is not a list"):
+        review_metrics.session_folders(config)
+
+
+def test_a_transcript_is_reduced_to_numbers_and_ids(tmp_path: Path) -> None:
+    usage = {"input_tokens": 3, "output_tokens": 2}
+    text = [{"type": "text", "text": "PLANTED-text"}]
+    answer = [
+        {
+            "type": "tool_result",
+            "tool_use_id": "t3",
+            "content": "cut: queued 0001-x\nPLANTED-result",
+        }
+    ]
+    path = _written(
+        tmp_path,
+        "s1",
+        _line("user", _at(0), content="PLANTED-chat"),
+        _line("assistant", _at(1), id="m1", model="m", usage=usage, content=text),
+        _tool(
+            "t1",
+            _at(2),
+            "Skill",
+            skill="mf-plan",
+            args="x brief=/b/./x.md from=/b/y.md PLANTED-args",
+        ),
+        _line(
+            "assistant",
+            _at(9),
+            id="msg-t1",
+            content=[{"type": "tool_use", "id": "t0", "name": "Bash", "input": {}}],
+        ),
+        _tool("t2", _at(3), "Write", file_path="/b/x.md", content="PLANTED-body"),
+        _tool(
+            "t3",
+            _at(4),
+            "Bash",
+            command="uv run --script conduct.py cut s minor brief=/b/x.md PLANTED-cmd",
+        ),
+        _line("user", _at(5), content=answer),
+    )
+
+    events = review_metrics._transcript(path)
+
+    assert events[0] == {
+        "event": "message",
+        "id": "m1",
+        "time": _when(1),
+        "model": "m",
+        "usage": review_metrics._usage(usage),
+    }
+    calls = {e["id"]: e for e in events if e["event"] == "call"}
+    base: dict[str, object] = {"event": "call", "mf": False, "conduct": False}
+    base |= {"plan": False, "cut": False, "brief": None, "origin": None}
+    base |= {"touched": None}
+    assert calls["t1"] == base | {
+        "id": "t1",
+        "time": _when(2),
+        "mf": True,
+        "plan": True,
+        "brief": "/b/x.md",
+        "origin": "/b/y.md",
+    }
+    assert calls["t2"] == base | {"id": "t2", "time": _when(3), "touched": "/b/x.md"}
+    assert calls["t3"] == base | {
+        "id": "t3",
+        "time": _when(4),
+        "conduct": True,
+        "cut": True,
+        "brief": "/b/x.md",
+    }
+    # A call is at the time of its message's first line.
+    assert calls["t0"]["time"] == _when(2)
+    assert events[-1] == {"event": "result", "call": "t3", "ids": ["0001-x"]}
+    assert "PLANTED" not in str(events)
+
+
+def test_a_session_with_no_marker_is_not_read(tmp_path: Path) -> None:
+    usage = {"input_tokens": 3}
+    plain = [
+        _line("user", _at(0), content="hello"),
+        _turn("m1", _at(1), usage, "m"),
+        _tool("t1", _at(2), "Bash", command="ls"),
+    ]
+    assert review_metrics._transcript(_written(tmp_path, "a", *plain)) == []
+
+    marked = _written(tmp_path, "b", *plain, _plan_call("t2", 3))
+    assert any(e["plan"] for e in review_metrics._transcript(marked) if "plan" in e)
+
+
+def test_a_message_is_priced_once_by_its_id(tmp_path: Path) -> None:
+    usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000}
+    path = _written(
+        tmp_path,
+        "s",
+        _turn("m1", _at(1), usage, "claude-sonnet-5-5"),
+        _turn("m1", _at(2), {"input_tokens": 9}, "claude-sonnet-5-5"),
+        _turn("m2", _at(3), {}, "claude-sonnet-5-5"),
+        _plan_call(),
+        _turn("m3", _at(4), {"input_tokens": 4}, "no-such-model"),
+    )
+    messages = [e for e in review_metrics._transcript(path) if e["event"] == "message"]
+    assert [m["id"] for m in messages] == ["m1", "m2", "msg-t1", "m3"]
+
+    row = review_metrics._prices()["claude-sonnet-5-5"]
+    spend = review_metrics._spend(messages[:3])
+    assert spend["dollars"] == pytest.approx(row["input"] + row["output"])
+    assert (spend["turns"], spend["tokens"]) == (1, 2_000_000)
+    # The same ids again are the same turns.
+    assert review_metrics._spend([*messages[:3], *messages[:3]]) == spend
+
+    # Twin: a model with no row is a gap, its tokens and turns stand.
+    spend = review_metrics._spend(messages)
+    assert spend == {"dollars": None, "turns": 2, "tokens": 2_000_004}
+
+
+def test_a_subagent_is_read_with_its_launching_call(tmp_path: Path) -> None:
+    _written(tmp_path, "s1", _plan_call())
+    folder = tmp_path / "s1" / "subagents"
+    _log(
+        folder / "agent-a.jsonl",
+        _turn("a1", _at(5), {"input_tokens": 3}, "m"),
+        _tool("ta", _at(6), "Bash", command="ls"),
+    )
+    meta = {"toolUseId": "t1", "agentType": "PLANTED-type", "description": "PLANTED"}
+    (folder / "agent-a.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    # A meta file with no transcript beside it is no subagent.
+    (folder / "agent-b.meta.json").write_text("{}", encoding="utf-8")
+
+    found = review_metrics._subagents(tmp_path, "s1")
+
+    assert [(s["launch"], [m["id"] for m in s["messages"]]) for s in found] == [
+        ("t1", ["a1", "msg-ta"])
+    ]
+    assert "PLANTED" not in str(found)
+    assert review_metrics._subagents(tmp_path, "none") == []
+
+
+def test_a_station_session_is_skipped(tmp_path: Path) -> None:
+    repo, folder = tmp_path / "repo", tmp_path / "sessions"
+
+    def init(session: str) -> object:
+        return {"type": "system", "subtype": "init", "session_id": session}
+
+    _worker_log(repo, "0001-x", "20260101-100000-build.log", init("s1"))
+    _run_log(repo, "20260101-100000/0002-y_cut.log", init("s3"))
+    # An init past the log's first lines is no station's.
+    late = [{"type": "assistant"}] * 5
+    _worker_log(repo, "0001-x", "20260101-100000-cut.log", *late, init("s4"))
+    for session in ("s1", "s2", "s3", "s4"):
+        _written(folder, session, _plan_call())
+    _written(folder, "s5", _tool("t1", _at(1), "Bash", command="ls"))
+    _log(folder / "s1" / "subagents" / "agent-a.jsonl", _plan_call())
+    (folder / "s1" / "subagents" / "agent-a.meta.json").write_text("{}")
+
+    skipped = review_metrics._station_sessions([repo])
+    assert skipped == {"s1", "s3"}
+
+    found = review_metrics._sessions([folder, tmp_path / "none"], skipped)
+    assert [session["id"] for session in found] == ["s2", "s4"]
+    assert found[0]["subagents"] == []
+    assert found[0]["events"] == review_metrics._transcript(folder / "s2.jsonl")

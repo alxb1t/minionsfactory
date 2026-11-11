@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `review_metrics.py` reads the `sessions` key of the config and reduces each transcript of those folders to numbers,
+  ids and times, a message priced once by its id, its subagents beside it; a session a station log's `init` names is
+  skipped, and one with no `mf-*` marker is not read (change `0115-plan-metrics`, phase 1).
+
 ## [0.94.0] - 2026-11-11
 
 Gate: local 5m52s · CI not read under mf-ship · 0.93.0: local 5m6s · CI not read under mf-ship
