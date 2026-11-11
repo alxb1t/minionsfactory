@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` passes a bare `pytest` unrun only when its argv with `--collect-only -q` appended exits 0 and prints a
   collected test, so pytest itself settles a node's ancestry and a file with no test (change `0114-faster-plan-check`,
   phase 5).
+- `plan_check.py` keys every kept result by the command text, `HEAD` and every ref, so another branch moving ends each
+  reuse and no reading of a command's words decides it (change `0114-faster-plan-check`, phase 6).
 
 ## [0.93.0] - 2026-11-11
 

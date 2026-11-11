@@ -9,7 +9,7 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 - [x] 3 — The deadline, the catch-up, the whole-suite flag and the foreground · hard
 - [x] 4 — A selection or an option runs a bare pytest · moderate
 - [x] 5 — pytest's own collection proves a bare pytest · moderate
-- [ ] 6 — Every kept result is keyed by HEAD and every ref · moderate
+- [x] 6 — Every kept result is keyed by HEAD and every ref · moderate
 
 ## 1 — plan_check.py: distinct commands, the gate's green record, the record by tree
 
@@ -78,7 +78,7 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 
 ## 6 — Every kept result is keyed by HEAD and every ref
 
-- [ ] 6.1 In `skills/mf-converge/scripts/plan_check.py` make `keyed(text, head)` return the command text, a newline and `head` — `HEAD`'s sha and every ref's — for every command, and delete the functions `names_revision`, `reads_git` and `tokens_of` and the pattern `REVISION`, which nothing else reads ([D3](design.md#d3)); in `tests/test_plan_check.py` make `test_a_command_naming_a_revision_is_keyed_by_head` expect `printf 1`, `ruff check .` and `git ls-files src` keyed by `head` too, make `test_a_script_file_that_reads_git_is_keyed_by_head` expect `sh plain.sh` and `sh loop.sh` keyed by `head` too, each calling `keyed` with no root, and make `test_a_result_is_kept_by_tree_and_reused` expect its empty commit to run both commands again.
+- [x] 6.1 In `skills/mf-converge/scripts/plan_check.py` make `keyed(text, head)` return the command text, a newline and `head` — `HEAD`'s sha and every ref's — for every command, and delete the functions `names_revision`, `reads_git` and `tokens_of` and the pattern `REVISION`, which nothing else reads ([D3](design.md#d3)); in `tests/test_plan_check.py` make `test_a_command_naming_a_revision_is_keyed_by_head` expect `printf 1`, `ruff check .` and `git ls-files src` keyed by `head` too, make `test_a_script_file_that_reads_git_is_keyed_by_head` expect `sh plain.sh` and `sh loop.sh` keyed by `head` too, each calling `keyed` with no root, and make `test_a_result_is_kept_by_tree_and_reused` expect its empty commit to run both commands again.
   Verify: `uv run pytest -q tests/test_plan_check.py -k keyed_by_head` exits 0, `uv run pytest -q tests/test_plan_check.py -k kept_by_tree` exits 0, and `git grep -n -w -e names_revision -e reads_git -- skills/mf-converge/scripts/plan_check.py` prints nothing.
-- [ ] 6.2 Add `test_a_wrapped_git_command_is_not_reused_once_a_branch_moves` to `tests/test_plan_check.py`, in the shape of `test_another_branch_moving_ends_the_reuse_of_a_result`: on a settled tree `sh -c 'git diff --quiet other HEAD'`, `sh check-refs.sh` and `sh -c 'sh check-refs.sh'`, `check-refs.sh` a committed file holding `git diff --quiet other HEAD`, each pass; then `other` moves with `HEAD` and the tree unchanged, and each exits 1 ([D3](design.md#d3)).
+- [x] 6.2 Add `test_a_wrapped_git_command_is_not_reused_once_a_branch_moves` to `tests/test_plan_check.py`, in the shape of `test_another_branch_moving_ends_the_reuse_of_a_result`: on a settled tree `sh -c 'git diff --quiet other HEAD'`, `sh check-refs.sh` and `sh -c 'sh check-refs.sh'`, `check-refs.sh` a committed file holding `git diff --quiet other HEAD`, each pass; then `other` moves with `HEAD` and the tree unchanged, and each exits 1 ([D3](design.md#d3)).
   Verify: `uv run pytest -q tests/test_plan_check.py -k wrapped_git_command` exits 0.

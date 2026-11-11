@@ -32,7 +32,6 @@ DRAIN_SECONDS = 5
 CPUS = os.cpu_count() or 1
 RUNNING: set[subprocess.Popen[str]] = set()
 PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
-REVISION = re.compile(r"[0-9a-f]{7,40}")
 TEST_MODULE = re.compile(r"test_.*\.py|.*_test\.py")
 EXCLUDES = re.compile(r"collect_ignore|pytest_ignore_collect")
 QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
@@ -482,55 +481,13 @@ def collecting(texts: list[str], root: Path) -> set[str]:
     }
 
 
-def names_revision(argv: list[str]) -> bool:
-    """Return whether a command reads a revision, so `HEAD` is part of its key.
-
-    A word starting `HEAD` or a hex sha, a `git` command but `ls-files`, or a word
-    that holds `git` as a word of its own, as a shell's script does.
-    """
-    if any(word.startswith("HEAD") or REVISION.fullmatch(word) for word in argv):
-        return True
-    if argv[:1] == ["git"]:
-        return argv[1:2] != ["ls-files"]
-    return any(re.search(r"\bgit\b", word) for word in argv)
-
-
-def reads_git(argv: list[str], root: Path, seen: frozenset[Path] = frozenset()) -> bool:
-    """Return whether a word names a file in the tree that reads git.
-
-    A file reads git when its text holds `git`, or when it names, as a word, a file
-    that does: a helper that delegates to a script is followed, each file once.
-    """
-    for word in argv:
-        path = root / word
-        try:
-            if not path.is_file() or path in seen:
-                continue
-            text = path.read_text(errors="replace")
-            if re.search(r"\bgit\b", text) or reads_git(
-                tokens_of(text), root, seen | {path}
-            ):
-                return True
-        except OSError:
-            return True  # unreadable: tree-only behaviour is unproven
-    return False
-
-
-def tokens_of(text: str) -> list[str]:
-    """Return a script's words, split on white space and shell punctuation."""
-    return re.split(r"[\s;&|()<>\"'`$=]+", text)
-
-
-def keyed(text: str, head: str, root: Path | None = None) -> str:
-    """Return a command's key: its text, and the refs' state when it names a revision.
+def keyed(text: str, head: str) -> str:
+    """Return a command's key: its text, a newline and `head`, for every command.
 
     `head` is `HEAD`'s sha and every ref's, so another branch moving ends a reuse.
-    A script file the command names counts when its text holds `git`.
+    Why: 0114-faster-plan-check design D3.
     """
-    argv = tokens(text)
-    if names_revision(argv) or (root is not None and reads_git(argv, root)):
-        return f"{text}\n{head}"
-    return text
+    return f"{text}\n{head}"
 
 
 def store(tree: str) -> Path:
@@ -581,7 +538,7 @@ def check_verifies(
     refs = _git(root, "for-each-ref", "--format=%(objectname) %(refname)").stdout
     head = _git(root, "rev-parse", "HEAD").stdout.strip() + "\n" + refs
     tree = _guarded(gate()["settled_tree"])
-    keys = {command.text: keyed(command.text, head, root) for _, command in pending}
+    keys = {command.text: keyed(command.text, head) for _, command in pending}
     results: dict[str, Result] = {}
     if tree is not None:
         results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}

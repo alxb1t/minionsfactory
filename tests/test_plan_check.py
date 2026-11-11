@@ -438,30 +438,22 @@ def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
         "git",
         "git grep -q marker other -- src",
         "sh -c 'git diff --quiet other'",
-    ):
-        assert plan_check.keyed(text, "abc") == f"{text}\nabc"
-    for text in (
-        "git ls-files src",
         "printf 1",
         "ruff check .",
+        "git ls-files src",
     ):
-        assert plan_check.keyed(text, "abc") == text
+        assert plan_check.keyed(text, "abc") == f"{text}\nabc"
 
 
-def test_a_script_file_that_reads_git_is_keyed_by_head(tmp_path: Path) -> None:
-    (tmp_path / "check-refs.sh").write_text("git diff --quiet other\n")
-    (tmp_path / "plain.sh").write_text("echo 1\n")
-    assert (
-        plan_check.keyed("sh check-refs.sh", "abc", tmp_path) == "sh check-refs.sh\nabc"
-    )
-    assert plan_check.keyed("sh plain.sh", "abc", tmp_path) == "sh plain.sh"
-    (tmp_path / "locked.sh").write_text("echo 1\n")
-    (tmp_path / "locked.sh").chmod(0)
-    assert plan_check.keyed("sh locked.sh", "abc", tmp_path) == "sh locked.sh\nabc"
-    (tmp_path / "outer.sh").write_text("sh check-refs.sh\n")
-    (tmp_path / "loop.sh").write_text("sh loop.sh\n")
-    assert plan_check.keyed("sh outer.sh", "abc", tmp_path) == "sh outer.sh\nabc"
-    assert plan_check.keyed("sh loop.sh", "abc", tmp_path) == "sh loop.sh"
+def test_a_script_file_that_reads_git_is_keyed_by_head() -> None:
+    for text in (
+        "sh check-refs.sh",
+        "sh plain.sh",
+        "sh locked.sh",
+        "sh outer.sh",
+        "sh loop.sh",
+    ):
+        assert plan_check.keyed(text, "abc") == f"{text}\nabc"
 
 
 def test_another_branch_moving_ends_the_reuse_of_a_result(
@@ -481,6 +473,38 @@ def test_another_branch_moving_ends_the_reuse_of_a_result(
     # `other` moves; HEAD and the tree stay: the kept success is not read again.
     _git(root, "branch", "-f", "other", "HEAD~1")
     assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
+
+
+def test_a_wrapped_git_command_is_not_reused_once_a_branch_moves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    (root / "check-refs.sh").write_text("git diff --quiet other HEAD\n")
+    commands = (
+        "sh -c 'git diff --quiet other HEAD'",
+        "sh check-refs.sh",
+        "sh -c 'sh check-refs.sh'",
+    )
+    _commit_tasks(
+        root,
+        *(
+            f"- [x] 1.{n} Wrapped.\n  Verify: `{c}`.\n"
+            for n, c in enumerate(commands, 1)
+        ),
+    )
+    _git(root, "branch", "other")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    assert check() == (0, ["plan: clean"])
+    _git(root, "branch", "-f", "other", "HEAD~1")
+    assert check() == (
+        1,
+        [f"plan: 1.{n} — `{c}` exited 1" for n, c in enumerate(commands, 1)],
+    )
 
 
 def test_a_git_grep_of_another_branch_is_not_reused_once_it_moves(
@@ -568,22 +592,22 @@ def test_a_result_is_kept_by_tree_and_reused(
 
     assert check() == (0, ["plan: clean"], 2)
     assert (check(), runs()) == ((0, ["plan: clean"], 2), 1)
-    # A new commit on the same tree runs the command naming `HEAD` again alone.
+    # A new commit on the same tree runs every command again: `HEAD` keys them all.
     _git(root, "commit", "-q", "--allow-empty", "-m", "empty")
-    assert (check(), runs()) == ((0, ["plan: clean"], 3), 1)
+    assert (check(), runs()) == ((0, ["plan: clean"], 4), 2)
     # Another tree has its own results, and a result is judged by the words that
     # name it.
     _commit_tasks(root, tasks[0].replace("prints `1`", "prints `2`"))
     other = "printed other than its Verify: says"
     out = [f"plan: 1.1 — `{counted}` {other}", "  | 1"]
-    assert (check(), runs()) == ((1, out, 4), 2)
-    assert (check(), runs()) == ((1, out, 4), 2)
+    assert (check(), runs()) == ((1, out, 5), 3)
+    assert (check(), runs()) == ((1, out, 5), 3)
     # An unsettled tree reads nothing and keeps nothing.
     (root / _FOLDER / "tasks.md").write_text(_ONE + tasks[0])
-    assert (check(), runs()) == ((0, ["plan: clean"], 4), 3)
+    assert (check(), runs()) == ((0, ["plan: clean"], 5), 4)
     monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
     _commit_tasks(root, "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n")
-    assert check() == (1, ["plan: 1.1 — `sleep 5` timed out"], 4)
+    assert check() == (1, ["plan: 1.1 — `sleep 5` timed out"], 5)
     # A store that is a link keeps nothing.
     monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 600)
     elsewhere = tmp_path / "elsewhere"
@@ -591,7 +615,7 @@ def test_a_result_is_kept_by_tree_and_reused(
     shutil.rmtree(kept)
     kept.symlink_to(elsewhere)
     _commit_tasks(root, tasks[0])
-    assert (check(), runs()) == ((0, ["plan: clean"], 0), 4)
+    assert (check(), runs()) == ((0, ["plan: clean"], 0), 5)
     assert list(elsewhere.iterdir()) == []
 
 
