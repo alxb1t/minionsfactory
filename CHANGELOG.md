@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   findings older than the card shape; a linked case folder stops the run. Plan metrics reads `$NAME` in a cut's brief,
   books operator work to the session's own repo, and counts only agent tasks as workers
   (0118-debt-paydown-3a, phase 3).
+- `cut_check.py` row `V6` fails a `Verify:` search whose needle a later sub-task naming the file removes in a fenced
+  `diff` block, unless that task adds it back (0118-debt-paydown-3a, phase 4).
 
 ## [0.97.0] - 2026-11-11
 

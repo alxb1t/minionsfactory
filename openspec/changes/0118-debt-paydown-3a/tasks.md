@@ -7,7 +7,7 @@ Premise checks for the cards that close without code, the prose and archive fixe
 - [x] 1 — the cards closed without code, each Still true? recorded · moderate
 - [x] 2 — the prose and archive cards; C4 under the threat model's Out of scope · moderate
 - [x] 3 — corpus.py skips old findings and follows no linked case; review_metrics $NAME and per-repo marks; 0100·S4, 0101·R7, 0114·R7 · hard
-- [ ] 4 — cut_check.py's row for a Verify: needle a later task removes · hard
+- [x] 4 — cut_check.py's row for a Verify: needle a later task removes · hard
 
 ## 1 — the cards closed without code, each Still true? recorded
 
@@ -123,8 +123,8 @@ Each code sub-task writes its test first, runs it red, then makes the fix, and i
 
 ## 4 — cut_check.py's row for a Verify: needle a later task removes
 
-- [ ] 4.1 In `tests/test_cut_check.py` add the defect `_needle_removed_by_a_later_task` as row `V6` of `test_each_mechanical_row_fails_by_name` and `test_a_needle_a_later_task_adds_back_passes_v6`, and in `skills/mf-cut-change/scripts/cut_check.py` add `row_v6(change, plan)` after `row_v1` ([D11](design.md#d11)). The tests: the first sub-task's `Verify:` greps `x` in `a.py`, and a later sub-task naming `a.py` holds a fenced `diff` block, before its `Verify:` line, with the removed line `-x` (the row fails) or the removed line `-x` and the added line `+x` (the row is silent). The code: read the raw `change.tasks`, not `plan["subtasks"]`, which joins lines; return `<task>: <needle> is removed in <later>` for a needle a later sub-task naming the search's file quotes in a removed line; add `"V6"` to `ROWS` after `"V5"` and `("V6", row_v6(change, plan))` after `V5` in `check`.
+- [x] 4.1 In `tests/test_cut_check.py` add the defect `_needle_removed_by_a_later_task` as row `V6` of `test_each_mechanical_row_fails_by_name` and `test_a_needle_a_later_task_adds_back_passes_v6`, and in `skills/mf-cut-change/scripts/cut_check.py` add `row_v6(change, plan)` after `row_v1` ([D11](design.md#d11)). The tests: the first sub-task's `Verify:` greps `x` in `a.py`, and a later sub-task naming `a.py` holds a fenced `diff` block, before its `Verify:` line, with the removed line `-x` (the row fails) or the removed line `-x` and the added line `+x` (the row is silent). The code: read the raw `change.tasks`, not `plan["subtasks"]`, which joins lines; return `<task>: <needle> is removed in <later>` for a needle a later sub-task naming the search's file quotes in a removed line; add `"V6"` to `ROWS` after `"V5"` and `("V6", row_v6(change, plan))` after `V5` in `check`.
   Verify: `uv run pytest tests/test_cut_check.py -q -k "V6 or adds_back"` exits 0.
-- [ ] 4.2 In `skills/mf-cut-change/SKILL.md`, change both `V1`–`V5` to `V1`–`V6`, and in Step 8's second bullet add "a needle a later task removes" to what the rows settle.
+- [x] 4.2 In `skills/mf-cut-change/SKILL.md`, change both `V1`–`V5` to `V1`–`V6`, and in Step 8's second bullet add "a needle a later task removes" to what the rows settle.
   Verify: `git grep -n 'V6' -- skills/mf-cut-change/SKILL.md` prints a line.
 

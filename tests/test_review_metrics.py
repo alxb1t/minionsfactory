@@ -1960,12 +1960,17 @@ def test_operator_work_is_booked_to_the_nearest_mark(
     # A session with no `cwd`, one naming no repo, and one whose `.git` is a folder.
     nowhere = tmp_path / "nowhere"
     (nowhere / ".git").mkdir(parents=True)
+    stray = tmp_path / "stray"
+    stray.mkdir()
+    gone = tmp_path / "elsewhere" / ".git" / "worktrees" / "stray"
+    (stray / ".git").write_text(f"gitdir: {gone}\n", encoding="utf-8")
     heads = {
         "equal": str(other),
         "holds": str(other / "sub"),
         "worktree": str(tree),
         "none": None,
         "nowhere": str(nowhere),
+        "stray": str(stray),
         "missing": str(tmp_path / "missing"),
     }
     folder = tmp_path / "cwd-sessions"
@@ -1990,6 +1995,7 @@ def test_operator_work_is_booked_to_the_nearest_mark(
         "worktree": own,
         "none": near,
         "nowhere": near,
+        "stray": near,
         "missing": near,
     }
     # With no `repos`, the same session books as before.
