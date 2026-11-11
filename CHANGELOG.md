@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.96.0] - 2026-11-11
+
+Gate: local 6m24s · CI not read under mf-ship · 0.95.0: local 6m55s · CI not read under mf-ship
+
 - `cut_context.py <brief> <change-id>` writes the cut's context pack, `context.md`, and its `cut-notes.md` in the
   run directory: the brief, each fact with its lines at `HEAD`, the cited decisions, the requirements the brief
   names, the debt cards on cited files and the skeleton of each artifact; `brief_check.py --sections` prints the
