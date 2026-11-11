@@ -6,6 +6,7 @@ Why: 0120-ui-state design, *Tests*.
 
 import json
 import os
+import re
 import runpy
 import signal
 import subprocess
@@ -894,3 +895,30 @@ def test_main_runs_serve_start_and_stop(
     assert ns["config_path"]() == tmp_path / "home/.config/minionsfactory/ui.toml"
     assert ns["state_folder"]() == tmp_path / "home/.local/state/minionsfactory"
     assert ns["recorded"]() == tmp_path / "home/.mf-ship-origin/repos"
+
+
+_SINK = re.compile(
+    r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|\bFunction\("
+)
+
+
+def test_the_page_sets_text_only() -> None:
+    planted = [
+        "a.innerHTML = x",
+        "a.outerHTML = x",
+        "a.insertAdjacentHTML(p, x)",
+        "document.write(x)",
+        "eval(x)",
+        "Function(x)",
+    ]
+    assert all(_SINK.search(each) for each in planted)
+    assert not _SINK.search("a.textContent = x; document.createElement(t)")
+    page = _REPO / "skills" / "mf-ui" / "page" / "index.html"
+    assert 'new EventSource("/events")' in page.read_text(encoding="utf-8")
+    folder = _REPO / "skills" / "mf-ui"
+    files = [
+        each for each in folder.rglob("*") if each.suffix in {".py", ".html", ".md"}
+    ]
+    assert page in files
+    held = [str(each) for each in files if _SINK.search(each.read_text("utf-8"))]
+    assert held == []

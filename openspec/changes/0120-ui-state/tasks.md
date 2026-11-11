@@ -6,7 +6,7 @@ The phases: the projector, the server, the page, the record, and a person's chec
 
 - [x] 1 — The projector · hard
 - [x] 2 — The server · hard
-- [ ] 3 — The page · moderate
+- [x] 3 — The page · moderate
 - [ ] 4 — The record · moderate
 - [ ] 5 — The live check **HUMAN**
 
@@ -75,9 +75,9 @@ The phases: the projector, the server, the page, the record, and a person's chec
 
 ## 3 — The page
 
-- [ ] 3.1 Write `skills/mf-ui/page/index.html` as [D9](design.md#d9) says: tokens, one column, `EventSource`, text nodes only.
+- [x] 3.1 Write `skills/mf-ui/page/index.html` as [D9](design.md#d9) says: tokens, one column, `EventSource`, text nodes only.
   Verify: `grep -c 'new EventSource("/events")' skills/mf-ui/page/index.html` prints `1`.
-- [ ] 3.2 Add `test_the_page_sets_text_only`: no file under `skills/mf-ui/` holds a markup sink named in [D9](design.md#d9).
+- [x] 3.2 Add `test_the_page_sets_text_only`: no file under `skills/mf-ui/` holds a markup sink named in [D9](design.md#d9).
   Verify: `uv run pytest tests/test_viewer.py -k page_sets_text -q` exits 0.
 
 ## 4 — The record

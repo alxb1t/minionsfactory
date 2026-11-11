@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is read by a child killed past 10 s, a changed state is streamed whole and numbered at `/events`, `/state` answers
   the newest, and a foreign `Host` gets 403. `start` finds a running server, `stop` signals only its pid
   (0120-ui-state, phase 2).
+- `skills/mf-ui/page/index.html` is the viewer's page: one file with an inline script and style, in the Macchiato
+  tokens, that opens `/events`, renders each whole state and counts elapsed time itself. It sets every string as
+  text, and a test holds the markup sinks out of `skills/mf-ui/` (0120-ui-state, phase 3).
 
 ## [0.97.0] - 2026-11-11
 
