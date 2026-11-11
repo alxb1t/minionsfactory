@@ -19,6 +19,7 @@ import subprocess
 import sys
 import threading
 import time
+import tomllib
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -3929,6 +3930,35 @@ def test_a_cut_queues_its_models_file(
     assert sorted(os.listdir(root / ".minions" / "cuts")) == before[0]
 
 
+def test_a_cut_queues_a_codex_fixer(tmp_path: Path, fake: Callable[..., Path]) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    brief = tmp_path / "brief.md"
+    items = _items("a").replace(
+        "cut opus high", "cut opus high · fix codex/gpt-6.1-sol medium"
+    )
+    brief.write_text(f"# brief\n\n{items}")
+    said = conduct["cut"](
+        root, "a", "minor", f"brief={brief}", [], "claude", None, None
+    )
+    assert said == "cut: queued 0001-a · the live run takes it"
+    written = root / ".minions" / "changes" / "0001-a" / "models.toml"
+    assert tomllib.loads(written.read_text())["converge"]["fix"] == {
+        "executor": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "medium",
+    }
+    assert conduct["_models"](
+        root / ".minions", "0001-a", "converge.fix", "claude"
+    ) == (
+        "codex",
+        "gpt-6.1-sol",
+        "medium",
+    )
+
+
 _FAKE_UV = """
 import json
 import os
@@ -5013,8 +5043,8 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
     for station, text, said in (
         (
             "converge.fix",
-            '[converge.fix]\nexecutor = "codex"\n',
-            f"{file}: converge.fix names an executor",
+            '[converge.fix]\nexecutor = "codex"\nmodel = "claude-sonnet-5-5"\n',
+            f"{file}: converge.fix on codex, model claude-sonnet-5-5",
         ),
         (
             "converge.adversarial",
@@ -5815,11 +5845,23 @@ def test_a_station_runs_on_its_executor(
         "gpt-6.1-sol",
         "high",
     )
+    # A fixer with no own executor runs on Claude, whatever converge's is.
     assert models(minions, "0001-todo", "converge.fix", "claude") == (
-        "codex",
+        "claude",
         None,
         None,
     )
+    (minions / "changes" / "0001-todo" / "models.toml").write_text(
+        table
+        + '[converge.fix]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n'
+        + 'effort = "medium"\n'
+    )
+    assert models(minions, "0001-todo", "converge.fix", "claude") == (
+        "codex",
+        "gpt-6.1-sol",
+        "medium",
+    )
+    (minions / "changes" / "0001-todo" / "models.toml").write_text(table)
 
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)

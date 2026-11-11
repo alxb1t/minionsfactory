@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A brief's `fix codex/<model> <effort>` and `[converge.fix] executor = "codex"` are valid; a fixer naming no host
+  runs on Claude and no longer inherits `[converge]`'s executor (0117-codex-converge, phase 1).
+
 ## [0.96.0] - 2026-11-11
 
 Gate: local 6m24s · CI not read under mf-ship · 0.95.0: local 6m55s · CI not read under mf-ship

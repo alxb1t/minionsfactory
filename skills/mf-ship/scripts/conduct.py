@@ -2591,7 +2591,7 @@ def _models(
     """Return the station's executor, model and effort from the cut's models file.
 
     Integrate uses the `[release]` table, and the rescue `[rescue]`, else `[build]`.
-    Why: 0067 D5; 0089 D2; 0094 D1; 0095 D2; 0097 D3; 0100 D8; 0102 D5; 0108 D8.
+    Why: 0067 D5; 0089 D2; 0094 D1; 0095 D2; 0097 D3; 0100 D8; 0102 D5; 0108 D8; 0117 D2
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
     names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
@@ -2602,7 +2602,7 @@ def _models(
     file = f"changes/{change}/models.toml"
     own = "executor" in table
     if station in (*WORKERS, MODERATE):
-        if own and station in (FIXER, MODERATE):
+        if own and station == MODERATE:
             raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
         for value in (model, effort):
             if isinstance(value, str) and not TOKEN.fullmatch(value):
@@ -2613,9 +2613,9 @@ def _models(
                 )
     if station == MODERATE:
         executor = _models(runs, change, "build", run)[0]
-    if station in WORKERS:
+    if station in WORKERS and not own:
         converge = _models(runs, change, "converge", run)[0]
-        executor = executor if own else converge
+        executor = "claude" if station == FIXER else converge
     model = model if isinstance(model, str) else None
     if station == "supervise" and executor == "claude":
         model, effort = model or SUPERVISOR[0], effort or SUPERVISOR[1]

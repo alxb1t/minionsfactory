@@ -4,23 +4,23 @@ The models line, the fixer on Codex with the stage rule, then the windows, the p
 
 ## Progress
 
-- [ ] 1 — the models line: fix codex/<model> in brief_check.py and conduct.py's _models, no inherited executor · moderate
+- [x] 1 — the models line: fix codex/<model> in brief_check.py and conduct.py's _models, no inherited executor · moderate
 - [ ] 2 — converge.py's fixer on Codex: through the worker call, a limit halts it, no fallback; 0104·S4 · hard
 - [ ] 3 — _headroom over both windows; fix.md's trailer and no-package line; D68, D76, D40; the spec · hard
 
 ## 1 — the models line: fix codex/<model> in brief_check.py and conduct.py's _models, no inherited executor
 
-- [ ] 1.1 In `skills/mf-plan/scripts/brief_check.py`, set `HOSTLESS = ("cut", "build-moderate")` ([D2](design.md#d2)).
+- [x] 1.1 In `skills/mf-plan/scripts/brief_check.py`, set `HOSTLESS = ("cut", "build-moderate")` ([D2](design.md#d2)).
   Verify: `git grep -n 'HOSTLESS = ("cut", "build-moderate")' -- skills/mf-plan/scripts/brief_check.py` prints a line.
-- [ ] 1.2 In `skills/mf-plan/SKILL.md`, write `fix <host/model> <effort>` in the `models:` grammar line, and replace "`cut`, `fix` and `build-moderate` take none" with "`cut` and `build-moderate` take none; `fix codex/<model> <effort>` runs the fixer on Codex, and a `fix` with no host runs on Claude".
+- [x] 1.2 In `skills/mf-plan/SKILL.md`, write `fix <host/model> <effort>` in the `models:` grammar line, and replace "`cut`, `fix` and `build-moderate` take none" with "`cut` and `build-moderate` take none; `fix codex/<model> <effort>` runs the fixer on Codex, and a `fix` with no host runs on Claude".
   Verify: `git grep -n 'fix <host/model> <effort>' -- skills/mf-plan/SKILL.md` prints a line.
-- [ ] 1.3 In `tests/test_brief_check.py`, drop the `fix codex/x b` item and its `takes no host` line from `test_a_brief_out_of_shape_halts`, keeping the `cut` and `build-moderate` ones and every item's number as it stands. Add a `fix codex/gpt-6.1-sol medium` item to `test_models_prints_the_items_toml` and assert the `[converge.fix]` table holds `executor = "codex"`, `model = "gpt-6.1-sol"` and `effort = "medium"`.
+- [x] 1.3 In `tests/test_brief_check.py`, drop the `fix codex/x b` item and its `takes no host` line from `test_a_brief_out_of_shape_halts`, keeping the `cut` and `build-moderate` ones and every item's number as it stands. Add a `fix codex/gpt-6.1-sol medium` item to `test_models_prints_the_items_toml` and assert the `[converge.fix]` table holds `executor = "codex"`, `model = "gpt-6.1-sol"` and `effort = "medium"`.
   Verify: `uv run pytest tests/test_brief_check.py -q` exits 0.
-- [ ] 1.4 In `skills/mf-ship/scripts/conduct.py`'s `_models`, stop refusing `FIXER` an own `executor`: the refusal at `own and station in (FIXER, MODERATE)` keeps `MODERATE` alone. For a `FIXER` with no own `executor`, return `"claude"`, not `[converge]`'s ([D2](design.md#d2)). Update the docstring's `Why:` to name `0117-codex-converge design D2`.
+- [x] 1.4 In `skills/mf-ship/scripts/conduct.py`'s `_models`, stop refusing `FIXER` an own `executor`: the refusal at `own and station in (FIXER, MODERATE)` keeps `MODERATE` alone. For a `FIXER` with no own `executor`, return `"claude"`, not `[converge]`'s ([D2](design.md#d2)). Update the docstring's `Why:` to name `0117-codex-converge design D2`.
   Verify: `git grep -n 'own and station in (FIXER, MODERATE)' -- skills/mf-ship/scripts/conduct.py` exits 1.
-- [ ] 1.5 In `tests/test_conduct.py`: in `test_a_checker_on_another_host_is_planned_and_probed`, replace the `converge.fix names an executor` row with `[converge.fix]` `executor = "codex"`, `model = "claude-sonnet-5-5"` halting `converge.fix on codex, model claude-sonnet-5-5`. In `test_a_station_runs_on_its_executor`, assert `models(minions, "0001-todo", "converge.fix", "claude")` is `("claude", …)` under a `[converge] executor = "codex"` file with no fixer table, and `("codex", "gpt-6.1-sol", "medium")` under `[converge.fix] executor = "codex"`.
+- [x] 1.5 In `tests/test_conduct.py`: in `test_a_checker_on_another_host_is_planned_and_probed`, replace the `converge.fix names an executor` row with `[converge.fix]` `executor = "codex"`, `model = "claude-sonnet-5-5"` halting `converge.fix on codex, model claude-sonnet-5-5`. In `test_a_station_runs_on_its_executor`, assert `models(minions, "0001-todo", "converge.fix", "claude")` is `("claude", …)` under a `[converge] executor = "codex"` file with no fixer table, and `("codex", "gpt-6.1-sol", "medium")` under `[converge.fix] executor = "codex"`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "another_host or runs_on_its_executor"` exits 0.
-- [ ] 1.6 In `tests/test_conduct.py`, add `test_a_cut_queues_a_codex_fixer`: a brief item whose models line ends `fix codex/gpt-6.1-sol medium`, cut as `test_a_cut_queues_its_models_file` cuts its own, queues a `models.toml` holding `[converge.fix]` with `executor = "codex"`, which `_models` reads back as `("codex", "gpt-6.1-sol", "medium")`. Leave `_MODELS` and that test as they are.
+- [x] 1.6 In `tests/test_conduct.py`, add `test_a_cut_queues_a_codex_fixer`: a brief item whose models line ends `fix codex/gpt-6.1-sol medium`, cut as `test_a_cut_queues_its_models_file` cuts its own, queues a `models.toml` holding `[converge.fix]` with `executor = "codex"`, which `_models` reads back as `("codex", "gpt-6.1-sol", "medium")`. Leave `_MODELS` and that test as they are.
   Verify: `uv run pytest tests/test_conduct.py -q -k queues_a_codex_fixer` exits 0.
 
 ## 2 — converge.py's fixer on Codex: through the worker call, a limit halts it, no fallback; 0104·S4
