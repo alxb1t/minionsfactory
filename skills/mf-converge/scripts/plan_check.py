@@ -34,6 +34,7 @@ RUNNING: set[subprocess.Popen[str]] = set()
 PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
 REVISION = re.compile(r"[0-9a-f]{7,40}")
 TEST_MODULE = re.compile(r"test_.*\.py|.*_test\.py")
+EXCLUDES = re.compile(r"collect_ignore|pytest_ignore_collect")
 QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
 COLLECTED = re.compile(
     r"^\S+::\S|^\S+: [1-9]\d*$|(?<![/\d])[1-9]\d* tests? collected", re.M
@@ -418,7 +419,8 @@ def names_tests(argv: list[str], root: Path) -> bool:
 def gate_discovers(operand: str, root: Path) -> bool:
     """Return whether the gate's bare pytest reaches an operand's file.
 
-    The repo's `testpaths` name where it looks; with none, it looks everywhere.
+    `testpaths` name where it looks, and an ignore option or a conftest's
+    `collect_ignore` hook may exclude what an explicit operand still collects.
     """
     try:
         config = tomllib.loads((root / "pyproject.toml").read_text())
@@ -427,7 +429,16 @@ def gate_discovers(operand: str, root: Path) -> bool:
     options = config.get("tool", {}).get("pytest", {}).get("ini_options", {})
     paths = options.get("testpaths") or ["."]
     file = (root / operand.split("::", maxsplit=1)[0]).resolve()
-    return any(file.is_relative_to((root / str(path)).resolve()) for path in paths)
+    if not any(file.is_relative_to((root / str(path)).resolve()) for path in paths):
+        return False
+    if re.search(r"--(?:ignore|deselect)", str(options.get("addopts", ""))):
+        return False
+    folder = file.parent
+    while folder.is_relative_to(root.resolve()):
+        if EXCLUDES.search(_read(folder / "conftest.py")):
+            return False
+        folder = folder.parent
+    return True
 
 
 def _vouched(word: str, root: Path) -> bool:
@@ -474,11 +485,14 @@ def collecting(texts: list[str], root: Path) -> set[str]:
 def names_revision(argv: list[str]) -> bool:
     """Return whether a command reads a revision, so `HEAD` is part of its key.
 
-    A word starting `HEAD` or a hex sha, or a `git` command but `ls-files`.
+    A word starting `HEAD` or a hex sha, a `git` command but `ls-files`, or a word
+    that holds `git` as a word of its own, as a shell's script does.
     """
     if any(word.startswith("HEAD") or REVISION.fullmatch(word) for word in argv):
         return True
-    return argv[:1] == ["git"] and argv[1:2] != ["ls-files"]
+    if argv[:1] == ["git"]:
+        return argv[1:2] != ["ls-files"]
+    return any(re.search(r"\bgit\b", word) for word in argv)
 
 
 def keyed(text: str, head: str) -> str:

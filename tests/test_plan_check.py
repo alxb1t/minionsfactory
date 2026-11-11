@@ -437,6 +437,7 @@ def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
         "printf deadbeef",
         "git",
         "git grep -q marker other -- src",
+        "sh -c 'git diff --quiet other'",
     ):
         assert plan_check.keyed(text, "abc") == f"{text}\nabc"
     for text in (
@@ -497,6 +498,14 @@ def test_the_gate_vouches_only_for_tests_it_discovers(
     assert plan_check.gate_discovers("tests/test_mod.py::test_gone", root)
     assert not plan_check.gate_discovers("extras/test_x.py", root)
     assert not plan_check.gate_discovers("tests/../extras/test_x.py", root)
+    (root / "tests" / "conftest.py").write_text('collect_ignore = ["test_mod.py"]\n')
+    assert not plan_check.gate_discovers("tests/test_mod.py", root)
+    (root / "tests" / "conftest.py").unlink()
+    (root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n'
+        'addopts = "--ignore=tests/test_mod.py"\n'
+    )
+    assert not plan_check.gate_discovers("tests/test_mod.py", root)
 
 
 def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
@@ -541,7 +550,6 @@ def test_a_result_is_kept_by_tree_and_reused(
     def runs() -> int:
         return len(ran.read_text().splitlines())
 
-    # A settled tree keeps a result for each command, and reads it again.
     assert check() == (0, ["plan: clean"], 2)
     assert (check(), runs()) == ((0, ["plan: clean"], 2), 1)
     # A new commit on the same tree runs the command naming `HEAD` again alone.
@@ -557,7 +565,6 @@ def test_a_result_is_kept_by_tree_and_reused(
     # An unsettled tree reads nothing and keeps nothing.
     (root / _FOLDER / "tasks.md").write_text(_ONE + tasks[0])
     assert (check(), runs()) == ((0, ["plan: clean"], 4), 3)
-    # A timed-out command is never kept.
     monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
     _commit_tasks(root, "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n")
     assert check() == (1, ["plan: 1.1 — `sleep 5` timed out"], 4)
