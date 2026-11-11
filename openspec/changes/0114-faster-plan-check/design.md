@@ -81,7 +81,9 @@ Each command runs with `PYTEST_ADDOPTS` set to `-p no:cacheprovider` after any v
 
 `run(command, root)` starts the command in a session of its own, `start_new_session=True`, so its group is its pid, and holds the process in `RUNNING` while it runs. On timeout `os.killpg(pid, SIGKILL)` ends the group, and the result is `timed out`. `main` installs a SIGTERM handler that kills the group of each process in `RUNNING` and exits 143, and restores the old handler when it returns, so a check that `sandboxed()` terminates leaves no orphan.
 
-`sandboxed(argv, cwd, trees, out=None, timeout=None, grace=5.0)` in `conduct.py` starts its command in a session of its own and, when `timeout` is not `None`, watches it from a thread. Past the deadline, at once when it is 0 or less, the group gets SIGTERM and, after `grace` seconds, SIGKILL; the output gets `sandboxed: timed out — killed after <timeout> s`, the timeout as given, and the exit is 124. `Run.sandboxed` and `Host.sandboxed` take the same `timeout`, and `converge.sandboxed` passes `remaining(context)`, so a card's command or a gate holds converge no longer than its own deadline.
+`sandboxed(argv, cwd, trees, out=None, timeout=None, grace=5.0)` in `conduct.py` starts its command in a session of its own and, when `timeout` is not `None`, watches it from a thread. Past the deadline, at once when it is 0 or less, the group gets SIGTERM and, after `grace` seconds, SIGKILL; the output gets `sandboxed: timed out — killed after <timeout> s`, the timeout as given, and the exit is 124. `Run.sandboxed` and `Host.sandboxed` take the same `timeout`, and `converge.sandboxed` passes `remaining(context)`, so a card's command or a gate holds converge no longer than its own deadline. A group gone, or one this process may not
+signal — the release's sandbox refuses `os.killpg` — ends the watch: it has nothing left to end, and the thread never
+dies on the refusal (`075d4a0`, after the release's sandboxed gate missed that line).
 
 ### D6
 
