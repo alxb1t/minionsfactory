@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.98.1] - 2026-11-12
+
+Gate: local 7m8s · CI not read under mf-ship · 0.98.0: local 15m1s · CI not read under mf-ship
+
 - `conduct.py` bars a rescue on any card outside the non-security categories; the run-start move unlinks a name that
   turned into a link; a restored `models.toml` is created, never truncated; cleanup chmods no parent of its root; the
   settle check exempts `tests/` and `test/` alone and halts on a commit past integrate's merge; a rejoin stops on a
