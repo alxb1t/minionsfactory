@@ -8,7 +8,7 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 - [x] 2 — The fetch · hard
 - [x] 3 — The workers · moderate
 - [x] 4 — The halt · hard
-- [ ] 5 — The record · moderate
+- [x] 5 — The record · moderate
 
 ## 1 — The rows
 
@@ -56,11 +56,11 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 
 ## 5 — The record
 
-- [ ] 5.1 In `docs/decisions.md`, add `### D81 · An npm package is approved at an exact version and installed offline` after D62, with its id in the index lines at the head of the page; and in D62's *Rejected* line say an exact npm version needs no grammar. Decisions Q6, Q8, Q11 and Q15 of the brief state it.
+- [x] 5.1 In `docs/decisions.md`, add `### D81 · An npm package is approved at an exact version and installed offline` after D62, with its id in the index lines at the head of the page; and in D62's *Rejected* line say an exact npm version needs no grammar. Decisions Q6, Q8, Q11 and Q15 of the brief state it.
   Verify: `git grep -n 'D81' -- docs/decisions.md` prints the heading and the index lines.
-- [ ] 5.2 In `docs/principles.md`, add to *A new dependency halts for a person* the build check of [D5](design.md#d5) under *Held by*, citing D81, and the npm row beside the Python one.
+- [x] 5.2 In `docs/principles.md`, add to *A new dependency halts for a person* the build check of [D5](design.md#d5) under *Held by*, citing D81, and the npm row beside the Python one.
   Verify: `git grep -n 'D81' -- docs/principles.md` prints a line.
-- [ ] 5.3 In `THREAT_MODEL.md`, add that an npm row travels the approval's path of D62, that `.minions/npm-cache` is a run-directory folder a worker may write and read offline, and that the fetch runs under the OS sandbox with the network open, no credential read.
+- [x] 5.3 In `THREAT_MODEL.md`, add that an npm row travels the approval's path of D62, that `.minions/npm-cache` is a run-directory folder a worker may write and read offline, and that the fetch runs under the OS sandbox with the network open, no credential read.
   Verify: `git grep -n 'npm-cache' -- THREAT_MODEL.md` prints a line.
-- [ ] 5.4 Say it in the skills' prose: `skills/mf-ship/SKILL.md`, the `cut` row's fetch and the `sandboxed` row's environment; `skills/mf-plan/SKILL.md`, the `## Dependencies` row form `npm:<name>` at an exact version; `skills/mf-cut-change/SKILL.md`, the `design.md` row form; `skills/mf-build/SKILL.md`, stop-condition 4's npm check.
+- [x] 5.4 Say it in the skills' prose: `skills/mf-ship/SKILL.md`, the `cut` row's fetch and the `sandboxed` row's environment; `skills/mf-plan/SKILL.md`, the `## Dependencies` row form `npm:<name>` at an exact version; `skills/mf-cut-change/SKILL.md`, the `design.md` row form; `skills/mf-build/SKILL.md`, stop-condition 4's npm check.
   Verify: `git grep -l 'npm:' -- skills/mf-ship/SKILL.md skills/mf-plan/SKILL.md skills/mf-cut-change/SKILL.md skills/mf-build/SKILL.md` prints each path.

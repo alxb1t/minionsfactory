@@ -188,7 +188,8 @@ before each artifact, run `openspec instructions <artifact> --change <change-id>
   [*Suggesting models*](#suggesting-models)' strongest-tier row, else `moderate`. `mf-ship` builds a `moderate` phase
   on `[build.moderate]` when the models file names it.
 - `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Else a table
-  `| package | constraint | why |`, a row per package, each an exact package name and a version constraint;
+  `| package | constraint | why |`, a row per package, each an exact package name and a version constraint, an npm package
+  `npm:<name>` at one exact version;
   unattended, each row one the brief's `## Dependencies` lists for this change's slug, as written.
 - A sub-task that adds or alters code reading the run directory (`.minions/`), run logs or Codex sessions, in a repo whose
   root `Makefile` has a `corpus` target, carries `` **CORPUS** `<case>` ``, `<case>` a case of `scripts/corpus.toml` it or

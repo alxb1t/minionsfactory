@@ -4379,6 +4379,7 @@ def test_a_cut_refuses_an_npm_row_that_is_no_exact_version(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     fake: Callable[..., Path],
+    fake_sandbox_exec: Path,
 ) -> None:
     conduct = _conduct()
     names = conduct["main"].__globals__
@@ -4386,6 +4387,7 @@ def test_a_cut_refuses_an_npm_row_that_is_no_exact_version(
     _claimed(conduct, root)
     _swap_runner(conduct)
     names["_prefetch"] = conduct["_prefetch"]
+    npm = _fake_npm(tmp_path, monkeypatch)
     bin_ = tmp_path / "uv-bin"
     bin_.mkdir()
     (bin_ / "uv").write_text(f"#!{sys.executable} -S{_FAKE_UV}")
@@ -4408,11 +4410,12 @@ def test_a_cut_refuses_an_npm_row_that_is_no_exact_version(
         record.unlink(missing_ok=True)
         return [json.loads(line)["argv"] for line in lines]
 
-    # A plain npm row is no wheel: the Python row beside it is the only fetch.
+    # A plain npm row is no wheel: the Python row beside it is the only wheel fetch.
     assert cut("npm:vue | 3.5.43", "left-pad | >=1.3") == (
         "cut: queued 0001-a · the live run takes it"
     )
     assert [argv[-1] for argv in fetched()] == ["left-pad>=1.3"]
+    assert ["vue@3.5.43" in run["argv"] for run in _npm_runs(npm)] == [True]
 
     # A row out of shape stops the cut before any fetch, the good rows included.
     before = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
@@ -4434,6 +4437,7 @@ def test_a_cut_refuses_an_npm_row_that_is_no_exact_version(
             " npm:<name> at an exact version"
         )
         assert fetched() == []
+        assert _npm_runs(npm) == []
         after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
         assert after == before
         assert not (root / ".minions" / "changes" / "0002-a").exists()

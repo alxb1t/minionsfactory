@@ -318,7 +318,9 @@ else, and halts naming it and `/mf-ship`, whose run moves it.
    `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md`. More than one commit means
    design.md was deleted and added again: halt. Listed → add it as listed. Not listed, or a `## Dependencies` the
    branch changed since the cut → state the justification and stop for approval: dependencies are the
-   supply-chain surface, and human-gated.
+   supply-chain surface, and human-gated. An npm package is a row `npm:<name>` at an exact version: a direct package
+   in a `package.json` that no row approves at that version, and the default branch lacks, is not listed, and the
+   run's build check halts the version on it.
 5. **A gate that only goes green by weakening it** — a plan problem, not a coding shortcut: halt. A deletion the
    `## Tests` table names is the plan, not a weakening.
 

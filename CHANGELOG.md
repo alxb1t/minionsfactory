@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A build whose tracked `package.json` holds a direct package that neither the default branch's file nor an `npm:` row
   of the cut's `design.md` approves at that exact version halts before converge, naming the file, package and
   specifier (0121-ui-prepare, phase 4).
+- Decision D81, the principle *A new dependency halts for a person*, the threat model and the skills of ship, plan,
+  cut and build state how an npm package is approved at an exact version and installed offline (0121-ui-prepare,
+  phase 5).
 
 ## [0.98.1] - 2026-11-12
 

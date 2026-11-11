@@ -28,6 +28,14 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `Write`, each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and
   `.mcp.json` start nothing, and no MCP server starts, the operator's own included: the probe fails when its `init` event
   lists one. A Codex worker starts with `--ignore-user-config`: the operator's Codex config starts nothing.
+- **An npm package travels the approval's path of Python's**
+  ([D81](docs/decisions.md#d81--an-npm-package-is-approved-at-an-exact-version-and-installed-offline)): a row
+  `npm:<name>` at an exact version is copied into the home queue and compared with the committed `design.md`, as
+  [D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan) holds. The fetch runs at the conductor under
+  the OS sandbox with the network open: it writes its scratch folder and `.minions/npm-cache` alone, reads no credential
+  path, runs no install script and reads no npm setting of the person's environment or home folder. `.minions/npm-cache` is
+  a run-directory folder, so a worker may write it and its npm reads it offline, scripts off. A build's end halts a version
+  whose `package.json` holds a direct package no row approves.
 - **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and
   never its start. A Codex worker starts with its trees untrusted, so a worker-written `.codex/` starts nothing.
   The conductor parses a Codex worker's JSON log, which the worker writes: a forged event misstates a denial, a limit, a

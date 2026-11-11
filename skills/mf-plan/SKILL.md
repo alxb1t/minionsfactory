@@ -209,7 +209,8 @@ phases the cut rates `moderate`. A host prefix, `claude/` or `codex/`, names a p
 model, no effort and no `shadow`; both checkers skipped is `converge skip`.
 
 `## Dependencies` is required in a hard brief: `None.`, or a row per package the person approved — `item` its
-`## For the cut` slug, the exact package, its version constraint, and why. `conduct.py cut` copies the item's rows into
+`## For the cut` slug, the exact package, its version constraint, and why. An npm package is `npm:<name>` at one exact
+version — `npm:vue` · `3.5.43` — and a range, a tag, a URL, a path, a git reference or an alias is refused. `conduct.py cut` copies the item's rows into
 its queue entry, and the run halts a cut that adds any other. `brief_check.py` reads `## For the cut` by its grammar: a
 head at the line's start, its `- models:` and `- **Acceptance:**` lines under the head's text, the Acceptance's
 continuation two spaces further in, blanks, and the cut's `Cut` line.
