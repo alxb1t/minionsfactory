@@ -8,12 +8,15 @@ Exit 0 pass · 1 a run failed · 2 unreadable. Why: 0103-fewer-rounds design D5.
 """
 
 import argparse
+import fcntl
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -162,6 +165,25 @@ def run_case(case: dict[str, Any], minions: Path, root: Path) -> tuple[list[str]
     return [*lines, f"corpus: {name} · {len(found)} runs · {result}"], failed
 
 
+@contextmanager
+def _locked(minions: Path) -> Iterator[None]:
+    """Hold an exclusive lock on `corpus.lock` in `minions` while the body runs.
+
+    A link at that name, or a file that cannot be opened, is a `Stop`.
+    """
+    # why: 0112-uv-race design D4
+    flags = os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW
+    try:
+        fd = os.open(minions / "corpus.lock", flags, 0o600)
+    except OSError as error:
+        raise Stop(f"corpus.lock cannot be opened: {error.strerror}") from None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
 def run(cases: Path | None, minions: Path | None) -> int:
     """Run every case; return the exit code, 2 by `Stop`."""
     root = Path(_git(Path.cwd(), "rev-parse", "--show-toplevel"))
@@ -173,11 +195,13 @@ def run(cases: Path | None, minions: Path | None) -> int:
         raise Stop("the run directory or its corpus/ is a link")
     shown = str(cases) if cases else DEFAULT
     loaded = load(cases or root / DEFAULT, shown)
+    minions.mkdir(parents=True, exist_ok=True)
     failed = 0
-    for case in loaded:
-        lines, count = run_case(case, minions, root)
-        print(*lines, sep="\n")
-        failed += count
+    with _locked(minions):
+        for case in loaded:
+            lines, count = run_case(case, minions, root)
+            print(*lines, sep="\n")
+            failed += count
     return 1 if failed else 0
 
 

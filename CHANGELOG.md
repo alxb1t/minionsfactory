@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.92.1] - 2026-11-11
+
+Gate: local 4m56s · CI not read under mf-ship · 0.92.0: local 4m9s · CI not read under mf-ship
+
+- Converge starts `gate_run.py`, `gate_check.py` and `plan_check.py` by the conductor's Python, not `uv run --script`, so
+  versions converging at once build no shared script environment. A test holds that each script it starts declares
+  `dependencies = []` (change `0112-uv-race`, phase 1).
+- A run builds each pinned script's environment once, by `uv sync --script`, in sequence, before any version thread starts and
+  after a re-pin, so a worker or a thread only reuses it. A failed build halts the run at its start (change `0112-uv-race`,
+  phase 2).
+- `make corpus` holds an exclusive lock on `.minions/corpus.lock` across its cases, so builds in parallel worktrees never
+  delete each other's output. A test runs three versions cut, built, converged and closed at once, ten rounds, and the
+  shared-state audit of the design names each resource and its guard (change `0112-uv-race`, phase 3).
+
 ## [0.92.0] - 2026-11-11
 
 Gate: local 4m9s · CI not read under mf-ship · 0.91.1: local 4m40s · CI not read under mf-ship

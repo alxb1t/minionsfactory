@@ -16,6 +16,7 @@ import runpy
 import shlex
 import stat
 import subprocess
+import sys
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -365,8 +366,8 @@ def commands(context: Context) -> TextIO:
 
 
 def script(name: str, *args: str) -> list[str]:
-    """Return the argv that runs a converge script by `uv`."""
-    return ["uv", "run", "--script", str(HERE / name), *args]
+    """Return the argv that runs a converge script by the conductor's Python."""
+    return [sys.executable, str(HERE / name), *args]
 
 
 def old_layout(primary: Path, change: str) -> str | None:

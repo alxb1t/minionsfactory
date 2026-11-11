@@ -3,11 +3,16 @@
 Why: 0108-converge-script design D1, its `## Tests` table.
 """
 
+import ast
 import os
+import re
 import runpy
 import subprocess
+import sys
+import threading
 import time
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol, TextIO
 
@@ -155,7 +160,7 @@ class Host:
         assert cwd == self.tree
         assert trees == self.trees()
         self.ran.append(argv)
-        name = Path(argv[3]).name if argv[0] == "uv" else argv[0]
+        name = Path(argv[1]).name if argv[0] == sys.executable else argv[0]
         print(self.printed.get(name, ""), end="", file=out)
         code = self.exits.get(name, 0)
         if isinstance(code, list):
@@ -377,6 +382,62 @@ _REFUSED: dict[str, tuple[Callable[[Host], None], int, str | None]] = {
     "no sandbox": (_no_sandbox, 2, None),
     "unstamped": (_unstamped, 2, None),
 }
+
+
+def test_a_converge_script_runs_by_the_conductors_python() -> None:
+    argv = _converge()["script"]("gate_check.py", "--change", "x")
+
+    assert argv == [sys.executable, str(_SCRIPTS / "gate_check.py"), "--change", "x"]
+    assert "uv" not in argv
+
+
+def _scripts_converge_starts() -> list[str]:
+    names: set[str] = set()
+    for node in ast.walk(ast.parse((_SCRIPTS / "converge.py").read_text())):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "script"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            names.add(node.args[0].value)
+    return sorted(names)
+
+
+def test_each_script_converge_starts_declares_no_dependencies() -> None:
+    names = _scripts_converge_starts()
+
+    assert {"gate_run.py", "gate_check.py", "plan_check.py"} <= set(names)
+    for name in names:
+        header = re.search(
+            r"^# /// script\n(.*?)^# ///$",
+            (_SCRIPTS / name).read_text(),
+            re.DOTALL | re.MULTILINE,
+        )
+        assert header, name
+        assert "# dependencies = []\n" in header.group(1), name
+
+
+def test_two_converges_start_gate_check_at_once(tmp_path: Path) -> None:
+    cache = tmp_path / "uv-cache"
+    cache.mkdir()
+    env = {**os.environ, "UV_CACHE_DIR": str(cache)}
+    argv = _converge()["script"]("gate_check.py", "--help")
+    barrier = threading.Barrier(2)
+
+    def start() -> int:
+        barrier.wait()
+        return subprocess.run(
+            argv, env=env, capture_output=True, check=False
+        ).returncode
+
+    with ThreadPoolExecutor(2) as pool:
+        codes = [future.result() for future in [pool.submit(start), pool.submit(start)]]
+
+    assert codes == [0, 0]
+    assert not (cache / "environments-v2").exists()
 
 
 @pytest.mark.parametrize("case", list(_REFUSED))
@@ -721,7 +782,8 @@ def test_a_clean_round_converges_with_no_fix(host: Host) -> None:
         assert f"`head: {head}` and `mode: parallel`" in text
         assert str(host.folder() / f"{role}.md") in text
     assert [
-        Path(argv[3]).name if argv[0] == "uv" else argv[0] for argv in host.ran
+        Path(argv[1]).name if argv[0] == sys.executable else argv[0]
+        for argv in host.ran
     ] == [
         "make",
         "gate_run.py",
@@ -788,7 +850,10 @@ def _head(host: Host) -> str:
 
 
 def _ran(host: Host) -> list[str]:
-    return [Path(argv[3]).name if argv[0] == "uv" else argv[0] for argv in host.ran]
+    return [
+        Path(argv[1]).name if argv[0] == sys.executable else argv[0]
+        for argv in host.ran
+    ]
 
 
 def _stations(host: Host) -> list[tuple[str, str, str | None]]:
