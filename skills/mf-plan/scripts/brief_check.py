@@ -124,7 +124,7 @@ def headed(brief: str) -> list[tuple[str, list[str]]]:
 
 
 def sections(brief: str) -> dict[str, list[str]]:
-    """Return each `## ` section's lines, keyed by its heading, which they exclude.
+    """Return the lines under each `# ` or `## ` heading, keyed by the heading.
 
     A heading written twice keys one section, its lines in order, per `headed`.
     """
@@ -514,6 +514,9 @@ def main(argv: list[str] | None = None) -> int:
     form = parser.add_mutually_exclusive_group()
     form.add_argument("--facts", action="store_true", help="print the facts as JSON")
     form.add_argument(
+        "--sections", action="store_true", help="print the sections as JSON"
+    )
+    form.add_argument(
         "--models", action="store_true", help="print the item's models file as TOML"
     )
     args = parser.parse_args(argv)
@@ -534,6 +537,9 @@ def main(argv: list[str] | None = None) -> int:
         if not halted:
             print(json.dumps(found))
         return 1 if halted else 0
+    if args.sections:
+        print(json.dumps(sections(brief)))
+        return 0
     for script in (VERIFY_CHECK, CONDUCT):
         if not script.is_file():
             print(f"brief: cannot check — no {script.name} beside this skill")

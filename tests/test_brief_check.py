@@ -274,6 +274,23 @@ def test_models_prints_the_items_toml(
         capsys.readouterr()
 
 
+def test_the_sections_flag_prints_each_section_as_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    brief = _write(tmp_path, _READY)
+    assert brief_check.main(["--sections", str(brief)]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed == brief_check.sections(_READY)
+    assert next(iter(printed)).startswith("# Plan queues")
+    assert printed["# Plan queues · a minor · hard · 2026-11-06"][1] == (
+        "**The plan queues its cut.**"
+    )
+    assert printed["## Dependencies"] == ["", "None.", ""]
+    missing = tmp_path / "missing.md"
+    assert brief_check.main(["--sections", str(missing)]) == 2
+    assert "brief: cannot check" in capsys.readouterr().out
+
+
 def test_a_custom_tag_opens_no_section() -> None:
     plain = [heading for heading, _ in brief_check.headed(_READY)]
     # A tag that only starts like a heading ends no section.
