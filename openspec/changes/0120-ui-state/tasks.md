@@ -1,6 +1,6 @@
 # ui · state — tasks
 
-The phases: the projector, the server, the page, the record, and a person's check against a live run.
+The phases: the projector, the server, the page and the record. The person checks the page against a live run after the release, outside this version.
 
 ## Progress
 
@@ -8,7 +8,6 @@ The phases: the projector, the server, the page, the record, and a person's chec
 - [x] 2 — The server · hard
 - [x] 3 — The page · moderate
 - [x] 4 — The record · moderate
-- [ ] 5 — The live check **HUMAN**
 
 ## 1 — The projector
 
@@ -92,18 +91,3 @@ The phases: the projector, the server, the page, the record, and a person's chec
   Verify: `grep -n 'The viewer' THREAT_MODEL.md` prints a line.
 - [x] 4.5 Name `mf-ui` in `README.md`'s skill table, in `AGENTS.md`'s layout entry for `skills/` and in `docs/README.md`'s `skills/` row.
   Verify: `grep -l 'mf-ui' README.md AGENTS.md docs/README.md` prints each file name.
-
-## 5 — The live check
-
-The person runs these in their own terminal, in the primary, while a run is live; the files they write are the evidence.
-
-- [ ] 5.1 Start the viewer: `uv run --script skills/mf-ui/scripts/viewer.py start > openspec/changes/0120-ui-state/live-url.txt`.
-  Verify: `grep -n '^http://127.0.0.1:' openspec/changes/0120-ui-state/live-url.txt` prints a line.
-- [ ] 5.2 Save each `<id> · <stage>` line: `uv run --script skills/mf-ship/scripts/conduct.py status > openspec/changes/0120-ui-state/live-status.txt`.
-  Verify: `grep -n ' · ' openspec/changes/0120-ui-state/live-status.txt` prints a line per version.
-- [ ] 5.3 Save each version's `"stage"`, the port being the one in `live-url.txt`: `curl -s http://127.0.0.1:8737/state > openspec/changes/0120-ui-state/live-state.json`.
-  Verify: `grep -n '"stage"' openspec/changes/0120-ui-state/live-state.json` prints a line per version.
-- [ ] 5.4 Open the URL in a browser; write `openspec/changes/0120-ui-state/live-check.md`, a line `<id> · <stage> · matches` per version whose stage on the page equals its line in `live-status.txt`.
-  Verify: `grep -n ' · matches$' openspec/changes/0120-ui-state/live-check.md` prints a line per version.
-- [ ] 5.5 Stop it, as [D8](design.md#d8) says: `uv run --script skills/mf-ui/scripts/viewer.py stop > openspec/changes/0120-ui-state/live-stop.txt`.
-  Verify: `grep -n 'viewer: stopped' openspec/changes/0120-ui-state/live-stop.txt` prints a line.

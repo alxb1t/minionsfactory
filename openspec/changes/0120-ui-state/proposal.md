@@ -8,7 +8,7 @@ beside: [0118-debt-paydown-3a, 0119-debt-paydown-3b]
 A read-only server projects every project's ship line into one state tree and streams it to a plain page.
 
 Reading map: [design](design.md) holds the decisions, the state rules and the tests, [tasks](tasks.md) holds the
-phases: projector, server, page, record, live check.
+phases: projector, server, page, record.
 
 ## Why
 

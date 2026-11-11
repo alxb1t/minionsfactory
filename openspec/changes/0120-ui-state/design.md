@@ -340,7 +340,7 @@ None.
 
 - **The state rules are the viewer's own reading** of the stages and events of this release. A later station change that
   moves an event moves a state; the corpus case reads real data, the tests hold the rules.
-- **The page's script has no test run** under a browser: `**HUMAN**` phase 5 is its proof, and `test_the_page_sets_text_only`
+- **The page's script has no test run** under a browser: the person's check against a live run after the release is its proof, and `test_the_page_sets_text_only`
   holds the markup sinks out.
 - **Any local process can open the stream.** Loopback and the `Host` check stop other sites, not other processes of the same
   operator; D81 accepts it.
