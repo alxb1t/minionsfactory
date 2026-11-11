@@ -448,6 +448,18 @@ def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
         assert plan_check.keyed(text, "abc") == text
 
 
+def test_a_script_file_that_reads_git_is_keyed_by_head(tmp_path: Path) -> None:
+    (tmp_path / "check-refs.sh").write_text("git diff --quiet other\n")
+    (tmp_path / "plain.sh").write_text("echo 1\n")
+    assert (
+        plan_check.keyed("sh check-refs.sh", "abc", tmp_path) == "sh check-refs.sh\nabc"
+    )
+    assert plan_check.keyed("sh plain.sh", "abc", tmp_path) == "sh plain.sh"
+    (tmp_path / "locked.sh").write_text("echo 1\n")
+    (tmp_path / "locked.sh").chmod(0)
+    assert plan_check.keyed("sh locked.sh", "abc", tmp_path) == "sh locked.sh\nabc"
+
+
 def test_another_branch_moving_ends_the_reuse_of_a_result(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

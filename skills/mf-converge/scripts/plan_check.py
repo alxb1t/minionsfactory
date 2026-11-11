@@ -495,12 +495,30 @@ def names_revision(argv: list[str]) -> bool:
     return any(re.search(r"\bgit\b", word) for word in argv)
 
 
-def keyed(text: str, head: str) -> str:
+def reads_git(argv: list[str], root: Path) -> bool:
+    """Return whether a word names a file in the tree whose text holds `git`."""
+    for word in argv:
+        path = root / word
+        try:
+            if path.is_file() and re.search(
+                r"\bgit\b", path.read_text(errors="replace")
+            ):
+                return True
+        except OSError:
+            return True  # unreadable: tree-only behaviour is unproven
+    return False
+
+
+def keyed(text: str, head: str, root: Path | None = None) -> str:
     """Return a command's key: its text, and the refs' state when it names a revision.
 
     `head` is `HEAD`'s sha and every ref's, so another branch moving ends a reuse.
+    A script file the command names counts when its text holds `git`.
     """
-    return f"{text}\n{head}" if names_revision(tokens(text)) else text
+    argv = tokens(text)
+    if names_revision(argv) or (root is not None and reads_git(argv, root)):
+        return f"{text}\n{head}"
+    return text
 
 
 def store(tree: str) -> Path:
@@ -551,7 +569,7 @@ def check_verifies(
     refs = _git(root, "for-each-ref", "--format=%(objectname) %(refname)").stdout
     head = _git(root, "rev-parse", "HEAD").stdout.strip() + "\n" + refs
     tree = _guarded(gate()["settled_tree"])
-    keys = {command.text: keyed(command.text, head) for _, command in pending}
+    keys = {command.text: keyed(command.text, head, root) for _, command in pending}
     results: dict[str, Result] = {}
     if tree is not None:
         results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
