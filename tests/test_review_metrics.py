@@ -867,7 +867,19 @@ def test_review_metrics_books_a_worker_by_its_log_name(tmp_path: Path) -> None:
     # A log of another form is booked to no role, as a gap.
     _worker_log(tmp_path, "0001-x", "20261109-101500-converge-extra.log", *claude)
     # An older converge log and a mailbox checker's are read as before, and once.
-    _worker_log(tmp_path, "0001-x", "A-converge.log", *claude)
+    # A task that is no agent, though named like a worker, is no worker.
+    started = {"type": "system", "subtype": "task_started"}
+    agent = started | {"tool_use_id": "t1", "task_type": "local_agent"}
+    shell = started | {"tool_use_id": "t2", "task_type": "local_bash"}
+    _worker_log(
+        tmp_path,
+        "0001-x",
+        "A-converge.log",
+        agent | {"description": "fix round 2"},
+        _said("t1", "a1", sonnet, input_tokens=3),
+        shell | {"description": "fix round 3"},
+        _said("t2", "b1", sonnet, input_tokens=5),
+    )
     _worker_log(tmp_path, "0001-x", "A-converge-adversarial.log", *claude)
 
     keys = ("role", "round", "model", "tokens", "source")
@@ -876,6 +888,7 @@ def test_review_metrics_books_a_worker_by_its_log_name(tmp_path: Path) -> None:
         for w in review_metrics._converge_workers(tmp_path, "0001-x")
     ]
     assert booked == [
+        ("fix", 2, sonnet, None, "subagent"),
         ("adversarial", None, sonnet, 15, "mailbox"),
         ("conformance", 1, sonnet, 15, "log"),
         (None, None, sonnet, 15, "log"),
@@ -1754,6 +1767,28 @@ def test_a_span_is_bound_to_the_ids_a_cut_queued(tmp_path: Path) -> None:
     assert review_metrics._queued(repos, sessions) == [
         {"chain": 0, "id": "0001-x", "repo": "second", "time": _when(4)}
     ]
+    # A brief named by `$NAME` or `${NAME}`, assigned earlier in the command, binds as
+    # written; a name no word assigns stays as written and binds none.
+    for ident in ("0004-b", "0005-c", "0006-d"):
+        _cut_log(second, ident, 10)
+    cut = "uv run --script conduct.py cut s minor"
+    for session, ident, command in (
+        ("s2", "0004-b", f"B=/b/x.md; {cut} brief=$B"),
+        ("s3", "0005-c", f'B=/b/x.md && {cut} brief="${{B}}"'),
+        ("s4", "0006-d", f"B=/b/x.md; {cut} brief=$C"),
+    ):
+        _written(
+            tmp_path / "sessions",
+            session,
+            _tool("t5", _at(4), "Bash", command=command),
+            _queue_answer("t5", ident),
+        )
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    assert [q["id"] for q in review_metrics._queued(repos, sessions)] == [
+        "0001-x",
+        "0004-b",
+        "0005-c",
+    ]
     # Two repos holding the id with a fresh cut log are ambiguous: bound to neither,
     # whatever the order of the config.
     _cut_log(first, "0001-x", 10)
@@ -1912,6 +1947,64 @@ def test_operator_work_is_booked_to_the_nearest_mark(
         ("repo", "0005-v", "operator", 32),
     ]
     assert all(r["seconds"] is None for r in rows)
+
+    # A session whose `cwd` is, holds, or is a worktree of the second repo books to
+    # that repo's marks, though the first repo's mark is nearer.
+    other = tmp_path / "other"
+    (other / "sub").mkdir(parents=True)
+    _run_log(other, "20261105-100000.md", "10:00:05 · 0009-o · spawn — build · model m")
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    gitdir = other / ".git" / "worktrees" / "tree"
+    (tree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+    # A session with no `cwd`, one naming no repo, and one whose `.git` is a folder.
+    nowhere = tmp_path / "nowhere"
+    (nowhere / ".git").mkdir(parents=True)
+    stray = tmp_path / "stray"
+    stray.mkdir()
+    gone = tmp_path / "elsewhere" / ".git" / "worktrees" / "stray"
+    (stray / ".git").write_text(f"gitdir: {gone}\n", encoding="utf-8")
+    heads = {
+        "equal": str(other),
+        "holds": str(other / "sub"),
+        "worktree": str(tree),
+        "none": None,
+        "nowhere": str(nowhere),
+        "stray": str(stray),
+        "missing": str(tmp_path / "missing"),
+    }
+    folder = tmp_path / "cwd-sessions"
+    for n, (session, cwd) in enumerate(heads.items()):
+        head = {"type": "user", "timestamp": _at(0)} | ({"cwd": cwd} if cwd else {})
+        status = _tool("t1", _at(31), "Bash", command="conduct.py status")
+        _written(folder, session, head, status, _used(f"m{n}", 30, 2**n))
+    both = review_metrics._marks([repo, other], queued)
+    by_session = {
+        s["id"]: review_metrics._operator([s], [], both, [repo, other])
+        for s in review_metrics._sessions([folder], set())
+    }
+    booked = {
+        session: [(r["repo"], r["change"]) for r in rows]
+        for session, rows in by_session.items()
+    }
+    own = [("other", "0009-o")]
+    near = [("repo", "0002-y")]
+    assert booked == {
+        "equal": own,
+        "holds": own,
+        "worktree": own,
+        "none": near,
+        "nowhere": near,
+        "stray": near,
+        "missing": near,
+    }
+    # With no `repos`, the same session books as before.
+    (equal,) = [
+        s for s in review_metrics._sessions([folder], set()) if s["id"] == "equal"
+    ]
+    assert equal["cwd"] == str(other)
+    (row,) = review_metrics._operator([equal], [], both)
+    assert (row["repo"], row["change"]) == ("repo", "0002-y")
 
 
 def test_a_subagent_books_where_its_call_was_launched(tmp_path: Path) -> None:

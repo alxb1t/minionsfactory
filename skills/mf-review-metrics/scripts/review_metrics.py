@@ -913,6 +913,9 @@ def _log_workers(path: Path, own: Record | None) -> list[Record]:
             kind, message = event.get("type"), event.get("message")
             parent = event.get("parent_tool_use_id")
             if event.get("subtype") == "task_started":
+                task_type = event.get("task_type")
+                if isinstance(task_type, str) and task_type != "local_agent":
+                    continue
                 named = WORKER.search(str(event.get("description")))
                 role, round_ = (
                     (named[1].lower(), int(named[2])) if named else (None, None)
@@ -977,11 +980,19 @@ def _path(text: str) -> str:
 def _token(words: str, key: str) -> str | None:
     """Return the path a `key=<path>` word names, else None.
 
+    A value `$NAME` or `${NAME}` is the value of an earlier `NAME=<value>` word.
     e.g. ("x brief=/b/./y.md", "brief") → "/b/y.md"
     """
-    for word in _words(words):
+    given = _words(words)
+    for word in given:
         if word.startswith(f"{key}="):
-            return _path(word[len(key) + 1 :])
+            value = word[len(key) + 1 :]
+            name = value.removeprefix("$").removeprefix("{").removesuffix("}")
+            if value.startswith("$") and name.isidentifier():
+                for earlier in given[: given.index(word)]:
+                    if earlier.startswith(f"{name}="):
+                        value = earlier[len(name) + 1 :].rstrip(";&|")
+            return _path(value)
     return None
 
 
@@ -1052,6 +1063,7 @@ def _events(path: Path) -> list[Record]:
     """
     events: list[Record] = []
     first: dict[str, datetime | None] = {}
+    placed = False
     try:
         lines = path.open(encoding="utf-8", errors="replace")
     except OSError:
@@ -1059,6 +1071,9 @@ def _events(path: Path) -> list[Record]:
     with lines:
         for line in lines:
             row = _object(line)
+            if not placed and isinstance(row.get("cwd"), str):
+                events.append({"event": "cwd", "cwd": row["cwd"]})
+                placed = True
             message = row.get("message")
             message = message if isinstance(message, dict) else {}
             content = message.get("content")
@@ -1174,7 +1189,7 @@ def _station_sessions(repos: Iterable[Path]) -> set[str]:
 def _sessions(folders: Iterable[Path], skipped: set[str]) -> list[Record]:
     """Return each session of the folders with a marker and no station's own.
 
-    e.g. `<folder>/s2.jsonl` → {"id": "s2", "events": [...], "subagents": [...]}
+    e.g. `<folder>/s2.jsonl` → {"id": "s2", "events": [], "subagents": [], "cwd": None}
     Why: 0115-plan-metrics design D2, D4.
     """
     found: list[Record] = []
@@ -1183,8 +1198,14 @@ def _sessions(folders: Iterable[Path], skipped: set[str]) -> list[Record]:
             events = [] if path.stem in skipped else _transcript(path)
             if events:
                 subagents = _subagents(folder, path.stem)
+                cwd = next((e["cwd"] for e in events if e["event"] == "cwd"), None)
                 found.append(
-                    {"id": path.stem, "events": events, "subagents": subagents}
+                    {
+                        "id": path.stem,
+                        "events": events,
+                        "subagents": subagents,
+                        "cwd": cwd,
+                    }
                 )
     return found
 
@@ -1388,19 +1409,50 @@ def _marks(repos: Sequence[Path], queued: Sequence[Record]) -> list[Record]:
     return sorted(marks, key=lambda mark: mark["time"])
 
 
+def _own_repo(cwd: object, repos: Sequence[Path]) -> str | None:
+    """Return the name of the repo a session's `cwd` is, holds or is a worktree of.
+
+    A worktree names its repo by `gitdir: <repo>/.git/worktrees/<name>` in its `.git`.
+    Why: 0118-debt-paydown-3a design D10.
+    """
+    if not isinstance(cwd, str):
+        return None
+    here = Path(cwd)
+    for repo in repos:
+        if here == repo or repo in here.parents:
+            return repo.name
+    try:
+        lines = (here / ".git").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for line in lines.splitlines():
+        for repo in repos:
+            if line.startswith("gitdir:") and (
+                Path(line.removeprefix("gitdir:").strip()).parent.parent
+                == repo / ".git"
+            ):
+                return repo.name
+    return None
+
+
 def _operator(
-    sessions: Sequence[Record], spans: Sequence[Record], marks: Sequence[Record]
+    sessions: Sequence[Record],
+    spans: Sequence[Record],
+    marks: Sequence[Record],
+    repos: Sequence[Path] = (),
 ) -> list[Record]:
     """Return an `operator` row per repo and change, and one `unbooked`.
 
-    A message outside every span books to the latest mark not after it.
-    Why: 0115-plan-metrics design D7.
+    A message outside every span books to the latest mark not after it, of the
+    session's own repo when its `cwd` names one. Why: 0115-plan-metrics design D7.
     """
     inside = {id(message) for span in spans for message in span["messages"]}
     buckets: dict[tuple[str | None, str | None], list[Record]] = {}
     for session in sessions:
+        own = _own_repo(session.get("cwd"), repos)
+        kept = [m for m in marks if own is None or m["repo"] == own]
         for time, message in _stamped(session):
-            earlier = [mark for mark in marks if mark["time"] <= time]
+            earlier = [mark for mark in kept if mark["time"] <= time]
             mark = earlier[-1] if earlier and earlier[-1]["change"] else {}
             key = (mark.get("repo"), mark.get("change"))
             if id(message) not in inside:
@@ -1422,7 +1474,7 @@ def booked(repos: Sequence[Path], folders: Sequence[Path]) -> list[Record]:
     spans = _spans(sessions)
     queued = _queued(repos, sessions)
     marks = _marks(repos, queued)
-    return [*_plan_rows(spans, queued), *_operator(sessions, spans, marks)]
+    return [*_plan_rows(spans, queued), *_operator(sessions, spans, marks, repos)]
 
 
 def _converge_workers(repo: Path, change: str) -> list[Record]:

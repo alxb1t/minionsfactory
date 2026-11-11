@@ -146,7 +146,7 @@ resolved paths, so a worktree swapped before `reach` runs fails `_points_back` a
 catches a swap between `reach` and the spawn, the version's own tree as `cwd`, and a cutter's unresolved folders. Its test
 swaps the worktree `argv` gets as `cwd`, then a cutter's brief folder. A Stop in a version's thread halts
 that version alone (`C:3838`). The list also gains `-c sandbox_workspace_write.exclude_slash_tmp=true`, beside
-`exclude_tmpdir_env_var`, so a forged worktree entry under `/tmp` names no folder a Codex worker could make. `reach`'s
+`exclude_tmpdir_env_var`, so a Claude worker's own temp folder can still hold the folder a forged worktree entry under `/tmp` names, as *Known gaps* says. `reach`'s
 docstring says a listed path a worker swaps halts the next Codex spawn, and cites this design's D7. A swap after the check,
 while Codex starts, is not caught: the threat model's *Known gaps* names it.
 

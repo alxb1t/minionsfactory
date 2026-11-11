@@ -49,11 +49,12 @@ None.
     conflict.
   - *A catch-up over a merge the fixed rules reproduce is clean by recomputation* — MODIFIED: replay runs the `decisions` rule on
     every merge, and reads the insert-only delta.
+  - MODIFIED *The ship station takes cut versions to the default branch*: a clean merge whose `decisions` rule halts names the hand merge
 
 ## Impact
 
 Changes `skills/mf-integrate/scripts/integrate.py`, `skills/mf-converge/scripts/gate_check.py`, `skills/mf-ship/scripts/conduct.py`,
-`skills/mf-cut-change/scripts/awake.py`, `skills/mf-integrate/SKILL.md`, `docs/decisions.md` (D45), `tests/test_integrate.py`,
+`skills/mf-cut-change/scripts/awake.py`, `skills/mf-integrate/SKILL.md`, `skills/mf-ship/SKILL.md`, `docs/decisions.md` (D45), `tests/test_integrate.py`,
 `tests/test_conduct.py` and `tests/test_awake.py`.
 
 Closes `0064·R6`. Dependencies: none. The gate recipe stays unchanged.

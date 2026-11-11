@@ -82,7 +82,7 @@ A message belongs to a span when its time is between the two, the span opened la
 
 ### D6
 
-The ids a chain queued are the `result` events whose `call` is a `cut` call whose `brief` is a path of the chain, each id checked by `_cut_made(repos, id, time)`: a repo read holds a folder `.minions/changes/<id>/`, and a cut log of the change — `_station_logs(repo, id, "cut")` — has a modification time not before the call's time. The first repo that holds both gives the row's `repo`, its `repo.name` as `_stations` writes it.
+The ids a chain queued are the `result` events whose `call` is a `cut` call whose `brief` is a path of the chain, each id checked by `_cut_made(repos, id, time)`: a repo read holds a folder `.minions/changes/<id>/`, and a cut log of the change — `_station_logs(repo, id, "cut")` — has a modification time not before the call's time. The one repo that holds both gives the row's `repo`; two such repos are ambiguous, and the row binds to none. The `repo` is its `repo.name` as `_stations` writes it.
 
 `_queued(repos, sessions)` returns `{"chain", "id", "repo", "time"}` for each valid id, `chain` the number `_chains` gives the call's `brief`. The id of a result of any other call, or one that fails the check, binds nothing.
 

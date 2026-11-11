@@ -74,6 +74,11 @@ def broken(case: dict[str, Any]) -> str | None:
         or any(".." in PurePosixPath(g).parts for g in each)
     ):
         return f"{name}: each is not a list of globs under the run directory"
+    if "shape" in case:
+        try:
+            re.compile(case["shape"])
+        except (TypeError, re.error):
+            return f"{name}: shape is not a regex"
     return None
 
 
@@ -121,7 +126,17 @@ def inputs(case: dict[str, Any], minions: Path) -> Sequence[Path | None]:
 def run_case(case: dict[str, Any], minions: Path, root: Path) -> tuple[list[str], int]:
     """Return a case's lines, and how many of its runs failed."""
     name = case["name"]
+    if (minions / "corpus" / name).is_symlink():
+        raise Stop(f"corpus/{name} is a link")
     found = inputs(case, minions)
+    shape = re.compile(case["shape"], re.MULTILINE) if "shape" in case else None
+    kept = [
+        p
+        for p in found
+        if shape is None or p is None or shape.search(p.read_text(errors="replace"))
+    ]
+    skipped = len(found) - len(kept)
+    found = kept
     if not found:
         return [f"corpus: {name} · no input"], 0
     lines: list[str] = []
@@ -162,7 +177,8 @@ def run_case(case: dict[str, Any], minions: Path, root: Path) -> tuple[list[str]
             lines.append(f"corpus: {name} · {shown} · exit {code}")
             lines += [f"  | {line}" for line in stderr[:SHOWN]]
     result = "pass" if not failed else f"{failed} failed"
-    return [*lines, f"corpus: {name} · {len(found)} runs · {result}"], failed
+    gone = f" · {skipped} skipped" if skipped else ""
+    return [*lines, f"corpus: {name} · {len(found)} runs{gone} · {result}"], failed
 
 
 @contextmanager

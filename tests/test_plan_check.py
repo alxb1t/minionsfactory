@@ -592,7 +592,6 @@ def test_a_result_is_kept_by_tree_and_reused(
 
     assert check() == (0, ["plan: clean"], 2)
     assert (check(), runs()) == ((0, ["plan: clean"], 2), 1)
-    # A new commit on the same tree runs every command again: `HEAD` keys them all.
     _git(root, "commit", "-q", "--allow-empty", "-m", "empty")
     assert (check(), runs()) == ((0, ["plan: clean"], 4), 2)
     # Another tree has its own results, and a result is judged by the words that

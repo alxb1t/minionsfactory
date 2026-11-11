@@ -750,7 +750,7 @@ one the default branch passed before its first worker — and into a started one
 its gate, save a stacked one; it also merges a dependency's built head into its stacked dependent
 ([D72](#d72--a-dependent-builds-on-its-dependencys-built-head)). It settles a conflict in `CHANGELOG.md` or
 `docs/decisions.md`, and a stacked branch's `CHANGELOG.md` on any merge, by `integrate.py`'s rules, runs the `decisions` rule on every merge, halts on any other conflict, runs
-`integrate.py delta` on the open merge, commits when that passes, and else leaves the merge open with its note.**
+`integrate.py delta` on the open default-branch merge, commits when that passes, and else leaves the merge open with its note; the conductor's own `chore(stack)` merge runs no delta check.**
 
 - **Why:** the merge-in a moved base needs conflicts on the same files every time; a clean merge adds nothing to
   read, and what the merge decided is exactly what review must see. A merge the rules rebuild decided nothing, and

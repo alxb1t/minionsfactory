@@ -96,6 +96,7 @@ ROWS = [
     "V3",
     "V4",
     "V5",
+    "V6",
     "K1",
     "K2",
     "K3",
@@ -609,6 +610,52 @@ def row_v1(change: Change, plan: dict[str, Any]) -> str | None:
     return " · ".join(found) or None
 
 
+def _diffs(tasks: str) -> dict[str, tuple[list[str], list[str]]]:
+    """Return the removed and added lines of each sub-task's fenced `diff` blocks.
+
+    e.g. a sub-task 1.1 whose diff block holds `-a` and `+b` → {"1.1": (["a"], ["b"])}
+    """
+    found: dict[str, tuple[list[str], list[str]]] = {}
+    name, diff, fenced = "", False, False
+    for line in tasks.splitlines():
+        text = line.strip()
+        if text.startswith("```"):
+            fenced = not fenced
+            diff = fenced and text == "```diff"
+        elif match := SUBTASK.match(line):
+            name = match[1].split()[0]
+            found[name] = ([], [])
+        elif fenced:
+            if diff and text[:1] in ("-", "+") and name:
+                found[name][text[0] == "+"].append(text[1:])
+        elif line.startswith("## "):
+            name = ""
+    return found
+
+
+def row_v6(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each search whose needle a later sub-task naming its file removes."""
+    tasks = plan["subtasks"](change.tasks)
+    diffs = _diffs(change.tasks)
+    found: list[str] = []
+    for at, task in enumerate(tasks):
+        for needles, files in _searches(task.text, plan):
+            for needle in needles:
+                later = next(
+                    (
+                        other
+                        for other in tasks[at + 1 :]
+                        if any(needle in line for line in diffs[other.name][0])
+                        and not any(needle in line for line in diffs[other.name][1])
+                        and any(f in other.text for f in files)
+                    ),
+                    None,
+                )
+                if later is not None:
+                    found.append(f"{task.name}: `{needle}` is removed in {later.name}")
+    return " · ".join(found) or None
+
+
 class _KExpression:
     """Evaluate one `-k` expression against one test name, by recursive descent."""
 
@@ -983,6 +1030,7 @@ def check(
             ("V2", row_v2(change, plan)),
             ("V4", row_v4(change, plan)),
             ("V5", row_v5(change, plan)),
+            ("V6", row_v6(change, plan)),
             ("K1", row_k1(change, plan, tree)),
             ("K2", row_k2(change, plan)),
             ("K3", row_k3(change)),
