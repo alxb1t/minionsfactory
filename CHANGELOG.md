@@ -7,17 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Each debt card whose premise is gone, or whose class closed wontfix or accepted, has its Still true? re-run and
-  passing; no file but the plan changes (0118-debt-paydown-3a, phase 1).
-- Prose and archive cards corrected in place; the threat model records C4 under *Out of scope* and a plugin gap under
-  *Known gaps*; the threat-model surfaces rule reaches `AGENTS.md`, `mf-build` and `mf-cut-change`
-  (0118-debt-paydown-3a, phase 2).
-- A corpus case may hold a `shape`: an input it does not match is skipped and counted, so `open-cards` passes over
-  findings older than the card shape; a linked case folder stops the run. Plan metrics reads `$NAME` in a cut's brief,
-  books operator work to the session's own repo, and counts only agent tasks as workers
-  (0118-debt-paydown-3a, phase 3).
-- `cut_check.py` row `V6` fails a `Verify:` search whose needle a later sub-task naming the file removes in a fenced
-  `diff` block, unless that task adds it back (0118-debt-paydown-3a, phase 4).
 - `conduct.py` bars a rescue on any card outside the non-security categories; the run-start move unlinks a name that
   turned into a link; a restored `models.toml` is created, never truncated; cleanup chmods no parent of its root; the
   settle check exempts `tests/` and `test/` alone and halts on a commit past integrate's merge; a rejoin stops on a
@@ -30,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Three run tests state why they cost what they do; the `_temp_folder` and `_remove_temp` docstrings keep a summary
   and a `Why:` line; `_settle_kept` cites a design and a requirement in place of a findings card
   (0119-debt-paydown-3b, phase 3).
+
+## [0.98.0] - 2026-11-11
+
+Gate: local 15m1s · CI not read under mf-ship · 0.97.0: local 6m58s · CI not read under mf-ship
+
+- Each debt card whose premise is gone, or whose class closed wontfix or accepted, has its Still true? re-run and
+  passing; no file but the plan changes (0118-debt-paydown-3a, phase 1).
+- Prose and archive cards corrected in place; the threat model records C4 under *Out of scope* and a plugin gap under
+  *Known gaps*; the threat-model surfaces rule reaches `AGENTS.md`, `mf-build` and `mf-cut-change`
+  (0118-debt-paydown-3a, phase 2).
+- A corpus case may hold a `shape`: an input it does not match is skipped and counted, so `open-cards` passes over
+  findings older than the card shape; a linked case folder stops the run. Plan metrics reads `$NAME` in a cut's brief,
+  books operator work to the session's own repo, and counts only agent tasks as workers
+  (0118-debt-paydown-3a, phase 3).
+- `cut_check.py` row `V6` fails a `Verify:` search whose needle a later sub-task naming the file removes in a fenced
+  `diff` block, unless that task adds it back (0118-debt-paydown-3a, phase 4).
 
 ## [0.97.0] - 2026-11-11
 

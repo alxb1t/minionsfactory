@@ -4384,7 +4384,10 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 
 `make corpus` SHALL run `scripts/corpus.py`, which SHALL run each `[[case]]` of `scripts/corpus.toml` — a reader's argv, run
 with no shell from the repository root — once per file its `each` globs match under the run directory, or once when it has
-none, writing only under the run directory's `corpus/`. It SHALL exit 1 naming each run that exits non-zero, 2 when the cases
+none, writing only under the run directory's `corpus/`. A case MAY hold a `shape`, a regular expression: `corpus.py` SHALL run
+the case only over the inputs whose text it matches, in multiline mode, SHALL print how many it skipped, and SHALL exit 2 for a
+`shape` that is no regular expression. It SHALL exit 2 when `corpus/<case>` is a link, before it deletes or writes anything
+under it. It SHALL exit 1 naming each run that exits non-zero, 2 when the cases
 file cannot be read or the run directory is a link, and 0 otherwise. `make gate` and `make check` SHALL NOT run it.
 `skills/mf-cut-change/SKILL.md` SHALL mark each sub-task that adds or alters code reading the run directory, run logs or Codex
 sessions `` **CORPUS** `<case>` `` in a repository whose root `Makefile` has a `corpus` target, and SHALL plan the case in
@@ -4403,6 +4406,14 @@ not hold.
 #### Scenario: A marked sub-task with no case
 - **WHEN** a ticked sub-task is marked `` **CORPUS** `review-metrics` `` and `scripts/corpus.toml` holds no case of that name
 - **THEN** `plan_check.py` exits 1, naming the sub-task and the case
+
+#### Scenario: An input older than the card shape
+- **WHEN** a case holds `shape = '^ok'` and one of its inputs does not open with `ok`
+- **THEN** the reader runs over the others, and the case's line reads `1 skipped`
+
+#### Scenario: A linked case folder
+- **WHEN** `corpus/<case>` is a link to a folder holding files
+- **THEN** `make corpus` exits 2 naming the case, and the folder keeps its files
 
 ### Requirement: A converge conductor stubs a skipped checker
 
@@ -4611,9 +4622,9 @@ printing one line a check and exiting 1 on any that fails; a failed precondition
 place the brief's facts with `facts.py`, name the deleted or renamed symbols to `facts.py readers`, and run `cut_check.py` for
 the self-check. `cut_check.py` SHALL decide `I2`, `I3`, `I4`, `I11`, `I12`, `I13`, `I14`, `I17`, `I18` and `I19`, the headings
 `A1` and `A2`, `P9` and `P13`'s three-line task, folding in `openspec validate --strict`, the gate-edit check, the search script
-and the corpus check of `plan_check.py`; it SHALL also decide the `Verify:` sequencing rows `V1` to `V5` — a needle an earlier
+and the corpus check of `plan_check.py`; it SHALL also decide the `Verify:` sequencing rows `V1` to `V6` — a needle an earlier
 task already adds, a `-k` that selects tests a later task adds or deletes, a `git grep` of a file not committed before its
-phase ends, a needle its task never names, a `pytest` command that names no test path — and the record's consistency rows `K1` to `K6` — the proposal's `## Impact` against
+phase ends, a needle its task never names, a `pytest` command that names no test path, a needle a later task removes — and the record's consistency rows `K1` to `K6` — the proposal's `## Impact` against
 the tasks' files, the design's `## Tests` against the tasks' test files, the decision index against the decision headings, each
 decision a task cites, each cited Step and constant, and two tasks on one line. It SHALL print each row it leaves to judgment —
 `I5` to `I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs — and a summary line, and exit 1 on a mechanical failure, which the
@@ -4661,6 +4672,10 @@ unplaced.
 #### Scenario: A whole-suite pytest
 - **WHEN** a sub-task's `Verify:` runs `pytest` with no test path, or with `-m "not slow"` alone
 - **THEN** `cut_check.py` prints the failed row `V5` naming the sub-task and asking for the test files, and exits 1
+
+#### Scenario: A needle a later task removes
+- **WHEN** a sub-task's `Verify:` greps a needle in a file, and a later sub-task naming that file holds a fenced `diff` block with the needle in a removed line
+- **THEN** `cut_check.py` prints the failed row `V6` naming both sub-tasks, and exits 1
 
 #### Scenario: A record that disagrees with itself
 - **WHEN** a task links `design.md#d9` and `design.md` has no `### D9` heading
@@ -4901,11 +4916,12 @@ The fetch SHALL read no `uv` or `pip` setting of the person's environment or hom
 `skills/mf-review-metrics/scripts/review_metrics.py` SHALL read an interactive session's transcripts only from the folders
 the config's `sessions` key lists, each a list of strings, none listed and none read, and SHALL book their cost as two
 stations of a change, `plan` and `operator`, beside the stations a run spawns, in the `stations` of `review-metrics.json` and
-as columns of the page's cost table. It SHALL read from a transcript only the line's `type` and `timestamp`, an assistant
+as columns of the page's cost table. It SHALL read from a transcript only the line's `type`, `timestamp` and `cwd`, an assistant
 message's `id`, `model` and `usage`, a tool call's name and id, the `brief=` and `from=` tokens of an `mf-plan` call, the path
 of a `Write` or `Edit` call, whether a `Bash` call runs `conduct.py cut`, and the ids of a `cut: queued <id>` line, and SHALL
 write numbers, change ids and times, never text or a path. It SHALL read a session only when it holds a call of a skill named
-`mf-*` or of `conduct.py`.
+`mf-*` or of `conduct.py`. A `brief=$NAME` or `brief=${NAME}` token of a command SHALL be read as the value of an earlier
+`NAME=<value>` word of the same command, and as written when no word assigns the name.
 
 A message SHALL be priced once by its `id`, its tokens priced by `prices.toml` under its model, a gap with no row; a message
 with no token is no turn. A session whose id a station log's `init` event names SHALL be skipped, with its subagents: the run's
@@ -4918,7 +4934,9 @@ to the ids of the `cut: queued <id>` lines in the results of a `conduct.py cut` 
 only when `<id>` has a change folder in a repo read and a cut log of that change written after the call; a span that queued
 several ids SHALL be split equally among them, a span that queued none booked `unbooked`, and a `from=` continuation in a later
 session SHALL join the span of the brief it continues. Every message outside a span SHALL be `operator`, booked to the open
-version the nearest earlier mark names — a valid `cut: queued` line, or a run-log line naming a change — else `unbooked`.
+version the nearest earlier mark names — a valid `cut: queued` line, or a run-log line naming a change — else `unbooked`. A
+session whose first `cwd` names a repo read, as that folder, one under it, or a worktree of it, SHALL take the marks of that
+repo alone.
 
 #### Scenario: No sessions key
 - **WHEN** the config holds no `sessions` key
@@ -4951,6 +4969,14 @@ version the nearest earlier mark names — a valid `cut: queued` line, or a run-
 #### Scenario: One usage per message
 - **WHEN** a transcript holds several lines of one message `id`
 - **THEN** its usage is priced once
+
+#### Scenario: A brief named by a variable
+- **WHEN** a `conduct.py cut` command reads `B=<brief>; … brief=$B`
+- **THEN** the span of that brief is bound to the ids the call queued
+
+#### Scenario: A session in one repo, a mark in another
+- **WHEN** two repos each hold a mark, a session's first `cwd` is the second repo, and the first repo's mark is the nearer
+- **THEN** the session's operator messages book to the second repo's mark
 
 ### Requirement: A cut reads one context pack
 

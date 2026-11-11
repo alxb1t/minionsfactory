@@ -1418,7 +1418,7 @@ def _own_repo(cwd: object, repos: Sequence[Path]) -> str | None:
     if not isinstance(cwd, str):
         return None
     here = Path(cwd)
-    for repo in repos:
+    for repo in sorted(repos, key=lambda path: len(path.parts), reverse=True):
         if here == repo or repo in here.parents:
             return repo.name
     try:
