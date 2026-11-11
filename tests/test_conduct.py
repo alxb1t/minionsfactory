@@ -4386,6 +4386,41 @@ def test_a_queued_cut_is_cut_then_built(
     assert models.read_text() == _MODELS
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("attempt", range(10))
+def test_three_versions_cut_built_converged_and_closed_at_once(
+    attempt: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+) -> None:
+    # Why: 0112-uv-race design D5.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    changes = ("0001-a", "0002-b", "0003-c")
+    for change in changes:
+        _queued(conduct, root, change, brief)
+
+    assert _run_claude(conduct, root, monkeypatch) == 0
+
+    made = _calls(calls)
+    for change in changes:
+        for call in (
+            f"cut-change {change}",
+            f"build {change}",
+            f"build {change} with phase=close",
+            f"release {change}",
+            *_judged(change),
+        ):
+            assert call in made, (attempt, call)
+    lines = _log(root)
+    assert not [line for line in lines if " · halt — " in line]
+    assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0 v0.3.0")
+
+
 def test_a_cut_brief_reaches_the_supervisor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:

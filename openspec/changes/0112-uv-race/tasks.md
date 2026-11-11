@@ -8,7 +8,7 @@ its own; only the phase's end is green.
 
 - [x] 1 — Converge starts its scripts by the conductor's Python · moderate
 - [x] 2 — A run builds each pinned script's environment once · hard
-- [ ] 3 — The corpus lock and the stress test · hard
+- [x] 3 — The corpus lock and the stress test · hard
 
 ## 1 — Converge starts its scripts by the conductor's Python
 
@@ -47,19 +47,19 @@ its own; only the phase's end is green.
 
 ## 3 — The corpus lock and the stress test
 
-- [ ] 3.1 **HALT CHECK** The base holds the corpus runner's `run()` and its per-case delete the lock guards (F10).
+- [x] 3.1 **HALT CHECK** The base holds the corpus runner's `run()` and its per-case delete the lock guards (F10).
   Verify: `git grep -n -e '^def run(' -e 'shutil.rmtree(out' -- scripts/corpus.py` prints a line for each.
-- [ ] 3.2 **HALT CHECK** Each guard the audit's held rows name stands at the base ([the audit](design.md#the-shared-state-audit)).
+- [x] 3.2 **HALT CHECK** Each guard the audit's held rows name stands at the base ([the audit](design.md#the-shared-state-audit)).
   Verify: `git grep -c -e 'debt.lock' -e 'with self.merging:' -e 'fcntl.flock' -- skills/mf-converge/scripts/converge.py skills/mf-ship/scripts/conduct.py` prints a count for each file.
-- [ ] 3.3 Add `test_a_corpus_run_holds_its_lock` to `tests/test_corpus.py` ([Tests](design.md#tests)): a case whose command tries a non-blocking exclusive `flock` on `{minions}/corpus.lock` and exits 0 only when it is refused; a link at that name is exit 2.
+- [x] 3.3 Add `test_a_corpus_run_holds_its_lock` to `tests/test_corpus.py` ([Tests](design.md#tests)): a case whose command tries a non-blocking exclusive `flock` on `{minions}/corpus.lock` and exits 0 only when it is refused; a link at that name is exit 2.
   Verify: `git grep -n 'def test_a_corpus_run_holds_its_lock' -- tests/test_corpus.py` prints a line.
-- [ ] 3.4 In `scripts/corpus.py` add a context manager `_locked(minions)` to [D4](design.md#d4) and take it in `run()` after the link check and the creation of the `minions` folder, around every case.
+- [x] 3.4 In `scripts/corpus.py` add a context manager `_locked(minions)` to [D4](design.md#d4) and take it in `run()` after the link check and the creation of the `minions` folder, around every case.
   Verify: `uv run pytest -q tests/test_corpus.py` exits 0.
-- [ ] 3.5 Add `test_three_versions_cut_built_converged_and_closed_at_once` to `tests/test_conduct.py` as [D5](design.md#d5) says, `@pytest.mark.slow`, parametrized over `range(10)`; each round builds its repository under its own `tmp_path`.
+- [x] 3.5 Add `test_three_versions_cut_built_converged_and_closed_at_once` to `tests/test_conduct.py` as [D5](design.md#d5) says, `@pytest.mark.slow`, parametrized over `range(10)`; each round builds its repository under its own `tmp_path`.
   Verify: `uv run pytest -q --collect-only tests/test_conduct.py -k three_versions` exits 0.
-- [ ] 3.6 Run the stress test. A round that halts names a resource the audit lacks: add its row to [the audit](design.md#the-shared-state-audit), and fix it by a lock or a name, or defer it with its trigger as [D3](design.md#d3) says.
+- [x] 3.6 Run the stress test. A round that halts names a resource the audit lacks: add its row to [the audit](design.md#the-shared-state-audit), and fix it by a lock or a name, or defer it with its trigger as [D3](design.md#d3) says.
   Verify: `uv run pytest -q -n auto tests/test_conduct.py -k three_versions` exits 0.
-- [ ] 3.7 Run the flaky test in a row: its node id repeated on one command line, with `--keep-duplicates`.
+- [x] 3.7 Run the flaky test in a row: its node id repeated on one command line, with `--keep-duplicates`.
   Verify: `uv run pytest -q --keep-duplicates tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back tests/test_conduct.py::test_a_rejoined_dependency_brings_its_chain_back` exits 0.
-- [ ] 3.8 Check the audit names its table for the acceptance search.
+- [x] 3.8 Check the audit names its table for the acceptance search.
   Verify: `git grep -n 'shared' -- openspec/changes/0112-uv-race/design.md` prints a line.

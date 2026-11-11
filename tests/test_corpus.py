@@ -4,6 +4,7 @@ A repository and a run directory under `tmp_path`, each case a `sys.executable -
 reader. Why: 0103-fewer-rounds design D5.
 """
 
+import fcntl
 import importlib.util
 import json
 import os
@@ -32,6 +33,15 @@ _FAIL_B = (
     "sys.exit(1 if sys.argv[1].endswith('b/x.md') else 0)"
 )
 _SLEEP = "import time; time.sleep(5)"
+_REFUSED = (
+    "import fcntl, os, sys\n"
+    "fd = os.open(sys.argv[1], os.O_RDWR)\n"
+    "try:\n"
+    "    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+    "except BlockingIOError:\n"
+    "    sys.exit(0)\n"
+    "sys.exit(1)"
+)
 _PREFIX = "corpus: cannot run — "
 
 
@@ -154,6 +164,36 @@ def test_the_corpus_runs_each_case(
     assert (done.returncode, done.stdout) == (0, "corpus: once · 1 runs · pass\n")
     written = (root / ".minions" / "corpus" / "once" / "1" / "m.txt").read_text()
     assert Path(written).resolve() == (root / ".minions").resolve()
+
+
+def test_a_corpus_run_holds_its_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path / "repo")
+    monkeypatch.chdir(root)
+    minions = tmp_path / "run"
+    found = _cases(
+        tmp_path / "cases.toml",
+        _case("locked", [sys.executable, "-c", _REFUSED, "{minions}/corpus.lock"]),
+    )
+    argv = ["--cases", str(found), "--minions", str(minions)]
+
+    # A case meets the lock held: its own try is refused, so it exits 0.
+    assert corpus.main(argv) == 0
+    assert capsys.readouterr().out == "corpus: locked · 1 runs · pass\n"
+
+    # The lock is let go with the run: the same file takes a new one.
+    fd = os.open(minions / "corpus.lock", os.O_RDWR)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    os.close(fd)
+
+    # A link at the lock's name is no lock.
+    (minions / "corpus.lock").unlink()
+    (minions / "corpus.lock").symlink_to(tmp_path / "elsewhere")
+    assert corpus.main(argv) == 2
+    said = capsys.readouterr().out.strip()
+    assert said.startswith(_PREFIX)
+    assert "corpus.lock" in said
 
 
 def test_a_corpus_it_cannot_read_exits_2(
