@@ -16,7 +16,7 @@ Facts at `3ddeffd`, re-read at `e3051e5`, `HEAD` at the cut. `K` is `skills/mf-c
 | F1 | `script(name, *args)` returns `["uv", "run", "--script", <script>, *args]`; each call runs it under `sandboxed()` | `K:367-369` |
 | F2 | `script()` starts `gate_run.py` at `K:416`, `K:1077` and `K:1219`, `gate_check.py` at `K:418` and `plan_check.py` at `K:457` and `K:1116` | `K:416-457`, `K:1077`, `K:1116`, `K:1219` |
 | F3 | `K` also loads other scripts in-process by `runpy`, `plan_check.py` among them | `K:29-38` |
-| F4 | `gate_run.py`, `gate_check.py` and `plan_check.py` declare `requires-python = ">=3.12"` and `dependencies = []`, as `C` does | `skills/mf-converge/scripts/gate_check.py:1-4`, `C:1-4` |
+| F4 | `gate_run.py`, `gate_check.py` and `plan_check.py` declare `requires-python = ">=3.12"` and `dependencies = []`; `C` shares their `requires-python` but declares `markdown-it-py>=3,<4` | `skills/mf-converge/scripts/gate_check.py:1-4`, `C:1-4` |
 | F5 | every version's converge thread shares the primary's `.minions/uv-cache`: the sandboxed env sets `UV_CACHE_DIR` and `UV_OFFLINE=1`, a worker's argv sets the same cache | `C:3214-3215`, `C:3356` |
 | F6 | `uv sync --script <file>` builds `environments-v2/<stem>-<hash>` under the cache and writes no `.lock` file beside the script; a later `uv run --script <file>` reuses the environment | a probe on a scratch copy, at the cut |
 | F7 | `C` loads `converge` in-process; the one `uv run --script` it starts itself is `brief_check.py` in the cut | `C:4260`, `C:6980` |

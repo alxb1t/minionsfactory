@@ -9797,6 +9797,8 @@ def test_a_run_builds_each_pinned_scripts_environment_before_its_first_thread(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     # Why: 0112-uv-race design D2. No lower layer reaches `Run.ship()`'s order.
+    # T2: the three-version test runs ten 3-cut rounds at 221 s; one cut keeps
+    # this order proof at seconds, and its fake-uv records are read per run.
     conduct = _conduct()
     calls = fake()
     root = _primary(tmp_path)
