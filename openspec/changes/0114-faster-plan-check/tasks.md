@@ -6,7 +6,7 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 
 - [x] 1 — plan_check.py: distinct commands, the gate's green record, the record by tree · hard
 - [x] 2 — The parallel runner and the group kill · hard
-- [ ] 3 — The deadline, the catch-up, the whole-suite flag and the foreground · hard
+- [x] 3 — The deadline, the catch-up, the whole-suite flag and the foreground · hard
 
 ## 1 — plan_check.py: distinct commands, the gate's green record, the record by tree
 
@@ -38,27 +38,27 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 
 ## 3 — The deadline, the catch-up, the whole-suite flag and the foreground
 
-- [ ] 3.1 **HALT CHECK** `skills/mf-converge/scripts/converge.py` and `skills/mf-ship/scripts/conduct.py` hold the seams this phase changes ([D5](design.md#d5), [D8](design.md#d8)).
+- [x] 3.1 **HALT CHECK** `skills/mf-converge/scripts/converge.py` and `skills/mf-ship/scripts/conduct.py` hold the seams this phase changes ([D5](design.md#d5), [D8](design.md#d8)).
   Verify: `git grep -n -e '^def added(' -e '^def sandboxed(' -- skills/mf-converge/scripts/converge.py skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` give `sandboxed` the parameter `timeout=None`: when it is not `None` the command starts in a session of its own, a thread watches it, and past the deadline, at once when it is 0 or less, the group gets SIGTERM, the output gets `sandboxed: timed out — killed after <timeout> s` and the exit is 124 ([D5](design.md#d5)); add `test_a_command_past_its_deadline_is_killed_with_its_group` to `tests/test_sandboxed.py`.
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` give `sandboxed` the parameter `timeout=None`: when it is not `None` the command starts in a session of its own, a thread watches it, and past the deadline, at once when it is 0 or less, the group gets SIGTERM, the output gets `sandboxed: timed out — killed after <timeout> s` and the exit is 124 ([D5](design.md#d5)); add `test_a_command_past_its_deadline_is_killed_with_its_group` to `tests/test_sandboxed.py`.
   Verify: `uv run pytest -q tests/test_sandboxed.py -k past_its_deadline` exits 0.
-- [ ] 3.3 In `conduct.py` give `sandboxed` the parameter `grace=5.0`, after which the group gets SIGKILL ([D5](design.md#d5)); add `test_a_command_that_ignores_sigterm_is_killed_after_the_grace` to `tests/test_sandboxed.py`.
+- [x] 3.3 In `conduct.py` give `sandboxed` the parameter `grace=5.0`, after which the group gets SIGKILL ([D5](design.md#d5)); add `test_a_command_that_ignores_sigterm_is_killed_after_the_grace` to `tests/test_sandboxed.py`.
   Verify: `uv run pytest -q tests/test_sandboxed.py -k ignores_sigterm` exits 0.
-- [ ] 3.4 In `conduct.py` make `Run.sandboxed` pass `timeout` on ([D5](design.md#d5)); add `test_the_run_passes_a_deadline_to_the_sandbox` to `tests/test_conduct.py`, a command past its deadline exiting 124.
+- [x] 3.4 In `conduct.py` make `Run.sandboxed` pass `timeout` on ([D5](design.md#d5)); add `test_the_run_passes_a_deadline_to_the_sandbox` to `tests/test_conduct.py`, a command past its deadline exiting 124.
   Verify: `uv run pytest -q tests/test_conduct.py -k passes_a_deadline` exits 0.
-- [ ] 3.5 In `skills/mf-converge/scripts/converge.py` give `Host.sandboxed` a `timeout` and make `sandboxed(context, argv, out)` pass `remaining(context)` ([D5](design.md#d5)); in `tests/test_converge.py` make `Host.sandboxed` take and record it, and add `test_a_sandboxed_command_gets_the_converge_deadline`.
+- [x] 3.5 In `skills/mf-converge/scripts/converge.py` give `Host.sandboxed` a `timeout` and make `sandboxed(context, argv, out)` pass `remaining(context)` ([D5](design.md#d5)); in `tests/test_converge.py` make `Host.sandboxed` take and record it, and add `test_a_sandboxed_command_gets_the_converge_deadline`.
   Verify: `uv run pytest -q tests/test_converge.py -k converge_deadline` exits 0.
-- [ ] 3.6 In `skills/mf-converge/scripts/plan_check.py` make `main` take `--only <ids>`, each of the form `N.M` and anything else exiting 2, and `check` then pass `only` to `check_verifies`, over those sub-tasks whatever their boxes, and print its lines only ([D8](design.md#d8)); add `test_only_runs_the_named_sub_tasks` to `tests/test_plan_check.py`, per the scenario *Only the named sub-tasks*.
+- [x] 3.6 In `skills/mf-converge/scripts/plan_check.py` make `main` take `--only <ids>`, each of the form `N.M` and anything else exiting 2, and `check` then pass `only` to `check_verifies`, over those sub-tasks whatever their boxes, and print its lines only ([D8](design.md#d8)); add `test_only_runs_the_named_sub_tasks` to `tests/test_plan_check.py`, per the scenario *Only the named sub-tasks*.
   Verify: `uv run pytest -q tests/test_plan_check.py -k only_runs_the_named` exits 0.
-- [ ] 3.7 In `converge.py` make `added` keep its detection and, when a `Verify:` changed, run `plan_check.py --only` for those sub-tasks through `_captured`, exit 1 halting `verify failed — <ids>`, the distinct `N.M` subjects of its lines, and any other exit but 0, or an exit 1 naming none, halting `plan check: <lines>` ([D8](design.md#d8)); in `tests/test_converge.py` make `test_a_catch_up_judges_the_new_commits` set `host.exits["plan_check.py"]` and `host.printed["plan_check.py"]` where it set `host.exits["git"]`, drop that `git` reset, put the catch-up's own run first in its list of plan-check exits, and add `test_a_catch_up_runs_the_changed_verifies_in_one_plan_check`.
+- [x] 3.7 In `converge.py` make `added` keep its detection and, when a `Verify:` changed, run `plan_check.py --only` for those sub-tasks through `_captured`, exit 1 halting `verify failed — <ids>`, the distinct `N.M` subjects of its lines, and any other exit but 0, or an exit 1 naming none, halting `plan check: <lines>` ([D8](design.md#d8)); in `tests/test_converge.py` make `test_a_catch_up_judges_the_new_commits` set `host.exits["plan_check.py"]` and `host.printed["plan_check.py"]` where it set `host.exits["git"]`, drop that `git` reset, put the catch-up's own run first in its list of plan-check exits, and add `test_a_catch_up_runs_the_changed_verifies_in_one_plan_check`.
   Verify: `uv run pytest -q tests/test_converge.py -k one_plan_check` exits 0.
-- [ ] 3.8 In `skills/mf-cut-change/scripts/cut_check.py` add `row_v5(change, plan)`, with `V5` in `ROWS` and in `check`'s `rows` ([D7](design.md#d7)); in `tests/test_cut_check.py` add its defect to `test_each_mechanical_row_fails_by_name`, and make the fixture whose `Verify:` is `uv run pytest -q -k widget` name `test_widget.py`, so it halts no row but `V2`.
+- [x] 3.8 In `skills/mf-cut-change/scripts/cut_check.py` add `row_v5(change, plan)`, with `V5` in `ROWS` and in `check`'s `rows` ([D7](design.md#d7)); in `tests/test_cut_check.py` add its defect to `test_each_mechanical_row_fails_by_name`, and make the fixture whose `Verify:` is `uv run pytest -q -k widget` name `test_widget.py`, so it halts no row but `V2`.
   Verify: `uv run pytest -q tests/test_cut_check.py -k V5` exits 0.
-- [ ] 3.9 In `skills/mf-cut-change/SKILL.md` Step 8 read `V1`–`V5` in the list of rows the script decides, and in the `Verify:` bullet `V1`–`V5` settle a search's sequence, its needles and a `pytest`'s test files ([D7](design.md#d7)).
+- [x] 3.9 In `skills/mf-cut-change/SKILL.md` Step 8 read `V1`–`V5` in the list of rows the script decides, and in the `Verify:` bullet `V1`–`V5` settle a search's sequence, its needles and a `pytest`'s test files ([D7](design.md#d7)).
   Verify: `grep -c -F V5 skills/mf-cut-change/SKILL.md` prints `2`.
-- [ ] 3.10 In `skills/mf-converge/references/fix.md` the plan-check bullet says to run it `in the foreground`, and that it ends within 600 s ([D6](design.md#d6)).
+- [x] 3.10 In `skills/mf-converge/references/fix.md` the plan-check bullet says to run it `in the foreground`, and that it ends within 600 s ([D6](design.md#d6)).
   Verify: `git grep -n 'in the foreground' -- skills/mf-converge/references/fix.md` prints a line.
-- [ ] 3.11 In `skills/mf-build/SKILL.md` Step 3.6 say to run the plan check `in the foreground`, within 600 s ([D6](design.md#d6)).
+- [x] 3.11 In `skills/mf-build/SKILL.md` Step 3.6 say to run the plan check `in the foreground`, within 600 s ([D6](design.md#d6)).
   Verify: `git grep -n 'in the foreground' -- skills/mf-build/SKILL.md` prints a line.
-- [ ] 3.12 In `docs/decisions.md` D74's plan-check sentence reads `re-runs each ticked Verify: in parallel, passes a bare pytest on the gate's green record and keeps results by tree` in place of `re-runs each ticked Verify:` ([D9](design.md#d9)).
+- [x] 3.12 In `docs/decisions.md` D74's plan-check sentence reads `re-runs each ticked Verify: in parallel, passes a bare pytest on the gate's green record and keeps results by tree` in place of `re-runs each ticked Verify:` ([D9](design.md#d9)).
   Verify: `git grep -n 'keeps results by tree' -- docs/decisions.md` prints a line.

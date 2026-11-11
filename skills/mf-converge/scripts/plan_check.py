@@ -34,6 +34,7 @@ PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
 REVISION = re.compile(r"[0-9a-f]{7,40}")
 SHOWN = 5
 CHANGE = re.compile(r"[a-z0-9-]+")
+ID = re.compile(r"\d+\.\d+")
 SUBTASK = re.compile(r"- \[([ x])\] (\d+\.\d+\b.*)$")
 PHASE = re.compile(r"- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
@@ -626,8 +627,11 @@ def check_corpus(tasks: list[Task], root: Path) -> list[str]:
     ]
 
 
-def check(change: str, base: str) -> list[str]:
-    """Return every problem line of a change's plan against the working tree."""
+def check(change: str, base: str, only: set[str] | None = None) -> list[str]:
+    """Return every problem line of a change's plan against the working tree.
+
+    With `only`, the `Verify:` lines of those sub-tasks, ticked or not, and no other.
+    """
     if not CHANGE.fullmatch(change) or base.startswith("-"):
         raise Stop("the change id or the base is not one this check reads")
     root = Path(_git(Path.cwd(), "rev-parse", "--show-toplevel").stdout.strip())
@@ -636,13 +640,15 @@ def check(change: str, base: str) -> list[str]:
         tasks = (folder / "tasks.md").read_text(errors="replace")
     except OSError as error:
         raise Stop(f"tasks.md: {error.strerror}") from None
+    found, human = phases(tasks)
+    parsed = subtasks(tasks)
+    if only is not None:
+        return check_verifies(parsed, human, root, only)
     merge_base = _git(root, "merge-base", base, "HEAD").stdout.strip()
     design = folder / "design.md"
     tests = tests_section(
         design.read_text(errors="replace") if design.is_file() else ""
     )
-    found, human = phases(tasks)
-    parsed = subtasks(tasks)
     return [
         *check_verifies(parsed, human, root),
         *check_boxes(parsed, found),
@@ -666,10 +672,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--change", required=True, help="the change id")
     parser.add_argument("--base", required=True, help="the revision the branch left")
+    parser.add_argument(
+        "--only", nargs="+", metavar="N.M", help="check only these sub-tasks' Verify:"
+    )
     args = parser.parse_args(argv)
+    only = None if args.only is None else set(args.only)
+    if only is not None and not all(ID.fullmatch(name) for name in only):
+        print(f"plan: cannot check — --only takes ids like 3.2, not {sorted(only)}")
+        return 2
     previous = signal.signal(signal.SIGTERM, _terminate)
     try:
-        problems = check(args.change, args.base)
+        problems = check(args.change, args.base, only)
     except Stop as stop:
         print(f"plan: cannot check — {stop}")
         return 2

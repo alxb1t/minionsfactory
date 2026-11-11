@@ -4,6 +4,7 @@ Why: 0108-converge-script design D1, its `## Tests` table.
 """
 
 import ast
+import io
 import os
 import re
 import runpy
@@ -130,6 +131,7 @@ class Host:
         self.exits: dict[str, int | list[int]] = {}
         self.printed = {"make": "uv run ruff check .\n"}
         self.ran: list[list[str]] = []
+        self.timeouts: list[float | None] = []
         self.checks: list[tuple[str, str, str | None, str]] = []
         self.answers: dict[str, Callable[[str], None]] = {}
         self.results: dict[str, Checked | list[Checked]] = {}
@@ -151,8 +153,14 @@ class Host:
         return [self.primary, self.tree]
 
     def sandboxed(
-        self, argv: list[str], cwd: Path, trees: list[Path], out: TextIO | None = None
+        self,
+        argv: list[str],
+        cwd: Path,
+        trees: list[Path],
+        out: TextIO | None = None,
+        timeout: float | None = None,
     ) -> int:
+        self.timeouts.append(timeout)
         if isinstance(self.sandbox, Exception):
             raise self.sandbox
         if not self.sandbox:
@@ -1290,6 +1298,76 @@ def test_a_granted_round_goes_one_past_the_cap(host: Host) -> None:
     )
 
 
+def test_a_sandboxed_command_gets_the_converge_deadline(host: Host) -> None:
+    converge = _converge()
+    context = converge["Context"](
+        host, _CHANGE, host.tree, _WORKERS, time.monotonic() + 100
+    )
+    out = io.StringIO()
+
+    converge["sandboxed"](context, ["true"], out)
+
+    assert host.timeouts[0] is not None
+    assert 0 < host.timeouts[0] <= 100
+    context.deadline = time.monotonic() - 5
+
+    converge["sandboxed"](context, ["true"], out)
+
+    assert host.timeouts[1] == 0
+
+
+def test_a_catch_up_runs_the_changed_verifies_in_one_plan_check(host: Host) -> None:
+    assert run(host) == 0
+    tasks = (
+        _TASKS
+        + "\n- [x] 1.1 One.\n  Verify: `git grep -n nope` prints a line.\n"
+        + "- [x] 1.2 Two.\n  Verify: `true`.\n"
+    )
+    _commit(
+        host.tree,
+        {f"openspec/changes/{_CHANGE}/tasks.md": tasks},
+        f"docs({_CHANGE}): amend the change directory",
+    )
+    host.ran.clear()
+    host.exits["plan_check.py"] = 1
+    host.printed["plan_check.py"] = (
+        "plan: 1.2 — `true` exited 1\n  | out\nplan: 1.1 — `x` exited 1\n"
+        "plan: 1.2 — `true` printed other\n"
+    )
+
+    assert run(host) == 1
+
+    plans = [argv for argv in host.ran if Path(argv[1]).name == "plan_check.py"]
+    assert len(plans) == 1
+    assert plans[0][plans[0].index("--only") :] == ["--only", "1.1", "1.2"]
+    assert ["git", "grep", "-n", "nope"] not in host.ran
+    assert events(host)[-1].endswith(
+        f" · halt — verify failed — 1.2, 1.1 · head {_head(host)}"
+    )
+
+    host.exits["plan_check.py"] = 2
+    host.printed["plan_check.py"] = "plan: cannot check — git is missing\n"
+
+    assert run(host) == 1
+
+    assert events(host)[-1].endswith(
+        f" · halt — plan check: cannot check — git is missing · head {_head(host)}"
+    )
+
+    host.exits["plan_check.py"] = 1
+    host.printed["plan_check.py"] = "plan: tasks.md names nothing here\n"
+
+    assert run(host) == 1
+
+    assert events(host)[-1].endswith(
+        f" · halt — plan check: tasks.md names nothing here · head {_head(host)}"
+    )
+
+    host.exits["plan_check.py"] = 0
+
+    assert run(host) == 0
+
+
 def _amend(host: Host, text: str = "# A — design, amended\n") -> str:
     return _commit(
         host.tree,
@@ -1345,7 +1423,8 @@ def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
         {f"openspec/changes/{_CHANGE}/tasks.md": tasks},
         f"docs({_CHANGE}): amend the change directory",
     )
-    host.exits["git"] = 1
+    host.exits["plan_check.py"] = 1
+    host.printed["plan_check.py"] = "plan: 1.1 — `git grep -n nope` exited 1\n"
 
     assert run(host) == 1
 
@@ -1353,9 +1432,7 @@ def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
         events(host)[-1] == f"round 2 · halt — verify failed — 1.1 · head {_head(host)}"
     )
 
-    host.exits["git"] = 0
-    host.exits["plan_check.py"] = [0, 1, 0]
-    host.printed["plan_check.py"] = "plan: 1.1 — `git grep -n nope` exited 1\n"
+    host.exits["plan_check.py"] = [0, 0, 1, 0]
 
     assert run(host) == 0
 

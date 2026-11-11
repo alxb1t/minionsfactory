@@ -12,6 +12,7 @@ import signal
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -224,6 +225,80 @@ def test_the_output_goes_to_the_file_given(
     assert seen.err == ""
     assert _conduct()["sandboxed"](_python("print('two')"), trees[0], trees) == 0
     assert capsys.readouterr().out == "two\n"
+
+
+_SPAWN = (
+    "import subprocess, sys, time;"
+    " child = subprocess.Popen(['sleep', '60']);"
+    " open(sys.argv[1], 'w').write(str(child.pid));"
+    " time.sleep(60)"
+)
+_DEAF = (
+    "import signal, sys, time;"
+    " signal.signal(signal.SIGTERM, signal.SIG_IGN);"
+    " print('ready', flush=True);"
+    " time.sleep(60)"
+)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def _gone(pid: int) -> bool:
+    for _ in range(100):
+        if not _alive(pid):
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_a_command_past_its_deadline_is_killed_with_its_group(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    sandboxed = _conduct()["sandboxed"]
+    trees = _trees(tmp_path)
+    child = tmp_path / "child.pid"
+    out = io.StringIO()
+
+    assert sandboxed(_python("print('quick')"), trees[0], trees, out, timeout=30) == 0
+    assert out.getvalue() == "quick\n"
+
+    out = io.StringIO()
+    code = sandboxed(
+        [*_python(_SPAWN), str(child)], trees[0], trees, out, timeout=1, grace=30
+    )
+
+    assert code == 124
+    assert out.getvalue() == "sandboxed: timed out — killed after 1 s\n"
+    assert _gone(int(child.read_text()))
+
+    out = io.StringIO()
+    assert sandboxed(_python("print('x')"), trees[0], trees, out, timeout=0) == 124
+    assert out.getvalue().endswith("sandboxed: timed out — killed after 0 s\n")
+
+
+def test_a_command_that_ignores_sigterm_is_killed_after_the_grace(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    trees = _trees(tmp_path)
+    out = io.StringIO()
+    started = time.monotonic()
+
+    code = _conduct()["sandboxed"](
+        _python(_DEAF), trees[0], trees, out, timeout=1, grace=0.5
+    )
+
+    assert code == 124
+    assert out.getvalue().splitlines() == [
+        "ready",
+        "sandboxed: timed out — killed after 1 s",
+    ]
+    assert time.monotonic() - started < 30
 
 
 def _repo(tmp_path: Path) -> Path:

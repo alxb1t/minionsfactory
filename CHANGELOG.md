@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` runs its commands side by side, one slot for each core, a `pytest` with `-n` alone and one `make` at a
   time, each `pytest` with `-p no:cacheprovider`; a timeout kills the command's process group, and SIGTERM ends the
   groups running (change `0114-faster-plan-check`, phase 2).
+- `sandboxed()` takes a `timeout` and ends the command's group at it, so converge's commands end at its deadline;
+  `plan_check.py --only` checks named sub-tasks, which a catch-up runs for the `Verify:` lines it adds; `cut_check.py`
+  row `V5` flags a `pytest` that names no test file; the fixer and the build's close run the plan check in the
+  foreground (change `0114-faster-plan-check`, phase 3).
 
 ## [0.93.0] - 2026-11-11
 

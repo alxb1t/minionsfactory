@@ -487,10 +487,11 @@ which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` 
 
 **Round 1's fix pass takes the pickup with its blockers, and a pickup fix that commits nothing gets no check. The fixer
 records how the code now builds a decision in a `Fix note` closing its entry, which the run reads as no decision change.
-`plan_check.py` re-runs each ticked `Verify:` and finds unticked boxes, removed names the plan still claims and the base's
-tests gone, at the build's close and after each fix. `make corpus` runs the readers of run data over the repo's own, outside
-the gate. The Markdown readers parse with `markdown-it-py`. Plan reviews run on Sonnet 5.5 · high; the cut's default model is
-Sonnet 5.5 · high.**
+`plan_check.py` re-runs each ticked `Verify:` in parallel, passes a bare `pytest` on the gate's green record and
+keeps results by tree, and finds unticked boxes, removed names the plan still claims and the base's tests gone, at the
+build's close and after each fix. `make corpus` runs the readers of run data over the repo's own, outside the gate. The
+Markdown readers parse with `markdown-it-py`. Plan reviews run on Sonnet 5.5 · high; the cut's default model is Sonnet
+5.5 · high.**
 
 - **Why:** across 0080–0100, most rounds past the first were a pickup alone or grew from one, an amend round over plan prose
   a fix left stale, or a blocker a deterministic check could have found.
