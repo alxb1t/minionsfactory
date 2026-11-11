@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.98.0] - 2026-11-11
+
+Gate: local 15m1s · CI not read under mf-ship · 0.97.0: local 6m58s · CI not read under mf-ship
+
 - Each debt card whose premise is gone, or whose class closed wontfix or accepted, has its Still true? re-run and
   passing; no file but the plan changes (0118-debt-paydown-3a, phase 1).
 - Prose and archive cards corrected in place; the threat model records C4 under *Out of scope* and a plugin gap under
