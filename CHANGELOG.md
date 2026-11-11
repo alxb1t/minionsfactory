@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Three run tests state why they cost what they do; the `_temp_folder` and `_remove_temp` docstrings keep a summary
   and a `Why:` line; `_settle_kept` cites a design and a requirement in place of a findings card
   (0119-debt-paydown-3b, phase 3).
+- The archived designs of `0099-stacked-builds`, `0100-worker-diet` and `0104-codex-limits` state `until`'s `still`
+  callable, `lacked`'s opening match and `codex_ready`'s `PROBE_ROOM` floor, each citing its decision
+  (0119-debt-paydown-3b, phase 4).
 
 ## [0.98.0] - 2026-11-11
 

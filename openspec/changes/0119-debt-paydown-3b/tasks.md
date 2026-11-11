@@ -7,7 +7,7 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 - [x] 1 — The security and link cards · hard
 - [x] 2 — The stacking, tool, probe, rejoin and converge cards · hard
 - [x] 3 — The test-cost reasons and the docstrings · moderate
-- [ ] 4 — The archived design lines the fixes made stale · moderate
+- [x] 4 — The archived design lines the fixes made stale · moderate
 
 ## 1 — The security and link cards
 
@@ -50,9 +50,9 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 ## 4 — The archived design lines the fixes made stale
 
-- [ ] 4.1 In the `### D1` entry of `openspec/changes/archive/0099-stacked-builds/design.md`, per [D17](design.md#d17): the `until` signature's `stack: bool,` becomes `still: Callable[[], list[str]],`; its docstring's first line becomes `"""Wait while the dependency's thread lives, until the version may stack.`; after the code block, the clause naming the flag true when one id is unreleased becomes `ready` passing `still`, a callable that returns the unreleased dependencies at each poll, and `until` asking `self.stackable(version, still())`, `per 0119-debt-paydown-3b design D9`.
+- [x] 4.1 In the `### D1` entry of `openspec/changes/archive/0099-stacked-builds/design.md`, per [D17](design.md#d17): the `until` signature's `stack: bool,` becomes `still: Callable[[], list[str]],`; its docstring's first line becomes `"""Wait while the dependency's thread lives, until the version may stack.`; after the code block, the clause naming the flag true when one id is unreleased becomes `ready` passing `still`, a callable that returns the unreleased dependencies at each poll, and `until` asking `self.stackable(version, still())`, `per 0119-debt-paydown-3b design D9`.
   Verify: `grep -n -e 'stack: bool' -e 'true when one id is unreleased' openspec/changes/archive/0099-stacked-builds/design.md` exits 1.
-- [ ] 4.2 In the `### D5` entry of `openspec/changes/archive/0100-worker-diet/design.md`, per [D17](design.md#d17): the `lacked` item's words that the result holds `MISSING` become that the result's text opens with `MISSING` once its `<tool_use_error>` prefix is removed and its leading whitespace stripped, `per 0119-debt-paydown-3b design D11`.
+- [x] 4.2 In the `### D5` entry of `openspec/changes/archive/0100-worker-diet/design.md`, per [D17](design.md#d17): the `lacked` item's words that the result holds `MISSING` become that the result's text opens with `MISSING` once its `<tool_use_error>` prefix is removed and its leading whitespace stripped, `per 0119-debt-paydown-3b design D11`.
   Verify: `grep -n 'holds .MISSING.' openspec/changes/archive/0100-worker-diet/design.md` exits 1.
-- [ ] 4.3 In the `### D3` entry of `openspec/changes/archive/0104-codex-limits/design.md`, per [D17](design.md#d17): the `Run.codex_ready` item, Codex unprobed, returns False when less than `PROBE_ROOM` is left before `deadline`, `per 0119-debt-paydown-3b design D12`, and calls `self.probe_for` otherwise.
+- [x] 4.3 In the `### D3` entry of `openspec/changes/archive/0104-codex-limits/design.md`, per [D17](design.md#d17): the `Run.codex_ready` item, Codex unprobed, returns False when less than `PROBE_ROOM` is left before `deadline`, `per 0119-debt-paydown-3b design D12`, and calls `self.probe_for` otherwise.
   Verify: `grep -c 'PROBE_ROOM' openspec/changes/archive/0104-codex-limits/design.md` prints `1`.

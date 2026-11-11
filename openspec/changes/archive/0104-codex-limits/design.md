@@ -170,7 +170,8 @@ Fix note (2026-11-09, R2): `on_stations` leaves out the stations the version's `
   `checker-sleep`.
 - **`Run.codex_ready(change: str, deadline: float) -> bool`** — `reset` is the later of `limited_until("codex")` and
   `_headroom(time.time())`. A `reset` with `reset - time.time() <= LIMIT_WAIT` and before `deadline` on the monotonic
-  clock → `time.sleep` until it, then go on; any other `reset` → False. Then, Codex unprobed,
+  clock → `time.sleep` until it, then go on; any other `reset` → False. Then, Codex unprobed, False when less than
+  `PROBE_ROOM` is left before `deadline`, per 0119-debt-paydown-3b design D12, and otherwise
   `self.probe_for(change, ["codex"], [])`; return whether `"codex"` is in `self.probed`.
 - **`Run.checker`** — the rule keys on the executor the role runs on, a shadow's after `_shadow`: on `codex` with
   `codex_ready` False, a shadow answers `_answer(1, False, models, " · stopped by a usage limit")`, spawning nothing, and
