@@ -59,6 +59,7 @@ STAMP = "%Y%m%d-%H%M%S"
 ACTIVE = 60
 QUIET = 300
 ROLES = ("conformance", "adversarial")
+READ_EVENTS = frozenset({"spawn", "finish", "halt", "limited", "rescue", "supervise"})
 NEEDS_YOU = ("human", "integrating", "released")
 SUFFIX = re.compile(r" · (?:hard|moderate)$")
 SUBTASK = re.compile(r"^- \[([ x])\] (\d+)\.\d+ ", re.MULTILINE)
@@ -131,6 +132,27 @@ def read_part(path: Path, tail: bool = False) -> str | None:
         return os.read(fd, PART).decode(errors="replace")
     finally:
         os.close(fd)
+
+
+def read_lines(path: Path) -> Iterator[str]:
+    """Yield a regular file's lines one at a time, each cut at `PART` characters.
+
+    The whole file is streamed, so the memory held is one line; a long line's rest is
+    dropped. e.g. a pipe, a link or a missing file → no lines
+    """
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        return
+    with os.fdopen(fd, encoding="utf-8", errors="replace") as file:
+        while piece := file.readline(PART):
+            if not piece.endswith("\n") and len(piece) == PART:
+                while (rest := file.readline(PART)) and not rest.endswith("\n"):
+                    pass
+            yield piece.rstrip("\n")
 
 
 def _int(value: str | None) -> int | None:
@@ -206,10 +228,15 @@ class Reader:
         return self.cache[log]
 
     def _events(self, log: Path) -> list[Event]:
-        """Read a log's events; a line earlier than the one before is a day on."""
+        """Read a log's events; a line earlier than the one before is a day on.
+
+        The whole log is streamed, so a spawn or a midnight far back still counts; only
+        the events the projector reads, and the last one, are kept.
+        """
         base = datetime.strptime(log.stem[:15], STAMP)
         days, before, found = 0, 0, []
-        for line in (read_part(log, tail=True) or "").splitlines():
+        newest: Event | None = None
+        for line in read_lines(log):
             if not (match := self.conduct["EVENT"].match(line)):
                 continue
             hours, minutes, seconds = (int(part) for part in line[:8].split(":"))
@@ -218,9 +245,13 @@ class Reader:
             before = moment
             at = base.replace(hour=hours, minute=minutes, second=seconds)
             at += timedelta(days=days)
-            found.append(
-                Event(match[1], match[2], line[match.end() :], at.timestamp(), line)
+            newest = Event(
+                match[1], match[2], line[match.end() :], at.timestamp(), line
             )
+            if newest.name in READ_EVENTS:
+                found.append(newest)
+        if newest and (not found or found[-1] is not newest):
+            found.append(newest)
         return found
 
     def newest(self) -> list[Event]:
@@ -356,16 +387,14 @@ class Reader:
             "roles": roles,
         }
 
-    def diagnosed(self, change: str) -> bool:
-        """Return whether the version's last run-log line is a rescue diagnosis."""
-        order = self.conduct["_log_order"]
-        for log in sorted((self.runs / "runs").glob("*.md"), key=order, reverse=True):
-            mine = [event for event in self.events(log) if event.who == change]
-            if mine:
-                return mine[-1].name == "halt" and mine[-1].detail.startswith(
-                    "rescue diagnosed"
-                )
-        return False
+    def halted_in_log(self, change: str) -> bool:
+        """Return whether the version's last line in the newest run log is a halt.
+
+        e.g. `halt — build worker exit 1` or `halt — rescue diagnosed`; a later spawn
+        of the version, or a newer log with no line of its own, clears it
+        """
+        mine = [event for event in self.newest() if event.who == change]
+        return bool(mine) and mine[-1].name == "halt"
 
     def state(self, version: Version, stage: str, workers: list[dict[str, Any]]) -> str:
         """Return a version's state by the first matching row, `blocked` aside."""
@@ -375,7 +404,7 @@ class Reader:
         )
         if stage in NEEDS_YOU:
             return "needs you"
-        if stage == "converge-halted" or halted or self.diagnosed(change):
+        if stage == "converge-halted" or halted or self.halted_in_log(change):
             return "halted"
         if stage in ("waiting", "stacked"):
             return stage
@@ -535,6 +564,8 @@ class Reader:
 
 def project(primary: Path, only: str | None, now: float) -> str:
     """Return a project's tree as JSON, or its liveness or fingerprint with `only`."""
+    # why: the spec has the projector read with no optional git lock, however it is run.
+    os.environ["GIT_OPTIONAL_LOCKS"] = "0"
     conduct = load(CONDUCT)
     try:
         reader = Reader(conduct, load(CONVERGE), primary, now)

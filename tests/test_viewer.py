@@ -154,14 +154,25 @@ def test_read_part_reads_a_regular_file_only(tmp_path: Path) -> None:
     assert read_part(tmp_path / "link") is None
     assert read_part(tmp_path / "missing") is None
     assert read_part(tmp_path) is None
+    read_lines = runpy.run_path(str(_SCRIPT))["read_lines"]
+    long = tmp_path / "long"
+    long.write_text("a\n" + "b" * (part * 2 + 5) + "\nc")
+    assert list(read_lines(long)) == ["a", "b" * part, "c"]
+    for path in (tmp_path / "pipe", tmp_path / "link", tmp_path / "missing"):
+        assert list(read_lines(path)) == []
 
 
 def test_main_dispatches_its_commands(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = _primary(tmp_path)
     main = runpy.run_path(str(_SCRIPT))["main"]
+    monkeypatch.setenv("GIT_OPTIONAL_LOCKS", "1")
+    monkeypatch.delenv("GIT_OPTIONAL_LOCKS")
     assert main(["project", str(root)]) == 0
+    assert os.environ["GIT_OPTIONAL_LOCKS"] == "0"
     shown = json.loads(capsys.readouterr().out)
     assert shown["name"] == "main"
     assert (shown["unread"], shown["for_you"], shown["versions"], shown["queue"]) == (
@@ -208,6 +219,7 @@ def test_a_version_shows_its_phases_with_the_trees_ticks(tmp_path: Path) -> None
     ]
 
 
+@pytest.mark.slow
 def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     _version(root, "0001-a", "- [ ] 1 — One\n")
@@ -270,8 +282,27 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
     states = {each: shown["state"] for each, shown in _by_id(_tree(root)).items()}
     assert states == {"0001-a": "running", "0002-b": "running"}
     assert _tree(root)["run"]["claim"] == "live"
+    # A log longer than the bound still pairs a spawn before it and keeps its days.
+    filler = "00:00:05 · 0002-b · check — filler to push the start out of the tail"
+    _run_log(
+        root,
+        [
+            "10:00:00 · 0001-a · spawn — early · model m",
+            *[filler] * (300000 // len(filler)),
+            "00:00:06 · 0001-a · spawn — late · model m",
+            "00:00:07 · 0002-b · check — the last line, an event no reader keeps",
+        ],
+        stamp="20261103-130000",
+    )
+    workers = _by_id(_tree(root))["0001-a"]["workers"]
+    assert {w["station"]: w["started"] for w in workers} == {
+        "early": at(10, 0, 0).timestamp(),
+        "late": at(0, 0, 6).timestamp() + 86400,
+    }
+    assert _tree(root)["run"]["last"].startswith("00:00:07 · 0002-b · check")
 
 
+@pytest.mark.slow
 def test_the_projector_gives_each_state_its_why(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     one = "- [ ] 1 — One\n"
@@ -293,6 +324,7 @@ def test_the_projector_gives_each_state_its_why(tmp_path: Path) -> None:
         f"head: {_git(stacked, 'rev-parse', 'HEAD')}\n",
     )
     _version(root, "0008-h", one)
+    _version(root, "0010-j", one)
     converged = _version(root, "0009-i", "- [x] 1 — Done\n")
     _write(
         root / ".minions/changes/0009-i/build.done",
@@ -311,6 +343,9 @@ def test_the_projector_gives_each_state_its_why(tmp_path: Path) -> None:
             "10:00:02 · 0008-h · finish — rescue · exit 0 · 1s",
             "10:00:03 · 0008-h · halt — rescue diagnosed"
             " — .minions/changes/0008-h/rescue.md",
+            "10:00:04 · 0010-j · spawn — build · model m",
+            "10:00:05 · 0010-j · finish — build · exit 1 · 5s",
+            "10:00:06 · 0010-j · halt — build worker exit 1",
         ],
     )
     _live(root)
@@ -337,7 +372,20 @@ def test_the_projector_gives_each_state_its_why(tmp_path: Path) -> None:
             "converge-halted",
             "10:01:00 · round 1 · halt — plan check failed",
         ),
+        "0010-j": ("halted", "build", "phase 1 unticked"),
     }
+    # A newer run log with no line of theirs clears an older log's halts.
+    _run_log(
+        root,
+        ["11:00:00 · 0005-e · spawn — build · model m"],
+        stamp="20261103-110000",
+    )
+    later = {each: v["state"] for each, v in _by_id(_tree(root)).items()}
+    assert (later["0008-h"], later["0010-j"], later["0005-e"]) == (
+        "idle",
+        "idle",
+        "running",
+    )
 
 
 def test_a_version_that_raises_is_unread_alone(tmp_path: Path) -> None:
@@ -431,6 +479,7 @@ def test_converge_shows_its_round_cap_blockers_and_each_role(tmp_path: Path) -> 
     assert shown["0003-c"]["converge"] is None
 
 
+@pytest.mark.slow
 def test_liveness_is_active_then_quiet(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     _version(root, "0001-a", "- [ ] 1 — One\n")
