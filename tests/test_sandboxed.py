@@ -12,6 +12,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -525,3 +526,25 @@ def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None
         assert code != 0
         with pytest.raises(TimeoutError):
             listener.accept()
+
+
+@pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])
+def test_the_watch_ends_on_a_group_gone_or_not_its_to_signal(
+    monkeypatch: pytest.MonkeyPatch, error: type[OSError]
+) -> None:
+    """A probe that finds the group gone, or may not signal it, ends the watch.
+
+    Why: 0114-faster-plan-check design D5; a sandbox that refuses `killpg` covers it.
+    """
+    sent: list[int] = []
+
+    def killpg(_: int, sig: int) -> None:
+        sent.append(sig)
+        if sig == 0:
+            raise error(1, "probe")
+
+    monkeypatch.setattr(os, "killpg", killpg)
+    done, expired = threading.Event(), threading.Event()
+    _conduct()["_watch"](4242, 0, 5.0, done, expired)
+    assert expired.is_set()
+    assert sent == [signal.SIGTERM, 0]

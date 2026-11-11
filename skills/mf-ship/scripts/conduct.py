@@ -3249,16 +3249,17 @@ def _watch(
     if done.wait(max(timeout, 0)):
         return
     expired.set()
-    with contextlib.suppress(ProcessLookupError):
+    # A group gone, or one this process may not signal, has nothing left to end.
+    with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(group, signal.SIGTERM)
     end = time.monotonic() + grace
     while time.monotonic() < end:
         try:
             os.killpg(group, 0)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             return
         time.sleep(0.02)
-    with contextlib.suppress(ProcessLookupError):
+    with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(group, signal.SIGKILL)
 
 
