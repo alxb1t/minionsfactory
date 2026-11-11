@@ -5,7 +5,7 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 ## Progress
 
 - [x] 1 — plan_check.py: distinct commands, the gate's green record, the record by tree · hard
-- [ ] 2 — The parallel runner and the group kill · hard
+- [x] 2 — The parallel runner and the group kill · hard
 - [ ] 3 — The deadline, the catch-up, the whole-suite flag and the foreground · hard
 
 ## 1 — plan_check.py: distinct commands, the gate's green record, the record by tree
@@ -25,15 +25,15 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 
 ## 2 — The parallel runner and the group kill
 
-- [ ] 2.1 In `skills/mf-converge/scripts/plan_check.py` add `CPUS` as `os.cpu_count() or 1` and `weight(argv)`: `CPUS` for a pytest command with a `-n`, `-n<N>`, `-nauto` or `--numprocesses` word, else 1 ([D4](design.md#d4)); add `test_a_pytest_with_n_takes_every_slot` to `tests/test_plan_check.py`.
+- [x] 2.1 In `skills/mf-converge/scripts/plan_check.py` add `CPUS` as `os.cpu_count() or 1` and `weight(argv)`: `CPUS` for a pytest command with a `-n`, `-n<N>`, `-nauto` or `--numprocesses` word, else 1 ([D4](design.md#d4)); add `test_a_pytest_with_n_takes_every_slot` to `tests/test_plan_check.py`.
   Verify: `uv run pytest -q tests/test_plan_check.py -k takes_every_slot` exits 0, and `git grep -n -F cpu_count -- skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 2.2 In `plan_check.py` add `RUNNING`, the processes now running, and make `run` start its command through `Popen` in a session of its own, `start_new_session=True`, join `RUNNING` while it runs, and on a timeout kill the command's process group ([D5](design.md#d5)); add `test_a_timed_out_command_loses_its_process_group` to `tests/test_plan_check.py`.
+- [x] 2.2 In `plan_check.py` add `RUNNING`, the processes now running, and make `run` start its command through `Popen` in a session of its own, `start_new_session=True`, join `RUNNING` while it runs, and on a timeout kill the command's process group ([D5](design.md#d5)); add `test_a_timed_out_command_loses_its_process_group` to `tests/test_plan_check.py`.
   Verify: `uv run pytest -q tests/test_plan_check.py -k loses_its_process_group` exits 0.
-- [ ] 2.3 In `plan_check.py` make `run` start every command with `PYTEST_ADDOPTS` holding `-p no:cacheprovider` after the environment's own value ([D4](design.md#d4)); add `test_every_pytest_runs_without_the_cache_provider` to `tests/test_plan_check.py`.
+- [x] 2.3 In `plan_check.py` make `run` start every command with `PYTEST_ADDOPTS` holding `-p no:cacheprovider` after the environment's own value ([D4](design.md#d4)); add `test_every_pytest_runs_without_the_cache_provider` to `tests/test_plan_check.py`.
   Verify: `uv run pytest -q tests/test_plan_check.py -k without_the_cache_provider` exits 0.
-- [ ] 2.4 In `plan_check.py` add `schedule(work, root)`: it starts the commands in order, each when `weight` slots are free and a `make` also when no other `make` runs, and returns each result by key; `check_verifies` calls it for what no record answers and prints in `jobs` order ([D4](design.md#d4)); add `test_commands_run_side_by_side_and_print_in_task_order` to `tests/test_plan_check.py`, per the scenario *Commands run side by side*, with `CPUS` patched to 4.
+- [x] 2.4 In `plan_check.py` add `schedule(work, root)`: it starts the commands in order, each when `weight` slots are free and a `make` also when no other `make` runs, and returns each result by key; `check_verifies` calls it for what no record answers and prints in `jobs` order ([D4](design.md#d4)); add `test_commands_run_side_by_side_and_print_in_task_order` to `tests/test_plan_check.py`, per the scenario *Commands run side by side*, with `CPUS` patched to 4.
   Verify: `uv run pytest -q tests/test_plan_check.py -k side_by_side` exits 0.
-- [ ] 2.5 In `plan_check.py` make `main` install a SIGTERM handler that kills the process group of each process in `RUNNING` and exits 143, and restore the old handler when it returns ([D5](design.md#d5)); add `test_sigterm_ends_the_commands_running` to `tests/test_plan_check.py`, which runs the script as a subprocess.
+- [x] 2.5 In `plan_check.py` make `main` install a SIGTERM handler that kills the process group of each process in `RUNNING` and exits 143, and restore the old handler when it returns ([D5](design.md#d5)); add `test_sigterm_ends_the_commands_running` to `tests/test_plan_check.py`, which runs the script as a subprocess.
   Verify: `uv run pytest -q tests/test_plan_check.py -k sigterm_ends` exits 0.
 
 ## 3 — The deadline, the catch-up, the whole-suite flag and the foreground

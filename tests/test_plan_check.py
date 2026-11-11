@@ -7,8 +7,10 @@ Why: 0103-fewer-rounds design D4.
 import importlib.util
 import os
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -451,6 +453,135 @@ def test_a_result_is_kept_by_tree_and_reused(
     _commit_tasks(root, tasks[0])
     assert (check(), runs()) == ((0, ["plan: clean"], 0), 4)
     assert list(elsewhere.iterdir()) == []
+
+
+def _gone(pid: int) -> bool:
+    """Return whether a process is gone, waiting up to 5 s for it to be."""
+    for _ in range(100):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _pid(path: Path) -> int:
+    """Return the pid a command wrote to `path`, waiting up to 10 s for it."""
+    for _ in range(200):
+        if path.exists() and path.read_text().strip():
+            return int(path.read_text())
+        time.sleep(0.05)
+    raise AssertionError(f"{path} was never written")
+
+
+def test_a_pytest_with_n_takes_every_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(plan_check, "CPUS", 8)
+    for argv in (
+        ["pytest", "-n", "auto"],
+        ["uv", "run", "pytest", "-q", "-nauto"],
+        ["python", "-m", "pytest", "-n4", "tests"],
+        ["pytest", "--numprocesses=2"],
+        ["pytest", "--numprocesses", "2"],
+    ):
+        assert plan_check.weight(argv) == 8
+    for argv in (
+        ["pytest", "-q", "-p", "no:cacheprovider"],
+        ["git", "grep", "-n", "pytest"],
+        ["make", "-n", "gate"],
+    ):
+        assert plan_check.weight(argv) == 1
+
+
+def test_a_timed_out_command_loses_its_process_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 1.5)
+    kid = tmp_path / "kid"
+    command = f'sh -c "sleep 30 & echo $! > {kid}; wait"'
+    assert plan_check.run(command, root) == plan_check.Result(-1, "", True)
+    assert _gone(_pid(kid))
+    assert not plan_check.RUNNING
+
+
+def test_every_pytest_runs_without_the_cache_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    monkeypatch.delenv("PYTEST_ADDOPTS", raising=False)
+    option = "-p no:cacheprovider\n"
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, option, False)
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-q")
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, f"-q {option}", False)
+
+
+def test_commands_run_side_by_side_and_print_in_task_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    monkeypatch.setattr(plan_check, "CPUS", 4)
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 30)
+    left = 'sh -c "touch one; while [ ! -e two ]; do sleep 0.05; done; exit 3"'
+    right = 'sh -c "touch two; while [ ! -e one ]; do sleep 0.05; done; exit 4"'
+    last = 'sh -c "exit 5"'
+    _tasks(
+        root,
+        _ONE,
+        f"- [x] 1.1 Left.\n  Verify: `{left}`.\n",
+        f"- [x] 1.2 Right.\n  Verify: `{right}`.\n",
+        f"- [x] 1.3 Last.\n  Verify: `{last}`.\n",
+    )
+    code = plan_check.main(["--change", _CHANGE, "--base", base])
+    assert (code, capsys.readouterr().out.splitlines()) == (
+        1,
+        [
+            f"plan: 1.1 — `{left}` exited 3",
+            f"plan: 1.2 — `{right}` exited 4",
+            f"plan: 1.3 — `{last}` exited 5",
+        ],
+    )
+
+    # A `pytest` with `-n` runs alone, and a `make` runs beside no other `make`.
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    for name in ("pytest", "make"):
+        (stub / name).write_text(
+            f'#!/bin/sh\necho "start {name} $*" >> "$STUB_LOG"\nsleep 0.3\n'
+            f'echo "end {name} $*" >> "$STUB_LOG"\n'
+        )
+        (stub / name).chmod(0o755)
+    log = tmp_path / "log"
+    monkeypatch.setenv("STUB_LOG", str(log))
+    monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
+    work = ["pytest -q", "make one", "make two", "pytest -n 2"]
+    assert set(plan_check.schedule(work, root)) == set(work)
+    lines = log.read_text().splitlines()
+    assert sorted(lines[:2]) == ["start make one", "start pytest -q"]
+    assert lines.index("start make two") > lines.index("end make one")
+    assert lines[-2:] == ["start pytest -n 2", "end pytest -n 2"]
+
+
+def test_sigterm_ends_the_commands_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    pidfile = tmp_path / "pid"
+    command = f'sh -c "echo $$ > {pidfile}; exec sleep 30"'
+    _tasks(root, _ONE, f"- [x] 1.1 Wait.\n  Verify: `{command}`.\n")
+    process = subprocess.Popen(
+        [sys.executable, str(_SCRIPT), "--change", _CHANGE, "--base", base],
+        cwd=root,
+        stdout=subprocess.DEVNULL,
+    )
+    pid = _pid(pidfile)
+    process.send_signal(signal.SIGTERM)
+    assert process.wait(timeout=10) == 143
+    assert _gone(pid)
 
 
 def test_what_the_plan_check_cannot_read_exits_2(

@@ -17,14 +17,20 @@ import os
 import re
 import runpy
 import shlex
+import signal
 import subprocess
 import sys
+import threading
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
+from types import FrameType
 from typing import Any, NamedTuple
 
 TIMEOUT_SECONDS = 600
+CPUS = os.cpu_count() or 1
+RUNNING: set[subprocess.Popen[str]] = set()
+PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
 REVISION = re.compile(r"[0-9a-f]{7,40}")
 SHOWN = 5
 CHANGE = re.compile(r"[a-z0-9-]+")
@@ -184,23 +190,89 @@ def verify_of(text: str) -> str | None:
     return None if at < 0 else text[at + len("Verify:") :]
 
 
+def _kill(process: subprocess.Popen[str]) -> None:
+    """End a command's process group; one already gone is no error."""
+    with contextlib.suppress(OSError):
+        os.killpg(process.pid, signal.SIGKILL)
+
+
 def run(command: str, root: Path) -> Result:
-    """Return a command's finish, run in `root` as argv with no shell."""
+    """Return a command's finish, run in `root` as argv with no shell.
+
+    It runs in a session of its own, so a timeout ends the command's whole group.
+    Why: 0114-faster-plan-check design D4, D5.
+    """
+    held = os.environ.get("PYTEST_ADDOPTS", "")
+    env = {**os.environ, "PYTEST_ADDOPTS": f"{held} -p no:cacheprovider".strip()}
     try:
-        done = subprocess.run(
+        process = subprocess.Popen(
             tokens(command),
             cwd=root,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             errors="replace",
-            timeout=TIMEOUT_SECONDS,
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired:
-        return Result(-1, "", True)
     except OSError as error:
         return Result(127, str(error.strerror))
-    return Result(done.returncode, done.stdout)
+    RUNNING.add(process)
+    try:
+        output, _ = process.communicate(timeout=TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        _kill(process)
+        process.communicate()
+        return Result(-1, "", True)
+    finally:
+        RUNNING.discard(process)
+    return Result(process.returncode, output)
+
+
+def weight(argv: list[str]) -> int:
+    """Return the slots a command takes: every one for a pytest with `-n`, else one."""
+    if is_pytest(argv) and any(PROCESSES.fullmatch(word) for word in argv):
+        return CPUS
+    return 1
+
+
+def schedule(work: list[str], root: Path) -> dict[str, Result]:
+    """Return each command's result by its text, the commands run side by side.
+
+    A command starts when its `weight` in slots is free, a `make` also when no other
+    `make` runs; one that waits holds back every later command.
+    """
+    results: dict[str, Result] = {}
+    free = threading.Condition()
+    used = makes = 0
+
+    def ready(need: int, make: bool) -> bool:
+        return used + need <= CPUS and not (make and makes)
+
+    def finish(text: str, need: int, make: bool) -> None:
+        nonlocal used, makes
+        try:
+            results[text] = run(text, root)
+        finally:
+            with free:
+                used -= need
+                makes -= make
+                free.notify_all()
+
+    threads: list[threading.Thread] = []
+    for text in work:
+        argv = tokens(text)
+        need, make = weight(argv), argv[:1] == ["make"]
+        with free:
+            free.wait_for(functools.partial(ready, need, make))
+            used += need
+            makes += make
+        threads.append(threading.Thread(target=finish, args=(text, need, make)))
+        threads[-1].daemon = True
+        threads[-1].start()
+    for thread in threads:
+        thread.join()
+    return results
 
 
 def report(name: str, command: Command, result: Result) -> list[str]:
@@ -380,7 +452,7 @@ def check_verifies(
     results: dict[str, Result] = {}
     if tree is not None:
         results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
-    fresh = {text: run(text, root) for text in keys if text not in results}
+    fresh = schedule([text for text in keys if text not in results], root)
     results |= fresh
     if tree is not None and _guarded(gate()["settled_tree"]) == tree:
         for text, result in fresh.items():
@@ -580,6 +652,13 @@ def check(change: str, base: str) -> list[str]:
     ]
 
 
+def _terminate(_signum: int, _frame: FrameType | None) -> None:
+    """End the group of each running command, and exit 143."""
+    for process in tuple(RUNNING):
+        _kill(process)
+    sys.exit(143)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Check a change's plan from inside the repository; return the exit code."""
     parser = argparse.ArgumentParser(
@@ -588,11 +667,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--change", required=True, help="the change id")
     parser.add_argument("--base", required=True, help="the revision the branch left")
     args = parser.parse_args(argv)
+    previous = signal.signal(signal.SIGTERM, _terminate)
     try:
         problems = check(args.change, args.base)
     except Stop as stop:
         print(f"plan: cannot check — {stop}")
         return 2
+    finally:
+        signal.signal(signal.SIGTERM, previous)
     print(*(problems or ["plan: clean"]), sep="\n")
     return 1 if problems else 0
 

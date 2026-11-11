@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` runs each distinct `Verify:` command once and judges its result by each sub-task's own words, passes a
   bare `pytest` on the gate's green record, and keeps results by command in `.minions/plan-check/<tree>/` on a settled
   tree (change `0114-faster-plan-check`, phase 1).
+- `plan_check.py` runs its commands side by side, one slot for each core, a `pytest` with `-n` alone and one `make` at a
+  time, each `pytest` with `-p no:cacheprovider`; a timeout kills the command's process group, and SIGTERM ends the
+  groups running (change `0114-faster-plan-check`, phase 2).
 
 ## [0.93.0] - 2026-11-11
 
