@@ -495,18 +495,30 @@ def names_revision(argv: list[str]) -> bool:
     return any(re.search(r"\bgit\b", word) for word in argv)
 
 
-def reads_git(argv: list[str], root: Path) -> bool:
-    """Return whether a word names a file in the tree whose text holds `git`."""
+def reads_git(argv: list[str], root: Path, seen: frozenset[Path] = frozenset()) -> bool:
+    """Return whether a word names a file in the tree that reads git.
+
+    A file reads git when its text holds `git`, or when it names, as a word, a file
+    that does: a helper that delegates to a script is followed, each file once.
+    """
     for word in argv:
         path = root / word
         try:
-            if path.is_file() and re.search(
-                r"\bgit\b", path.read_text(errors="replace")
+            if not path.is_file() or path in seen:
+                continue
+            text = path.read_text(errors="replace")
+            if re.search(r"\bgit\b", text) or reads_git(
+                tokens_of(text), root, seen | {path}
             ):
                 return True
         except OSError:
             return True  # unreadable: tree-only behaviour is unproven
     return False
+
+
+def tokens_of(text: str) -> list[str]:
+    """Return a script's words, split on white space and shell punctuation."""
+    return re.split(r"[\s;&|()<>\"'`$=]+", text)
 
 
 def keyed(text: str, head: str, root: Path | None = None) -> str:

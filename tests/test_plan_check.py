@@ -458,6 +458,10 @@ def test_a_script_file_that_reads_git_is_keyed_by_head(tmp_path: Path) -> None:
     (tmp_path / "locked.sh").write_text("echo 1\n")
     (tmp_path / "locked.sh").chmod(0)
     assert plan_check.keyed("sh locked.sh", "abc", tmp_path) == "sh locked.sh\nabc"
+    (tmp_path / "outer.sh").write_text("sh check-refs.sh\n")
+    (tmp_path / "loop.sh").write_text("sh loop.sh\n")
+    assert plan_check.keyed("sh outer.sh", "abc", tmp_path) == "sh outer.sh\nabc"
+    assert plan_check.keyed("sh loop.sh", "abc", tmp_path) == "sh loop.sh"
 
 
 def test_another_branch_moving_ends_the_reuse_of_a_result(
