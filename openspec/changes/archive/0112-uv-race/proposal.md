@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: v0.92.1
 ---
 
 # uv race
