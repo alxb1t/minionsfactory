@@ -79,7 +79,7 @@ One frame is `{"seq": <n>, "projects": [<project>, …]}`. The shape, every key 
 
 ```
 project   name · unread · run · for_you[] · versions[] · queue[]
-run       claim (none|live|stale) · log (a stamp) · last (the newest event line)
+run       claim (none|live|stale|unread) · log (a stamp) · last (the newest event line)
 version   id · state · stage · why · unread · phases[] · converge · workers[] · liveness · notes[]
 phase     number · title · rating · box · done · total
 converge  run · mark · round · cap · fixing · roles { conformance, adversarial }
@@ -159,6 +159,8 @@ that title without its ` · hard` or ` · moderate` suffix. `done` and `total` c
 of the worktree's `tasks.md` whose number `N` is the phase's, `null` when the file cannot be read.
 
 **The run** is the claim (`_claim`), the newest run log's stamp (`last_log`) and its last event line, `null` with none.
+The claim is read once per project. A `Stop` from it, as when `ps` cannot read a running conductor's pid, makes it
+`unread`, a value and no failure: no version is `running`, no `stale run` row shows, and the rest of the project is read.
 
 ### D6
 
@@ -277,8 +279,8 @@ build's own, one a phase.
 
 `scripts/corpus.toml` gains the case `viewer`, with `reads` = `the run directory, worktrees and queue of a project, read to its
 state tree` and `argv` = `uv run --script skills/mf-ui/scripts/viewer.py project {primary}`, no `each`. It reads this checkout's
-run directory, worktrees and queue as a person's run holds them, and must exit 0 whatever the data is, an unread version being
-a value and no failure.
+run directory, worktrees and queue as a person's run holds them, and must exit 0 whatever the data is, an unread version or an
+unread claim ([D5](#d5)) being a value and no failure: a session that refuses `ps` reads the claim `unread`.
 
 No sub-task carries the corpus mark: the plan check reads `scripts/corpus.toml` at the cut, where the case `viewer` does not
 yet stand, and sub-task 1.11 adds it. That sub-task then runs `make corpus`, which prints `corpus: viewer · 1 runs · pass`, and
@@ -300,6 +302,7 @@ take a fake spawn, `ps` and signal.
 | integration | `test_a_version_that_raises_is_unread_alone` | a version whose `tasks.md` at `HEAD` has no `## Progress` list is `unread` with the reason, the rest of its project read |
 | integration | `test_converge_shows_its_round_cap_blockers_and_each_role` | the run's mark, `fixing`, `CAP`, each role's verdict and verdicts-line fields, the fallback |
 | integration | `test_workers_are_the_unfinished_spawns` | pairing by station, several in converge, a stale claim gives `idle` |
+| unit | `test_a_claim_ps_cannot_read_is_unread` | a claim whose read raises `Stop` is `unread`, its station versions `idle`, no `stale run` row, the tree printed |
 | integration | `test_liveness_is_active_then_quiet` | the levels of [D5](#d5) from set mtimes and a log timestamp |
 | integration | `test_for_you_holds_what_needs_a_person` | each kind of [D4](#d4), a dim note in none, a limit past its reset in none, the queue's `cut` and `cut halted` rows |
 | integration | `test_the_only_options_print_liveness_and_the_fingerprint` | `--only` prints one JSON object each; the fingerprint moves with a new run log line |

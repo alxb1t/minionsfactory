@@ -43,7 +43,8 @@ The phases: the projector, the server, the page, the record, and a person's chec
 - [ ] 1.10 Add `project --only liveness` and `--only fingerprint`, per [D7](design.md#d7).
   Add `test_the_only_options_print_liveness_and_the_fingerprint` and `test_the_projector_writes_nothing`.
   Verify: `uv run pytest tests/test_viewer.py -k "only_options or writes_nothing" -q` exits 0.
-- [ ] 1.11 Add the case `viewer` to `scripts/corpus.toml` ([D11](design.md#d11)), then run the readers over this checkout's run directory.
+- [ ] 1.11 Read the claim once per project, a `Stop` from it the claim `unread` ([D5](design.md#d5)); add the case `viewer` to `scripts/corpus.toml` ([D11](design.md#d11)), then run the readers over this checkout's run directory.
+  Add `test_a_claim_ps_cannot_read_is_unread`.
   Verify: `make corpus` prints `corpus: viewer · 1 runs · pass`.
 
 ## 2 — The server
