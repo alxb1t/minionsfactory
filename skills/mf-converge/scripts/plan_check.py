@@ -34,6 +34,11 @@ PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
 REVISION = re.compile(r"[0-9a-f]{7,40}")
 TEST_MODULE = re.compile(r"test_.*\.py|.*_test\.py")
 QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
+# A node id line, a per-file count line, or a summary of at least one test collected.
+COLLECTED = re.compile(
+    r"^\S+::\S|^\S+: [1-9]\d*$|(?<![/\d])[1-9]\d* tests? collected", re.M
+)
+COLLECT_ONLY = " --collect-only -q"
 SHOWN = 5
 CHANGE = re.compile(r"[a-z0-9-]+")
 ID = re.compile(r"\d+\.\d+")
@@ -429,6 +434,21 @@ def bare_pytest(command: Command, root: Path) -> bool:
     )
 
 
+def collecting(texts: list[str], root: Path) -> set[str]:
+    """Return the commands whose collection exits 0 and prints a collected test.
+
+    The collection is the command with `--collect-only -q` appended, run as any
+    command is. Why: 0114-faster-plan-check design D2.
+    """
+    found = schedule([text + COLLECT_ONLY for text in texts], root)
+    return {
+        text
+        for text in texts
+        if found[text + COLLECT_ONLY].code == 0
+        and COLLECTED.search(found[text + COLLECT_ONLY].output)
+    }
+
+
 def names_revision(argv: list[str]) -> bool:
     """Return whether a command reads a revision, so `HEAD` is part of its key.
 
@@ -484,11 +504,14 @@ def check_verifies(
     """Return a line for each judged `Verify:` command that fails run again.
 
     Each distinct command runs once. A bare pytest passes unrun on the gate's green
-    record; a result kept for a settled tree is read, and a new one kept.
+    record when its collection finds a test; kept results are read and written.
     """
     pairs = jobs(tasks, human, only)
-    green = any(bare_pytest(c, root) for _, c in pairs) and gate_green()
-    pending = [(n, c) for n, c in pairs if not (green and bare_pytest(c, root))]
+    bare = list(dict.fromkeys(c.text for _, c in pairs if bare_pytest(c, root)))
+    vouched = collecting(bare, root) if bare and gate_green() else set()
+    pending = [
+        (n, c) for n, c in pairs if not (c.text in vouched and bare_pytest(c, root))
+    ]
     refs = _git(root, "for-each-ref", "--format=%(objectname) %(refname)").stdout
     head = _git(root, "rev-parse", "HEAD").stdout.strip() + "\n" + refs
     tree = _guarded(gate()["settled_tree"])

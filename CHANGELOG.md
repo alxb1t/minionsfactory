@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` passes a bare `pytest` on the gate's green record only when each word after its prefix is a quiet flag
   or an operand that exists; a `-k`, `-m` or `--deselect` selection and any other option run, so a selection that
   matches nothing fails (change `0114-faster-plan-check`, phase 4).
+- `plan_check.py` passes a bare `pytest` unrun only when its argv with `--collect-only -q` appended exits 0 and prints a
+  collected test, so pytest itself settles a node's ancestry and a file with no test (change `0114-faster-plan-check`,
+  phase 5).
 
 ## [0.93.0] - 2026-11-11
 

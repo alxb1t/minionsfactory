@@ -346,7 +346,11 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     base = _repo(root, monkeypatch)
     stub = tmp_path / "bin"
     stub.mkdir()
-    (stub / "pytest").write_text("#!/bin/sh\nexit 3\n")
+    # The stub fails a run, and hands a collection to the real pytest.
+    collect = (
+        f'case "$*" in *--collect-only*) exec {sys.executable} -m pytest "$@";; esac'
+    )
+    (stub / "pytest").write_text(f"#!/bin/sh\n{collect}\nexit 3\n")
     (stub / "pytest").chmod(0o755)
     monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
 
@@ -376,8 +380,10 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     # A pytest naming a path or node that is gone is no bare pytest: it runs.
     (root / "tests").mkdir(exist_ok=True)
     (root / "tests/test_here.py").write_text(
-        "def test_here():\n    pass\n\n\ndef _helper():\n    pass\n"
+        "def test_here():\n    pass\n\n\ndef _helper():\n    pass\n\n\n"
+        "def test_a():\n    pass\n\n\ndef test_b():\n    pass\n"
     )
+    (root / "tests/test_empty.py").write_text("X = 1\n")
     (root / "tests/helpers.py").write_text("X = 1\n")
     (root / "docs").mkdir(exist_ok=True)
     (root / "docs/note.md").write_text("x\n")
@@ -402,6 +408,12 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     # A selection or another option is no quiet flag: the pytest runs.
     file = "tests/test_here.py"
     for named in (f"{file} -k gone", f"{file} -m gone", f"-c other.ini {file}"):
+        _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
+        record()
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+    # Collection settles what the text cannot: a node under the wrong parent and
+    # a file holding no test pass the text checks, and run.
+    for named in (f"{file}::test_a::test_b", "tests/test_empty.py"):
         _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
         record()
         assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
