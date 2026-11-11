@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mf-ui/page/index.html` is the viewer's page: one file with an inline script and style, in the Macchiato
   tokens, that opens `/events`, renders each whole state and counts elapsed time itself. It sets every string as
   text, and a test holds the markup sinks out of `skills/mf-ui/` (0120-ui-state, phase 3).
+- `skills/mf-ui/SKILL.md` gives `/mf-ui` and `/mf-ui stop`. D81 records the viewer as an operator tool; the principle *The
+  repo reaches nothing outside itself*, the threat model, `README.md`, `AGENTS.md` and `docs/README.md` name it
+  (0120-ui-state, phase 4).
 
 ## [0.97.0] - 2026-11-11
 

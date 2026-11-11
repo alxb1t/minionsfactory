@@ -152,6 +152,9 @@ is done on a commit and a ticked box together; a round number lives in the findi
   transcripts of the folders the config's `sessions` key names, read-only, and its page and `review-metrics.json` written to the path the operator
   gives — neither the repos nor the path named in any repo
   ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page));
+- the viewer's read-only reads of the run directories, worktrees and queue entries of the recorded and configured projects, and
+  its own `viewer.pid`, `viewer.port` and `viewer.log` in the operator's state folder — named in no repo
+  ([D81](decisions.md#d81--the-viewer-is-an-operator-tool));
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
   ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it,
   the list of repos a run started in, `repos`, the

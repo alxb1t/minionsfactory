@@ -34,6 +34,7 @@ Each skill is the authority on what it does; this table is a map, not a summary.
 | [`mf-rescue`](skills/mf-rescue/SKILL.md) | read a halted version's halt under `mf-ship`, then amend its plan or write a diagnosis for the person |
 | [`mf-supervise`](skills/mf-supervise/SKILL.md) | answer, under a version's switch, a halt its rescue diagnosed or was spent on, with one checked amend of its plan, or a settle of an integrate note for integrate to commit |
 | [`mf-review-metrics`](skills/mf-review-metrics/SKILL.md) | draw one page of review metrics across repos — per role, executor and model — from past findings; an operator tool |
+| [`mf-ui`](skills/mf-ui/SKILL.md) | show every project's versions, stages, workers and what needs you as one live page on loopback; an operator tool |
 
 ## Install
 
