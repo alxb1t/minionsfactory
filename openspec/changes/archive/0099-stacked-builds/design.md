@@ -124,17 +124,18 @@ def until(
     version: Version,
     dependency: str,
     threads: dict[str, threading.Thread],
-    stack: bool,
+    still: Callable[[], list[str]],
 ) -> None:
-    """Wait while the dependency's thread lives; with `stack`, until `stackable` names a head.
+    """Wait while the dependency's thread lives, until the version may stack.
 
     It waits on `self.built`, at most `REJOIN_POLL` a time, and logs `wait — after <id>` once.
     Why: 0099-stacked-builds design D1.
     """
 ```
 
-`ready` calls `until` in place of `threads[dependency].join()` (`C:4361-4363`), for a version not stacked alone, `stack`
-true when one id is unreleased; `until` then asks `self.stackable(version, [dependency])`. At each wake it reads the thread
+`ready` calls `until` in place of `threads[dependency].join()` (`C:4361-4363`), for a version not stacked alone, `ready`
+passing `still`, a callable that returns the unreleased dependencies at each poll, and `until` asking
+`self.stackable(version, still())`, per 0119-debt-paydown-3b design D9. At each wake it reads the thread
 from `threads` again: a dependency taken back runs in a new one. A built head the version may not stack on keeps it waiting
 for the thread's end, as today. The timeout bounds a notify that is lost.
 

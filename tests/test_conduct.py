@@ -1369,6 +1369,18 @@ def test_a_stacked_dependent_resets_and_merges_back(
     assert run.blocked[-1] == "0002-marks"
     assert not run.stopped("0002-marks")
 
+    # Its own tree holding the dependency's archive does not release it: 0099·S3.
+    closed = _git(marks, "rev-parse", "HEAD")
+    (marks / "openspec/changes/archive").mkdir()
+    _git(
+        marks, "mv", "openspec/changes/0001-todo", "openspec/changes/archive/0001-todo"
+    )
+    _commit(marks, {}, "chore: a worker archives its dependency")
+    _done(root, "0002-marks", _git(marks, "rev-parse", "HEAD"))
+    assert conduct["stage_of"](root, version)[0] == "stacked"
+    _git(marks, "reset", "-q", "--hard", closed)
+    _done(root, "0002-marks", closed)
+
     # The release merged back keeps the dependent's entries alone in [Unreleased].
     (first / "openspec/changes/archive").mkdir()
     folder = "openspec/changes/0001-todo"
@@ -1803,6 +1815,58 @@ def test_a_dependent_waits_while_its_dependency_works(
         "run · halt — halted 0001-todo · blocked none · released v0.1.0"
         " · needs 0001-todo a fix",
     ]
+
+    # A dependency that releases during the wait leaves one to stack on: 0099·S4.
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    pair = tmp_path / "pair"
+    pair.mkdir()
+    root = _primary(pair)
+    trees = {}
+    for change in ("0001-todo", "0002-more"):
+        trees[change] = _version(root, change, "- [x] 1 — Todo\n")
+        _commit(trees[change], {f"{change}.txt": "x\n"}, f"build: {change}")
+        _done(root, change, _git(trees[change], "rev-parse", "HEAD"))
+    after = "0001-todo, 0002-more"
+    waits = _version(root, "0003-dep", "- [ ] 1 — Dep\n", after=after)
+    run = conduct["Run"](root, "claude")
+    run.git_state = conduct["_git_state"](root)
+    version = conduct["Version"]("0003-dep", waits)
+    gate = threading.Event()
+    live = threading.Thread(target=gate.wait)
+    live.start()
+    stacks: list[bool] = []
+
+    def wait_ready() -> None:
+        stacks.append(run.ready(version, {"0001-todo": live}))
+
+    def waiting() -> bool:
+        if not list((root / ".minions" / "runs").glob("*.md")):
+            return False
+        return any(" · 0003-dep · wait — " in line for line in _log(root))
+
+    waiter = threading.Thread(target=wait_ready)
+    waiter.start()
+    try:
+        deadline = time.monotonic() + 30
+        while not waiting() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        first = trees["0001-todo"]
+        (first / "openspec/changes/archive").mkdir()
+        _git(first, "mv", "openspec/changes/0001-todo", "openspec/changes/archive")
+        _commit(first, {}, "chore(release): v0.1.0")
+        merge = "Merge branch '0001-todo'"
+        _git(root, "merge", "-q", "--no-ff", "-m", merge, "0001-todo")
+        waiter.join(10)
+        assert not waiter.is_alive()
+    finally:
+        gate.set()
+        waiter.join()
+        live.join()
+    assert stacks == [True]
+    stacked_on = root / ".minions" / "changes" / "0003-dep" / "stacked-on"
+    assert (
+        stacked_on.read_text() == _git(trees["0002-more"], "rev-parse", "HEAD") + "\n"
+    )
 
 
 @pytest.mark.slow
@@ -2411,6 +2475,36 @@ def test_a_rescue_amends_at_amend_needed(
         card.replace("· adversarial · security — why.", "· adversarial")
     )
     assert blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
+    adversarial.write_text(
+        card.replace(
+            "· adversarial · security — why.",
+            "· adversarial · security (exposure of secrets) — why.",
+        )
+    )
+    assert blocks(minions, "0001-todo", "halt — amend needed — S1 · head a")
+
+
+def test_a_link_planted_after_the_removal_truncates_no_models_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0119-debt-paydown-3b design D5.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    victim = tmp_path / "victim.md"
+    victim.write_text("keep me\n")
+    write = conduct["_write_models"]
+    real = write.__globals__["_remove_in"]
+
+    def plant(base: Path, *parts: str, name: str) -> None:
+        real(base, *parts, name=name)
+        folder = root / ".minions" / "changes" / "0001-todo"
+        os.link(victim, folder / "models.toml")
+
+    monkeypatch.setitem(write.__globals__, "_remove_in", plant)
+    with pytest.raises(conduct["Stop"]) as stopped:
+        write(root, "0001-todo", "[build]\n")
+    assert stopped.value.code == 2
+    assert victim.read_text() == "keep me\n"
 
 
 def test_a_stub_bars_no_rescue(tmp_path: Path) -> None:
@@ -3395,6 +3489,14 @@ def test_a_supervisor_settle_outside_the_text_halts(
     repo, staged = merged("test-fixed", fixed, "tests/test_a.py: test fixed — kept")
     assert kept(repo, staged) is None
 
+    # Only a test folder is exempt, and a commit past the merge is held.
+    outside = {"src.py": "x = 1\n"}
+    repo, staged = merged("fixed-outside", outside, "src.py: test fixed — kept")
+    assert kept(repo, staged) == "the merge holds src.py past the supervisor's settle"
+    repo, staged = merged("past-the-merge", {}, "docs/a.md: the supervisor")
+    _commit(repo, {"src.py": "x = 1\n"}, "more")
+    assert kept(repo, staged) == "integrate committed past its merge"
+
 
 def test_a_linked_rejoin_folder_deletes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -3562,6 +3664,38 @@ def test_a_fixed_version_rejoins_a_live_run(
     said = capsys.readouterr().out.splitlines()
     assert "skipped — conduct · rejoined cannot run — git failed" not in said
     assert skipped in said
+
+    # A request for a version whose rescue runs is kept until its thread ends.
+    kept = tmp_path / "kept"
+    kept.mkdir()
+    base = _primary(kept)
+    _version(base, "0001-todo", "- [ ] 1 — Todo\n")
+    conductor = conduct["Run"](base, "claude")
+    taken: list[str] = []
+    conductor.take_back_safely = lambda version, _: taken.append(version.change) or True
+    conductor.log.event("0001-todo", "spawn", "rescue · model default")
+    gate = threading.Event()
+    live = threading.Thread(target=gate.wait, daemon=True)
+    live.start()
+    threads = {"0001-todo": live}
+    request = conduct["_queue"](base) / "rejoin" / "0001-todo"
+    conduct["_request"](base, "0001-todo")
+    for _ in range(2):
+        assert not conductor.take_requests(threads)
+        assert request.is_file()
+    holds = " · run · rejoin — 0001-todo: still running — its rescue holds the request"
+    assert conductor.log.path.read_text().count(holds) == 1
+    # Twin: a request `all` is not kept.
+    request.unlink()
+    conduct["_request"](base, "all")
+    assert not conductor.take_requests(threads)
+    assert not list((request.parent).iterdir())
+    conduct["_request"](base, "0001-todo")
+    gate.set()
+    live.join()
+    assert conductor.take_requests(threads)
+    assert taken == ["0001-todo"]
+    assert not request.exists()
 
 
 @pytest.mark.slow
@@ -4699,6 +4833,20 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
             f"rejoin: cannot run — {refusal}",
         )
         assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
+    # A new row with a control character stops the rejoin before it prints the row.
+    packages.write_text(
+        "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
+        "|---|---|---|---|\n| p | left-pad | 1.3.0 | a pad |\n"
+        "| p | right-pad\x1b[2K | ^2 | a pad |\n"
+    )
+    with pytest.raises(conduct["Stop"]) as hidden:
+        conduct["rejoin"](root, "0020-p")
+    assert hidden.value.code == 2
+    assert str(hidden.value) == (
+        "rejoin: cannot run — the brief's row ['right-pad\\x1b[2K', '^2']"
+        " holds a character a terminal may act on"
+    )
+    assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
     packages.write_text(
         "# brief\n\n## Dependencies\n| item | package | constraint | why |\n"
         "|---|---|---|---|\n| p | left-pad | 1.3.0 | a pad |\n"
@@ -5770,6 +5918,9 @@ def test_a_codex_limit_at_the_probe_halts_its_stations_alone(
 def test_a_shadow_round_drives_no_fix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
+    # T2: its fake `shadow-blocks` mode and a models file of Codex checkers with
+    # `shadow = true` are the state; no other run test reaches it;
+    # 0119-debt-paydown-3b design D15.
     conduct = _conduct()
     calls = fake_codex("shadow-blocks")
     found = conduct["main"].__globals__
@@ -6574,6 +6725,33 @@ def test_a_run_moves_an_old_layout(
         assert sorted(path.name for path in outside.iterdir()) == held
         (minions / old).unlink()
         kept.rename(minions / old)
+
+    # A link swapped in after the link check is unlinked, never followed.
+    folder = minions / "changes" / "0001-todo"
+    (folder / "conformance.md").unlink()
+    swapped = folder / "review.md"
+    swapped.write_text("old\n")
+    victim = tmp_path / "victim.txt"
+    victim.write_text("theirs\n")
+    mover = conduct["Run"](root, "claude")
+    real = mover.migrate_layout.__globals__["_folder_fd"]
+
+    swaps = []
+
+    def swap(base: Path, *parts: str) -> int:
+        if not swaps:
+            swaps.append(swapped)
+            swapped.unlink()
+            swapped.symlink_to(victim)
+        return real(base, *parts)
+
+    monkeypatch.setitem(mover.migrate_layout.__globals__, "_folder_fd", swap)
+    assert mover.migrate_layout() == (
+        ".minions/changes/0001-todo/review.md became a link:"
+        " a person settles what it names"
+    )
+    assert victim.stat().st_nlink == 1 and victim.read_text() == "theirs\n"
+    assert swapped.is_symlink() and not (folder / "conformance.md").exists()
 
 
 def test_status_names_an_old_layout(
@@ -10416,6 +10594,9 @@ def test_a_claude_worker_starts_in_the_sandbox(
 def test_every_station_starts_lean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
+    # T2: it writes the operator's `settings.json` with plugins before the run and
+    # reads each Claude station's argv; no other run test holds that state;
+    # 0119-debt-paydown-3b design D15.
     conduct = _conduct()
     fake_codex("")
     found = conduct["main"].__globals__
@@ -10509,6 +10690,8 @@ def test_reach_stops_at_live_worktrees(tmp_path: Path) -> None:
 def test_a_worker_asking_for_a_missing_tool_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
+    # T2: its fake `missing-tool` mode makes the build worker ask for a tool;
+    # no other run test reaches that halt; 0119-debt-paydown-3b design D15.
     conduct = _conduct()
     calls = fake("missing-tool")
     root = _primary(tmp_path)
@@ -10533,6 +10716,11 @@ def test_a_worker_asking_for_a_missing_tool_halts(
     cut = '{"message": "No such tool available\n'
     log.write_text(cut + json.dumps({"message": {"content": [result]}}))
     assert conduct["lacked"](log) == ["No such tool available: Task"]
+    # A failed command that prints the phrase later in its text is no missing tool.
+    printed = {"type": "tool_result", "tool_use_id": "t8", "is_error": True}
+    printed["content"] = "Exit code 1\nFAILED test: No such tool available: Task"
+    log.write_text(json.dumps({"message": {"content": [printed]}}))
+    assert conduct["lacked"](log) == []
 
 
 def test_the_probe_reports_its_first_turn(
@@ -11012,6 +11200,22 @@ def test_a_checker_falls_back_when_the_weekly_window_is_spent(tmp_path: Path) ->
     windows(85)
     assert run.codex_ready("0001-todo", deadline)
 
+    # With less than a probe's room left, Claude checks: no probe, no halt, no refusal.
+    run.probed.discard("codex")
+    probes: list[str] = []
+
+    def probe_for(change: str, *rest: object) -> None:
+        probes.append(change)
+        run.probed.add("codex")
+
+    run.probe_for = probe_for  # type: ignore[method-assign]
+    room = conduct["PROBE_ROOM"]
+    assert not run.codex_ready("0001-todo", time.monotonic() + room - 1)
+    assert (probes, run.halts, run.refused) == ([], [], {})
+    # Twin: with the room, the same call probes.
+    assert run.codex_ready("0001-todo", time.monotonic() + room + 60)
+    assert probes == ["0001-todo"]
+
 
 def test_a_limit_halts_only_the_stations_ahead(tmp_path: Path) -> None:
     conduct = _conduct()
@@ -11079,7 +11283,7 @@ def test_a_fixer_probe_the_deadline_kills_is_no_run_wide_refusal(
     run.worker = killed
     models = ("codex", "gpt-6.1-sol", "medium")
     done = run.fix(
-        "0001-todo", "converge-fix-r1", tree, "fix it\n", models, time.monotonic() + 90
+        "0001-todo", "converge-fix-r1", tree, "fix it\n", models, time.monotonic() + 600
     )
     assert done.code == 1 and done.limit.startswith("codex usage limit — the fixer")
     # The timeout halts the fixer's version alone: no refusal is kept for Codex.
@@ -11205,6 +11409,22 @@ def test_a_codex_temp_folder_is_removed(
     conduct["_temp_gone"](codex)
     claude = conduct["argv"]("claude", "Do it.", tree, None, None, repo)
     assert conduct["_temp_of"](claude) is None
+
+    # A root that is unreadable is unlocked, and its parent is never chmoded.
+    again = conduct["argv"]("codex", "Do it.", tree, None, None, repo)
+    sealed = conduct["_temp_of"](again)
+    sealed.chmod(0)
+    chmod = os.chmod
+
+    def guarded(path: str | Path, mode: int) -> None:
+        if os.fspath(path) == os.fspath(sealed.parent):
+            raise PermissionError("the system's temp folder")
+        chmod(path, mode)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "chmod", guarded)
+        conduct["_temp_gone"](again)
+    assert not sealed.exists()
 
     # A folder `_temp_folder` did not make stays, and so does a link's target.
     other = tmp_path / "other"
