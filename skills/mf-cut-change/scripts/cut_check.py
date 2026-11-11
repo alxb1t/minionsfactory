@@ -456,15 +456,33 @@ def _literal(pattern: str, fixed: bool) -> str:
     return "" if REGEX_META & set(text) else text
 
 
+def _before_operator(command: str) -> str:
+    """Return a command up to its first shell operator outside a quote.
+
+    e.g. `git grep -nF "|" a.py | wc` → `git grep -nF "|" a.py `
+    """
+    quote, escaped = "", False
+    for at, char in enumerate(command):
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            quote = "" if char == quote else quote
+        elif char in "'\"":
+            quote = char
+        elif char in OPERATORS:
+            return command[:at]
+    return command
+
+
 def search_parts(command: str) -> tuple[list[str], list[str]]:
     """Return the literal needles and file operands of a `grep` or `git grep`.
 
     A command that is no search gives none. e.g. `git grep -n -e 'a b' HEAD -- x.py`
     → (["a b"], ["x.py"])
     """
-    words = _words(command)
-    ends = [i for i, word in enumerate(words) if word and set(word) <= OPERATORS]
-    words = words[: (ends or [len(words)])[0]]
+    words = _words(_before_operator(command))
     if words[:1] == ["grep"]:
         rest = words[1:]
     elif words[:2] == ["git", "grep"]:
@@ -598,7 +616,8 @@ def _selected(text: str, plan: dict[str, Any]) -> list[str]:
         if "pytest" in words:
             for flag, expression in itertools.pairwise(words):
                 if flag == "-k":
-                    found += re.findall(r"\b(?!(?:and|or|not)\b)\w+", expression)
+                    kept = re.sub(r"\bnot\s*(?:\([^)]*\)|\w+)", " ", expression)
+                    found += re.findall(r"\b(?!(?:and|or|not)\b)\w+", kept)
     return found
 
 

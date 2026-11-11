@@ -632,6 +632,19 @@ def test_a_search_names_its_literal_needle() -> None:
     assert parts("grep") == ([], [])
     assert parts("make gate") == ([], [])
     assert parts("grep 'x") == ([], [])
+    assert parts('git grep -nF "|" HEAD -- a.py') == (["|"], ["a.py"])
+    assert parts("grep ';' a.py && ls") == ([";"], ["a.py"])
+    assert parts("grep a\\;b a.py; ls") == (["a;b"], ["a.py"])
+    assert parts("grep 'a' a.py \"|\" wc") == (["a"], ["a.py", "|", "wc"])
+    assert cut_check._selected(
+        "Verify: `pytest -k 'not widget and gadget'` passes.", cut_check._plan()
+    ) == ["gadget"]
+    assert (
+        cut_check._selected(
+            "Verify: `pytest -k 'not (a or b)'` passes.", cut_check._plan()
+        )
+        == []
+    )
 
 
 def test_a_decision_section_keeps_its_fenced_lines() -> None:

@@ -222,10 +222,27 @@ def signature_lines(name: str) -> list[str]:
     hits = _hits(name, "-w")
     called = re.escape(name)
     stand_in = rf"\b(?:def|class)\s+{called}\b|\b{called}\s*=\s*lambda\b"
-    patched = rf"""(?=.*(?:setattr|patch))(?=.*(?:['"]{called}['"]|\.{called}\b))"""
+    named = rf"""['"]{called}['"]|\.{called}\b"""
+    patched = [hit for hit in hits if re.search(named, hit[2]) and _in_patch(*hit)]
     return _lines("stand-in", name, hits, stand_in) + _lines(
-        "monkeypatch", name, hits, patched
+        "monkeypatch", name, patched
     )
+
+
+def _in_patch(path: str, number: str, text: str) -> bool:
+    """Return whether a line is in a `setattr` or `patch` call, one a line or several.
+
+    A call opened on an earlier line counts while its parentheses stay open.
+    """
+    if re.search(r"setattr|patch", text):
+        return True
+    shown = _git("show", f"HEAD:{path}").stdout.splitlines()
+    before = shown[max(0, int(number) - 5) : int(number) - 1]
+    for at, line in enumerate(before):
+        if re.search(r"(?:setattr|patch)\w*\(", line):
+            opened = "\n".join(before[at:])
+            return opened.count("(") > opened.count(")")
+    return False
 
 
 def file_lines(path: str) -> list[str]:
@@ -237,7 +254,11 @@ def file_lines(path: str) -> list[str]:
     named = re.escape(base.name)
     quoted = rf"""['"](?:[^'"]*/)?{named}['"]"""
     stem = re.escape(base.stem)
-    imported = rf"\bimport\s+{stem}\b|\bfrom\s+{stem}\s+import\b"
+    imported = (
+        rf"\bimport\s+(?:[\w.]+\.)?{stem}\b"
+        rf"|\bfrom\s+(?:[\w.]*\.)?{stem}\s+import\b"
+        rf"|\bfrom\s+[\w.]+\s+import\b.*\b{stem}\b"
+    )
     return _lines("runpy reader", path, _hits(base.name, "-F"), quoted) + _lines(
         "import reader", path, _hits(base.stem, "-wF"), imported
     )
