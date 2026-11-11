@@ -444,9 +444,11 @@ station says so.**
 ### D50 · Review metrics are read across repos and drawn on one page
 
 **`mf-review-metrics` reads the findings files, status logs and run logs of the repos the operator's config names,
-and every repo a run started in, and the operator's Codex sessions, leniently — every unreadable field a gap — and
+and every repo a run started in, and the operator's Codex sessions, and the transcripts of the folders the config's
+`sessions` key lists, leniently — every unreadable field a gap — and
 writes one self-contained page and its data, `review-metrics.json`, beside it: tables
-per repo and per role, executor and model, the cost per worker, round, role and station, with first-turn context, four
+per repo and per role, executor and model, the cost per worker, round, role and station, its `plan` and `operator`
+stations among them, with first-turn context, four
 headline numbers, charts over changes through `mf-build`'s chart, and a record per round and role. Numbers only; it
 writes into no repo and is no station of the line.**
 

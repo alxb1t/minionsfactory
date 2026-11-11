@@ -5,8 +5,10 @@ Why: 0045-review-metrics design D1…D7.
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -1348,3 +1350,747 @@ def test_both_layouts_are_read(tmp_path: Path) -> None:
         "conformance"
     }
     assert sorted(tmp_path.rglob("*")) == before
+
+
+def _at(second: int) -> str:
+    return f"2026-11-05T10:00:{second:02d}Z"
+
+
+def _when(second: int) -> datetime:
+    return datetime(2026, 11, 5, 10, 0, second, tzinfo=UTC)
+
+
+def _line(kind: str, time: str, **message: object) -> object:
+    return {"type": kind, "timestamp": time, "message": message}
+
+
+def _turn(id: str, time: str, usage: dict[str, int], model: str) -> object:
+    return _line("assistant", time, id=id, model=model, usage=usage)
+
+
+def _tool(id: str, time: str, name: str, **input: object) -> object:
+    blocks = [{"type": "tool_use", "id": id, "name": name, "input": input}]
+    return _line("assistant", time, id=f"msg-{id}", content=blocks)
+
+
+def _written(folder: Path, session: str, *lines: object) -> Path:
+    path = folder / f"{session}.jsonl"
+    _log(path, *lines)
+    return path
+
+
+def _plan_call(id: str = "t1", second: int = 1) -> object:
+    return _tool(id, _at(second), "Skill", skill="mf-plan", args="brief=/b/x.md")
+
+
+def test_the_sessions_key_names_the_folders(tmp_path: Path) -> None:
+    config = tmp_path / "conf" / "review-metrics.toml"
+    config.parent.mkdir()
+    config.write_text('sessions = ["a", "b"]\n', encoding="utf-8")
+
+    folders = review_metrics.session_folders(config)
+    assert folders == [(config.parent / "a").resolve(), (config.parent / "b").resolve()]
+
+    # Twin: no key, and no file, name no folder.
+    config.write_text('out = "page.html"\n', encoding="utf-8")
+    assert review_metrics.session_folders(config) == []
+    assert review_metrics.session_folders(tmp_path / "missing.toml") == []
+
+    config.write_text('sessions = "a"\n', encoding="utf-8")
+    with pytest.raises(review_metrics.CannotRun, match="`sessions` is not a list"):
+        review_metrics.session_folders(config)
+
+
+def test_a_transcript_is_reduced_to_numbers_and_ids(tmp_path: Path) -> None:
+    usage = {"input_tokens": 3, "output_tokens": 2}
+    text = [{"type": "text", "text": "PLANTED-text"}]
+    answer = [
+        {
+            "type": "tool_result",
+            "tool_use_id": "t3",
+            "content": "cut: queued 0001-x\nPLANTED-result",
+        }
+    ]
+    path = _written(
+        tmp_path,
+        "s1",
+        _line("user", _at(0), content="PLANTED-chat"),
+        _line("assistant", _at(1), id="m1", model="m", usage=usage, content=text),
+        _tool(
+            "t1",
+            _at(2),
+            "Skill",
+            skill="mf-plan",
+            args="x brief=/b/./x.md from=/b/y.md PLANTED-args",
+        ),
+        _line(
+            "assistant",
+            _at(9),
+            id="msg-t1",
+            content=[{"type": "tool_use", "id": "t0", "name": "Bash", "input": {}}],
+        ),
+        _tool("t2", _at(3), "Write", file_path="/b/x.md", content="PLANTED-body"),
+        _tool(
+            "t3",
+            _at(4),
+            "Bash",
+            command="uv run --script conduct.py cut s minor brief=/b/x.md PLANTED-cmd",
+        ),
+        _line("user", _at(5), content=answer),
+    )
+
+    events = review_metrics._transcript(path)
+
+    assert events[0] == {
+        "event": "message",
+        "id": "m1",
+        "time": _when(1),
+        "model": "m",
+        "usage": review_metrics._usage(usage),
+    }
+    calls = {e["id"]: e for e in events if e["event"] == "call"}
+    base: dict[str, object] = {"event": "call", "mf": False, "conduct": False}
+    base |= {"plan": False, "cut": False, "brief": None, "origin": None}
+    base |= {"touched": None}
+    assert calls["t1"] == base | {
+        "id": "t1",
+        "time": _when(2),
+        "mf": True,
+        "plan": True,
+        "brief": "/b/x.md",
+        "origin": "/b/y.md",
+    }
+    assert calls["t2"] == base | {"id": "t2", "time": _when(3), "touched": "/b/x.md"}
+    assert calls["t3"] == base | {
+        "id": "t3",
+        "time": _when(4),
+        "conduct": True,
+        "cut": True,
+        "brief": "/b/x.md",
+    }
+    # A call is at the time of its message's first line.
+    assert calls["t0"]["time"] == _when(2)
+    assert events[-1] == {"event": "result", "call": "t3", "ids": ["0001-x"]}
+    assert "PLANTED" not in str(events)
+
+    # A quoted path with a space and a quoted script name still parse.
+    quoted = _written(
+        tmp_path,
+        "s2",
+        _tool("q1", _at(1), "Skill", skill="mf-plan", args='brief="/b/my plan.md"'),
+        _tool(
+            "q2",
+            _at(2),
+            "Bash",
+            command='uv run --script "/pkg path/conduct.py" cut s minor brief=/b/x.md',
+        ),
+    )
+    found = {e["id"]: e for e in review_metrics._transcript(quoted)}
+    assert found["q1"]["brief"] == "/b/my plan.md"
+    assert found["q2"]["cut"] is True
+    assert found["q2"]["brief"] == "/b/x.md"
+
+    # An unbalanced quote falls back to plain words.
+    broken = _written(
+        tmp_path,
+        "s3",
+        _tool(
+            "q3",
+            _at(1),
+            "Bash",
+            command='conduct.py cut s minor brief=/b/z.md "open',
+        ),
+    )
+    (call,) = (e for e in review_metrics._transcript(broken) if e["event"] == "call")
+    assert (call["cut"], call["brief"]) == (True, "/b/z.md")
+
+
+def test_an_unreadable_transcript_is_a_gap(tmp_path: Path) -> None:
+    # A folder named like a transcript cannot be opened as one.
+    (tmp_path / "bad.jsonl").mkdir()
+    _written(tmp_path, "good", _plan_call("t1", 1))
+
+    sessions = review_metrics._sessions([tmp_path], set())
+
+    assert [s["id"] for s in sessions] == ["good"]
+
+
+def test_a_session_with_no_marker_is_not_read(tmp_path: Path) -> None:
+    usage = {"input_tokens": 3}
+    plain = [
+        _line("user", _at(0), content="hello"),
+        _turn("m1", _at(1), usage, "m"),
+        _tool("t1", _at(2), "Bash", command="ls"),
+    ]
+    assert review_metrics._transcript(_written(tmp_path, "a", *plain)) == []
+
+    marked = _written(tmp_path, "b", *plain, _plan_call("t2", 3))
+    assert any(e["plan"] for e in review_metrics._transcript(marked) if "plan" in e)
+
+
+def test_a_message_is_priced_once_by_its_id(tmp_path: Path) -> None:
+    usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000}
+    path = _written(
+        tmp_path,
+        "s",
+        _turn("m1", _at(1), usage, "claude-sonnet-5-5"),
+        _turn("m1", _at(2), {"input_tokens": 9}, "claude-sonnet-5-5"),
+        _turn("m2", _at(3), {}, "claude-sonnet-5-5"),
+        _plan_call(),
+        _turn("m3", _at(4), {"input_tokens": 4}, "no-such-model"),
+    )
+    messages = [e for e in review_metrics._transcript(path) if e["event"] == "message"]
+    assert [m["id"] for m in messages] == ["m1", "m2", "msg-t1", "m3"]
+
+    row = review_metrics._prices()["claude-sonnet-5-5"]
+    spend = review_metrics._spend(messages[:3])
+    assert spend["dollars"] == pytest.approx(row["input"] + row["output"])
+    assert (spend["turns"], spend["tokens"]) == (1, 2_000_000)
+    # The same ids again are the same turns.
+    assert review_metrics._spend([*messages[:3], *messages[:3]]) == spend
+
+    # Twin: a model with no row is a gap, its tokens and turns stand.
+    spend = review_metrics._spend(messages)
+    assert spend == {"dollars": None, "turns": 2, "tokens": 2_000_004}
+
+
+def test_a_subagent_is_read_with_its_launching_call(tmp_path: Path) -> None:
+    _written(tmp_path, "s1", _plan_call())
+    folder = tmp_path / "s1" / "subagents"
+    _log(
+        folder / "agent-a.jsonl",
+        _turn("a1", _at(5), {"input_tokens": 3}, "m"),
+        _tool("ta", _at(6), "Bash", command="ls"),
+    )
+    meta = {"toolUseId": "t1", "agentType": "PLANTED-type", "description": "PLANTED"}
+    (folder / "agent-a.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    # A meta file with no transcript beside it is no subagent.
+    (folder / "agent-b.meta.json").write_text("{}", encoding="utf-8")
+
+    found = review_metrics._subagents(tmp_path, "s1")
+
+    assert [(s["launch"], [m["id"] for m in s["messages"]]) for s in found] == [
+        ("t1", ["a1", "msg-ta"])
+    ]
+    assert "PLANTED" not in str(found)
+    assert review_metrics._subagents(tmp_path, "none") == []
+
+
+def test_a_station_session_is_skipped(tmp_path: Path) -> None:
+    repo, folder = tmp_path / "repo", tmp_path / "sessions"
+
+    def init(session: str) -> object:
+        return {"type": "system", "subtype": "init", "session_id": session}
+
+    _worker_log(repo, "0001-x", "20260101-100000-build.log", init("s1"))
+    _run_log(repo, "20260101-100000/0002-y_cut.log", init("s3"))
+    # An init past the log's first lines is no station's.
+    late = [{"type": "assistant"}] * 5
+    _worker_log(repo, "0001-x", "20260101-100000-cut.log", *late, init("s4"))
+    # A log that cannot be opened names no session.
+    (repo / ".minions" / "changes" / "0001-x" / "logs" / "gone.log").mkdir()
+    for session in ("s1", "s2", "s3", "s4"):
+        _written(folder, session, _plan_call())
+    _written(folder, "s5", _tool("t1", _at(1), "Bash", command="ls"))
+    _log(folder / "s1" / "subagents" / "agent-a.jsonl", _plan_call())
+    (folder / "s1" / "subagents" / "agent-a.meta.json").write_text("{}")
+
+    skipped = review_metrics._station_sessions([repo])
+    assert skipped == {"s1", "s3"}
+
+    found = review_metrics._sessions([folder, tmp_path / "none"], skipped)
+    assert [session["id"] for session in found] == ["s2", "s4"]
+    assert found[0]["subagents"] == []
+    assert found[0]["events"] == review_metrics._transcript(folder / "s2.jsonl")
+
+
+def _subagent(
+    folder: Path, session: str, name: str, launch: str, *lines: object
+) -> None:
+    base = folder / session / "subagents"
+    _log(base / f"agent-{name}.jsonl", *lines)
+    meta = base / f"agent-{name}.meta.json"
+    meta.write_text(json.dumps({"toolUseId": launch}), encoding="utf-8")
+
+
+def _used(id: str, second: int, tokens: int = 1) -> object:
+    return _turn(id, _at(second), {"input_tokens": tokens}, "claude-sonnet-5-5")
+
+
+def _write(id: str, second: int, path: str) -> object:
+    return _tool(id, _at(second), "Write", file_path=path)
+
+
+def _cut_log(repo: Path, change: str, second: int) -> None:
+    """Write the change's folder and a cut log last written at `second`."""
+    _findings(repo, f"{change}_status_log.md", "")
+    name = "20261105-100003-cut.log"
+    _worker_log(repo, change, name, _result(0.5, 2, 3000))
+    log = repo / ".minions" / "changes" / change / "logs" / name
+    stamp = _when(second).timestamp()
+    os.utime(log, (stamp, stamp))
+
+
+def _cut(id: str, second: int, brief: str) -> object:
+    command = f"uv run --script conduct.py cut s minor brief={brief}"
+    return _tool(id, _at(second), "Bash", command=command)
+
+
+def _queue_answer(call: str, *ids: str) -> object:
+    text = "".join(f"cut: queued {ident}\n" for ident in ids)
+    block = [{"type": "tool_result", "tool_use_id": call, "content": text}]
+    return _line("user", _at(0), content=block)
+
+
+def _messages(found: list[dict[str, Any]]) -> list[str]:
+    return [m["id"] for m in found]
+
+
+def test_a_plan_span_runs_from_the_skill_to_the_last_write(tmp_path: Path) -> None:
+    _written(
+        tmp_path,
+        "s1",
+        _used("m0", 1),
+        _plan_call("t1", 2),
+        _used("m1", 3),
+        _write("t2", 4, "/b/x.md"),
+        _used("m2", 5),
+        _write("t3", 6, "/b/./x.md"),
+        _used("m3", 7),
+        _tool("tx", _at(8), "Skill", skill="mf-plan", args=""),
+        _tool("t9", _at(9), "Bash", command="ls"),
+    )
+    _subagent(tmp_path, "s1", "a", "t2", _used("a1", 40))
+    _subagent(tmp_path, "s1", "b", "t9", _used("b1", 4))
+    _subagent(tmp_path, "s1", "c", "nope", _used("c1", 4))
+    # A write before the opening does not close the span; the opening alone does.
+    _written(
+        tmp_path,
+        "s2",
+        _write("w", 3, "/b/x.md"),
+        _tool("t1", _at(5), "Skill", skill="mf-plan", args="brief=/b/x.md"),
+    )
+    # Of two spans that hold a message, the one opened latest does.
+    _written(
+        tmp_path,
+        "s3",
+        _plan_call("t1", 1),
+        _tool("t2", _at(3), "Skill", skill="mf-plan", args="brief=/b/y.md"),
+        _used("m4", 4),
+        _write("t3", 5, "/b/y.md"),
+        _write("t4", 8, "/b/x.md"),
+    )
+
+    sessions = review_metrics._sessions([tmp_path], set())
+    spans = review_metrics._spans(sessions)
+
+    found = {
+        (s["session"], s["chain"]): (s["open"], s["close"], _messages(s["messages"]))
+        for s in spans
+    }
+    assert found == {
+        ("s1", 0): (
+            _when(2),
+            _when(6),
+            ["msg-t1", "m1", "msg-t2", "m2", "msg-t3", "a1"],
+        ),
+        ("s2", 0): (_when(5), _when(5), ["msg-t1"]),
+        ("s3", 0): (_when(1), _when(8), ["msg-t1", "msg-t4"]),
+        ("s3", 1): (_when(3), _when(5), ["msg-t2", "m4", "msg-t3"]),
+    }
+
+
+def test_a_continuation_joins_the_plan(tmp_path: Path) -> None:
+    _written(tmp_path, "s1", _plan_call("t1", 1), _write("t2", 3, "/b/x.md"))
+    _written(
+        tmp_path,
+        "s2",
+        _tool(
+            "t1", _at(5), "Skill", skill="mf-plan", args="brief=/b/z.md from=/b/x.md"
+        ),
+        _write("t2", 8, "/b/x.md"),
+        _write("t3", 7, "/b/z.md"),
+    )
+    _written(
+        tmp_path,
+        "s3",
+        _tool("t1", _at(1), "Skill", skill="mf-plan", args="brief=/b/w.md"),
+    )
+    sessions = review_metrics._sessions([tmp_path], set())
+
+    assert review_metrics._chains(sessions) == {
+        "/b/x.md": 0,
+        "/b/z.md": 0,
+        "/b/w.md": 1,
+    }
+    found = [
+        (s["session"], s["chain"], s["open"], s["close"])
+        for s in review_metrics._spans(sessions)
+    ]
+    assert found == [
+        ("s1", 0, _when(1), _when(3)),
+        ("s2", 0, _when(5), _when(8)),
+        ("s3", 1, _when(1), _when(1)),
+    ]
+
+
+def test_a_span_is_bound_to_the_ids_a_cut_queued(tmp_path: Path) -> None:
+    first, second = tmp_path / "first", tmp_path / "second"
+    _cut_log(first, "0003-old", 2)
+    _cut_log(second, "0001-x", 10)
+    _cut_log(second, "0003-old", 2)
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _plan_call("t1", 1),
+        _cut("t5", 4, "/b/x.md"),
+        _queue_answer("t5", "0001-x", "0002-nofolder", "0003-old"),
+    )
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    repos = [first, second]
+
+    assert review_metrics._cut_made(repos, "0001-x", _when(4)) == second
+    assert review_metrics._cut_made(repos, "0001-x", _when(11)) is None
+    assert review_metrics._queued(repos, sessions) == [
+        {"chain": 0, "id": "0001-x", "repo": "second", "time": _when(4)}
+    ]
+    # Two repos holding the id with a fresh cut log are ambiguous: bound to neither,
+    # whatever the order of the config.
+    _cut_log(first, "0001-x", 10)
+    assert review_metrics._cut_made(repos, "0001-x", _when(4)) is None
+    assert review_metrics._cut_made(repos[::-1], "0001-x", _when(4)) is None
+
+
+def test_a_forged_queue_line_binds_nothing(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 10)
+    forged = _queue_answer("t5", "0001-x")
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _plan_call("t1", 1),
+        _tool("t5", _at(4), "Bash", command="echo pasted"),
+        forged,
+    )
+    _written(
+        tmp_path / "sessions",
+        "s2",
+        _plan_call("t1", 1),
+        _cut("t5", 4, "/b/other.md"),
+        forged,
+        _cut("t6", 5, "/b/x.md"),
+        _queue_answer("t6", "0002-nofolder"),
+    )
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    assert review_metrics._queued([repo], sessions) == []
+
+    # A change folder with no cut log, and one whose log is older than the call.
+    _findings(repo, "0004-q_status_log.md", "")
+    _cut_log(repo, "0005-old", 2)
+    _written(
+        tmp_path / "sessions",
+        "s3",
+        _plan_call("t1", 1),
+        _cut("t5", 4, "/b/x.md"),
+        _queue_answer("t5", "0004-q", "0005-old"),
+    )
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    assert review_metrics._queued([repo], sessions) == []
+
+
+def _turns(count: int) -> list[dict[str, Any]]:
+    return [
+        {"event": "message", "id": f"m{n}", "model": "claude-sonnet-5-5"}
+        | {"time": _when(n), "usage": review_metrics._usage({"input_tokens": 2})}
+        for n in range(count)
+    ]
+
+
+def test_a_span_that_queued_two_versions_is_split_equally() -> None:
+    messages = _turns(5)
+    spans = [
+        {"chain": 0, "open": _when(1), "close": _when(6), "messages": messages},
+        {"chain": 0, "open": _when(10), "close": _when(13), "messages": []},
+    ]
+    queued = [
+        {"chain": 0, "id": "0001-x", "repo": "r", "time": _when(4)},
+        {"chain": 0, "id": "0002-y", "repo": "r", "time": _when(4)},
+        {"chain": 1, "id": "0003-z", "repo": "r", "time": _when(4)},
+    ]
+    whole = review_metrics._spend(messages)
+
+    rows = review_metrics._plan_rows(spans, queued)
+
+    assert [(r["repo"], r["change"], r["station"]) for r in rows] == [
+        ("r", "0001-x", "plan"),
+        ("r", "0002-y", "plan"),
+    ]
+    for row in rows:
+        assert row["turns"] == 2.5
+        assert row["tokens"] == 5
+        assert row["seconds"] == 4.0
+        assert row["dollars"] == pytest.approx(whole["dollars"] / 2)
+        assert row["first"] is None
+    # One id keeps the figures whole.
+    (row,) = review_metrics._plan_rows(spans, queued[:1])
+    assert (row["turns"], row["tokens"], row["seconds"]) == (5, 10, 8)
+
+
+def test_a_plan_never_queued_is_unbooked() -> None:
+    spans = [
+        {"chain": 0, "open": _when(1), "close": _when(4), "messages": _turns(2)},
+        {"chain": 1, "open": _when(1), "close": _when(4), "messages": []},
+    ]
+    queued = [{"chain": 2, "id": "0003-z", "repo": "r", "time": _when(4)}]
+
+    rows = review_metrics._plan_rows(spans, queued)
+
+    assert [(r["repo"], r["change"], r["station"], r["turns"]) for r in rows] == [
+        (None, None, "plan", 2)
+    ]
+    assert review_metrics._plan_rows([], queued) == []
+
+
+def test_operator_work_is_booked_to_the_nearest_mark(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TZ", "UTC")
+    repo = tmp_path / "repo"
+    _run_log(
+        repo,
+        "20261105-100000.md",
+        "10:00:00 · run · start — executor claude",
+        "10:00:10 · 0002-y · spawn — build · model m",
+        "10:00:40 · 0002-y · removed — a worktree",
+    )
+    _run_log(
+        repo,
+        "20261105-235900.md",
+        "23:59:50 · 0004-w · spawn — build · model m",
+        "00:00:10 · 0005-v · spawn — build · model m",
+        "13:00:00 · 0007-t · spawn — build · model m",
+        "00:30:00 · 0008-s · spawn — build · model m",
+    )
+    # A run log that cannot be read holds no mark.
+    (repo / ".minions" / "runs" / "20261105-120000.md").mkdir()
+    # A log whose name is no stamp has no date, so no mark.
+    _run_log(repo, "notes.md", "10:00:20 · 0006-q · spawn — build · model m")
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _used("mA", 0, 1),
+        _plan_call("t1", 1),
+        _used("mB", 2, 100),
+        _write("t2", 3, "/b/x.md"),
+        _used("mC", 5, 2),
+        _tool("tL", _at(6), "Bash", command="conduct.py status"),
+        _used("mD", 20, 4),
+        _used("mE", 50, 8),
+        _line("assistant", "2026-11-06T00:00:20Z", id="mF", usage={"input_tokens": 32}),
+    )
+    _subagent(tmp_path / "sessions", "s1", "a", "tL", _used("a1", 55, 16))
+    sessions = review_metrics._sessions([tmp_path / "sessions"], set())
+    spans = review_metrics._spans(sessions)
+    queued = [{"chain": 0, "id": "0001-x", "repo": "repo", "time": _when(2)}]
+
+    marks = review_metrics._marks([repo], queued)
+
+    assert [(m["change"], m["time"]) for m in marks] == [
+        ("0001-x", _when(2)),
+        ("0002-y", _when(10)),
+        (None, _when(40)),
+        ("0004-w", datetime(2026, 11, 5, 23, 59, 50, tzinfo=UTC)),
+        ("0005-v", datetime(2026, 11, 6, 0, 0, 10, tzinfo=UTC)),
+        ("0007-t", datetime(2026, 11, 6, 13, 0, 0, tzinfo=UTC)),
+        ("0008-s", datetime(2026, 11, 7, 0, 30, 0, tzinfo=UTC)),
+    ]
+    rows = review_metrics._operator(sessions, spans, marks)
+    assert [(r["repo"], r["change"], r["station"], r["tokens"]) for r in rows] == [
+        (None, None, "operator", 9),
+        ("repo", "0001-x", "operator", 18),
+        ("repo", "0002-y", "operator", 4),
+        ("repo", "0005-v", "operator", 32),
+    ]
+    assert all(r["seconds"] is None for r in rows)
+
+
+def test_a_subagent_books_where_its_call_was_launched(tmp_path: Path) -> None:
+    folder = tmp_path / "sessions"
+    _written(
+        folder,
+        "s1",
+        _plan_call("t1", 1),
+        _tool("tL", _at(6), "Bash", command="ls"),
+        _tool("tM", _at(30), "Bash", command="ls"),
+    )
+    _subagent(folder, "s1", "a", "tL", _used("a1", 55, 16))
+    _subagent(folder, "s1", "b", "tM", _used("b1", 31, 32))
+    sessions = review_metrics._sessions([folder], set())
+    spans = review_metrics._spans(sessions)
+    marks = [
+        {"time": _when(2), "repo": "r", "change": "0001-x"},
+        {"time": _when(20), "repo": "r", "change": "0002-y"},
+    ]
+
+    rows = review_metrics._operator(sessions, spans, marks)
+
+    # a1 ran at 55, after the second mark, but was launched at 6.
+    assert [(r["change"], r["tokens"]) for r in rows] == [
+        ("0001-x", 16),
+        ("0002-y", 32),
+    ]
+
+
+def test_booked_rows_have_the_keys_of_a_station_row(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 30)
+    _written(
+        tmp_path / "sessions",
+        "s1",
+        _plan_call("t1", 1),
+        _used("m1", 2, 4),
+        _write("t2", 3, "/b/x.md"),
+        _cut("t3", 4, "/b/x.md"),
+        _queue_answer("t3", "0001-x"),
+        _used("m2", 40, 8),
+    )
+    station = review_metrics._stations(_record(repo, "0001-x"))[0]
+
+    rows = review_metrics.booked([repo], [tmp_path / "sessions"])
+
+    assert [(r["station"], r["change"], r["tokens"]) for r in rows] == [
+        ("plan", "0001-x", 4),
+        ("operator", "0001-x", 8),
+    ]
+    assert all(set(row) == set(station) for row in rows)
+    assert review_metrics.booked([repo], []) == []
+
+
+def _booking(tmp_path: Path) -> tuple[Path, Path]:
+    """Write a repo, three sessions and a config naming them; return both paths."""
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 30)
+    _cut_log(repo, "0002-y", 30)
+    folder = tmp_path / "sessions"
+    _written(
+        folder,
+        "s1",
+        _plan_call("t1", 1),
+        _used("m1", 2, 4),
+        _write("t2", 3, "/b/x.md"),
+        _cut("t3", 4, "/b/x.md"),
+        _queue_answer("t3", "0001-x"),
+        _used("m2", 40, 8),
+    )
+    _written(
+        folder,
+        "s2",
+        _used("u0", 0, 2),
+        _tool("t1", _at(1), "Skill", skill="mf-plan", args="brief=/b/y.md"),
+        _used("u1", 2, 16),
+    )
+    _written(
+        folder,
+        "s3",
+        _tool("t1", _at(10), "Skill", skill="mf-plan", args="brief=/b/z.md"),
+        _used("z1", 11, 2),
+        _write("t2", 12, "/b/z.md"),
+        _cut("t3", 13, "/b/z.md"),
+        _queue_answer("t3", "0001-x"),
+    )
+    config = tmp_path / "config.toml"
+    config.write_text('sessions = ["sessions"]\n', encoding="utf-8")
+    return repo, config
+
+
+def test_the_plan_and_operator_rows_reach_the_data_and_the_page(tmp_path: Path) -> None:
+    repo, config = _booking(tmp_path)
+    out = tmp_path / "site" / "page.html"
+    args = ["--config", str(config), "--repo", str(repo), "--out", str(out)]
+
+    assert review_metrics.main(args) == 0
+
+    data = json.loads(out.with_name("review-metrics.json").read_text())
+    found = [
+        (r["change"], r["station"], r["turns"], r["tokens"])
+        for r in data["stations"]
+        if r["station"] in ("plan", "operator")
+    ]
+    assert sorted(found, key=repr) == sorted(
+        [
+            ("0001-x", "plan", 1, 4),
+            ("0001-x", "plan", 1, 2),
+            (None, "plan", 0, 0),
+            ("0001-x", "operator", 1, 8),
+            (None, "operator", 2, 18),
+        ],
+        key=repr,
+    )
+    assert {r["repo"] for r in data["stations"] if r["change"] is None} == {None}
+
+    page = out.read_text(encoding="utf-8").splitlines()
+    assert page[page.index("<h3>cost</h3>") + 2].endswith(
+        "<th>plan</th><th>operator</th></tr>"
+    )
+    row = next(line for line in page if line.startswith("<tr><td>0001-x</td>"))
+    plan, operator = "$0.00 · 2 turns · 6 tokens · 4 s", "$0.00 · 1 turns · 8 tokens"
+    assert row.endswith(f"<td>{plan}</td><td>{operator}</td></tr>")
+    row = next(line for line in page if line.startswith("<tr><td>0002-y</td>"))
+    assert row.endswith("<td>—</td><td>—</td></tr>")
+    unbooked = page[page.index("<h2>unbooked</h2>") + 1 :]
+    assert "<tr><td>plan</td><td>— · 0 turns · 0 tokens · 0 s</td></tr>" in unbooked
+    assert "<tr><td>operator</td><td>$0.00 · 2 turns · 18 tokens</td></tr>" in unbooked
+
+    # Twin: a config with no `sessions` key books no row, no column and no table.
+    config.write_text('out = "page.html"\n', encoding="utf-8")
+    bare = tmp_path / "bare" / "page.html"
+    args = ["--config", str(config), "--repo", str(repo), "--out", str(bare)]
+    assert review_metrics.main(args) == 0
+    data = json.loads(bare.with_name("review-metrics.json").read_text())
+    assert {r["station"] for r in data["stations"]} == {"cut"}
+    plain = bare.read_text(encoding="utf-8")
+    assert "<th>plan</th>" not in plain
+    assert "unbooked" not in plain
+
+
+def test_a_secret_in_a_transcript_is_never_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    secret, brief = "PLANTED-sk-0123456789", "/vault/PLANTED-brief/x.md"
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 30)
+    said = [{"type": "text", "text": secret}]
+    answer = [
+        {
+            "type": "tool_result",
+            "tool_use_id": "t3",
+            "content": f"cut: queued 0001-x\n{secret}",
+        }
+    ]
+    command = f"uv run --script conduct.py cut s minor brief={brief} {secret}"
+    session = _written(
+        tmp_path / "sessions",
+        "s1",
+        _turn("m0", _at(0), {"input_tokens": 3}, "claude-sonnet-5-5"),
+        _line("assistant", _at(0), id="m0", content=said),
+        _tool("t1", _at(1), "Skill", skill="mf-plan", args=f"brief={brief} {secret}"),
+        _write("t2", 3, brief),
+        _tool("t3", _at(4), "Bash", command=command),
+        _line("user", _at(5), content=answer),
+        _line("user", _at(6), content=secret),
+    )
+    config = tmp_path / "config.toml"
+    config.write_text('sessions = ["sessions"]\n', encoding="utf-8")
+    out = tmp_path / "site" / "page.html"
+    args = ["--config", str(config), "--repo", str(repo), "--out", str(out)]
+
+    assert review_metrics.main(args) == 0
+
+    data = out.with_name("review-metrics.json").read_text(encoding="utf-8")
+    stations = {row["station"] for row in json.loads(data)["stations"]}
+    assert {"plan", "operator"} <= stations
+    assert secret in session.read_text(encoding="utf-8")
+    written = [out.read_text(encoding="utf-8"), data, capsys.readouterr().out]
+    for text in written:
+        for planted in (secret, brief, "PLANTED", "vault"):
+            assert planted not in text

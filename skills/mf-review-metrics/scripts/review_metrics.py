@@ -16,6 +16,7 @@ import json
 import os
 import re
 import runpy
+import shlex
 import statistics
 import subprocess
 import sys
@@ -23,6 +24,7 @@ import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime, timedelta
+from itertools import islice
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -102,6 +104,12 @@ OLDER = re.compile(
 # The events a worker's tokens are read from.
 WORKED = ('"task_started"', '"assistant"', '"turn.completed"', '"result"', '"mf.spawn"')
 DAY_SECONDS = 86400
+# A station log's `init` event is in its first lines. Why: 0115-plan-metrics design D4.
+INIT_LINES = 5
+# The line `conduct.py cut` prints for each version it queued.
+_QUEUED = re.compile(r"^cut: queued (\d{4}-[a-z0-9-]+)", re.MULTILINE)
+_MARK = re.compile(r"^(\d\d:\d\d:\d\d) · (\S+) · (\w+)", re.MULTILINE)
+_CHANGE_ID = re.compile(r"\d{4}-[a-z0-9-]+")
 CHARTS = {
     "rounds": "rounds",
     "findings": "findings",
@@ -175,11 +183,16 @@ def _read_config(path: Path) -> dict[str, Any]:
         raise CannotRun(f"{path}: does not parse: {exc}") from exc
 
 
-def _strings(path: Path, repos: object) -> list[str]:
-    """Return the config's `repos`, or raise when it is not a list of strings."""
-    if not isinstance(repos, list) or not all(isinstance(r, str) for r in repos):
-        raise CannotRun(f"{path}: `repos` is not a list of strings")
-    return repos
+def _strings(path: Path, key: str, value: object) -> list[str]:
+    """Return the config's list at `key`, or raise when it is not a list of strings."""
+    if not isinstance(value, list) or not all(isinstance(r, str) for r in value):
+        raise CannotRun(f"{path}: `{key}` is not a list of strings")
+    return value
+
+
+def _inside(path: Path, text: str) -> Path:
+    """Return `text`, `~`-expanded, resolved against the config file's folder."""
+    return (path.parent / Path(text).expanduser()).resolve()
 
 
 def settings(
@@ -191,23 +204,30 @@ def settings(
     """
     path = config or config_path()
     data = _read_config(path)
-    named = _strings(path, data.get("repos", []))
+    named = _strings(path, "repos", data.get("repos", []))
     page = data.get("out")
     if page is not None and not isinstance(page, str):
         raise CannotRun(f"{path}: `out` is not a string")
-
-    def inside(text: str) -> Path:
-        return (path.parent / Path(text).expanduser()).resolve()
-
     if repos:
         chosen = [r.resolve() for r in repos]
     else:
-        chosen = list(dict.fromkeys([*(inside(r) for r in named), *_recorded_repos()]))
+        found = [_inside(path, r) for r in named]
+        chosen = list(dict.fromkeys([*found, *_recorded_repos()]))
     if not chosen:
         raise CannotRun(f"no repo named: looked for {path}")
     if out is None and page is None:
         raise CannotRun(f"no page path: no --out, and no `out` in {path}")
-    return chosen, out.resolve() if out else inside(str(page))
+    return chosen, out.resolve() if out else _inside(path, str(page))
+
+
+def session_folders(config: Path | None) -> list[Path]:
+    """Return the transcript folders the config's `sessions` lists; none, none.
+
+    Why: 0115-plan-metrics design D1.
+    """
+    path = config or config_path()
+    named = _strings(path, "sessions", _read_config(path).get("sessions", []))
+    return [_inside(path, text) for text in named]
 
 
 def _bullet(name: str) -> re.Pattern[str]:
@@ -949,6 +969,462 @@ def _priced_worker(row: object, usage: dict[str, int]) -> float | None:
     return sum(n * (price or 0) for n, price in priced) / 1_000_000
 
 
+def _path(text: str) -> str:
+    """Return a path as text compared: `~` expanded, normalized, quotes dropped."""
+    return os.path.normpath(os.path.expanduser(text.strip("\"'")))
+
+
+def _token(words: str, key: str) -> str | None:
+    """Return the path a `key=<path>` word names, else None.
+
+    e.g. ("x brief=/b/./y.md", "brief") → "/b/y.md"
+    """
+    for word in _words(words):
+        if word.startswith(f"{key}="):
+            return _path(word[len(key) + 1 :])
+    return None
+
+
+def _words(text: str) -> list[str]:
+    """Return the words of a command or argument line, quotes honoured.
+
+    e.g. 'a brief="/b/my plan.md"' → ["a", "brief=/b/my plan.md"]
+    """
+    try:
+        return shlex.split(text)
+    except ValueError:
+        return text.split()
+
+
+def _is_cut(command: str) -> bool:
+    """Return whether a command runs `conduct.py`, then any flags, then `cut`."""
+    words = _words(command)
+    for place, word in enumerate(words):
+        if os.path.basename(word) == "conduct.py":
+            rest = [w for w in words[place + 1 :] if not w.startswith("-")]
+            return rest[:1] == ["cut"]
+    return False
+
+
+def _call(block: Record, time: datetime | None) -> Record:
+    """Return a `tool_use` block as an event of flags and paths, never its text.
+
+    e.g. a `Skill` of `mf-plan` with `brief=/b.md` → `plan` True, `brief` "/b.md"
+    """
+    name, given = block.get("name"), block.get("input")
+    given = given if isinstance(given, dict) else {}
+    skill = str(given.get("skill")) if name == "Skill" else ""
+    command = str(given.get("command")) if name == "Bash" else ""
+    cut = _is_cut(command)
+    plan = skill == "mf-plan"
+    words = command if cut else str(given.get("args")) if plan else ""
+    touched = given.get("file_path") if name in ("Write", "Edit") else None
+    return {
+        "event": "call",
+        "id": block.get("id"),
+        "time": time,
+        "mf": skill.startswith("mf-"),
+        "conduct": "conduct.py" in command,
+        "plan": plan,
+        "cut": cut,
+        "brief": _token(words, "brief"),
+        "origin": _token(words, "from"),
+        "touched": _path(touched) if isinstance(touched, str) else None,
+    }
+
+
+def _answer(block: Record) -> Record:
+    """Return a `tool_result` block as its call's id and the ids its lines queued."""
+    content = block.get("content")
+    parts = content if isinstance(content, list) else [{"text": content}]
+    text = "\n".join(str(p.get("text") or "") for p in parts if isinstance(p, dict))
+    return {
+        "event": "result",
+        "call": block.get("tool_use_id"),
+        "ids": _QUEUED.findall(text),
+    }
+
+
+def _events(path: Path) -> list[Record]:
+    """Return a transcript's events in file order, a message once by its first line.
+
+    Why: 0115-plan-metrics design D2, D3.
+    """
+    events: list[Record] = []
+    first: dict[str, datetime | None] = {}
+    try:
+        lines = path.open(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    with lines:
+        for line in lines:
+            row = _object(line)
+            message = row.get("message")
+            message = message if isinstance(message, dict) else {}
+            content = message.get("content")
+            blocks = (
+                [b for b in content if isinstance(b, dict)]
+                if isinstance(content, list)
+                else []
+            )
+            time, ident = _moment(row.get("timestamp")), message.get("id")
+            if row.get("type") == "assistant" and isinstance(ident, str):
+                if ident not in first:
+                    first[ident] = time
+                    model = message.get("model")
+                    events.append(
+                        {
+                            "event": "message",
+                            "id": ident,
+                            "time": time,
+                            "model": model if isinstance(model, str) else None,
+                            "usage": _usage(message.get("usage")),
+                        }
+                    )
+                events += [
+                    _call(b, first[ident])
+                    for b in blocks
+                    if b.get("type") == "tool_use"
+                ]
+            elif row.get("type") == "user":
+                events += [_answer(b) for b in blocks if b.get("type") == "tool_result"]
+    return events
+
+
+def _transcript(path: Path) -> list[Record]:
+    """Return a session's events, none when no call holds a marker.
+
+    A marker is a call of a skill named `mf-*` or of `conduct.py`.
+    Why: 0115-plan-metrics design D2.
+    """
+    events = _events(path)
+    marked = any(e["mf"] or e["conduct"] for e in events if e["event"] == "call")
+    return events if marked else []
+
+
+def _spend(messages: Iterable[Record]) -> Record:
+    """Return the dollars, turns and tokens of the messages, each id priced once.
+
+    A message with no token is no turn; one with no price row makes the dollars a gap.
+    Why: 0115-plan-metrics design D3.
+    """
+    once: dict[str, Record] = {}
+    for message in messages:
+        once.setdefault(message["id"], message)
+    turns = [m for m in once.values() if m["usage"] and sum(m["usage"].values())]
+    prices = _prices()
+    return {
+        "dollars": _total(
+            _priced_worker(prices.get(m["model"]), m["usage"]) for m in turns
+        ),
+        "turns": len(turns),
+        "tokens": sum(sum(m["usage"].values()) for m in turns),
+    }
+
+
+def _subagents(folder: Path, ident: str) -> list[Record]:
+    """Return each subagent of session `ident`: its launching call and its messages.
+
+    e.g. a meta file naming `toolUseId` "t1" → {"launch": "t1", "messages": [...]}
+    Why: 0115-plan-metrics design D2.
+    """
+    found: list[Record] = []
+    for meta in sorted((folder / ident / "subagents").glob("agent-*.meta.json")):
+        log = meta.with_name(meta.name.removesuffix(".meta.json") + ".jsonl")
+        if log.is_file():
+            launch = _object(meta.read_text(encoding="utf-8", errors="replace"))
+            launch = launch.get("toolUseId")
+            messages = [e for e in _events(log) if e["event"] == "message"]
+            found.append(
+                {
+                    "launch": launch if isinstance(launch, str) else None,
+                    "messages": messages,
+                }
+            )
+    return found
+
+
+def _station_sessions(repos: Iterable[Path]) -> set[str]:
+    """Return the session ids the `init` events of the repos' station logs name.
+
+    e.g. a log opening with {"subtype": "init", "session_id": "s1"} → {"s1"}
+    Why: 0115-plan-metrics design D4.
+    """
+    logs = [
+        log
+        for repo in repos
+        for found in (
+            (repo / CHANGES).glob("*/logs/*.log"),
+            (repo / RUNS).glob("*/*.log"),
+        )
+        for log in found
+    ]
+    sessions: set[str] = set()
+    for log in logs:
+        try:
+            with log.open(encoding="utf-8", errors="replace") as lines:
+                head = [_object(line) for line in islice(lines, INIT_LINES)]
+        except OSError:
+            continue
+        named = (e.get("session_id") for e in head if e.get("subtype") == "init")
+        sessions.update(s for s in named if isinstance(s, str))
+    return sessions
+
+
+def _sessions(folders: Iterable[Path], skipped: set[str]) -> list[Record]:
+    """Return each session of the folders with a marker and no station's own.
+
+    e.g. `<folder>/s2.jsonl` → {"id": "s2", "events": [...], "subagents": [...]}
+    Why: 0115-plan-metrics design D2, D4.
+    """
+    found: list[Record] = []
+    for folder in folders:
+        for path in sorted(folder.glob("*.jsonl")):
+            events = [] if path.stem in skipped else _transcript(path)
+            if events:
+                subagents = _subagents(folder, path.stem)
+                found.append(
+                    {"id": path.stem, "events": events, "subagents": subagents}
+                )
+    return found
+
+
+def _chains(sessions: Sequence[Record]) -> dict[str, int]:
+    """Return each brief and origin path of the `mf-plan` calls with its chain's number.
+
+    e.g. a call with `from=a.md` and `brief=b.md` → {"a.md": 0, "b.md": 0}
+    Why: 0115-plan-metrics design D5.
+    """
+    ties = (
+        {call["brief"], call["origin"]} - {None}
+        for session in sessions
+        for call in session["events"]
+        if call["event"] == "call" and call["plan"]
+    )
+    groups: list[set[str]] = []
+    for paths in filter(None, ties):
+        tied = [group for group in groups if group & paths]
+        groups = [group for group in groups if not group & paths]
+        groups.append(set().union(paths, *tied))
+    return {path: n for n, group in enumerate(groups) for path in group}
+
+
+def _stamped(session: Record) -> list[tuple[datetime, Record]]:
+    """Return a session's messages and its subagents', each with the time it books at.
+
+    A subagent's message books at its launching call's time; one with no time books
+    nowhere. Why: 0115-plan-metrics design D5, D7.
+    """
+    launched = {e["id"]: e["time"] for e in session["events"] if e["event"] == "call"}
+    own = [(e["time"], e) for e in session["events"] if e["event"] == "message"]
+    sub = [
+        (launched.get(found["launch"]), message)
+        for found in session["subagents"]
+        for message in found["messages"]
+    ]
+    return [(time, message) for time, message in own + sub if time is not None]
+
+
+def _spans(sessions: Sequence[Record]) -> list[Record]:
+    """Return each chain's span in each session, with the messages that belong to it.
+
+    A span opens at the chain's first `mf-plan` call and closes at the last write of
+    a path of the chain. Why: 0115-plan-metrics design D5.
+    """
+    chains = _chains(sessions)
+    spans: list[Record] = []
+    for session in sessions:
+        calls = [e for e in session["events"] if e["event"] == "call" and e["time"]]
+        opened: dict[int, datetime] = {}
+        for call in (c for c in calls if c["plan"]):
+            chain = chains.get(call["brief"] or call["origin"])
+            if chain is not None:
+                opened.setdefault(chain, call["time"])
+        mine: list[Record] = [
+            {
+                "session": session["id"],
+                "chain": chain,
+                "open": start,
+                "close": max(
+                    (
+                        c["time"]
+                        for c in calls
+                        if chains.get(c["touched"]) == chain and c["time"] >= start
+                    ),
+                    default=start,
+                ),
+                "messages": [],
+            }
+            for chain, start in opened.items()
+        ]
+        for time, message in _stamped(session):
+            held = [s for s in mine if s["open"] <= time <= s["close"]]
+            if held:
+                max(held, key=lambda s: s["open"])["messages"].append(message)
+        spans += mine
+    return spans
+
+
+def _cut_made(repos: Sequence[Path], ident: str, time: datetime) -> Path | None:
+    """Return the one repo holding change `ident` and a cut log not older than `time`.
+
+    Two such repos are ambiguous, and bind to none: the config's order is no evidence.
+    Why: 0115-plan-metrics design D6.
+    """
+    found = []
+    for repo in repos:
+        held = _change_dir(repo, ident).is_dir()
+        logs = _station_logs(repo, ident, "cut") if held else []
+        if any(
+            datetime.fromtimestamp(log.stat().st_mtime, UTC) >= time for log in logs
+        ):
+            found.append(repo)
+    return found[0] if len(found) == 1 else None
+
+
+def _queued(repos: Sequence[Path], sessions: Sequence[Record]) -> list[Record]:
+    """Return each valid id a `conduct.py cut` of a chain's brief queued.
+
+    e.g. {"chain": 0, "id": "0001-x", "repo": "r", "time": <the call's time>}
+    Why: 0115-plan-metrics design D6.
+    """
+    chains = _chains(sessions)
+    found: dict[tuple[object, str], Record] = {}
+    for session in sessions:
+        cuts = {
+            e["id"]: e
+            for e in session["events"]
+            if e["event"] == "call" and e["cut"] and e["time"]
+        }
+        for result in (e for e in session["events"] if e["event"] == "result"):
+            call = cuts.get(result["call"], {})
+            chain = chains.get(call.get("brief"))
+            for ident in result["ids"] if chain is not None else ():
+                repo = _cut_made(repos, ident, call["time"])
+                if repo is not None:
+                    row: Record = {
+                        "chain": chain,
+                        "id": ident,
+                        "repo": repo.name,
+                        "time": call["time"],
+                    }
+                    found.setdefault((chain, ident), row)
+    return list(found.values())
+
+
+def _share(value: Number | None, count: int) -> Number | None:
+    """Return one of `count` equal shares of a figure; a gap stays a gap."""
+    return value if value is None or count == 1 else value / count
+
+
+def _booked_row(
+    key: tuple[str | None, str | None],
+    station: str,
+    spend: Record,
+    seconds: Number | None,
+    count: int = 1,
+) -> Record:
+    """Return a `_stations` row of a station, one of `count` equal shares of a spend."""
+    return {
+        "repo": key[0],
+        "change": key[1],
+        "station": station,
+        "dollars": _share(spend["dollars"], count),
+        "turns": _share(spend["turns"], count),
+        "tokens": _share(spend["tokens"], count),
+        "seconds": _share(seconds, count),
+        "first": None,
+    }
+
+
+def _plan_rows(spans: Sequence[Record], queued: Sequence[Record]) -> list[Record]:
+    """Return a `plan` row per chain and valid id; a chain with none is `unbooked`.
+
+    e.g. five turns over two ids → 2.5 turns each
+    Why: 0115-plan-metrics design D5, D6.
+    """
+    rows: list[Record] = []
+    for chain in sorted({span["chain"] for span in spans}):
+        mine = [span for span in spans if span["chain"] == chain]
+        messages = [message for span in mine for message in span["messages"]]
+        seconds = round(sum((s["close"] - s["open"]).total_seconds() for s in mine))
+        keys = [(q["repo"], q["id"]) for q in queued if q["chain"] == chain]
+        keys = keys or [(None, None)]
+        spend = _spend(messages)
+        rows += [
+            _booked_row(key, "plan", spend, seconds, len(keys))
+            for key in keys
+            if messages
+        ]
+    return rows
+
+
+def _marks(repos: Sequence[Path], queued: Sequence[Record]) -> list[Record]:
+    """Return the marks, oldest first: a queued id's call, a run-log line of a change.
+
+    A `removed` line is a mark with no change. Why: 0115-plan-metrics design D7.
+    """
+    marks = [{"time": q["time"], "repo": q["repo"], "change": q["id"]} for q in queued]
+    for repo in repos:
+        for log in sorted((repo / RUNS).glob("*.md")):
+            last, days = datetime.min, timedelta(0)
+            try:
+                text = log.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for clock, name, event in _MARK.findall(text):
+                try:
+                    at = datetime.strptime(f"{log.stem[:8]} {clock}", "%Y%m%d %H:%M:%S")
+                except ValueError:
+                    continue
+                if last - (at + days) > HALF_DAY:
+                    days += timedelta(days=1)
+                last = at + days
+                if _CHANGE_ID.fullmatch(name):
+                    change = None if event == "removed" else name
+                    marks.append(
+                        {"time": _utc(last), "repo": repo.name, "change": change}
+                    )
+    return sorted(marks, key=lambda mark: mark["time"])
+
+
+def _operator(
+    sessions: Sequence[Record], spans: Sequence[Record], marks: Sequence[Record]
+) -> list[Record]:
+    """Return an `operator` row per repo and change, and one `unbooked`.
+
+    A message outside every span books to the latest mark not after it.
+    Why: 0115-plan-metrics design D7.
+    """
+    inside = {id(message) for span in spans for message in span["messages"]}
+    buckets: dict[tuple[str | None, str | None], list[Record]] = {}
+    for session in sessions:
+        for time, message in _stamped(session):
+            earlier = [mark for mark in marks if mark["time"] <= time]
+            mark = earlier[-1] if earlier and earlier[-1]["change"] else {}
+            key = (mark.get("repo"), mark.get("change"))
+            if id(message) not in inside:
+                buckets.setdefault(key, []).append(message)
+    return [
+        _booked_row(key, "operator", _spend(messages), None)
+        for key, messages in sorted(
+            buckets.items(), key=lambda b: (b[0][0] or "", b[0][1] or "")
+        )
+    ]
+
+
+def booked(repos: Sequence[Path], folders: Sequence[Path]) -> list[Record]:
+    """Return the `plan` and `operator` rows of the transcripts in `folders`.
+
+    Why: 0115-plan-metrics design D8.
+    """
+    sessions = _sessions(folders, _station_sessions(repos))
+    spans = _spans(sessions)
+    queued = _queued(repos, sessions)
+    marks = _marks(repos, queued)
+    return [*_plan_rows(spans, queued), *_operator(sessions, spans, marks)]
+
+
 def _converge_workers(repo: Path, change: str) -> list[Record]:
     """Return a record per converge worker, priced.
 
@@ -1498,12 +1974,17 @@ def _severity_table(records: list[Record]) -> Table:
     return ["grade", "findings"], [[grade, str(count)] for grade, count in grades]
 
 
-def _cost_cell(record: Record, station: str) -> str:
-    """Return a station's spend: "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3"."""
-    cost, turns, tokens, seconds = (
-        record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds")
-    )
-    parts = [
+BOOKED = ("plan", "operator")
+
+
+def _spend_parts(
+    cost: Number | None,
+    turns: Number | None,
+    tokens: Number | None,
+    seconds: Number | None,
+) -> list[str]:
+    """Return a spend's parts; e.g. ["$1.50", "15 turns", "376 tokens", "91 s"]."""
+    return [
         f"${cost:.2f}" if cost is not None else GAP,
         *(
             f"{_figure(value)} {unit}"
@@ -1511,6 +1992,13 @@ def _cost_cell(record: Record, station: str) -> str:
             if value is not None
         ),
     ]
+
+
+def _cost_cell(record: Record, station: str) -> str:
+    """Return a station's spend: "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3"."""
+    parts = _spend_parts(
+        *(record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds"))
+    )
     if (first := record[f"first_{station}"]) is not None:
         parts.append(f"first {first}")
     read, spawns = record[f"read_{station}"], record[f"spawns_{station}"]
@@ -1519,13 +2007,59 @@ def _cost_cell(record: Record, station: str) -> str:
     return " · ".join(parts)
 
 
-def cost_table(records: list[Record]) -> Table:
-    """Return a row per change, a column per station, `—` where no log tells."""
+def _booked_cell(rows: Sequence[Record]) -> str:
+    """Return the sum of booked rows as a cost cell, `—` for no row.
+
+    e.g. two `plan` rows of 1 turn each → "$0.01 · 2 turns · 6 tokens · 4 s"
+    """
+    if not rows:
+        return GAP
+    turns, tokens, seconds = (
+        _held(row[key] for row in rows) for key in ("turns", "tokens", "seconds")
+    )
+    cost = _total(row["dollars"] for row in rows)
+    return " · ".join(_spend_parts(cost, turns, tokens, seconds))
+
+
+def cost_table(records: list[Record], booked: Sequence[Record] = ()) -> Table:
+    """Return a row per change, a column per station, `—` where no log tells.
+
+    Rows in `booked` add a `plan` and an `operator` column.
+    Why: 0115-plan-metrics design D8.
+    """
+    added = BOOKED if booked else ()
     return (
-        ["change", *STATIONS],
+        ["change", *STATIONS, *added],
         [
-            [record["change"], *(_cost_cell(record, s) for s in STATIONS)]
+            [
+                record["change"],
+                *(_cost_cell(record, s) for s in STATIONS),
+                *(
+                    _booked_cell(
+                        [
+                            row
+                            for row in booked
+                            if row["change"] == record["change"]
+                            and row["station"] == station
+                        ]
+                    )
+                    for station in added
+                ),
+            ]
             for record in records
+        ],
+    )
+
+
+def _unbooked_table(booked: Sequence[Record]) -> Table:
+    """Return a row per station of the booked rows that name no change."""
+    loose = [row for row in booked if row["change"] is None]
+    return (
+        ["station", "spend"],
+        [
+            [station, _booked_cell([row for row in loose if row["station"] == station])]
+            for station in BOOKED
+            if any(row["station"] == station for row in loose)
         ],
     )
 
@@ -1621,8 +2155,11 @@ def _markdown_table(table: Table) -> str:
     return "\n".join("| " + " | ".join(cells) + " |" for cells in lines)
 
 
-def _repo_section(name: str, records: list[Record], chart: Chart) -> list[str]:
+def _repo_section(
+    name: str, records: list[Record], chart: Chart, booked: Sequence[Record] = ()
+) -> list[str]:
     """Return a repo's lines: its tables, then a chart per measure over its changes."""
+    mine = [row for row in booked if row["repo"] == name]
     lines = [
         '<section class="repo">',
         f"<h2>{_E(name)}</h2>",
@@ -1630,7 +2167,7 @@ def _repo_section(name: str, records: list[Record], chart: Chart) -> list[str]:
         "<h3>findings per grade</h3>",
         _html_table(_severity_table(records)),
         "<h3>cost</h3>",
-        _html_table(cost_table(records)),
+        _html_table(cost_table(records, mine)),
         '<div class="charts">',
     ]
     for field, title in CHARTS.items():
@@ -1648,10 +2185,15 @@ def _every_record(read: list[tuple[str, list[Record]]]) -> list[Record]:
     return [record for _, held in read for record in held]
 
 
-def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) -> str:
+def render_page(
+    read: list[tuple[str, list[Record]]],
+    chart: Chart,
+    style: str,
+    booked: Sequence[Record] = (),
+) -> str:
     """Return the page, laid out per 0045-review-metrics design D7, headline first.
 
-    Why: 0097-cross-model design D12.
+    Why: 0097-cross-model design D12; 0115-plan-metrics design D8.
     """
     records = _every_record(read)
     lines = [
@@ -1664,7 +2206,9 @@ def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) 
         _html_table(headline_table(cross_model(records)["headline"])),
     ]
     for name, held in read:
-        lines += _repo_section(name, held, chart)
+        lines += _repo_section(name, held, chart, booked)
+    if (loose := _unbooked_table(booked))[1]:
+        lines += ["<h2>unbooked</h2>", _html_table(loose)]
     lines += ["<h2>role, executor and model</h2>", _html_table(model_table(records))]
     lines += ["<h2>lacked</h2>", "<ul>"]
     lines += [f"<li>{_E(name)}: {_E(lacked(held))}</li>" for name, held in read]
@@ -1718,8 +2262,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         repos, out = settings(args.config, args.repo, args.out)
         chart, style = load_chart()
+        folders = session_folders(args.config)
+        rows = booked(repos, folders) if folders else []
         read = [(repo.name, read_repo(repo)) for repo in repos]
-        _write(out, render_page(read, chart, style))
+        _write(out, render_page(read, chart, style, rows))
         workers = [
             worker
             for repo in repos
@@ -1732,7 +2278,10 @@ def main(argv: list[str] | None = None) -> int:
             "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
             "records": _priced_rounds(rounds, workers),
             "workers": workers,
-            "stations": [row for record in records for row in _stations(record)],
+            "stations": [
+                *(row for record in records for row in _stations(record)),
+                *rows,
+            ],
             **cross_model(records),
         }
         _write(out.with_name(DATA), json.dumps(data, indent=2) + "\n")

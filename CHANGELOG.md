@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.95.0] - 2026-11-11
+
+Gate: local 6m55s · CI not read under mf-ship · 0.94.0: local 5m52s · CI not read under mf-ship
+
+- `review_metrics.py` reads the `sessions` key of the config and reduces each transcript of those folders to numbers,
+  ids and times, a message priced once by its id, its subagents beside it; a session a station log's `init` names is
+  skipped, and one with no `mf-*` marker is not read (change `0115-plan-metrics`, phase 1).
+- `review_metrics.py` books the transcripts' `plan` spans, from an `mf-plan` call to the last write of its brief, to the
+  ids a matched `conduct.py cut` queued, split equally or `unbooked`, and the rest as `operator` work to the nearest
+  earlier mark of a queued id or a run-log line (change `0115-plan-metrics`, phase 2).
+- `review_metrics.py` puts the `plan` and `operator` rows in `review-metrics.json`'s `stations` and as columns of the
+  page's cost table, with the rows of no change in a table `unbooked`; `mf-review-metrics`, D50 and the principles name
+  the transcripts it reads (change `0115-plan-metrics`, phase 3).
+
 ## [0.94.0] - 2026-11-11
 
 Gate: local 5m52s · CI not read under mf-ship · 0.93.0: local 5m6s · CI not read under mf-ship
