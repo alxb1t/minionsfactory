@@ -5,7 +5,7 @@ The phases: the rows of `cut_check.py`, the reader kinds of `facts.py`, then the
 ## Progress
 
 - [x] 1 — cut_check.py: Verify sequencing and record consistency · hard
-- [ ] 2 — facts.py readers: signatures, files and strings · hard
+- [x] 2 — facts.py readers: signatures, files and strings · hard
 - [ ] 3 — Step 8.5, the decision and the reading step · hard
 
 ## 1 — cut_check.py: Verify sequencing and record consistency
@@ -41,15 +41,15 @@ The phases: the rows of `cut_check.py`, the reader kinds of `facts.py`, then the
 
 ## 2 — facts.py readers: signatures, files and strings
 
-- [ ] 2.1 **HALT CHECK** `facts.py` holds the seams the kinds extend ([D4](design.md#d4)).
+- [x] 2.1 **HALT CHECK** `facts.py` holds the seams the kinds extend ([D4](design.md#d4)).
   Verify: `git grep -n -e '^def reader_lines(' -e '^def run_readers(' -- skills/mf-cut-change/scripts/facts.py` prints a line for each.
-- [ ] 2.2 In `facts.py` give `readers` the repeatable flags `--signature`, `--file` and `--string`, names optional, exit 2 with none of them or with a `--signature` value that is no identifier ([D4](design.md#d4)); add `test_readers_refuse_a_bare_call_and_a_bad_signature` to `tests/test_facts.py`.
+- [x] 2.2 In `facts.py` give `readers` the repeatable flags `--signature`, `--file` and `--string`, names optional, exit 2 with none of them or with a `--signature` value that is no identifier ([D4](design.md#d4)); add `test_readers_refuse_a_bare_call_and_a_bad_signature` to `tests/test_facts.py`.
   Verify: `uv run pytest -q tests/test_facts.py -k refuse_a_bare_call` exits 0.
-- [ ] 2.3 In `facts.py` add `signature_lines(name)`, the `stand-in` and `monkeypatch` kinds of [D4](design.md#d4); add `test_a_changed_signature_lists_its_stand_ins_and_monkeypatches` to `tests/test_facts.py`.
+- [x] 2.3 In `facts.py` add `signature_lines(name)`, the `stand-in` and `monkeypatch` kinds of [D4](design.md#d4); add `test_a_changed_signature_lists_its_stand_ins_and_monkeypatches` to `tests/test_facts.py`.
   Verify: `uv run pytest -q tests/test_facts.py -k changed_signature` exits 0.
-- [ ] 2.4 In `facts.py` add `file_lines(path)`, the `runpy reader` and `import reader` kinds of [D4](design.md#d4); add `test_a_changed_file_lists_its_runpy_and_import_readers` to `tests/test_facts.py`.
+- [x] 2.4 In `facts.py` add `file_lines(path)`, the `runpy reader` and `import reader` kinds of [D4](design.md#d4); add `test_a_changed_file_lists_its_runpy_and_import_readers` to `tests/test_facts.py`.
   Verify: `uv run pytest -q tests/test_facts.py -k changed_file` exits 0.
-- [ ] 2.5 In `facts.py` add `string_lines(text)`, the `string reader` kind of [D4](design.md#d4), searched with `-F` and no word bound; add `test_a_changed_string_lists_each_line_holding_it` to `tests/test_facts.py`.
+- [x] 2.5 In `facts.py` add `string_lines(text)`, the `string reader` kind of [D4](design.md#d4), searched with `-F` and no word bound; add `test_a_changed_string_lists_each_line_holding_it` to `tests/test_facts.py`.
   Verify: `uv run pytest -q tests/test_facts.py -k changed_string` exits 0.
 
 ## 3 — Step 8.5, the decision and the reading step

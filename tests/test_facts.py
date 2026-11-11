@@ -209,6 +209,128 @@ def test_readers_print_each_hit_or_none(
     ]
 
 
+def _refused(capsys: pytest.CaptureFixture[str], *argv: str) -> str:
+    assert facts.main(["readers", *argv]) == 2
+    last = capsys.readouterr().out.splitlines()[-1]
+    assert last.startswith("facts: cannot place — ")
+    return last
+
+
+def test_readers_refuse_a_bare_call_and_a_bad_signature(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = _repo(tmp_path / "repo")
+    monkeypatch.chdir(root)
+    notes = root / "notes.md"
+    assert "a name" in _refused(capsys)
+    assert "a name" in _refused(capsys, "--notes", str(notes))
+    assert not notes.exists()
+    for bad in ("", "a b", "x.y", "1x", "f(x)"):
+        assert repr(bad) in _refused(capsys, "old", "--signature", bad)
+
+
+def test_a_changed_signature_lists_its_stand_ins_and_monkeypatches(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = _repo(tmp_path / "repo")
+    _edit(
+        root,
+        "src/a.py",
+        [
+            "def old_fn(x):",
+            "old_fn = lambda x: x",
+            "class old_fn:",
+            "y = old_fn(1)",
+            "def old_fn_two(x):",
+            'monkeypatch.setattr(mod, "old_fn", fake)',
+            'with patch("pkg.old_fn"):',
+            "setattr(obj, old_fn, 1)",
+            "xold_fn = lambda x: x",
+        ],
+    )
+    _commit(root, "uses")
+    notes = root / "notes.md"
+    monkeypatch.chdir(root)
+    code = facts.main(
+        ["readers", "--signature", "old_fn", "--signature", "gone"]
+        + ["--notes", str(notes)]
+    )
+    assert code == 0
+    expected = [
+        "stand-in of old_fn — def old_fn(x): · src/a.py:1",
+        "stand-in of old_fn — old_fn = lambda x: x · src/a.py:2",
+        "stand-in of old_fn — class old_fn: · src/a.py:3",
+        'monkeypatch of old_fn — monkeypatch.setattr(mod, "old_fn", fake) · src/a.py:6',
+        'monkeypatch of old_fn — with patch("pkg.old_fn"): · src/a.py:7',
+        "stand-in of gone — none · HEAD",
+        "monkeypatch of gone — none · HEAD",
+    ]
+    assert capsys.readouterr().out.splitlines() == expected
+    assert notes.read_text().splitlines()[-len(expected) :] == [
+        f"- {line}" for line in expected
+    ]
+
+
+def test_a_changed_file_lists_its_runpy_and_import_readers(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = _repo(tmp_path / "repo")
+    _edit(
+        root,
+        "src/a.py",
+        [
+            'runpy.run_path("scripts/tool.py")',
+            'argv = ["uv", "run", "--script", "tool.py"]',
+            "import tool",
+            "from tool import x",
+            "import toolkit",
+            'note = "other tool.py"',
+            "tool = 1",
+        ],
+    )
+    _commit(root, "uses")
+    monkeypatch.chdir(root)
+    assert (
+        facts.main(["readers", "--file", "scripts/tool.py", "--file", "gone.py"]) == 0
+    )
+    assert capsys.readouterr().out.splitlines() == [
+        'runpy reader of scripts/tool.py — runpy.run_path("scripts/tool.py")'
+        " · src/a.py:1",
+        'runpy reader of scripts/tool.py — argv = ["uv", "run", "--script", "tool.py"]'
+        " · src/a.py:2",
+        "import reader of scripts/tool.py — import tool · src/a.py:3",
+        "import reader of scripts/tool.py — from tool import x · src/a.py:4",
+        "runpy reader of gone.py — none · HEAD",
+        "import reader of gone.py — none · HEAD",
+    ]
+
+
+def test_a_changed_string_lists_each_line_holding_it(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = _repo(tmp_path / "repo")
+    _edit(root, "src/a.py", ["x = a.b(c)", "aa.b(c)d", "axb(c)", "-dash"])
+    _commit(root, "uses")
+    monkeypatch.chdir(root)
+    argv = ["readers", "gone", "--string", "a.b(c)", "--string=-dash", "--string", "no"]
+    assert facts.main(argv) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "readers of gone — none · HEAD",
+        "string reader of a.b(c) — x = a.b(c) · src/a.py:1",
+        "string reader of a.b(c) — aa.b(c)d · src/a.py:2",
+        "string reader of -dash — -dash · src/a.py:4",
+        "string reader of no — none · HEAD",
+    ]
+
+
 def test_the_notes_file_is_written_and_appended(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

@@ -4,7 +4,7 @@
 # ///
 """Place the brief's facts, and find the readers of a name, for the cut.
 
-    facts.py place <brief> [--at <rev>] [--notes <f>] | readers <name>... [--notes <f>]
+    facts.py place <brief> | readers [<name>...] [--signature|--file|--string <v>]...
 Exit 0 none unplaced · 1 one is · 2 unreadable. Why: 0106-cut-scripts design D4.
 """
 
@@ -185,17 +185,70 @@ def where(cite: Cite) -> str:
     return f"{cite.path}:{cite.start}{last}"
 
 
+def _hits(needle: str, *options: str) -> list[tuple[str, str, str]]:
+    """Return each `(path, line, text)` of HEAD that `git grep` finds for `needle`."""
+    done = _git("grep", "-nI", *options, "-e", needle, "HEAD", "--")
+    return HIT.findall(done.stdout)
+
+
+def _lines(
+    kind: str, value: str, hits: list[tuple[str, str, str]], pattern: str | None = None
+) -> list[str]:
+    """Return one line per hit whose text matches `pattern`, or one saying none.
+
+    e.g. "stand-in", "f", [("a.py", "3", "def f():")] → ["stand-in of f — … · a.py:3"]
+    """
+    found = [
+        f"{kind} of {value} — {text.strip()} · {path}:{number}"
+        for path, number, text in hits
+        if pattern is None or re.search(pattern, text)
+    ]
+    return found or [f"{kind} of {value} — none · HEAD"]
+
+
 def reader_lines(name: str) -> list[str]:
     """Return one line per hit of `name` at HEAD, or one saying there is none.
 
     e.g. "old" → ["readers of old — x = old() · src/a.py:3"]
     """
-    done = _git("grep", "-nwI", "-e", name, "HEAD", "--")
-    lines = [
-        f"readers of {name} — {text.strip()} · {path}:{number}"
-        for path, number, text in HIT.findall(done.stdout)
-    ]
-    return lines or [f"readers of {name} — none · HEAD"]
+    return _lines("readers", name, _hits(name, "-w"))
+
+
+def signature_lines(name: str) -> list[str]:
+    """Return the stand-in and monkeypatch lines of a changed signature `name`.
+
+    e.g. "f" → ["stand-in of f — def f(): · a.py:3", "monkeypatch of f — none · HEAD"]
+    """
+    hits = _hits(name, "-w")
+    called = re.escape(name)
+    stand_in = rf"\b(?:def|class)\s+{called}\b|\b{called}\s*=\s*lambda\b"
+    patched = rf"""(?=.*(?:setattr|patch))(?=.*(?:['"]{called}['"]|\.{called}\b))"""
+    return _lines("stand-in", name, hits, stand_in) + _lines(
+        "monkeypatch", name, hits, patched
+    )
+
+
+def file_lines(path: str) -> list[str]:
+    """Return the runpy and import reader lines of a changed file `path`.
+
+    e.g. "scripts/t.py" → ["runpy reader of scripts/t.py — go("t.py") · a.py:3", …]
+    """
+    base = Path(path)
+    named = re.escape(base.name)
+    quoted = rf"""['"](?:[^'"]*/)?{named}['"]"""
+    stem = re.escape(base.stem)
+    imported = rf"\bimport\s+{stem}\b|\bfrom\s+{stem}\s+import\b"
+    return _lines("runpy reader", path, _hits(base.name, "-F"), quoted) + _lines(
+        "import reader", path, _hits(base.stem, "-wF"), imported
+    )
+
+
+def string_lines(text: str) -> list[str]:
+    """Return one line per line of HEAD holding `text` as written, or one saying none.
+
+    e.g. "a.b(c)" → ["string reader of a.b(c) — x = a.b(c) · src/a.py:1"]
+    """
+    return _lines("string reader", text, _hits(text, "-F"))
 
 
 def write_notes(notes: Path, lines: list[str], fresh: bool) -> None:
@@ -215,9 +268,35 @@ def write_notes(notes: Path, lines: list[str], fresh: bool) -> None:
         raise Stop(2, f"facts: cannot place — {notes}: {error.strerror}") from None
 
 
-def run_readers(names: list[str], notes: Path | None) -> int:
-    """Print the readers of each name, append them to `notes`, and return 0."""
-    lines = [line for name in names for line in reader_lines(name)]
+def run_readers(
+    names: list[str],
+    notes: Path | None,
+    signatures: list[str] | None = None,
+    files: list[str] | None = None,
+    strings: list[str] | None = None,
+) -> int:
+    """Print the readers of each name, signature, file and string; return 0.
+
+    A call with none of them, or a signature that is no identifier, stops with exit 2.
+    """
+    signatures, files, strings = signatures or [], files or [], strings or []
+    if not (names or signatures or files or strings):
+        raise Stop(
+            2,
+            "facts: cannot place — readers need a name,"
+            " --signature, --file or --string",
+        )
+    for signature in signatures:
+        if not signature.isidentifier():
+            raise Stop(
+                2, f"facts: cannot place — --signature {signature!r} is no identifier"
+            )
+    lines = [
+        *(line for name in names for line in reader_lines(name)),
+        *(line for name in signatures for line in signature_lines(name)),
+        *(line for path in files for line in file_lines(path)),
+        *(line for text in strings for line in string_lines(text)),
+    ]
     print("\n".join(lines))
     if notes:
         write_notes(notes, lines, fresh=False)
@@ -248,13 +327,18 @@ def main(argv: list[str] | None = None) -> int:
     placing.add_argument("brief", type=Path, help="the brief")
     placing.add_argument("--at", help="the revision to place at, HEAD by default")
     finding = commands.add_parser("readers", help="find the hits of each name")
-    finding.add_argument("names", nargs="+", help="a deleted or renamed name")
+    finding.add_argument("names", nargs="*", help="a deleted or renamed name")
+    finding.add_argument("--signature", action="append", help="a changed signature")
+    finding.add_argument("--file", action="append", help="a changed file's path")
+    finding.add_argument("--string", action="append", help="a changed string")
     for sub in (placing, finding):
         sub.add_argument("--notes", type=Path, help="the cut's notes file")
     args = parser.parse_args(argv)
     try:
         if args.command == "readers":
-            return run_readers(args.names, args.notes)
+            return run_readers(
+                args.names, args.notes, args.signature, args.file, args.string
+            )
         return run_place(args.brief, args.notes, args.at)
     except Stop as stop:
         print(stop)

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cut_check.py` settles `Verify:` sequencing by rows `V1`–`V4` and the record's consistency by rows `K1`–`K6`, each a halt
   line by name, so the plan review no longer reads what a text match finds. `search_parts` reads the literal needles and files
   of a `grep` (change `0113-plan-review-diet`, phase 1).
+- `facts.py readers` takes `--signature`, `--file` and `--string` beside names, and prints the stand-ins and monkeypatches
+  of a changed signature, the `runpy` and import readers of a changed file, and each line holding a changed string, so the
+  cut names unplanned readers from a script's lines (change `0113-plan-review-diet`, phase 2).
 
 ## [0.92.1] - 2026-11-11
 
