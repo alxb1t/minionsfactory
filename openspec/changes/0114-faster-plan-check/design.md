@@ -36,7 +36,7 @@ The hazards of running side by side: every `pytest` writes `.pytest_cache`, `mak
 | id | decision | because | rejected |
 |---|---|---|---|
 | [D1](#d1) | each distinct command runs once a check; each sub-task's own words judge its result | 0108 re-ran one `pytest` line at each sub-task that named it | a run per sub-task |
-| [D2](#d2) | a `pytest` `Verify:` that wants only `exits 0` passes unrun on the gate's green record for the same tree and dry run | the gate runs every test, slow ones too; a subset of a green suite passes | running the subset again |
+| [D2](#d2) | a `pytest` `Verify:` that wants only `exits 0`, and names only test paths and nodes that exist, with no option but `-q`, `-v`, `-x` or `-s`, passes unrun on the gate's green record for the same tree and dry run | the gate runs every test, slow ones too; a subset of a green suite passes, and named paths and nodes that exist prove the subset is not empty | running the subset again; vouching for a `-k` or `-m` selection the gate's run never proved selects a test |
 | [D3](#d3) | a result is kept by command in `.minions/plan-check/<tree>/`, on a settled tree only | re-run only what changed | a record by sub-task; a record on an unsettled tree |
 | [D4](#d4) | the rest run in parallel, one slot for each core; `-n` alone, `make` one at a time, `-p no:cacheprovider` for every `pytest` | the person: every core; the cache dir and `.minions/corpus/` are shared | a fixed slot count; one worker for every `pytest` |
 | [D5](#d5) | a timeout kills the command's process group; SIGTERM ends the running groups; `sandboxed()` takes a deadline | orphans hold cores; closes debt `0108·S4` | killing the direct child only |
@@ -56,7 +56,7 @@ The hazards of running side by side: every `pytest` writes `.pytest_cache`, `mak
 
 A **pytest command** is one whose argv starts `pytest`, `uv run pytest` or `python -m pytest`; `is_pytest(argv)` reads it for this decision, for [D4](#d4) and, through `plan_check.py`'s names, for `V5` of [D7](#d7). A word `pytest` elsewhere, as in `git grep -e pytest`, makes no pytest command.
 
-A **bare pytest** is a pytest command whose `Command` has no `count` and no `nothing`: its `Verify:` says it exits 0 and no more. It passes unrun when `gate_green()` holds. A `-k` that selects nothing would exit 5 run alone and passes here; the gate's own run is the proof, so a plan names its tests.
+A **bare pytest** is a pytest command whose `Command` has no `count` and no `nothing`: its `Verify:` says it exits 0 and no more. It passes unrun when `gate_green()` holds and every word after its pytest prefix is one of `-q`, `-qq`, `-v`, `-vv`, `-x` or `-s`, or an operand whose file or folder exists and each of whose `::` nodes a `def` or `class` of that file names, a `[` parameter id never among them. Any other word runs it: a `-k`, `-m` or `--deselect` selection, which the gate's run does not prove selects a test, and any other option, such as `-c` or `-p`, which can change what pytest collects. A `-k` that selects nothing exits 5 run alone, and so fails here: the plan check exists to catch a ticked `Verify:` that a later task broke, which the build's run before the tick cannot. Decided by the supervisor under the person's delegation, 2026-11-11, on adversarial card S1.
 
 ### D3
 
@@ -111,6 +111,7 @@ All new tests are unit tests at the lowest layer ([T1](../../../skills/mf-cut-ch
 | `tests/test_conduct.py` | `test_the_run_passes_a_deadline_to_the_sandbox` | [D5](#d5) |
 | `tests/test_converge.py` | `test_a_sandboxed_command_gets_the_converge_deadline`, `test_a_catch_up_runs_the_changed_verifies_in_one_plan_check` | [D5](#d5), [D8](#d8) |
 | `tests/test_cut_check.py` | a defect for `V5` in `test_each_mechanical_row_fails_by_name` | [D7](#d7) |
+| `tests/test_plan_check.py` | in `test_a_green_gate_record_passes_a_bare_pytest`, a `-k` selection, a `-m` selection and a `-c` option that run on a green record | [D2](#d2) |
 
 The change turns existing tests red, and the tasks mend them with the code:
 
@@ -126,7 +127,7 @@ None.
 ## Risks / Trade-offs
 
 - A kept result can be stale when a `Verify:` reads an ignored file, a run folder among them. The key is the tree, which ignored files do not enter; a `Verify:` that reads run data is a defect of that plan.
-- A bare `pytest` passes on the gate's record though its `-k` selects nothing. The gate ran every test, so the suite is proved; a mistyped selector is caught at the build, where the same `Verify:` runs alone before its tick.
+- Most `pytest` `Verify:` lines name a `-k` selection, so [D2](#d2) runs them: each its own file's tests, side by side, seconds apiece against the whole-suite runs row `V5` keeps out of a plan. A plan check that misses H20 on them reopens [D2](#d2), per [D10](#d10).
 - A plan whose commands together outlast the Bash tool's foreground limit is cut off at 600 s. Row `V5` and the record keep the usual plan far below it; the trigger to revisit is a plan check that halts on that limit.
 - The fixer runs the check on an unsettled tree, so [D2](#d2) and [D3](#d3) do not fire there; its time falls to [D1](#d1), [D4](#d4) and row `V5`.
 - A grandchild that starts its own session escapes the group kill. The plan's commands are `git`, `pytest`, `ruff`, `make` and `uv`, none of which do.

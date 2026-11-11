@@ -16,7 +16,7 @@ Reading map: [design](design.md) holds the decisions and the test cost, [tasks](
 ## What Changes
 
 - `plan_check.py` runs each distinct command once a check, and prints each task's own line for it ([D1](design.md#d1)).
-- A `pytest` `Verify:` that wants only `exits 0` passes unrun when `gate_run.py` holds a green record for the same tree and dry run ([D2](design.md#d2)).
+- A `pytest` `Verify:` that wants only `exits 0`, naming test paths and nodes that exist with no selection or other option, passes unrun when `gate_run.py` holds a green record for the same tree and dry run ([D2](design.md#d2)).
 - A result is kept by tree and command in `.minions/plan-check/`, on a settled tree only, and reused ([D3](design.md#d3)).
 - The rest run in parallel on the machine's cores, printed in task order; a `pytest` with `-n` runs alone, `make` one at a time, and every `pytest` gets `-p no:cacheprovider` ([D4](design.md#d4)).
 - A timed-out command loses its process group, and `sandboxed()` takes a deadline and does the same ([D5](design.md#d5)).

@@ -24,8 +24,9 @@ task order, then command order, whatever order they finish in: a `pytest` with `
 runs one at a time, and every `pytest` starts with `-p no:cacheprovider` in its `PYTEST_ADDOPTS`. A command past 600 s SHALL
 lose its whole process group and print `plan: <sub-task> — `<command>` timed out`; ended by SIGTERM, the check SHALL end the
 process group of each command then running. A `pytest` command — one whose argv starts `pytest`, `uv run pytest` or `python -m pytest` — whose `Verify:` says nothing of its
-output beyond that it exits 0 SHALL pass unrun when `gate_run.py` holds a green record for the same tree and the same dry run of `make -n gate`; one that
-says what it prints still runs. On a settled tree the check SHALL keep each finished result — its exit and output — in
+output beyond that it exits 0, and whose words after its pytest prefix are only `-q`, `-v`, `-x` or `-s` flags and test paths
+and `::` nodes that exist, SHALL pass unrun when `gate_run.py` holds a green record for the same tree and the same dry run of
+`make -n gate`; one that says what it prints, selects with `-k`, `-m` or `--deselect`, or carries another option still runs. On a settled tree the check SHALL keep each finished result — its exit and output — in
 `.minions/plan-check/<tree>/`, named by the command, and SHALL read it again on the same tree; a command naming a revision
 SHALL be kept by `HEAD` too, a timed-out command SHALL be kept by no one, and an unsettled tree SHALL keep and read none. With
 `--only <sub-task ids>` it SHALL run the `Verify:` commands of those sub-tasks alone, ticked or not, with the same skips, print
@@ -93,6 +94,8 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 - **THEN** the command does not run, and `plan_check.py` prints no line for it
 - **AND WHEN** the `Verify:` says the command prints `3`, or the tree or the dry run differs from the record's
 - **THEN** the command runs
+- **AND WHEN** the command selects with `-k`, or names a test file or node that does not exist
+- **THEN** the command runs, and a selection that collects no test fails the check
 
 #### Scenario: A result kept by tree
 - **WHEN** `plan_check.py` runs a command on a settled tree and runs again on the same tree
