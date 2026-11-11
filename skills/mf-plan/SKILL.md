@@ -197,7 +197,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 session's menu, by `mf-cut-change`'s *Suggesting models* table —
 Sonnet 5.5 · high for a build whose highest row is the moderate one, where the session offers it; the cut station's
 own is Sonnet 5.5 · high by default, where the session offers it, else the strongest tier · high: the plan holds the
-judgment, and the cut's plan reviews run on Opus 5.5 · high whatever the cut runs on. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
+judgment, and plan reviews run on Sonnet 5.5 · high whatever the cut runs on. `decide: recommended` stands when the person delegates the cut's doubts and, in the run, each rescue's
 proposed fix. `conduct.py cut` writes `models.toml` from the `models:` line when it queues the cut. `beside:` is optional: the versions this one only
 shares files with, which nothing waits on (D69). A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the suggested line with that
 part; the person confirms or changes it. Read the line for nothing else.

@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69, D77  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
+     D5…D10, D38, D58, D59, D62, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
@@ -183,7 +183,7 @@ queue holds.**
 ### D65 · A lighter plan review and build
 
 **The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
-decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker on Opus 5.5 · high
+decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker on Sonnet 5.5 · high
 ([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
 suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change.**
 
@@ -217,6 +217,22 @@ and the models file are scripts; the cut's LLM writes the plan and judges what n
 - **Rejected:** a checker that judges the deterministic rows ([D66](#d66--two-checkers-conformance-and-adversarial)) · the
   cut's LLM writing the models file, which a worker can edit.
 - **Amends:** D7, D40 and D41, each edited where it lives.
+
+### D80 · The plan reviews run on Sonnet
+
+**The cut's plan reviews run on Sonnet 5.5 · high, the first always and a second only after a fix that changes a decision
+or a task. `cut_check.py` settles what a script finds in the plan — `Verify:` sequencing and the record's consistency — and
+`facts.py readers` the stand-ins, monkeypatches and readers of a changed name; the packet marks each as settled, and the
+reviewer judges the rest. The reviewer's budget is 25 turns, its tool calls counted by the cut from its transcript, an
+overrun recorded in `cut-notes.md`. The cut keeps the 1-hour cache.**
+
+- **Why:** the reviews were the cut's dearest worker beside its own context, Sonnet 5.5 is half Opus 5.5's price on every
+  rate, and a class of what they raised a script finds; converge's Codex checkers stand behind the plan review.
+- **Accepts:** a first review that finds less than Opus 5.5 did · a measure that can put it back: a cut's reviews at most
+  $1.40 together, converge's plan-side blockers at most one a version, failing over three versions.
+- **Rejected:** plan reviews on Opus 5.5 · a Codex plan review, which needs the conductor to start it between the cutter's
+  staging and its commit · the 5-minute cache — a lapse while the cut waits re-writes its context.
+- **Amends:** D65, D71 and D74, each edited where it lives.
 
 ## The check loop and the release
 
@@ -384,7 +400,7 @@ nothing, and `overlap.py` counts what each side alone caught. The review metrics
 ### D71 · The cut and converge read what changed
 
 **The cut's plan reviewer starts from a packet — the change directory, `HEAD`, the cut's notes and the question — with a
-budget of 40 turns, and a second review judges only the change directory's diff since the first. The cut's helpers run on
+budget of 25 turns, and a second review judges only the change directory's diff since the first. The cut's helpers run on
 Sonnet 5.5 · medium, and the cut writes their answers to `cut-notes.md`. Round 1's fix pass takes the pickup with its blockers; once no blocker
 is open, a pickup's fix is checked by one verify worker at medium, on adversarial's model when a card it picked is
 adversarial's, else conformance's, which is no round. The bundle holds each changed requirement as a diff, the debt cards on
@@ -395,7 +411,7 @@ the diff's files have their own file, and the release reads the findings files' 
   files whole for their verdicts.
 - **Accepts:** a budget the reviewer counts itself, and a review that reaches it leaves the rest unread, its doubts the
   person's or the switch's.
-- **Rejected:** plan reviews on Sonnet — both of 0097's caught real defects · a commit between the reviews · the pickup
+- **Rejected:** a commit between the reviews · the pickup
   verified in a full round · the release reading the frontmatter alone — a `fixed` blocker would pass.
 
 ### D49 · One review method, one depth
@@ -473,7 +489,7 @@ which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` 
 records how the code now builds a decision in a `Fix note` closing its entry, which the run reads as no decision change.
 `plan_check.py` re-runs each ticked `Verify:` and finds unticked boxes, removed names the plan still claims and the base's
 tests gone, at the build's close and after each fix. `make corpus` runs the readers of run data over the repo's own, outside
-the gate. The Markdown readers parse with `markdown-it-py`. Plan reviews run on Opus 5.5 · high; the cut's default model is
+the gate. The Markdown readers parse with `markdown-it-py`. Plan reviews run on Sonnet 5.5 · high; the cut's default model is
 Sonnet 5.5 · high.**
 
 - **Why:** across 0080–0100, most rounds past the first were a pickup alone or grew from one, an amend round over plan prose
