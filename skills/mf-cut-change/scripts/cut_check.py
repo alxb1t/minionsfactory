@@ -616,11 +616,6 @@ def row_v2(change: Change, plan: dict[str, Any]) -> str | None:
     return " · ".join(found) or None
 
 
-def head_files() -> set[str]:
-    """Return the paths of `HEAD`'s tree."""
-    return set(_git("ls-tree", "-r", "--name-only", "HEAD")[1])
-
-
 def row_v3(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
     """Return each `git grep` of a file `HEAD` lacks that its own phase first names."""
     tasks = plan["subtasks"](change.tasks)
@@ -819,7 +814,7 @@ def check(
     change = Change(identifier, folder, proposal, design, tasks)
     pre = runpy.run_path(str(CUT_PRE))
     plan = _plan()
-    tree = head_files()
+    tree = set(_git("ls-tree", "-r", "--name-only", "HEAD")[1])
     if why := row_v3(change, plan, tree):
         return [Failure("V3", why, [])], [], []
     failures, matches = folded(change)
