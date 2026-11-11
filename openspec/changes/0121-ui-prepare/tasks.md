@@ -7,7 +7,7 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 - [x] 1 — The rows · moderate
 - [x] 2 — The fetch · hard
 - [x] 3 — The workers · moderate
-- [ ] 4 — The halt · hard
+- [x] 4 — The halt · hard
 - [ ] 5 — The record · moderate
 
 ## 1 — The rows
@@ -49,9 +49,9 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 
 ## 4 — The halt
 
-- [ ] 4.1 Add `UNAPPROVED_NPM` and `_npm_unapproved(tree, change, default)` to `conduct.py`, per [D5](design.md#d5): the npm rows of `design.md` at `_cut_commit`, each tracked `package.json`, the default branch's file at the same path. Test each scenario of the spec in `test_a_manifest_is_judged_by_the_rows_of_the_cut`, `tests/test_conduct.py`.
+- [x] 4.1 Add `UNAPPROVED_NPM` and `_npm_unapproved(tree, change, default)` to `conduct.py`, per [D5](design.md#d5): the npm rows of `design.md` at `_cut_commit`, each tracked `package.json`, the default branch's file at the same path. Test each scenario of the spec in `test_a_manifest_is_judged_by_the_rows_of_the_cut`, `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_manifest_is_judged_by_the_rows_of_the_cut` exits 0.
-- [ ] 4.2 Return `_npm_unapproved`'s text from `_check_build` after its existing checks, `default_branch(primary)` its third argument. Test that `check` halts a built version before converge, naming the file, the package and its specifier, and passes one whose packages are all approved, in `test_a_build_halts_on_a_direct_npm_package_no_row_approves`, `tests/test_conduct.py`, beside `test_each_check_passes_only_on_disk_evidence`.
+- [x] 4.2 Return `_npm_unapproved`'s text from `_check_build` after its existing checks, `default_branch(primary)` its third argument. Test that `check` halts a built version before converge, naming the file, the package and its specifier, and passes one whose packages are all approved, in `test_a_build_halts_on_a_direct_npm_package_no_row_approves`, `tests/test_conduct.py`, beside `test_each_check_passes_only_on_disk_evidence`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_build_halts_on_a_direct_npm_package_no_row_approves` exits 0.
 
 ## 5 — The record

@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and its install-script flag. No `npm` on `PATH` stops where a row or a lock needs it (0121-ui-prepare, phase 2).
 - A Claude worker, a Codex worker and `sandboxed()` run npm from `.minions/npm-cache`, offline, with install scripts
   off, so no worker reaches the registry (0121-ui-prepare, phase 3).
+- A build whose tracked `package.json` holds a direct package that neither the default branch's file nor an `npm:` row
+  of the cut's `design.md` approves at that exact version halts before converge, naming the file, package and
+  specifier (0121-ui-prepare, phase 4).
 
 ## [0.98.1] - 2026-11-12
 

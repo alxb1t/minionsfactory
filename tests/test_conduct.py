@@ -501,6 +501,115 @@ def test_status_reads_each_stage_from_disk(
     assert stage().endswith(" · released")
 
 
+_NPM_ROWS = "## Dependencies\n\n| package | constraint | why |\n|---|---|---|\n{rows}\n"
+
+
+def _manifest(sections: dict[str, dict[str, str]]) -> str:
+    return json.dumps(sections)
+
+
+def _land(tree: Path, change: str, rows: str = "") -> None:
+    """Commit the cut's `design.md` with `rows` under its `## Dependencies`."""
+    design = _NPM_ROWS.format(rows=rows) if rows else "## Dependencies\n\nNone.\n"
+    folder = f"openspec/changes/{change}"
+    _commit(
+        tree,
+        {f"{folder}/design.md": design},
+        f"docs({change}): land the change directory",
+    )
+
+
+@pytest.mark.slow
+def test_a_manifest_is_judged_by_the_rows_of_the_cut(tmp_path: Path) -> None:
+    conduct = _conduct()
+    flag = conduct["UNAPPROVED_NPM"]
+    root = _primary(tmp_path)
+    vue = {"dependencies": {"vue": "3.5.43"}}
+    _commit(root, {"ui/package.json": _manifest(vue)}, "ui")
+    tree = _version(root, "0001-todo", "- [ ] 1 — One\n")
+
+    def judged() -> str | None:
+        return conduct["_npm_unapproved"](tree, "0001-todo", "main")
+
+    def manifest(
+        sections: dict[str, dict[str, str]], path: str = "ui/package.json"
+    ) -> None:
+        _commit(tree, {path: _manifest(sections)}, "manifest")
+
+    # A package the default branch holds at that specifier needs no row.
+    assert judged() is None
+    # No cut commit means no row.
+    manifest({"dependencies": {"vue": "3.5.43", "left-pad": "1.3.0"}})
+    assert judged() == f"{flag}: ui/package.json left-pad 1.3.0"
+    # A row of a cut `design.md` that holds none, or is out of shape, approves nothing.
+    for text in ("None.\n", "no table\n", "| package |\n|---|\n| npm:left-pad |\n"):
+        body = f"## Dependencies\n\n{text}"
+        folder = "openspec/changes/0001-todo"
+        landed = "docs(0001-todo): land the change directory"
+        _commit(tree, {f"{folder}/design.md": body}, landed)
+        assert judged() == f"{flag}: ui/package.json left-pad 1.3.0"
+    # A row names the package at exactly that specifier.
+    _land(tree, "0001-todo", "| npm:left-pad | 1.3.0 | pad |\n| left-pad | >=1 | py |")
+    assert judged() is None
+    manifest({"dependencies": {"vue": "3.5.43", "left-pad": "^1.3.0"}})
+    assert judged() == f"{flag}: ui/package.json left-pad ^1.3.0"
+    manifest({"dependencies": {"vue": "^3.5.43"}})
+    assert judged() == f"{flag}: ui/package.json vue ^3.5.43"
+    # A scoped name is a row too.
+    _land(tree, "0001-todo", "| npm:@vitejs/plugin-vue | 6.0.1 | plugin |")
+    manifest({"devDependencies": {"@vitejs/plugin-vue": "6.0.1"}})
+    assert judged() is None
+    # Each direct section is read, and a nested manifest at its own path.
+    for section in conduct["DIRECT"]:
+        manifest({section: {"left-pad": "1.3.0"}})
+        assert judged() == f"{flag}: ui/package.json left-pad 1.3.0"
+    manifest(vue)
+    manifest(vue, "package.json")
+    assert judged() == f"{flag}: package.json vue 3.5.43"
+    # A packed dependency tree is no manifest of the version.
+    manifest({}, "package.json")
+    manifest({"dependencies": {"left-pad": "1.3.0"}}, "ui/node_modules/x/package.json")
+    assert judged() is None
+    # A manifest no one can read holds no direct package.
+    for text in (
+        "not json",
+        "[]",
+        '{"dependencies": []}',
+        '{"dependencies": {"a": 1}}',
+    ):
+        _commit(tree, {"ui/package.json": text}, "odd")
+        assert judged() is None
+    # With no default manifest to read, every direct package needs a row.
+    manifest(vue)
+    assert conduct["_npm_unapproved"](tree, "0001-todo", "nowhere") == (
+        f"{flag}: ui/package.json vue 3.5.43"
+    )
+
+
+def test_a_build_halts_on_a_direct_npm_package_no_row_approves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+
+    def check() -> tuple[int, str]:
+        _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+        capsys.readouterr()
+        code = _main(
+            conduct, root, "check", "build", "0001-todo", monkeypatch=monkeypatch
+        )
+        return code, capsys.readouterr().out.strip()
+
+    assert check() == (0, "check: build · pass")
+    manifest = _manifest({"dependencies": {"left-pad": "1.3.0"}})
+    _commit(tree, {"ui/package.json": manifest}, "the ui")
+    halt = f"{conduct['UNAPPROVED_NPM']}: ui/package.json left-pad 1.3.0"
+    assert check() == (1, f"check: build · fail — {halt}")
+    _land(tree, "0001-todo", "| npm:left-pad | 1.3.0 | pad |")
+    assert check() == (0, "check: build · pass")
+
+
 @pytest.mark.slow
 def test_each_check_passes_only_on_disk_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

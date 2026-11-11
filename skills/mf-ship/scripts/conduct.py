@@ -91,6 +91,9 @@ NPM_REGISTRY = "https://registry.npmjs.org/"
 NPM_QUIET_DAYS = 7
 LOCK_FILE = "package-lock.json"
 UNAPPROVED = "design.md adds what the brief did not approve"
+UNAPPROVED_NPM = "a package.json holds a direct npm package no row approves"
+MANIFEST = "package.json"
+DIRECT = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
@@ -852,6 +855,49 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
         )
     added = [f"{row[0]} {row[1]}" for row in rows[1:] if row[:2] not in approved]
     return f"{UNAPPROVED}: {', '.join(added)}" if added else None
+
+
+def _direct(text: str | None) -> list[tuple[str, str]]:
+    """Return the `(name, specifier)` pairs a manifest's direct sections hold.
+
+    A missing, unreadable or odd-shaped manifest holds none.
+    """
+    try:
+        manifest = json.loads(text or "")
+    except ValueError:
+        return []
+    if not isinstance(manifest, dict):
+        return []
+    pairs: list[tuple[str, str]] = []
+    for section in DIRECT:
+        held = manifest.get(section)
+        if isinstance(held, dict):
+            pairs += [(n, s) for n, s in held.items() if isinstance(s, str)]
+    return pairs
+
+
+def _npm_unapproved(tree: Path, change: str, default: str) -> str | None:
+    """Return the first direct npm package nothing approves, or None.
+
+    A package passes on the default branch's manifest or a row of the cut's `design.md`.
+    Why: 0121-ui-prepare design D5.
+    """
+    cut = _cut_commit(tree, change)
+    design = _show(tree, cut, f"openspec/changes/{change}/design.md") if cut else None
+    rows = _rows(design or "", DEPENDENCIES) or []
+    approved = {
+        (row[0].removeprefix(NPM_PREFIX), row[1])
+        for row in rows[1:]
+        if len(row) > 1 and row[0].startswith(NPM_PREFIX)
+    }
+    listed = _maybe(tree, "ls-tree", "-r", "--name-only", "-z", "HEAD") or ""
+    paths = sorted(p for p in listed.split("\0") if p.split("/")[-1] == MANIFEST)
+    for path in (p for p in paths if "node_modules" not in p.split("/")):
+        held = set(_direct(_show(tree, default, path)))
+        for name, specifier in _direct(_show(tree, "HEAD", path)):
+            if (name, specifier) not in held | approved:
+                return f"{UNAPPROVED_NPM}: {path} {name} {specifier}"
+    return None
 
 
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
@@ -1626,7 +1672,7 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
         return "the tree is not clean"
     if not _closed(primary / ".minions", tree, change):
         return f"no .minions/changes/{change}/build.done names HEAD"
-    return None
+    return _npm_unapproved(tree, change, default_branch(primary))
 
 
 def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str | None:
