@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.94.0] - 2026-11-11
+
+Gate: local 5m52s · CI not read under mf-ship · 0.93.0: local 5m6s · CI not read under mf-ship
+
+- `plan_check.py` runs each distinct `Verify:` command once and judges its result by each sub-task's own words, passes a
+  bare `pytest` on the gate's green record, and keeps results by command in `.minions/plan-check/<tree>/` on a settled
+  tree (change `0114-faster-plan-check`, phase 1).
+- `plan_check.py` runs its commands side by side, one slot for each core, a `pytest` with `-n` alone and one `make` at a
+  time, each `pytest` with `-p no:cacheprovider`; a timeout kills the command's process group, and SIGTERM ends the
+  groups running (change `0114-faster-plan-check`, phase 2).
+- `sandboxed()` takes a `timeout` and ends the command's group at it, so converge's commands end at its deadline;
+  `plan_check.py --only` checks named sub-tasks, which a catch-up runs for the `Verify:` lines it adds; `cut_check.py`
+  row `V5` flags a `pytest` that names no test file; the fixer and the build's close run the plan check in the
+  foreground (change `0114-faster-plan-check`, phase 3).
+- `plan_check.py` passes a bare `pytest` on the gate's green record only when each word after its prefix is a quiet flag
+  or an operand that exists; a `-k`, `-m` or `--deselect` selection and any other option run, so a selection that
+  matches nothing fails (change `0114-faster-plan-check`, phase 4).
+- `plan_check.py` passes a bare `pytest` unrun only when its argv with `--collect-only -q` appended exits 0 and prints a
+  collected test, so pytest itself settles a node's ancestry and a file with no test (change `0114-faster-plan-check`,
+  phase 5).
+- `plan_check.py` keys every kept result by the command text, `HEAD` and every ref, so another branch moving ends each
+  reuse and no reading of a command's words decides it (change `0114-faster-plan-check`, phase 6).
+
 ## [0.93.0] - 2026-11-11
 
 Gate: local 5m6s · CI not read under mf-ship · 0.92.1: local 4m56s · CI not read under mf-ship

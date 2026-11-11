@@ -3234,13 +3234,47 @@ def _profile(trees: list[Path], home: Path) -> str:
     )
 
 
+def _watch(
+    group: int,
+    timeout: float,
+    grace: float,
+    done: threading.Event,
+    expired: threading.Event,
+) -> None:
+    """End `group` after `timeout` s: SIGTERM, then SIGKILL after `grace`.
+
+    Return when `done` is set first. Once expired, wait for the group to empty or
+    `grace` to pass, then SIGKILL. Why: 0114-faster-plan-check design D5.
+    """
+    if done.wait(max(timeout, 0)):
+        return
+    expired.set()
+    # A group gone, or one this process may not signal, has nothing left to end.
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(group, signal.SIGTERM)
+    end = time.monotonic() + grace
+    while time.monotonic() < end:
+        try:
+            os.killpg(group, 0)
+        except (ProcessLookupError, PermissionError):
+            return
+        time.sleep(0.02)
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(group, signal.SIGKILL)
+
+
 def sandboxed(
-    argv: list[str], cwd: Path, trees: list[Path], out: TextIO | None = None
+    argv: list[str],
+    cwd: Path,
+    trees: list[Path],
+    out: TextIO | None = None,
+    timeout: float | None = None,
+    grace: float = 5.0,
 ) -> int:
     """Run `argv` in `cwd` under macOS Seatbelt and return its exit code.
 
-    Why: 0107-sandbox-runner design D2; `out`, 0108-converge-script design D6;
-    its own `TMPDIR`, 0111-sandbox-tmp design D3.
+    A `timeout` ends the command's group and gives 124. Why: 0107-sandbox-runner
+    design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
     """
     sandbox_exec = shutil.which("sandbox-exec")
     if sandbox_exec is None:
@@ -3265,6 +3299,8 @@ def sandboxed(
     env["UV_CACHE_DIR"] = str(trees[0] / ".minions" / "uv-cache")
     env["TMPDIR"] = str(tmp)
     denied = False
+    done, expired = threading.Event(), threading.Event()
+    watching: threading.Thread | None = None
     try:
         with subprocess.Popen(
             [sandbox_exec, "-p", _profile([*trees, tmp], Path.home()), *argv],
@@ -3275,13 +3311,26 @@ def sandboxed(
             stderr=subprocess.STDOUT,
             encoding="utf-8",
             errors="replace",
+            start_new_session=timeout is not None,
         ) as process:
+            if timeout is not None:
+                watcher = (process.pid, timeout, grace, done, expired)
+                watching = threading.Thread(target=_watch, args=watcher, daemon=True)
+                watching.start()
             for line in process.stdout or ():
                 print(line, end="", file=out or sys.stdout, flush=True)
                 denied = denied or CODEX_DENIAL in line
             code = process.wait()
     finally:
+        done.set()
+        if watching is not None:
+            watching.join()
         _remove_temp(tmp, out)
+    if expired.is_set():
+        print(
+            f"sandboxed: timed out — killed after {timeout} s", file=out or sys.stderr
+        )
+        return 124
     if code != 0 and denied:
         print(
             "sandboxed: denied — the OS sandbox refused a call:"
@@ -4664,13 +4713,18 @@ class Run:
         return reach(self.primary)
 
     def sandboxed(
-        self, argv: list[str], cwd: Path, trees: list[Path], out: TextIO | None = None
+        self,
+        argv: list[str],
+        cwd: Path,
+        trees: list[Path],
+        out: TextIO | None = None,
+        timeout: float | None = None,
     ) -> int:
         """Run `argv` under the OS sandbox, as `sandboxed` does; return its exit.
 
-        Why: 0108-converge-script design D1, D6.
+        Why: 0108-converge-script design D1, D6; `timeout`, 0114-faster-plan-check D5.
         """
-        return sandboxed(argv, cwd, trees, out)
+        return sandboxed(argv, cwd, trees, out, timeout)
 
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.

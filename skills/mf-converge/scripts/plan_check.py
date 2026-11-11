@@ -9,17 +9,39 @@ the skip, 0108-converge-script.
 """
 
 import argparse
+import contextlib
+import functools
+import hashlib
+import json
+import os
 import re
+import runpy
 import shlex
+import signal
 import subprocess
 import sys
+import threading
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
-from typing import NamedTuple
+from types import FrameType
+from typing import Any, NamedTuple
 
 TIMEOUT_SECONDS = 600
+DRAIN_SECONDS = 5
+CPUS = os.cpu_count() or 1
+RUNNING: set[subprocess.Popen[str]] = set()
+PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
+TEST_MODULE = re.compile(r"test_.*\.py|.*_test\.py")
+EXCLUDES = re.compile(r"collect_ignore|pytest_ignore_collect")
+QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
+COLLECTED = re.compile(
+    r"^\S+::\S|^\S+: [1-9]\d*$|(?<![/\d])[1-9]\d* tests? collected", re.M
+)
+COLLECT_ONLY = " --collect-only -q"
 SHOWN = 5
 CHANGE = re.compile(r"[a-z0-9-]+")
+ID = re.compile(r"\d+\.\d+")
 SUBTASK = re.compile(r"- \[([ x])\] (\d+\.\d+\b.*)$")
 PHASE = re.compile(r"- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
@@ -67,6 +89,14 @@ class Task(NamedTuple):
     ticked: bool
     name: str
     text: str
+
+
+class Result(NamedTuple):
+    """One command's finish: its exit code, its output, and whether it timed out."""
+
+    code: int
+    output: str
+    timed_out: bool = False
 
 
 class Command(NamedTuple):
@@ -168,39 +198,116 @@ def verify_of(text: str) -> str | None:
     return None if at < 0 else text[at + len("Verify:") :]
 
 
-def rerun(name: str, command: Command, root: Path) -> list[str]:
-    """Return the lines a command that fails prints, none when it passes.
+def _kill(process: subprocess.Popen[str]) -> None:
+    """End a command's process group; one already gone is no error."""
+    with contextlib.suppress(OSError):
+        os.killpg(process.pid, signal.SIGKILL)
 
-    Why:
-    0103-fewer-rounds design D4.
+
+def run(command: str, root: Path) -> Result:
+    """Return a command's finish, run in `root` as argv with no shell.
+
+    It runs in a session of its own, so a timeout ends the command's whole group.
+    Why: 0114-faster-plan-check design D4, D5.
     """
-    argv = tokens(command.text)
+    held = os.environ.get("PYTEST_ADDOPTS", "")
+    env = {**os.environ, "PYTEST_ADDOPTS": f"{held} -p no:cacheprovider".strip()}
     try:
-        done = subprocess.run(
-            argv,
+        process = subprocess.Popen(
+            tokens(command),
             cwd=root,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             errors="replace",
-            timeout=TIMEOUT_SECONDS,
+            start_new_session=True,
         )
-        code, stdout = done.returncode, done.stdout
-    except subprocess.TimeoutExpired:
-        return [f"plan: {name} — `{command.text}` timed out"]
     except OSError as error:
-        code, stdout = 127, str(error.strerror)
-    if passed(command, code, stdout):
+        return Result(127, str(error.strerror))
+    RUNNING.add(process)
+    try:
+        output, _ = process.communicate(timeout=TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        _kill(process)
+        try:
+            process.communicate(timeout=DRAIN_SECONDS)
+        except subprocess.TimeoutExpired:
+            if process.stdout:
+                process.stdout.close()
+            process.wait()
+        return Result(-1, "", True)
+    finally:
+        RUNNING.discard(process)
+    return Result(process.returncode, output)
+
+
+def weight(argv: list[str]) -> int:
+    """Return the slots a command takes: every one for a pytest with `-n`, else one."""
+    if is_pytest(argv) and any(PROCESSES.fullmatch(word) for word in argv):
+        return CPUS
+    return 1
+
+
+def schedule(work: list[str], root: Path) -> dict[str, Result]:
+    """Return each command's result by its text, the commands run side by side.
+
+    A command starts when its `weight` in slots is free, a `make` also when no other
+    `make` runs; one that waits holds back every later command.
+    """
+    results: dict[str, Result] = {}
+    free = threading.Condition()
+    used = makes = 0
+
+    def ready(need: int, make: bool) -> bool:
+        return used + need <= CPUS and not (make and makes)
+
+    def finish(text: str, need: int, make: bool) -> None:
+        nonlocal used, makes
+        try:
+            results[text] = run(text, root)
+        finally:
+            with free:
+                used -= need
+                makes -= make
+                free.notify_all()
+
+    threads: list[threading.Thread] = []
+    for text in work:
+        argv = tokens(text)
+        need, make = weight(argv), argv[:1] == ["make"]
+        with free:
+            free.wait_for(functools.partial(ready, need, make))
+            used += need
+            makes += make
+        threads.append(threading.Thread(target=finish, args=(text, need, make)))
+        threads[-1].daemon = True
+        threads[-1].start()
+    for thread in threads:
+        thread.join()
+    return results
+
+
+def report(name: str, command: Command, result: Result) -> list[str]:
+    """Return the lines a command that fails prints, none when it passes.
+
+    Why:
+    0103-fewer-rounds design D4; 0114-faster-plan-check design D1.
+    """
+    if result.timed_out:
+        return [f"plan: {name} — `{command.text}` timed out"]
+    if passed(command, result.code, result.output):
         return []
-    shown = [f"  | {line}" for line in stdout.splitlines()[:SHOWN]]
-    result = "printed other than its Verify: says" if code == 0 else f"exited {code}"
-    return [f"plan: {name} — `{command.text}` {result}", *shown]
+    shown = [f"  | {line}" for line in result.output.splitlines()[:SHOWN]]
+    code = result.code
+    verdict = "printed other than its Verify: says" if code == 0 else f"exited {code}"
+    return [f"plan: {name} — `{command.text}` {verdict}", *shown]
 
 
 def passed(command: Command, code: int, stdout: str) -> bool:
     """Return whether a command's exit and output are what its `Verify:` says.
 
-    The rule is `rerun`'s.
+    The rule is `report`'s.
     """
     argv = tokens(command.text)
     search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
@@ -226,23 +333,224 @@ def phases(tasks: str) -> tuple[set[int], set[int]]:
     return ticked, human
 
 
-def check_verifies(tasks: list[Task], human: set[int], root: Path) -> list[str]:
-    """Return a line for each ticked `Verify:` command that fails run again.
+def jobs(
+    tasks: list[Task], human: set[int], only: set[str] | None
+) -> list[tuple[str, Command]]:
+    """Return the `(sub-task, command)` pairs a check judges, in task order.
 
-    Not run: a `**HALT CHECK**` sub-task, a sub-task of a `**HUMAN` phase, and a
-    command naming `plan_check.py`, so a `Verify:` that runs this check ends.
+    Not judged: a `**HALT CHECK**` sub-task, a sub-task of a `**HUMAN` phase, and a
+    command naming `plan_check.py`. `only` names the sub-tasks, ticked or not.
     """
-    problems: list[str] = []
+    found: list[tuple[str, Command]] = []
     for task in tasks:
         skipped = "**HALT CHECK**" in task.text or int(task.name.split(".")[0]) in human
-        if not task.ticked or skipped or (verify := verify_of(task.text)) is None:
+        wanted = task.ticked if only is None else task.name in only
+        if not wanted or skipped or (verify := verify_of(task.text)) is None:
             continue
         try:
             for command in commands(verify):
                 if "plan_check.py" not in command.text:
-                    problems += rerun(task.name, command, root)
+                    tokens(command.text)
+                    found.append((task.name, command))
         except Unparsed as error:
             raise Stop(f"{task.name}: {error}") from None
+    return found
+
+
+@functools.cache
+def gate() -> dict[str, Any]:
+    """Return the names of `gate_run.py`, loaded once from this script's folder."""
+    return runpy.run_path(str(Path(__file__).resolve().parent / "gate_run.py"))
+
+
+def _guarded[T](call: Callable[[], T]) -> T | None:
+    """Return a `gate_run.py` call's result, or None when it stops or times out."""
+    stops = (gate()["Stop"], subprocess.TimeoutExpired)
+    try:
+        return call()
+    except stops:
+        return None
+
+
+def gate_green() -> bool:
+    """Return whether the gate's green record stands for this tree and dry run."""
+    tree = _guarded(gate()["settled_tree"])
+    if tree is None:
+        return False
+    folder, dry = _guarded(gate()["records"]), _guarded(gate()["dry_run"])
+    return (
+        folder is not None
+        and dry is not None
+        and gate()["read_record"](folder / tree).get("dry") == dry
+    )
+
+
+def is_pytest(argv: list[str]) -> bool:
+    """Return whether argv starts `pytest`, `uv run pytest` or `python -m pytest`."""
+    return argv[:1] == ["pytest"] or argv[:3] in (
+        ["uv", "run", "pytest"],
+        ["python", "-m", "pytest"],
+    )
+
+
+def names_tests(argv: list[str], root: Path) -> bool:
+    """Return whether each operand is a test module whose `::` nodes are tests.
+
+    A directory, non-test file or node, or `[` id runs: only collection settles it.
+    """
+    for word in argv:
+        path, *nodes = word.split("::")
+        file = root / path
+        if not file.is_file() or not TEST_MODULE.fullmatch(file.name):
+            return False
+        text = _read(file) if nodes else ""
+        for node in nodes:
+            if "[" in node:  # a parameter id exists only on collection: run it
+                return False
+            kind = "def" if node.startswith("test") else "class"
+            if not node.startswith(("test", "Test")) or not re.search(
+                rf"^\s*(?:async\s+)?{kind}\s+{re.escape(node)}\b", text, re.M
+            ):
+                return False
+    return True
+
+
+def gate_discovers(operand: str, root: Path) -> bool:
+    """Return whether the gate's bare pytest reaches an operand's file.
+
+    `testpaths` name where it looks, and an ignore option or a conftest's
+    `collect_ignore` hook may exclude what an explicit operand still collects.
+    """
+    try:
+        config = tomllib.loads((root / "pyproject.toml").read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        config = {}
+    options = config.get("tool", {}).get("pytest", {}).get("ini_options", {})
+    paths = options.get("testpaths") or ["."]
+    file = (root / operand.split("::", maxsplit=1)[0]).resolve()
+    if not any(file.is_relative_to((root / str(path)).resolve()) for path in paths):
+        return False
+    if re.search(r"--(?:ignore|deselect)", str(options.get("addopts", ""))):
+        return False
+    folder = file.parent
+    while folder.is_relative_to(root.resolve()):
+        if EXCLUDES.search(_read(folder / "conftest.py")):
+            return False
+        folder = folder.parent
+    return True
+
+
+def _vouched(word: str, root: Path) -> bool:
+    """Return whether a word after the pytest prefix keeps the gate's proof."""
+    return word in QUIET_OPTIONS or (
+        not word.startswith("-")
+        and names_tests([word], root)
+        and gate_discovers(word, root)
+    )
+
+
+def bare_pytest(command: Command, root: Path) -> bool:
+    """Return whether a pytest command's `Verify:` says it exits 0 and no more.
+
+    Only a quiet option or an operand that exists follows the prefix: a selection
+    or any other option runs, so a green gate vouches for the rest.
+    """
+    argv = tokens(command.text)
+    return (
+        is_pytest(argv)
+        and command.count is None
+        and not command.nothing
+        and all(
+            _vouched(word, root) for word in argv[1 if argv[0] == "pytest" else 3 :]
+        )
+    )
+
+
+def collecting(texts: list[str], root: Path) -> set[str]:
+    """Return the commands whose collection exits 0 and prints a collected test.
+
+    The collection is the command with `--collect-only -q` appended, run as any
+    command is. Why: 0114-faster-plan-check design D2.
+    """
+    found = schedule([text + COLLECT_ONLY for text in texts], root)
+    return {
+        text
+        for text in texts
+        if found[text + COLLECT_ONLY].code == 0
+        and COLLECTED.search(found[text + COLLECT_ONLY].output)
+    }
+
+
+def keyed(text: str, head: str) -> str:
+    """Return a command's key: its text, a newline and `head`, for every command.
+
+    `head` is `HEAD`'s sha and every ref's, so another branch moving ends a reuse.
+    Why: 0114-faster-plan-check design D3.
+    """
+    return f"{text}\n{head}"
+
+
+def store(tree: str) -> Path:
+    """Return the folder that keeps a settled tree's results."""
+    return gate()["records"]().parent / "plan-check" / tree
+
+
+def keep(tree: str, key: str, result: Result) -> None:
+    """Write a result under its key; a store that is a link keeps nothing."""
+    folder = store(tree)
+    if folder.is_symlink() or folder.parent.is_symlink():
+        return
+    path = folder / hashlib.sha256(key.encode()).hexdigest()
+    staged = path.with_name(f"{path.name}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    with contextlib.suppress(OSError):
+        folder.mkdir(parents=True, exist_ok=True)
+        staged.unlink(missing_ok=True)
+        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
+            json.dump({"exit": result.code, "output": result.output}, file)
+        staged.replace(path)
+
+
+def load(tree: str, key: str) -> Result | None:
+    """Return the result kept under a key, or None when none can be read."""
+    path = store(tree) / hashlib.sha256(key.encode()).hexdigest()
+    try:
+        kept = json.loads(path.read_text(errors="replace"))
+        return Result(int(kept["exit"]), str(kept["output"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def check_verifies(
+    tasks: list[Task], human: set[int], root: Path, only: set[str] | None = None
+) -> list[str]:
+    """Return a line for each judged `Verify:` command that fails run again.
+
+    Each distinct command runs once. A bare pytest passes unrun on the gate's green
+    record when its collection finds a test; kept results are read and written.
+    """
+    pairs = jobs(tasks, human, only)
+    bare = list(dict.fromkeys(c.text for _, c in pairs if bare_pytest(c, root)))
+    vouched = collecting(bare, root) if bare and gate_green() else set()
+    pending = [
+        (n, c) for n, c in pairs if not (c.text in vouched and bare_pytest(c, root))
+    ]
+    refs = _git(root, "for-each-ref", "--format=%(objectname) %(refname)").stdout
+    head = _git(root, "rev-parse", "HEAD").stdout.strip() + "\n" + refs
+    tree = _guarded(gate()["settled_tree"])
+    keys = {command.text: keyed(command.text, head) for _, command in pending}
+    results: dict[str, Result] = {}
+    if tree is not None:
+        results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
+    fresh = schedule([text for text in keys if text not in results], root)
+    results |= fresh
+    if tree is not None and _guarded(gate()["settled_tree"]) == tree:
+        for text, result in fresh.items():
+            if not result.timed_out:
+                keep(tree, keys[text], result)
+    problems: list[str] = []
+    for name, command in pending:
+        problems += report(name, command, results[command.text])
     return problems
 
 
@@ -408,8 +716,11 @@ def check_corpus(tasks: list[Task], root: Path) -> list[str]:
     ]
 
 
-def check(change: str, base: str) -> list[str]:
-    """Return every problem line of a change's plan against the working tree."""
+def check(change: str, base: str, only: set[str] | None = None) -> list[str]:
+    """Return every problem line of a change's plan against the working tree.
+
+    With `only`, the `Verify:` lines of those sub-tasks, ticked or not, and no other.
+    """
     if not CHANGE.fullmatch(change) or base.startswith("-"):
         raise Stop("the change id or the base is not one this check reads")
     root = Path(_git(Path.cwd(), "rev-parse", "--show-toplevel").stdout.strip())
@@ -418,13 +729,15 @@ def check(change: str, base: str) -> list[str]:
         tasks = (folder / "tasks.md").read_text(errors="replace")
     except OSError as error:
         raise Stop(f"tasks.md: {error.strerror}") from None
+    found, human = phases(tasks)
+    parsed = subtasks(tasks)
+    if only is not None:
+        return check_verifies(parsed, human, root, only)
     merge_base = _git(root, "merge-base", base, "HEAD").stdout.strip()
     design = folder / "design.md"
     tests = tests_section(
         design.read_text(errors="replace") if design.is_file() else ""
     )
-    found, human = phases(tasks)
-    parsed = subtasks(tasks)
     return [
         *check_verifies(parsed, human, root),
         *check_boxes(parsed, found),
@@ -434,6 +747,13 @@ def check(change: str, base: str) -> list[str]:
     ]
 
 
+def _terminate(_signum: int, _frame: FrameType | None) -> None:
+    """End the group of each running command, and exit 143."""
+    for process in tuple(RUNNING):
+        _kill(process)
+    sys.exit(143)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Check a change's plan from inside the repository; return the exit code."""
     parser = argparse.ArgumentParser(
@@ -441,12 +761,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--change", required=True, help="the change id")
     parser.add_argument("--base", required=True, help="the revision the branch left")
+    parser.add_argument(
+        "--only", nargs="+", metavar="N.M", help="check only these sub-tasks' Verify:"
+    )
     args = parser.parse_args(argv)
+    only = None if args.only is None else set(args.only)
+    if only is not None and not all(ID.fullmatch(name) for name in only):
+        print(f"plan: cannot check — --only takes ids like 3.2, not {sorted(only)}")
+        return 2
+    previous = signal.signal(signal.SIGTERM, _terminate)
     try:
-        problems = check(args.change, args.base)
+        problems = check(args.change, args.base, only)
     except Stop as stop:
         print(f"plan: cannot check — {stop}")
         return 2
+    finally:
+        signal.signal(signal.SIGTERM, previous)
     print(*(problems or ["plan: clean"]), sep="\n")
     return 1 if problems else 0
 

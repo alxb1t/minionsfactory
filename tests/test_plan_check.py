@@ -6,8 +6,11 @@ Why: 0103-fewer-rounds design D4.
 
 import importlib.util
 import os
+import shutil
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -304,6 +307,480 @@ def test_a_plan_check_finds_what_the_plan_left(
         "\n## 2 — Two\n\n- [ ] 2.1 Read more. **CORPUS** `ghost`\n",
     )
     assert check() == (1, ["plan: 2.1 — no case ghost in scripts/corpus.toml"])
+
+
+def _commit_tasks(root: Path, *tasks: str) -> None:
+    """Write `tasks.md` and commit it, so the tree is settled."""
+    _tasks(root, _ONE, *tasks)
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "tasks")
+
+
+def test_a_command_named_twice_runs_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    ran = root / "ran.txt"
+    command = 'sh -c "echo r >> ran.txt; printf 1"'
+    _tasks(
+        root,
+        _ONE,
+        f"- [x] 1.1 First.\n  Verify: `{command}` prints `1`.\n",
+        f"- [x] 1.2 Second.\n  Verify: `{command}` prints `2`.\n",
+        f"- [x] 1.3 Third.\n  Verify: `{command}`.\n",
+    )
+    code = plan_check.main(["--change", _CHANGE, "--base", base])
+    other = "printed other than its Verify: says"
+    assert (code, capsys.readouterr().out.splitlines()) == (
+        1,
+        [f"plan: 1.2 — `{command}` {other}", "  | 1"],
+    )
+    assert ran.read_text() == "r\n"
+
+
+@pytest.mark.slow
+def test_a_green_gate_record_passes_a_bare_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    collect = (
+        f'case "$*" in *--collect-only*) exec {sys.executable} -m pytest "$@";; esac'
+    )
+    (stub / "pytest").write_text(f"#!/bin/sh\n{collect}\nexit 3\n")
+    (stub / "pytest").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    def record(dry: str | None = None) -> None:
+        loaded = plan_check.gate()
+        tree = loaded["settled_tree"]()
+        dry = dry or loaded["dry_run"]()
+        loaded["write_record"](loaded["records"]() / tree, dry, 1)
+
+    bare = "- [x] 1.1 Suite.\n  Verify: `pytest -q`.\n"
+    ran = ["plan: 1.1 — `pytest -q` exited 3"]
+    # No `make gate` target to dry-run: no record can stand, and the pytest runs.
+    _commit_tasks(root, bare)
+    assert check() == (1, ran)
+    # A green record for the tree and the dry run passes it unrun.
+    _commit(root, {"Makefile": "gate:\n\t@true\n"}, "gate")
+    record()
+    assert check() == (0, ["plan: clean"])
+    # A `Verify:` that names an output is no bare pytest: it runs.
+    _commit_tasks(root, "- [x] 1.1 Suite.\n  Verify: `pytest -q` prints `1`.\n")
+    record()
+    assert check() == (1, ["plan: 1.1 — `pytest -q` exited 3"])
+    # A pytest naming a path or node that is gone is no bare pytest: it runs.
+    (root / "tests").mkdir(exist_ok=True)
+    (root / "tests/test_here.py").write_text(
+        "def test_here():\n    pass\n\n\ndef _helper():\n    pass\n\n\n"
+        "def test_a():\n    pass\n\n\ndef test_b():\n    pass\n"
+    )
+    (root / "tests/test_empty.py").write_text("X = 1\n")
+    (root / "tests/helpers.py").write_text("X = 1\n")
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "docs/note.md").write_text("x\n")
+    here = "tests/test_here.py::test_here"
+    # A parameter id cannot be proved to exist without collecting: it runs too.
+    # Nor can a directory, a file pytest never collects or a node that is no test.
+    for named in (
+        "tests/test_gone.py",
+        "tests/test_here.py::test_gone",
+        "tests/test_here.py::test_here[missing]",
+        "docs",
+        "tests",
+        "tests/helpers.py",
+        "tests/test_here.py::_helper",
+    ):
+        _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
+        record()
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+    _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {here}`.\n")
+    record()
+    assert check() == (0, ["plan: clean"])
+    file = "tests/test_here.py"
+    for named in (f"{file} -k gone", f"{file} -m gone", f"-c other.ini {file}"):
+        _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
+        record()
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+    # Collection settles what the text cannot: a node under the wrong parent and
+    # a file holding no test pass the text checks, and run.
+    for named in (f"{file}::test_a::test_b", "tests/test_empty.py"):
+        _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
+        record()
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+    _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {file}`.\n")
+    record()
+    assert check() == (0, ["plan: clean"])
+    # A record of another dry run stands for another gate: the pytest runs.
+    _commit_tasks(root, bare)
+    record("0" * 64)
+    assert check() == (1, ran)
+    # An unsettled tree has no record: the pytest runs.
+    record()
+    (root / "stray.txt").write_text("x\n")
+    assert check() == (1, ran)
+
+
+def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
+    for text in (
+        "git rev-parse --verify HEAD",
+        "git log -1",
+        "git diff HEAD~1 --stat",
+        "printf deadbeef",
+        "git",
+        "git grep -q marker other -- src",
+        "sh -c 'git diff --quiet other'",
+        "printf 1",
+        "ruff check .",
+        "git ls-files src",
+    ):
+        assert plan_check.keyed(text, "abc") == f"{text}\nabc"
+
+
+def test_a_script_file_that_reads_git_is_keyed_by_head() -> None:
+    for text in (
+        "sh check-refs.sh",
+        "sh plain.sh",
+        "sh locked.sh",
+        "sh outer.sh",
+        "sh loop.sh",
+    ):
+        assert plan_check.keyed(text, "abc") == f"{text}\nabc"
+
+
+def test_another_branch_moving_ends_the_reuse_of_a_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    command = "git diff --quiet other HEAD"
+    _commit_tasks(root, f"- [x] 1.1 Same.\n  Verify: `{command}`.\n")
+    _git(root, "branch", "other")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    assert check() == (0, ["plan: clean"])
+    # `other` moves; HEAD and the tree stay: the kept success is not read again.
+    _git(root, "branch", "-f", "other", "HEAD~1")
+    assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
+
+
+def test_a_wrapped_git_command_is_not_reused_once_a_branch_moves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    (root / "check-refs.sh").write_text("git diff --quiet other HEAD\n")
+    commands = (
+        "sh -c 'git diff --quiet other HEAD'",
+        "sh check-refs.sh",
+        "sh -c 'sh check-refs.sh'",
+    )
+    _commit_tasks(
+        root,
+        *(
+            f"- [x] 1.{n} Wrapped.\n  Verify: `{c}`.\n"
+            for n, c in enumerate(commands, 1)
+        ),
+    )
+    _git(root, "branch", "other")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    assert check() == (0, ["plan: clean"])
+    _git(root, "branch", "-f", "other", "HEAD~1")
+    assert check() == (
+        1,
+        [f"plan: 1.{n} — `{c}` exited 1" for n, c in enumerate(commands, 1)],
+    )
+
+
+def test_a_git_grep_of_another_branch_is_not_reused_once_it_moves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    command = "git grep -q LEGACY other -- src/legacy.py"
+    _commit_tasks(root, f"- [x] 1.1 Same.\n  Verify: `{command}`.\n")
+    _git(root, "branch", "other")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    assert check() == (0, ["plan: clean"])
+    empty = _git(root, "hash-object", "-t", "tree", "/dev/null")
+    _git(root, "branch", "-f", "other", _git(root, "commit-tree", empty, "-m", "x"))
+    assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
+
+
+def test_the_gate_vouches_only_for_tests_it_discovers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    assert plan_check.gate_discovers("extras/test_x.py", root)
+    (root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n'
+    )
+    assert plan_check.gate_discovers("tests/test_mod.py::test_gone", root)
+    assert not plan_check.gate_discovers("extras/test_x.py", root)
+    assert not plan_check.gate_discovers("tests/../extras/test_x.py", root)
+    (root / "tests" / "conftest.py").write_text('collect_ignore = ["test_mod.py"]\n')
+    assert not plan_check.gate_discovers("tests/test_mod.py", root)
+    (root / "tests" / "conftest.py").unlink()
+    (root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n'
+        'addopts = "--ignore=tests/test_mod.py"\n'
+    )
+    assert not plan_check.gate_discovers("tests/test_mod.py", root)
+
+
+def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.3)
+    monkeypatch.setattr(plan_check, "DRAIN_SECONDS", 0.3)
+    child = (
+        "import subprocess, sys; "
+        "subprocess.Popen(['sleep', '20'], start_new_session=True); "
+        "import time; time.sleep(20)"
+    )
+    command = f'{sys.executable} -c "{child}"'
+    started = time.monotonic()
+    assert plan_check.run(command, root) == plan_check.Result(-1, "", True)
+    assert time.monotonic() - started < 5
+    subprocess.run(["pkill", "-f", "sleep 20"], check=False)
+
+
+def test_a_result_is_kept_by_tree_and_reused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    ran = tmp_path / "ran.txt"
+    counted = f'sh -c "echo r >> {ran}; printf 1"'
+    bare = "git rev-parse --verify HEAD"
+    tasks = (
+        f"- [x] 1.1 Counted.\n  Verify: `{counted}` prints `1`.\n",
+        f"- [x] 1.2 Bare.\n  Verify: `{bare}`.\n",
+    )
+    _commit_tasks(root, *tasks)
+    kept = root / ".minions" / "plan-check"
+
+    def check() -> tuple[int, list[str], int]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        out = capsys.readouterr().out.splitlines()
+        return code, out, len(list(kept.glob("*/*")))
+
+    def runs() -> int:
+        return len(ran.read_text().splitlines())
+
+    assert check() == (0, ["plan: clean"], 2)
+    assert (check(), runs()) == ((0, ["plan: clean"], 2), 1)
+    # A new commit on the same tree runs every command again: `HEAD` keys them all.
+    _git(root, "commit", "-q", "--allow-empty", "-m", "empty")
+    assert (check(), runs()) == ((0, ["plan: clean"], 4), 2)
+    # Another tree has its own results, and a result is judged by the words that
+    # name it.
+    _commit_tasks(root, tasks[0].replace("prints `1`", "prints `2`"))
+    other = "printed other than its Verify: says"
+    out = [f"plan: 1.1 — `{counted}` {other}", "  | 1"]
+    assert (check(), runs()) == ((1, out, 5), 3)
+    assert (check(), runs()) == ((1, out, 5), 3)
+    # An unsettled tree reads nothing and keeps nothing.
+    (root / _FOLDER / "tasks.md").write_text(_ONE + tasks[0])
+    assert (check(), runs()) == ((0, ["plan: clean"], 5), 4)
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
+    _commit_tasks(root, "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n")
+    assert check() == (1, ["plan: 1.1 — `sleep 5` timed out"], 5)
+    # A store that is a link keeps nothing.
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 600)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    shutil.rmtree(kept)
+    kept.symlink_to(elsewhere)
+    _commit_tasks(root, tasks[0])
+    assert (check(), runs()) == ((0, ["plan: clean"], 0), 5)
+    assert list(elsewhere.iterdir()) == []
+
+
+def _gone(pid: int) -> bool:
+    """Return whether a process is gone, waiting up to 5 s for it to be."""
+    for _ in range(100):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _pid(path: Path) -> int:
+    """Return the pid a command wrote to `path`, waiting up to 10 s for it."""
+    for _ in range(200):
+        if path.exists() and path.read_text().strip():
+            return int(path.read_text())
+        time.sleep(0.05)
+    raise AssertionError(f"{path} was never written")
+
+
+def test_a_pytest_with_n_takes_every_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(plan_check, "CPUS", 8)
+    for argv in (
+        ["pytest", "-n", "auto"],
+        ["uv", "run", "pytest", "-q", "-nauto"],
+        ["python", "-m", "pytest", "-n4", "tests"],
+        ["pytest", "--numprocesses=2"],
+        ["pytest", "--numprocesses", "2"],
+    ):
+        assert plan_check.weight(argv) == 8
+    for argv in (
+        ["pytest", "-q", "-p", "no:cacheprovider"],
+        ["git", "grep", "-n", "pytest"],
+        ["make", "-n", "gate"],
+    ):
+        assert plan_check.weight(argv) == 1
+
+
+def test_a_timed_out_command_loses_its_process_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 1.5)
+    kid = tmp_path / "kid"
+    command = f'sh -c "sleep 30 & echo $! > {kid}; wait"'
+    assert plan_check.run(command, root) == plan_check.Result(-1, "", True)
+    assert _gone(_pid(kid))
+    assert not plan_check.RUNNING
+
+
+def test_every_pytest_runs_without_the_cache_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    _repo(root, monkeypatch)
+    monkeypatch.delenv("PYTEST_ADDOPTS", raising=False)
+    option = "-p no:cacheprovider\n"
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, option, False)
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-q")
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, f"-q {option}", False)
+
+
+def test_commands_run_side_by_side_and_print_in_task_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    monkeypatch.setattr(plan_check, "CPUS", 4)
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 30)
+    left = 'sh -c "touch one; while [ ! -e two ]; do sleep 0.05; done; exit 3"'
+    right = 'sh -c "touch two; while [ ! -e one ]; do sleep 0.05; done; exit 4"'
+    last = 'sh -c "exit 5"'
+    _tasks(
+        root,
+        _ONE,
+        f"- [x] 1.1 Left.\n  Verify: `{left}`.\n",
+        f"- [x] 1.2 Right.\n  Verify: `{right}`.\n",
+        f"- [x] 1.3 Last.\n  Verify: `{last}`.\n",
+    )
+    code = plan_check.main(["--change", _CHANGE, "--base", base])
+    assert (code, capsys.readouterr().out.splitlines()) == (
+        1,
+        [
+            f"plan: 1.1 — `{left}` exited 3",
+            f"plan: 1.2 — `{right}` exited 4",
+            f"plan: 1.3 — `{last}` exited 5",
+        ],
+    )
+
+    # A `pytest` with `-n` runs alone, and a `make` runs beside no other `make`.
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    for name in ("pytest", "make"):
+        (stub / name).write_text(
+            f'#!/bin/sh\necho "start {name} $*" >> "$STUB_LOG"\nsleep 0.3\n'
+            f'echo "end {name} $*" >> "$STUB_LOG"\n'
+        )
+        (stub / name).chmod(0o755)
+    log = tmp_path / "log"
+    monkeypatch.setenv("STUB_LOG", str(log))
+    monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
+    work = ["pytest -q", "make one", "make two", "pytest -n 2"]
+    assert set(plan_check.schedule(work, root)) == set(work)
+    lines = log.read_text().splitlines()
+    assert sorted(lines[:2]) == ["start make one", "start pytest -q"]
+    assert lines.index("start make two") > lines.index("end make one")
+    assert lines[-2:] == ["start pytest -n 2", "end pytest -n 2"]
+
+
+def test_sigterm_ends_the_commands_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    pidfile = tmp_path / "pid"
+    command = f'sh -c "echo $$ > {pidfile}; exec sleep 30"'
+    _tasks(root, _ONE, f"- [x] 1.1 Wait.\n  Verify: `{command}`.\n")
+    process = subprocess.Popen(
+        [sys.executable, str(_SCRIPT), "--change", _CHANGE, "--base", base],
+        cwd=root,
+        stdout=subprocess.DEVNULL,
+    )
+    pid = _pid(pidfile)
+    process.send_signal(signal.SIGTERM)
+    assert process.wait(timeout=10) == 143
+    assert _gone(pid)
+
+
+def test_only_runs_the_named_sub_tasks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    ran = root / "ran.txt"
+    _tasks(
+        root,
+        "- [ ] 1 — One\n- [x] 2 — Two\n",
+        f'- [ ] 1.1 Open.\n  Verify: `sh -c "echo one >> {ran}; exit 1"`.\n',
+        f'- [x] 1.2 Ticked.\n  Verify: `sh -c "echo two >> {ran}"`.\n',
+        f'- [ ] 2.3 **HALT CHECK** Premise.\n  Verify: `sh -c "echo halt >> {ran}"`.\n',
+    )
+
+    def only(*ids: str) -> tuple[int, list[str]]:
+        argv = ["--change", _CHANGE, "--base", base, "--only", *ids]
+        return plan_check.main(argv), capsys.readouterr().out.splitlines()
+
+    code, lines = only("1.1", "2.3")
+
+    assert code == 1
+    assert lines[0].startswith("plan: 1.1 — `sh -c ")
+    assert lines[0].endswith("` exited 1")
+    assert len(lines) == 1
+    assert ran.read_text() == "one\n"
+    assert only("1.2") == (0, ["plan: clean"])
+    assert ran.read_text() == "one\ntwo\n"
+
+    code, lines = only("1.1", "x")
+
+    assert code == 2
+    assert lines[0].startswith("plan: cannot check — --only takes ids like 3.2")
+    assert ran.read_text() == "one\ntwo\n"
 
 
 def test_what_the_plan_check_cannot_read_exits_2(

@@ -56,6 +56,7 @@ OLD_LAYOUT = (
 )
 NO_COMMAND = ("is up to date", "Nothing to be done")
 PROGRESS = re.compile(r"^- \[([ xX])\] (\d+) — ", re.MULTILINE)
+PLANNED = re.compile(r"(\d+\.\d+) — ")
 SUBTASK = re.compile(r"^  (\d+(?:\.\d+)+)(?: · uncommitted)?$", re.MULTILINE)
 REFERENCES = HERE.parent / "references"
 # The `## Prompt` placeholders. Why: design D2.
@@ -155,9 +156,14 @@ class Host(Protocol):
         """Return the trees a sandboxed command may write."""
 
     def sandboxed(
-        self, argv: list[str], cwd: Path, trees: list[Path], out: TextIO | None = None
+        self,
+        argv: list[str],
+        cwd: Path,
+        trees: list[Path],
+        out: TextIO | None = None,
+        timeout: float | None = None,
     ) -> int:
-        """Run `argv` under the OS sandbox; return its exit."""
+        """Run `argv` under the OS sandbox, ended after `timeout` s; return its exit."""
 
     def checker(
         self,
@@ -338,17 +344,18 @@ def open_run(context: Context, mark: str | None = None) -> None:
 def sandboxed(context: Context, argv: list[str], out: TextIO | None = None) -> int:
     """Run `argv` in the worktree under the host's sandbox; return its exit.
 
-    Its output goes to `out`, else to the round's `commands-r<N>.log`. The sandbox's
-    code 2 is `Cannot`; any other exception propagates. Why: design D1, D6.
+    Its output goes to `out`, else to the round's `commands-r<N>.log`; it ends at
+    converge's deadline. The sandbox's code 2 is `Cannot`. Why: design D1, D6.
     """
     trees = context.host.trees()
+    limit = remaining(context)
     try:
         if out is not None:
-            return context.host.sandboxed(argv, context.tree, trees, out)
+            return context.host.sandboxed(argv, context.tree, trees, out, limit)
         with commands(context) as file:
             file.write(f"$ {shlex.join(argv)}\n")
             file.flush()
-            return context.host.sandboxed(argv, context.tree, trees, file)
+            return context.host.sandboxed(argv, context.tree, trees, file, limit)
     except Exception as error:
         if getattr(error, "code", None) == 2:
             raise Cannot(str(error)) from error
@@ -1661,9 +1668,10 @@ def amended(context: Context, sha: str, parents: list[str]) -> bool:
 
 
 def added(context: Context, judged: str) -> None:
-    """Run each `Verify:` the range adds to `tasks.md`, ticked or not, sandboxed.
+    """Run the `Verify:` lines the range adds to `tasks.md` in one plan check.
 
-    One that fails halts `verify failed — <sub-task ids>`. Why: design D3, D6; D63.
+    One that fails halts `verify failed — <sub-task ids>`. Why: design D3, D6; D63;
+    0114-faster-plan-check design D8.
     """
     path = f"openspec/changes/{context.change}/tasks.md"
     shown = subprocess.run(
@@ -1677,18 +1685,23 @@ def added(context: Context, judged: str) -> None:
     was = {
         task.name: PLAN_CHECK["verify_of"](task.text) for task in tasks(shown.stdout)
     }
-    failed = []
-    for task in tasks((context.tree / path).read_text()):
-        said = PLAN_CHECK["verify_of"](task.text)
-        if said is None or was.get(task.name) == said:
-            continue
-        for command in PLAN_CHECK["commands"](said):
-            code, printed = _captured(context, PLAN_CHECK["tokens"](command.text))
-            if not PLAN_CHECK["passed"](command, code, printed):
-                failed.append(task.name)
-                break
-    if failed:
-        raise Halt(f"verify failed — {', '.join(failed)}")
+    changed = [
+        task.name
+        for task in tasks((context.tree / path).read_text())
+        if (said := PLAN_CHECK["verify_of"](task.text)) is not None
+        and was.get(task.name) != said
+    ]
+    if not changed:
+        return
+    argv = script("plan_check.py", "--change", context.change, "--base", context.base)
+    code, printed = _captured(context, [*argv, "--only", *changed])
+    if code == 0:
+        return
+    lines = [line[6:] for line in printed.splitlines() if line.startswith("plan: ")]
+    named = [match[1] for line in lines if (match := PLANNED.match(line))]
+    if code == 1 and named:
+        raise Halt(f"verify failed — {', '.join(dict.fromkeys(named))}")
+    raise Halt(f"plan check: {' · '.join(lines)}")
 
 
 def catch_up(context: Context, judged: str) -> int:

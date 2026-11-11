@@ -5455,6 +5455,20 @@ def test_a_codex_checker_runs_through_run_checker(
     )
 
 
+def test_the_run_passes_a_deadline_to_the_sandbox(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    run = conduct["Run"](root, "claude")
+    out = io.StringIO()
+    slow = [sys.executable, "-c", "import time; time.sleep(60)"]
+
+    assert run.sandboxed(slow, tree, run.trees(), out, timeout=0) == 124
+    assert out.getvalue() == "sandboxed: timed out — killed after 0 s\n"
+
+
 def test_the_run_hands_converge_its_trees_and_sandbox(
     tmp_path: Path, fake_sandbox_exec: Path
 ) -> None:

@@ -95,6 +95,7 @@ ROWS = [
     "V2",
     "V3",
     "V4",
+    "V5",
     "K1",
     "K2",
     "K3",
@@ -668,6 +669,71 @@ def row_v4(change: Change, plan: dict[str, Any]) -> str | None:
     return " · ".join(found) or None
 
 
+def _test_path(word: str) -> bool:
+    """Return whether a command word names a test: a `.py` file, a node id or a path.
+
+    e.g. "tests/test_a.py" → True; "tests/" → False; "-m" → False
+    """
+    if word.startswith("-"):
+        return False
+    named = "/" in word and bool(word.rpartition("/")[2])
+    return word.endswith(".py") or "::" in word or named
+
+
+VALUE_OPTIONS = frozenset(
+    [
+        "-c",
+        "-k",
+        "-m",
+        "-o",
+        "-p",
+        "-W",
+        "--basetemp",
+        "--cache-dir",
+        "--confcutdir",
+        "--deselect",
+        "--html",
+        "--ignore",
+        "--ignore-glob",
+        "--junit-xml",
+        "--junitxml",
+        "--log-file",
+        "--override-ini",
+        "--report-log",
+        "--rootdir",
+    ]
+)
+
+
+def _operands(words: list[str]) -> list[str]:
+    """Return the words that are no option and no value of an option taking one.
+
+    e.g. ["pytest", "--junitxml", "out/r.xml", "t.py"] → ["pytest", "t.py"]
+    """
+    kept: list[str] = []
+    skip = False
+    for word in words:
+        if skip:
+            skip = False
+        elif word in VALUE_OPTIONS:
+            skip = True
+        else:
+            kept.append(word)
+    return kept
+
+
+def row_v5(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each `pytest` command of a `Verify:` that names no test file."""
+    found = [
+        f"{task.name}: {command} names no test file"
+        for task in plan["subtasks"](change.tasks)
+        for command in _commands(task.text, plan)
+        if plan["is_pytest"](words := _words(command))
+        and not any(_test_path(word) for word in _operands(words))
+    ]
+    return " · ".join(found) or None
+
+
 def _record(
     heading: str,
     spans: list[str],
@@ -854,6 +920,7 @@ def check(
             ("V1", row_v1(change, plan)),
             ("V2", row_v2(change, plan)),
             ("V4", row_v4(change, plan)),
+            ("V5", row_v5(change, plan)),
             ("K1", row_k1(change, plan, tree)),
             ("K2", row_k2(change, plan)),
             ("K3", row_k3(change)),

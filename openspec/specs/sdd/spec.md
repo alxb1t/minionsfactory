@@ -3729,8 +3729,11 @@ rest of that run, a rejoin logging it still halted. Any other halt, and one whos
 `skills/mf-converge/SKILL.md`, finding an answered halt, SHALL open a catch-up run marked `· amend` and run its catch-up round over
 `<judged head>..HEAD`, the judged head being both findings files' `head:`, whatever their verdicts: the amend, the build's code
 for a phase it added, and converge's own unverified fix. It SHALL open no new round 1 for it. Before the run's `start` line it
-SHALL run each `Verify:` line the range adds to `tasks.md`, a ticked task's included, and halt `verify failed — <sub-task ids>`
-when one fails. The run SHALL count its own rounds: one judge round and at most one fix round, `round:` carrying on past three;
+SHALL run each `Verify:` line the range adds to `tasks.md`, a ticked task's included, through `plan_check.py --only` under the
+sandbox, and halt `verify failed — <sub-task ids>` when one fails, or `plan check: <lines>` when the plan check cannot run to its end; the run SHALL skip what a plan check skips — a `**HALT
+CHECK**` sub-task's command, a command of a `**HUMAN` phase and a command naming `plan_check.py` — and SHALL run the rest
+through the plan check's own runner. The run SHALL count its own rounds: one judge round and at most one fix round, `round:`
+carrying on past three;
 a blocking finding open at its end SHALL halt `cap reached`. Conformance SHALL keep the full plan in its reading set, and its
 stale-claim pass SHALL search the whole tree for each claim the amend changes. Finding a halt before round 1, it SHALL open a
 plain new run, with no mark, as a fresh invocation does, save after a catch-up run, where a new run of the same mark runs the
@@ -3775,6 +3778,10 @@ catch-up round again. A run marked `· grant` that resumes SHALL stay a granted 
 #### Scenario: An amended Verify that fails
 - **WHEN** the range adds a `Verify:` line to a ticked task, and the command fails
 - **THEN** converge halts `verify failed — <sub-task id>` before its `start` line, and any commit past that head answers it
+
+#### Scenario: An amended Verify the plan check skips
+- **WHEN** the range adds a `Verify:` line to a `**HALT CHECK**` sub-task whose command would fail
+- **THEN** the command does not run, and converge halts nothing for it
 
 #### Scenario: A granted round resumes
 - **WHEN** a granted round dies after its `fix` line, and a re-run resumes it
@@ -4259,13 +4266,30 @@ name under `tests/` at the merge base is gone at `HEAD` and `design.md`'s `## Te
 marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. It SHALL NOT run again a `**HALT CHECK**` sub-task's
 command, a command of a `**HUMAN` phase, or a command naming `plan_check.py`, and SHALL run no command with a shell. It SHALL
 exit 0 printing `plan: clean` when none holds, and 2 when it cannot read `tasks.md`, the base or git.
-`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, and SHALL halt on any
-other exit than 0, writing no `build.done`. Converge's fixer SHALL run it after its gate and before its commit, clearing each
-problem as a blocking card of the same pass, or setting it `wontfix` naming the amend; converge's Step 7 SHALL run it after
-`gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any verify worker, counting no round; a line
-the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the run `amend needed — plan check:
-<subjects>`, naming each line's sub-task, `path:line` or test name and never the command it quotes. `skills/mf-rescue/SKILL.md`
-SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and `design.md`'s prose.
+
+It SHALL run each distinct command once a check, whatever the number of sub-tasks that name it, and hold the one result to each
+sub-task's own words. It SHALL run the commands side by side, one slot for each core the machine has, and print the lines in
+task order, then command order, whatever order they finish in: a `pytest` with `-n` takes every slot and runs alone, a `make`
+runs one at a time, and every `pytest` starts with `-p no:cacheprovider` in its `PYTEST_ADDOPTS`. A command past 600 s SHALL
+lose its whole process group and print `plan: <sub-task> — `<command>` timed out`; ended by SIGTERM, the check SHALL end the
+process group of each command then running. A `pytest` command — one whose argv starts `pytest`, `uv run pytest` or `python -m pytest` — whose `Verify:` says nothing of its
+output beyond that it exits 0, and whose words after its pytest prefix are only `-q`, `-v`, `-x` or `-s` flags and test paths
+and `::` nodes that exist, SHALL pass unrun when `gate_run.py` holds a green record for the same tree and the same dry run of
+`make -n gate` and the command's own collection finds a test; one that says what it prints, selects with `-k`, `-m` or `--deselect`, or carries another option still runs. On a settled tree the check SHALL keep each finished result — its exit and output — in
+`.minions/plan-check/<tree>/`, named by the command, `HEAD` and every ref, and SHALL read it again on the same tree while
+`HEAD` and every ref stand, whatever the command's words; a timed-out command SHALL be kept by no one, and an unsettled tree
+SHALL keep and read none. With
+`--only <sub-task ids>` it SHALL run the `Verify:` commands of those sub-tasks alone, ticked or not, with the same skips, print
+only their lines and check nothing else.
+
+`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, in the foreground within
+600 s, and SHALL halt on any other exit than 0, writing no `build.done`. Converge's fixer SHALL run it in the foreground after
+its gate and before its commit, clearing each problem as a blocking card of the same pass, or setting it `wontfix` naming the
+amend; converge's Step 7 SHALL run it after `gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any
+verify worker, counting no round; a line the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the
+run `amend needed — plan check: <subjects>`, naming each line's sub-task, `path:line` or test name and never the command it
+quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and
+`design.md`'s prose.
 
 #### Scenario: A ticked check that no longer holds
 - **WHEN** at the build's close a ticked sub-task's `Verify:` command exits 1
@@ -4310,6 +4334,40 @@ SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md`
 - **THEN** the conductor sends its lines to the fix station before any verify worker, and the round count stays
 - **AND WHEN** the next Step 7's `plan_check.py` prints a line that fix pass was sent, naming sub-task `3.2`
 - **THEN** converge halts `amend needed — plan check: 3.2`, and the rescue amends `tasks.md` or `design.md` to clear it
+
+#### Scenario: A command named twice runs once
+- **WHEN** sub-tasks `1.1` and `1.2` name the same command, `1.1` saying it prints `1` and `1.2` saying it prints nothing, and it prints `1`
+- **THEN** the command runs once, and `plan_check.py` prints a line for `1.2` alone
+
+#### Scenario: A bare pytest on a green gate
+- **WHEN** a ticked `Verify:` says a `pytest` command exits 0, and `gate_run.py` holds a green record for the same tree and the same dry run
+- **THEN** the command does not run, and `plan_check.py` prints no line for it
+- **AND WHEN** the `Verify:` says the command prints `3`, or the tree or the dry run differs from the record's, or the command's collection finds no test, or a test path lies outside the repo's `testpaths`
+- **THEN** the command runs
+- **AND WHEN** the command selects with `-k`, or names a test file or node that does not exist
+- **THEN** the command runs, and a selection that collects no test fails the check
+
+#### Scenario: A result kept by tree
+- **WHEN** `plan_check.py` runs a command on a settled tree and runs again on the same tree
+- **THEN** the second check reads the kept result and does not run the command
+- **AND WHEN** the tree is unsettled, or the command is another, or `HEAD` is another commit
+- **THEN** the command runs
+- **AND WHEN** another branch moves while `HEAD` and the tree stand, and the command reads it through a shell or a script it
+  names, as `sh -c 'git diff --quiet other HEAD'` does
+- **THEN** the command runs, and its new exit is judged
+
+#### Scenario: Commands run side by side
+- **WHEN** two commands each wait for a file the other writes, and a third fails after the first
+- **THEN** both finish, and the failure lines print in task order, whatever order the commands finished in
+- **AND** a `pytest` with `-n` starts only when no other command runs, and a `make` starts only when no other `make` runs
+
+#### Scenario: A timed-out command's group
+- **WHEN** a command starts a child, outlives the 600 s limit, and `plan_check.py` kills it
+- **THEN** the child is gone too, and the line says the command timed out
+
+#### Scenario: Only the named sub-tasks
+- **WHEN** `plan_check.py --only 1.1 2.3` runs and `1.1` is unticked and `2.3` is a `**HALT CHECK**`
+- **THEN** it runs the command of `1.1` alone and prints a `plan: ` line for it only if it fails
 
 ### Requirement: A reader of run data has a corpus case
 
@@ -4479,6 +4537,10 @@ command's own, a signal's exit shifted to `128` plus its number. When a failed c
 a refusal. Where `sandbox-exec` is not on `PATH`, `conduct.py` SHALL run nothing, print a line holding `no OS sandbox` and exit 2: it SHALL
 never run the command bare.
 
+A command the conductor starts with a deadline SHALL run in a process group of its own. Past its deadline the group SHALL be
+sent SIGTERM and, after a short grace, SIGKILL; `conduct.py` SHALL then print one `sandboxed: timed out —` line and exit 124.
+Converge SHALL give each command it runs the seconds left to its own deadline.
+
 #### Scenario: A command writes outside the trees
 - **WHEN** a command run through `conduct.py sandboxed` writes a file in a folder outside every tree
 - **THEN** the write fails with `Operation not permitted`, the command's exit is non-zero, and one `sandboxed: denied —` line
@@ -4513,6 +4575,12 @@ never run the command bare.
 - **WHEN** `sandbox-exec` is not on `PATH` and `conduct.py sandboxed -- true` runs
 - **THEN** `true` does not run, the output holds `no OS sandbox`, and the exit is 2
 
+#### Scenario: A command past its deadline
+- **WHEN** a command that starts a child runs under a deadline and outlives it
+- **THEN** the command and its child are gone, the output holds a `sandboxed: timed out —` line, and the exit is 124
+- **AND WHEN** the command ignores SIGTERM
+- **THEN** SIGKILL ends it after the grace
+
 ### Requirement: A cut's mechanical steps are scripts
 
 `skills/mf-cut-change/SKILL.md` SHALL have the cut run `cut_pre.py` for each precondition of Step 1, by hand and unattended,
@@ -4520,9 +4588,9 @@ printing one line a check and exiting 1 on any that fails; a failed precondition
 place the brief's facts with `facts.py`, name the deleted or renamed symbols to `facts.py readers`, and run `cut_check.py` for
 the self-check. `cut_check.py` SHALL decide `I2`, `I3`, `I4`, `I11`, `I12`, `I13`, `I14`, `I17`, `I18` and `I19`, the headings
 `A1` and `A2`, `P9` and `P13`'s three-line task, folding in `openspec validate --strict`, the gate-edit check, the search script
-and the corpus check of `plan_check.py`; it SHALL also decide the `Verify:` sequencing rows `V1` to `V4` — a needle an earlier
+and the corpus check of `plan_check.py`; it SHALL also decide the `Verify:` sequencing rows `V1` to `V5` — a needle an earlier
 task already adds, a `-k` that selects tests a later task adds or deletes, a `git grep` of a file not committed before its
-phase ends, a needle its task never names — and the record's consistency rows `K1` to `K6` — the proposal's `## Impact` against
+phase ends, a needle its task never names, a `pytest` command that names no test path — and the record's consistency rows `K1` to `K6` — the proposal's `## Impact` against
 the tasks' files, the design's `## Tests` against the tasks' test files, the decision index against the decision headings, each
 decision a task cites, each cited Step and constant, and two tasks on one line. It SHALL print each row it leaves to judgment —
 `I5` to `I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs — and a summary line, and exit 1 on a mechanical failure, which the
@@ -4566,6 +4634,10 @@ unplaced.
 #### Scenario: A needle an earlier task adds
 - **WHEN** a sub-task's `Verify:` greps a needle in a file that an earlier sub-task names and quotes the needle of
 - **THEN** `cut_check.py` prints the failed row `V1` naming both sub-tasks, and exits 1
+
+#### Scenario: A whole-suite pytest
+- **WHEN** a sub-task's `Verify:` runs `pytest` with no test path, or with `-m "not slow"` alone
+- **THEN** `cut_check.py` prints the failed row `V5` naming the sub-task and asking for the test files, and exits 1
 
 #### Scenario: A record that disagrees with itself
 - **WHEN** a task links `design.md#d9` and `design.md` has no `### D9` heading

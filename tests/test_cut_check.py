@@ -271,7 +271,8 @@ def _check_before_its_task(root: Path) -> None:
 
 def _selects_a_later_test(root: Path) -> None:
     old = "Verify: `grep -n x a.py` prints a line."
-    _edit(root, "tasks.md", old, "Verify: `uv run pytest -q -k widget` exits 0.")
+    new = "Verify: `uv run pytest -q test_widget.py -k widget` exits 0."
+    _edit(root, "tasks.md", old, new)
     _edit(root, "tasks.md", "Run `make gate`.", "Add `test_widget` to the suite.")
 
 
@@ -282,6 +283,16 @@ def _git_grep_of_a_file_the_phase_adds(root: Path) -> None:
 
 def _needle_named_nowhere(root: Path) -> None:
     _edit(root, "design.md", "It keeps the line x.", "It keeps the line.")
+
+
+def _pytest_names_no_test_file(root: Path) -> None:
+    old = "Verify: `grep -n x a.py` prints a line."
+    _edit(
+        root,
+        "tasks.md",
+        old,
+        "Verify: `uv run pytest -q --junitxml out/r.xml -k widget` exits 0.",
+    )
 
 
 def _impact_names_a_stranger(root: Path) -> None:
@@ -332,6 +343,7 @@ def _cite_in_two_tasks(root: Path) -> None:
         ("V2", _selects_a_later_test),
         ("V3", _git_grep_of_a_file_the_phase_adds),
         ("V4", _needle_named_nowhere),
+        ("V5", _pytest_names_no_test_file),
         ("K1", _impact_names_a_stranger),
         ("K2", _tests_names_a_stranger),
         ("K3", _table_without_a_heading),
@@ -645,6 +657,21 @@ def test_a_search_names_its_literal_needle() -> None:
         )
         == []
     )
+
+
+def test_a_pytest_command_names_a_test_path_or_none() -> None:
+    plan = cut_check._plan()
+
+    def halts(command: str) -> bool:
+        change = cut_check.Change(
+            "x", Path("x"), "", "", f"- [ ] 1.1 A.\n  Verify: `{command}`.\n"
+        )
+        return cut_check.row_v5(change, plan) is not None
+
+    for none in ("pytest", 'pytest -m "not slow"', "pytest tests/", "uv run pytest -q"):
+        assert halts(none)
+    for named in ("pytest a.py", "pytest tests/test_a", "pytest t::test_a", "grep x"):
+        assert not halts(named)
 
 
 def test_a_decision_section_keeps_its_fenced_lines() -> None:
