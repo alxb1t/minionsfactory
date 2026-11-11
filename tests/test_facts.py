@@ -304,6 +304,31 @@ def test_a_changed_signature_lists_its_stand_ins_and_monkeypatches(
     ]
 
 
+def test_a_continued_string_does_not_shift_a_later_multiline_patch(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = _repo(tmp_path / "repo")
+    _edit(
+        root,
+        "src/a.py",
+        [
+            's = "first \\',
+            'second"',
+            "monkeypatch.setattr(",
+            "    mod,",
+            '    "old_fn", fake)',
+        ],
+    )
+    _commit(root, "continued")
+    monkeypatch.chdir(root)
+    assert facts.main(["readers", "--signature", "old_fn"]) == 0
+    assert capsys.readouterr().out.splitlines()[-1] == (
+        'monkeypatch of old_fn — "old_fn", fake) · src/a.py:5'
+    )
+
+
 def test_a_changed_file_lists_its_runpy_and_import_readers(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

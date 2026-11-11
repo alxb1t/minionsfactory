@@ -249,6 +249,7 @@ def _in_patch(path: str, number: str, text: str) -> bool:
             return True
         if quote:
             if char == "\\":
+                line += source[at + 1 : at + 2] == "\n"
                 at += 1
             elif source.startswith(quote, at):
                 at += len(quote) - 1
