@@ -47,7 +47,7 @@ None.
 
 ## Impact
 
-A file.
+Edits the file `a.py`.
 
 ## Not in this change
 
@@ -75,6 +75,8 @@ Goals.
 ### D1
 
 The thing.
+
+It keeps the line x.
 
 ## Tests
 
@@ -254,11 +256,62 @@ def _proposal_ends_elsewhere(root: Path) -> None:
 
 
 def _id_outside_a_link(root: Path) -> None:
-    _edit(root, "tasks.md", "per [D1](design.md#d1)", "per D1")
+    _edit(root, "tasks.md", "per [D1](design.md#d1)", "per D1 [D1](design.md#d1)")
 
 
 def _four_lines(root: Path) -> None:
     _edit(root, "tasks.md", "Edit `a.py`", "Edit `a.py`\n  a\n  b\n  c")
+
+
+def _check_before_its_task(root: Path) -> None:
+    old = "Run `make gate`.\n  Verify: `git tag` prints v1."
+    new = "Run `make gate` for x.\n  Verify: `grep -n x a.py` prints a line."
+    _edit(root, "tasks.md", old, new)
+
+
+def _selects_a_later_test(root: Path) -> None:
+    old = "Verify: `grep -n x a.py` prints a line."
+    _edit(root, "tasks.md", old, "Verify: `uv run pytest -q -k widget` exits 0.")
+    _edit(root, "tasks.md", "Run `make gate`.", "Add `test_widget` to the suite.")
+
+
+def _git_grep_of_a_file_the_phase_adds(root: Path) -> None:
+    old = "Verify: `grep -n x a.py` prints a line."
+    _edit(root, "tasks.md", old, "Verify: `git grep -n x b.py` prints a line.")
+
+
+def _needle_named_nowhere(root: Path) -> None:
+    _edit(root, "design.md", "It keeps the line x.", "It keeps the line.")
+
+
+def _impact_names_a_stranger(root: Path) -> None:
+    old = "Edits the file `a.py`."
+    _edit(root, "proposal.md", old, "Edits the files `a.py` and `b.py`.")
+
+
+def _tests_names_a_stranger(root: Path) -> None:
+    _edit(root, "design.md", "## Tests\n\nNone.", "## Tests\n\nAdds `tests/test_x.py`.")
+
+
+def _table_without_a_heading(root: Path) -> None:
+    old = "| [D1](#d1) | a thing |"
+    _edit(root, "design.md", old, f"{old}\n| [D2](#d2) | b |")
+
+
+def _link_without_a_heading(root: Path) -> None:
+    old = "per [D1](design.md#d1)"
+    _edit(root, "tasks.md", old, f"{old} and [D9](design.md#d9)")
+
+
+def _constant_not_in_its_file(root: Path) -> None:
+    old = "Edit `a.py` per [D1](design.md#d1)."
+    _edit(root, "tasks.md", old, "Edit `a.py` per [D1](design.md#d1) for `MISSING`.")
+
+
+def _cite_in_two_tasks(root: Path) -> None:
+    old = "Edit `a.py` per [D1](design.md#d1)."
+    _edit(root, "tasks.md", old, f"{old[:-1]} as at a.py:1.")
+    _edit(root, "tasks.md", "Run `make gate`.", "Run `make gate` as at a.py:1.")
 
 
 @pytest.mark.parametrize(
@@ -275,6 +328,16 @@ def _four_lines(root: Path) -> None:
         ("A2", _proposal_ends_elsewhere),
         ("P9", _id_outside_a_link),
         ("P13", _four_lines),
+        ("V1", _check_before_its_task),
+        ("V2", _selects_a_later_test),
+        ("V3", _git_grep_of_a_file_the_phase_adds),
+        ("V4", _needle_named_nowhere),
+        ("K1", _impact_names_a_stranger),
+        ("K2", _tests_names_a_stranger),
+        ("K3", _table_without_a_heading),
+        ("K4", _link_without_a_heading),
+        ("K5", _constant_not_in_its_file),
+        ("K6", _cite_in_two_tasks),
     ],
 )
 def test_each_mechanical_row_fails_by_name(
@@ -517,7 +580,10 @@ def test_a_fenced_block_does_not_count_toward_the_limit(
 ) -> None:
     root = _repo(tmp_path)
     _tools(tmp_path, monkeypatch)
-    block = "Edit `Makefile`'s `gate` recipe.\n  ```diff\n  + a\n  - b\n  ```"
+    block = (
+        "Edit `Makefile`'s `gate` recipe per [D1](design.md#d1).\n"
+        "  ```diff\n  + a\n  - b\n  ```"
+    )
     _edit(root, "tasks.md", "Edit `a.py` per [D1](design.md#d1).", block)
     code, lines = _run(root, monkeypatch, capsys)
     assert _halted(lines) == []
@@ -547,3 +613,116 @@ def test_a_proposal_with_no_frontmatter_fails_i13(
     code, lines = _run(root, monkeypatch, capsys)
     assert _halted(lines) == ["I13"]
     assert code == 1
+
+
+def test_a_search_names_its_literal_needle() -> None:
+    parts = cut_check.search_parts
+    assert parts("git grep -n 'a b' -- x.py") == (["a b"], ["x.py"])
+    two = "git grep -n -e 'one' -e 'two' HEAD -- x.py y.py"
+    assert parts(two) == (["one", "two"], ["x.py", "y.py"])
+    assert parts("grep -n a.b x.py") == ([], ["x.py"])
+    assert parts("grep -n 'a\\|b' x.py") == ([], ["x.py"])
+    assert parts("grep 'a\\-b' x.py") == (["a-b"], ["x.py"])
+    assert parts("git grep -F -e 'a.b' x.py") == (["a.b"], ["x.py"])
+    assert parts("grep -nF 'a.b' x.py") == (["a.b"], ["x.py"])
+    assert parts("grep --fixed-strings a.b x.py") == (["a.b"], ["x.py"])
+    assert parts("grep -ne a x.py") == (["a"], ["x.py"])
+    assert parts("grep a x.py | wc -l") == (["a"], ["x.py"])
+    assert parts("grep -n x") == (["x"], [])
+    assert parts("grep") == ([], [])
+    assert parts("make gate") == ([], [])
+    assert parts("grep 'x") == ([], [])
+    assert parts('git grep -nF "|" HEAD -- a.py') == (["|"], ["a.py"])
+    assert parts("grep ';' a.py && ls") == ([";"], ["a.py"])
+    assert parts("grep a\\;b a.py; ls") == (["a;b"], ["a.py"])
+    assert parts("grep 'a' a.py \"|\" wc") == (["a"], ["a.py", "|", "wc"])
+    assert cut_check._selected(
+        "Verify: `pytest -k 'not widget and gadget'` passes.", cut_check._plan()
+    ) == ["gadget"]
+    assert (
+        cut_check._selected(
+            "Verify: `pytest -k 'not (a or b)'` passes.", cut_check._plan()
+        )
+        == []
+    )
+
+
+def test_a_decision_section_keeps_its_fenced_lines() -> None:
+    text = "### D1\n\nA.\n\n```\n### D9\nB\n```\n\n### D2\n\nC.\n\n## Tests\n\nD.\n"
+    found = cut_check.decision_texts(text)
+    assert sorted(found) == ["d1", "d2"]
+    assert "B" in found["d1"]
+    assert "D." not in found["d2"]
+
+
+def test_a_check_with_a_stray_backtick_names_no_command() -> None:
+    plan = cut_check._plan()
+    whole = "- [ ] 1.1 Edit.\n  Verify: `grep -n x a.py` prints a line."
+    stray = "- [ ] 1.1 Edit.\n  Verify: `grep -n x a.py` prints a `line."
+    assert cut_check._commands(plan["subtasks"](whole)[0].text, plan) == [
+        "grep -n x a.py"
+    ]
+    assert cut_check._commands(plan["subtasks"](stray)[0].text, plan) == []
+
+
+def test_k1_and_k2_read_each_side_of_the_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _put(root, "src/b.py", "x\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "more")
+    first = "Edit `a.py` per [D1](design.md#d1)."
+    _edit(root, "tasks.md", first, "Edit `a.py` and `src/b.py` per [D1](design.md#d1).")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["K1"]
+    assert "cut_check: halt — K1 — 1.1: `src/b.py` is absent from `## Impact`" in lines
+    assert code == 1
+    old = "Edits the file `a.py`."
+    _edit(root, "proposal.md", old, "Edits the file `a.py` and the directory `src/`.")
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == []
+    _edit(root, "tasks.md", "`src/b.py`", "`tests/test_y.py`")
+    _edit(root, "proposal.md", " and the directory `src/`", "")
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == ["K2"]
+
+
+def test_k5_reads_the_step_and_the_constant_of_the_one_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _put(root, "s.md", "## Step 1 — a\n\nWORD\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "more")
+    _edit(root, "proposal.md", "Edits the file `a.py`.", "Edits `a.py` and `s.md`.")
+    first = "Edit `a.py` per [D1](design.md#d1)."
+    task = "Edit `s.md` at Step 1 for `WORD` per [D1](design.md#d1)."
+    _edit(root, "tasks.md", first, task)
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == []
+    _edit(root, "tasks.md", "Step 1", "Step 2")
+    _edit(root, "tasks.md", "`WORD`", "`WORDS`")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["K5"]
+    assert "1.1: s.md has no `## Step 2` at HEAD" in lines[0]
+    assert "1.1: s.md has no `WORDS` at HEAD" in lines[0]
+    assert code == 1
+    _edit(root, "tasks.md", "Edit `s.md`", "Add `s.md`")
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == []
+
+
+def test_an_unreadable_head_exits_2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _git(root, "update-ref", "-d", "refs/heads/main")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert code == 2
+    assert lines[0].startswith("cut_check: cannot check — git ls-tree failed")

@@ -18,7 +18,8 @@ description: Cut a new in-repo change from a settled grilling — create its ver
 Before work, read root `AGENTS.md`, the mandatory context it names, and a root `CODING_STANDARDS.md`,
 `CODE_STANDARDS.md` or `CONTRIBUTING.md` it does not name. Of the decisions, from a brief run
 `uv run --script <this package>/../mf-converge/scripts/bundle.py --decisions <brief>` and read what it prints — the
-decisions it cites, in full, and an index; from the conversation, read the index it prints and in full each decision
+decisions it cites, in full, and an index;
+from the conversation, read the `### D` headings of `docs/decisions.md` as the index, and in full each decision
 the conversation settles against. Read `ARCHITECTURE.md` and `docs/adr/*.md` whole, when present, and the principles
 and the threat model — `docs/principles.md` and `THREAT_MODEL.md`, or the ones `AGENTS.md` names — when the source's
 phases name the file. They are shared context, not your source: design within the decisions in force, and read in
@@ -138,6 +139,10 @@ For the symbols, keys and files the tasks delete or rename, run
 follows `--`. It prints `readers of <name> — <text> · <path>:<line>` for each `git grep -nw` hit at `HEAD`, or `none`,
 and appends them to the notes. Name each reader it prints in a task, or in `design.md`'s `## Tests` table.
 
+Beside the names, a flag finds what a name cannot, each repeatable: `--signature <name>` for a signature a task changes,
+its stand-ins and monkeypatches; `--file <path>` for a file a task changes, its `runpy` and import readers;
+`--string <text>` for a string a task changes, each line holding it. A hit prints `<kind> of <value> — <text> · <path>:<line>`.
+
 ## Step 4 — Branch
 
 The branch is the change id. Root `AGENTS.md` decides where the branch lives:
@@ -187,8 +192,8 @@ In this order: `proposal.md` → the `specs/` delta and `design.md` → `tasks.m
 ## Step 8 — Self-check
 
 Run `uv run --script scripts/cut_check.py <change-id> --bump <bump>`, `scripts/` resolved from this skill's package. It
-decides the mechanical rows `I2`, `I3`, `I4`, `I11`, `I12`, `I13`, `I14`, `I17`, `I18`, `I19`, `A1`, `A2`, `P9` and
-`P13`, and the corpus check; it runs the validator, the gate-edit check (`../mf-converge/scripts/gate_check.py
+decides the mechanical rows `I2`, `I3`, `I4`, `I11`, `I12`, `I13`, `I14`, `I17`, `I18`, `I19`, `A1`, `A2`, `P9`, `P13`,
+`V1`–`V4` and `K1`–`K6`, and the corpus check; it runs the validator, the gate-edit check (`../mf-converge/scripts/gate_check.py
 --tasks`) and the search script (`scripts/verify_check.py`) and prints their lines under their rows. `I1` is met by Step
 10's commit. It prints:
 
@@ -204,7 +209,8 @@ the judgment rows alone.
 
 - **Judge `I5`–`I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs** — each `judge` line names what to read, `P12` and `P13`
   with candidates as `path:line`, which only you or the reviewer judge.
-- **Read every `Verify:`; run none as written.** The build runs them, once the human starts it. Rewrite a check you
+- **Read every `Verify:`; run none as written.** `V1`–`V4` settle a search's sequence and its needles; read what they
+  leave: a pattern that is no literal. The build runs them, once the human starts it. Rewrite a check you
   can see will not run as written — an unknown flag, bad syntax. Flag to the human a check that already holds, its
   needle already in the file: true before the build, it may prove nothing. Except a `**HALT CHECK**`: it checks a
   premise, and should hold.
@@ -219,17 +225,23 @@ This self-check is a declared exception to *no station verifies its own work*. T
 
 ## Step 8.5 — Plan review
 
-A fresh read-only worker reads the plan before the commit: the host's subagent, on Opus 5.5 · high where the host offers
-it, whatever the session's model — on Claude Code the Agent tool's `model: opus` and `effort: high` — else the session's
+A fresh read-only worker reads the plan before the commit: the host's subagent, on Sonnet 5.5 · high where the host offers
+it, whatever the session's model — on Claude Code the Agent tool's `model: sonnet` and `effort: high` — else the session's
 model. Give it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md`,
-`cut_check.py`'s output, each met row of which it takes as settled, and one question: can each task be built as written,
+`cut_check.py`'s output, and one question: can each task be built as written,
 each `Verify:` pass after it, and each the search script did not run — a test, a command — fail before it, save a
 `**HALT CHECK**`, which should hold? It starts from the packet, opening
 another file only at a path or `path:line` the change or the notes cite. A search's "before" is the script's, so the
 reviewer reads only its "after". It answers with doubts, each with its `path:line`.
 
-**The budget.** The prompt gives the reviewer 40 turns, which it counts as its tool calls: at the 40th it stops and
+It takes each met row of `cut_check.py`'s output, and each `facts.py` readers line of the notes, as settled, and skips them.
+
+**The budget.** The prompt gives the reviewer 25 turns, which it counts as its tool calls: at the 25th it stops and
 returns its doubts so far, its first line `budget reached`. Take each as a doubt still standing after the second review.
+
+After each review, count that worker's tool calls from its transcript. When they pass the budget, append
+`plan review <n> over budget: <calls> tool calls` to `cut-notes.md`, `<n>` the review's number. A host that keeps no
+transcript gives no line.
 
 | review | runs | reviewer |
 |---|---|---|
