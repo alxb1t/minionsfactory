@@ -27,8 +27,9 @@ process group of each command then running. A `pytest` command — one whose arg
 output beyond that it exits 0, and whose words after its pytest prefix are only `-q`, `-v`, `-x` or `-s` flags and test paths
 and `::` nodes that exist, SHALL pass unrun when `gate_run.py` holds a green record for the same tree and the same dry run of
 `make -n gate` and the command's own collection finds a test; one that says what it prints, selects with `-k`, `-m` or `--deselect`, or carries another option still runs. On a settled tree the check SHALL keep each finished result — its exit and output — in
-`.minions/plan-check/<tree>/`, named by the command, and SHALL read it again on the same tree; a command naming a revision
-SHALL be kept by `HEAD` too, a timed-out command SHALL be kept by no one, and an unsettled tree SHALL keep and read none. With
+`.minions/plan-check/<tree>/`, named by the command, `HEAD` and every ref, and SHALL read it again on the same tree while
+`HEAD` and every ref stand, whatever the command's words; a timed-out command SHALL be kept by no one, and an unsettled tree
+SHALL keep and read none. With
 `--only <sub-task ids>` it SHALL run the `Verify:` commands of those sub-tasks alone, ticked or not, with the same skips, print
 only their lines and check nothing else.
 
@@ -100,8 +101,11 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 #### Scenario: A result kept by tree
 - **WHEN** `plan_check.py` runs a command on a settled tree and runs again on the same tree
 - **THEN** the second check reads the kept result and does not run the command
-- **AND WHEN** the tree is unsettled, or the command is another, or it names `HEAD` and `HEAD` is another commit
+- **AND WHEN** the tree is unsettled, or the command is another, or `HEAD` is another commit
 - **THEN** the command runs
+- **AND WHEN** another branch moves while `HEAD` and the tree stand, and the command reads it through a shell or a script it
+  names, as `sh -c 'git diff --quiet other HEAD'` does
+- **THEN** the command runs, and its new exit is judged
 
 #### Scenario: Commands run side by side
 - **WHEN** two commands each wait for a file the other writes, and a third fails after the first

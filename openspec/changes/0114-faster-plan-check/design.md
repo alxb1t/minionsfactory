@@ -37,7 +37,7 @@ The hazards of running side by side: every `pytest` writes `.pytest_cache`, `mak
 |---|---|---|---|
 | [D1](#d1) | each distinct command runs once a check; each sub-task's own words judge its result | 0108 re-ran one `pytest` line at each sub-task that named it | a run per sub-task |
 | [D2](#d2) | a `pytest` `Verify:` that wants only `exits 0`, and names only test paths and nodes that exist, with no option but `-q`, `-v`, `-x` or `-s`, passes unrun on the gate's green record for the same tree and dry run | the gate runs every test, slow ones too; a subset of a green suite passes, and named paths and nodes that exist prove the subset is not empty | running the subset again; vouching for a `-k` or `-m` selection the gate's run never proved selects a test |
-| [D3](#d3) | a result is kept by command in `.minions/plan-check/<tree>/`, on a settled tree only | re-run only what changed | a record by sub-task; a record on an unsettled tree |
+| [D3](#d3) | a result is kept by command, `HEAD` and every ref in `.minions/plan-check/<tree>/`, on a settled tree only | re-run only what changed; no reading of a command's words proves it reads no ref | a record by sub-task; a record on an unsettled tree; the refs in the key only of a command whose words name a revision or `git` |
 | [D4](#d4) | the rest run in parallel, one slot for each core; `-n` alone, `make` one at a time, `-p no:cacheprovider` for every `pytest` | the person: every core; the cache dir and `.minions/corpus/` are shared | a fixed slot count; one worker for every `pytest` |
 | [D5](#d5) | a timeout kills the command's process group; SIGTERM ends the running groups; `sandboxed()` takes a deadline | orphans hold cores; closes debt `0108·S4` | killing the direct child only |
 | [D6](#d6) | the fixer and the build's close run the plan check in the foreground, within 600 s | no more polling of a check that takes minutes | a background run with a poll |
@@ -67,9 +67,11 @@ with a new case of one invariant, a re-plan and not a grant.
 
 ### D3
 
-The store is `records().parent / "plan-check" / <tree>/`, beside `gate` in the primary's `.minions`. A file is named by the sha256 of the **key**: the command text, and `HEAD`'s sha after a newline when the command **names a revision** — a word that starts `HEAD`, a word that fully matches `[0-9a-f]{7,40}`, or any `git` command but `ls-files`, which reads the tree alone; the sha is then `HEAD`'s and every ref's, so another branch moving ends a reuse. It holds JSON, `{"exit": <code>, "output": <text>}`, which `passed()` reads again.
+The store is `records().parent / "plan-check" / <tree>/`, beside `gate` in the primary's `.minions`. A file is named by the sha256 of the **key**: the command text, then after a newline `HEAD`'s sha and every ref's, as `git for-each-ref` prints them. Every command is keyed so, whatever its words: no reading of a command, a shell's body or a script it names decides whether it reads a ref, so another branch moving ends every reuse. It holds JSON, `{"exit": <code>, "output": <text>}`, which `passed()` reads again.
 
-`check_verifies` reads `HEAD`'s sha once by `git rev-parse HEAD`, reads results before a run, and writes them after the batch ends, only when `settled_tree()` still equals the tree the check began on; a timed-out command is never written. A store that is a link keeps nothing, as `write_record` does. An unsettled tree — the fixer's before its commit — reads and writes none, and a hex-looking word that is no sha only adds `HEAD` to a key.
+**The refs key every command, not the text's guess.** Rounds 1–4 of adversarial card S2 widened a textual reading of what reads git one wrapper at a time — a shell, a script file, a script that delegates, a shell's inline body — each round finding the next, the shape [D2](#d2) ended for S1; a closed list of tree-only programs kept by the text alone was rejected, as what it could keep, `grep`, `git grep` and `ruff`, takes milliseconds, while `pytest` and `make` run the tree's own code. Re-planned by the supervisor under the person's delegation, 2026-11-11, on the rescue's diagnosis and the card's Fix.
+
+`check_verifies` reads `HEAD`'s sha and the refs once, reads results before a run, and writes them after the batch ends, only when `settled_tree()` still equals the tree the check began on; a timed-out command is never written. A store that is a link keeps nothing, as `write_record` does. An unsettled tree — the fixer's before its commit — reads and writes none.
 
 ### D4
 
@@ -121,6 +123,7 @@ All new tests are unit tests at the lowest layer ([T1](../../../skills/mf-cut-ch
 | `tests/test_converge.py` | `test_a_sandboxed_command_gets_the_converge_deadline`, `test_a_catch_up_runs_the_changed_verifies_in_one_plan_check` | [D5](#d5), [D8](#d8) |
 | `tests/test_cut_check.py` | a defect for `V5` in `test_each_mechanical_row_fails_by_name` | [D7](#d7) |
 | `tests/test_plan_check.py` | in `test_a_green_gate_record_passes_a_bare_pytest`, a `-k` selection, a `-m` selection and a `-c` option that run on a green record | [D2](#d2) |
+| `tests/test_plan_check.py` | `test_a_wrapped_git_command_is_not_reused_once_a_branch_moves` | [D3](#d3) |
 
 The change turns existing tests red, and the tasks mend them with the code:
 
@@ -128,6 +131,8 @@ The change turns existing tests red, and the tasks mend them with the code:
 - `test_a_catch_up_judges_the_new_commits` sets `host.exits["git"]` to fail an amended `Verify:`; it sets `host.exits["plan_check.py"]` and prints the failing line instead, and its later `[0, 1, 0]` list of plan-check exits gains the catch-up's own run.
 - `V5` halts the fixture of `tests/test_cut_check.py` whose `Verify:` is `uv run pytest -q -k widget`: it names a test file.
 - Each test of `tests/test_plan_check.py` that edits `tasks.md` leaves the tree unsettled, so no record is read or written: the existing cases hold as they are.
+- `test_a_result_is_kept_by_tree_and_reused` expects an empty commit on the same tree to re-run the `git rev-parse` command alone; under [D3](#d3)'s key by every ref the counted `sh -c` command runs again too, and its counts of runs and kept files follow.
+- `test_a_command_naming_a_revision_is_keyed_by_head` and `test_a_script_file_that_reads_git_is_keyed_by_head` expect `printf 1`, `ruff check .`, `git ls-files src`, `sh plain.sh` and `sh loop.sh` keyed by the text alone; under [D3](#d3) each is keyed by `HEAD` and the refs too.
 
 ## Dependencies
 
@@ -135,6 +140,7 @@ None.
 
 ## Risks / Trade-offs
 
+- Any ref moving — another version's commit, a fetch — ends every kept result, so a check re-runs its unvouched commands: the `grep` lines in milliseconds, a `-k` pytest in seconds, side by side under [D4](#d4). A plan check that misses H20 on it reopens [D3](#d3), per [D10](#d10).
 - A kept result can be stale when a `Verify:` reads an ignored file, a run folder among them. The key is the tree, which ignored files do not enter; a `Verify:` that reads run data is a defect of that plan.
 - Most `pytest` `Verify:` lines name a `-k` selection, so [D2](#d2) runs them: each its own file's tests, side by side, seconds apiece against the whole-suite runs row `V5` keeps out of a plan. A plan check that misses H20 on them reopens [D2](#d2), per [D10](#d10).
 - A plan whose commands together outlast the Bash tool's foreground limit is cut off at 600 s. Row `V5` and the record keep the usual plan far below it; the trigger to revisit is a plan check that halts on that limit.
