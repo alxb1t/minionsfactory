@@ -127,6 +127,17 @@ MODERATE = "build.moderate"
 # each is planned with the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor
 # design D2; 0094-lighter-converge design D1; 0102-build-per-phase design D5.
 PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE)
+# The stations a version is past at a stage: a limit halts it for none of them.
+# Why: 0117-codex-converge design D8.
+_BUILT = ("build", MODERATE)
+_CONVERGED = (*_BUILT, "converge", FIXER)
+PAST = {
+    "converge": _BUILT,
+    "converge-halted": _BUILT,
+    "integrate": _CONVERGED,
+    "integrating": _CONVERGED,
+    "release": (*_CONVERGED, "integrate"),
+}
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
@@ -4480,12 +4491,15 @@ class Run:
             reset = self.limited.get(executor, math.inf)
         return f"{station} — {executor} limited until {_until(reset)}"
 
-    def on_stations(self, change: str) -> list[str]:
+    def on_stations(self, change: str, stage: str | None = None) -> list[str]:
         """Return the executors of a version's planned stations, its checkers' left out.
 
-        A skipped station names none. Why: 0104-codex-limits design D2.
+        A skipped station names none; a `stage` leaves out those behind it, and
+        `rescue` and `supervise`. Why: 0104-codex-limits D2; 0117-codex-converge D8.
         """
         left = {*WORKERS[:2], *self.skipped.get(change, frozenset())}
+        if stage is not None:
+            left |= {*PAST.get(stage, ()), "rescue", "supervise"}
         stations = (station for station in PLANNED if station not in left)
         named = (
             models[0]
@@ -4494,14 +4508,19 @@ class Run:
         )
         return list(dict.fromkeys(named))
 
-    def hold_limited(self, changes: list[str], cuts: list[str]) -> set[str]:
+    def hold_limited(
+        self,
+        changes: list[str],
+        cuts: list[str],
+        stages: dict[str, str] | None = None,
+    ) -> set[str]:
         """Halt what has a station on a limited executor; return the cuts it halted.
 
-        Each planned change halts, and each queued cut whose executor is limited
-        halts as a cut. Why: 0104-codex-limits design D2.
+        Each planned change halts, by the stations ahead of its `stages` entry, and
+        each queued cut halts as a cut. Why: 0104 design D2; 0117-codex-converge D8.
         """
         for change in changes:
-            for executor in self.on_stations(change):
+            for executor in self.on_stations(change, (stages or {}).get(change)):
                 if self.limited_until(executor) is not None:
                     self.halt(change, self.limited_reason(executor))
                     break
@@ -4690,6 +4709,35 @@ class Run:
                     _stamp(folder, f"{table}.md", models[1], tokens)
                 return Checked(code, killed, models, usage_limit(out), fallback, tokens)
             codex_runs += 1
+
+    def fix(
+        self,
+        change: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        deadline: float,
+    ) -> Checked:
+        """Run converge's Codex fixer as `station`; halt nothing, fall back nowhere.
+
+        Codex not ready, or a usage limit, is its `limit`. Why: 0117 design D3, D7.
+        """
+
+        def stopped() -> Checked:
+            reset = self.limited_until("codex")
+            when = "unknown" if reset is None else _until(reset)
+            text = f"codex usage limit — the fixer · resets {when}"
+            return Checked(1, False, models, text, False, None)
+
+        if not self.codex_ready(change, deadline):
+            return stopped()
+        code, killed, out, _ = self.worker(
+            change, station, cwd, prompt, models, timeout=deadline - time.monotonic()
+        )
+        if code != 0 and usage_limit(out):
+            return stopped()
+        return Checked(code, killed, models, "", False, None)
 
     def lacks(self, who: str, station: str) -> list[str]:
         """Return each tool the station's last log asked for and its station lacks.
@@ -6572,7 +6620,8 @@ class Run:
         cut_held: set[str] = set()
         if not halted:
             changes = [version.change for version in versions]
-            cut_held = self.hold_limited(changes, sorted(takeable))
+            at = {change: stage for change, (stage, _) in stages.items()}
+            cut_held = self.hold_limited(changes, sorted(takeable), at)
         if not (halted or self.blocked):
             threads: dict[str, threading.Thread] = {}
             for version in versions:

@@ -5,7 +5,7 @@ The models line, the fixer on Codex with the stage rule, then the windows, the p
 ## Progress
 
 - [x] 1 — the models line: fix codex/<model> in brief_check.py and conduct.py's _models, no inherited executor · moderate
-- [ ] 2 — converge.py's fixer on Codex: through the worker call, a limit halts it, no fallback; 0104·S4 · hard
+- [x] 2 — converge.py's fixer on Codex: through the worker call, a limit halts it, no fallback; 0104·S4 · hard
 - [ ] 3 — _headroom over both windows; fix.md's trailer and no-package line; D68, D76, D40; the spec · hard
 
 ## 1 — the models line: fix codex/<model> in brief_check.py and conduct.py's _models, no inherited executor
@@ -25,19 +25,19 @@ The models line, the fixer on Codex with the stage rule, then the windows, the p
 
 ## 2 — converge.py's fixer on Codex: through the worker call, a limit halts it, no fallback; 0104·S4
 
-- [ ] 2.1 In `skills/mf-converge/scripts/converge.py`, add to the `Host` protocol a method `fix(change, station, cwd, prompt, models, deadline) -> Checked`, its docstring "Run the Codex fixer; return what it did" ([D7](design.md#d7)).
+- [x] 2.1 In `skills/mf-converge/scripts/converge.py`, add to the `Host` protocol a method `fix(change, station, cwd, prompt, models, deadline) -> Checked`, its docstring "Run the Codex fixer; return what it did" ([D7](design.md#d7)).
   Verify: `git grep -n 'Run the Codex fixer; return what it did' -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 2.2 In `converge.py`'s `fixer`, when `executor == "codex"` start the worker through `context.host.fix(context.change, station, context.tree, told, models, context.deadline)` and take its `code`, `killed` and `limit`; a non-empty `limit` raises `Halt(limit)` at once, with no retry. A Claude fixer keeps `host.worker` and its retry. Update the docstring ([D3](design.md#d3), [D7](design.md#d7)).
+- [x] 2.2 In `converge.py`'s `fixer`, when `executor == "codex"` start the worker through `context.host.fix(context.change, station, context.tree, told, models, context.deadline)` and take its `code`, `killed` and `limit`; a non-empty `limit` raises `Halt(limit)` at once, with no retry. A Claude fixer keeps `host.worker` and its retry. Update the docstring ([D3](design.md#d3), [D7](design.md#d7)).
   Verify: `git grep -n 'host.fix(' -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 2.3 In `tests/test_converge.py`, add `fix` to the fake host and `test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit`: a fixer with `("codex", "gpt-6.1-sol", "medium")` calls `fix` and never `worker`; a result whose `limit` is `codex usage limit — the fixer · resets 5:50 PM` halts with that text after one call; a result with exit 1 and no limit gets one retry.
+- [x] 2.3 In `tests/test_converge.py`, add `fix` to the fake host and `test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit`: a fixer with `("codex", "gpt-6.1-sol", "medium")` calls `fix` and never `worker`; a result whose `limit` is `codex usage limit — the fixer · resets 5:50 PM` halts with that text after one call; a result with exit 1 and no limit gets one retry.
   Verify: `uv run pytest tests/test_converge.py -q -k host_fix` exits 0.
-- [ ] 2.4 In `skills/mf-ship/scripts/conduct.py`, add `Run.fix(change, station, cwd, prompt, models, deadline)` beside `Run.checker`, returning a `Checked`. `codex_ready(change, deadline)` false returns `limit` = `text` and starts no worker; else `self.worker(...)` runs, and its exit not 0 with `usage_limit(out)` returns `text`, any other result `limit` `""`. `text` is `codex usage limit — the fixer · resets <time>`, `<time>` `_until(reset)` for a recorded limit's `reset` from `self.limited_until("codex")`, else `unknown` ([D3](design.md#d3)).
+- [x] 2.4 In `skills/mf-ship/scripts/conduct.py`, add `Run.fix(change, station, cwd, prompt, models, deadline)` beside `Run.checker`, returning a `Checked`. `codex_ready(change, deadline)` false returns `limit` = `text` and starts no worker; else `self.worker(...)` runs, and its exit not 0 with `usage_limit(out)` returns `text`, any other result `limit` `""`. `text` is `codex usage limit — the fixer · resets <time>`, `<time>` `_until(reset)` for a recorded limit's `reset` from `self.limited_until("codex")`, else `unknown` ([D3](design.md#d3)).
   Verify: `git grep -n 'codex usage limit — the fixer' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.5 In `tests/test_conduct.py`, add `test_a_codex_fixer_halts_at_a_limit_and_never_falls_back`. Codex limited, its reset hours away: `Run.fix` returns a `limit` holding `codex usage limit — the fixer · resets`, and starts no worker of any executor. Codex not ready with no limit recorded (a failed probe): `resets unknown`. Codex ready, a faked worker exiting 1 on a Codex usage limit: the same text, the limit recorded. A worker exiting 0: `limit` `""`.
+- [x] 2.5 In `tests/test_conduct.py`, add `test_a_codex_fixer_halts_at_a_limit_and_never_falls_back`. Codex limited, its reset hours away: `Run.fix` returns a `limit` holding `codex usage limit — the fixer · resets`, and starts no worker of any executor. Codex not ready with no limit recorded (a failed probe): `resets unknown`. Codex ready, a faked worker exiting 1 on a Codex usage limit: the same text, the limit recorded. A worker exiting 0: `limit` `""`.
   Verify: `uv run pytest tests/test_conduct.py -q -k never_falls_back` exits 0.
-- [ ] 2.6 In `conduct.py`, give `Run.on_stations` a `stage: str | None = None` and `Run.hold_limited` a `stages: dict[str, str] | None = None`. With a stage, leave out the stations behind it, and `rescue` and `supervise`, as [D8](design.md#d8)'s table says; with none, return what it returns now. At `Run.run`'s call, pass `{change: stage for change, (stage, _) in stages.items()}`.
+- [x] 2.6 In `conduct.py`, give `Run.on_stations` a `stage: str | None = None` and `Run.hold_limited` a `stages: dict[str, str] | None = None`. With a stage, leave out the stations behind it, and `rescue` and `supervise`, as [D8](design.md#d8)'s table says; with none, return what it returns now. At `Run.run`'s call, pass `{change: stage for change, (stage, _) in stages.items()}`.
   Verify: `git grep -n 'stages: dict\[str, str\] | None' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.7 In `tests/test_conduct.py`, add `test_a_limit_halts_only_the_stations_ahead`: with Codex limited, `hold_limited` given the stage `release` does not halt a version whose `[build]` names Codex, and given the stage `build` halts it; `on_stations` with no stage returns what it returns now.
+- [x] 2.7 In `tests/test_conduct.py`, add `test_a_limit_halts_only_the_stations_ahead`: with Codex limited, `hold_limited` given the stage `release` does not halt a version whose `[build]` names Codex, and given the stage `build` halts it; `on_stations` with no stage returns what it returns now.
   Verify: `uv run pytest tests/test_conduct.py -q -k stations_ahead` exits 0.
 
 ## 3 — _headroom over both windows; fix.md's trailer and no-package line; D68, D76, D40; the spec

@@ -191,6 +191,17 @@ class Host(Protocol):
     ) -> tuple[int, bool, Path, list[str]]:
         """Run one worker; return its exit, whether it was killed, its log, denials."""
 
+    def fix(
+        self,
+        change: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        deadline: float,
+    ) -> Checked:
+        """Run the Codex fixer; return what it did."""
+
 
 class SendBack(Exception):
     """Step 7's plan check failed: its subjects go back to the fixer, no round."""
@@ -1037,10 +1048,10 @@ def unequipped(context: Context, station: str) -> None:
 
 
 def fixer(context: Context, ids: str) -> None:
-    """Run one fixer through `host.worker` on `fix=`'s model, retried once.
+    """Run one fixer on `fix=`'s model, Codex's through `host.fix`, retried once.
 
-    A kill or a second failure halts; its effort is `medium` unless `fix=` names one.
-    Why: design D4, D5.
+    A Codex limit, a kill or a second failure halts; effort is `medium` unless named.
+    Why: design D4, D5; 0117-codex-converge design D3, D7.
     """
     executor, model, effort = context.workers["fix"]
     station = f"converge-fix-r{context.round}"
@@ -1058,9 +1069,17 @@ def fixer(context: Context, ids: str) -> None:
     for last in (False, True):
         (context.folder / "fix.md").unlink(missing_ok=True)
         seconds = remaining(context)
-        code, killed, _, _ = context.host.worker(
-            context.change, station, context.tree, told, models, timeout=seconds
-        )
+        if executor == "codex":
+            result = context.host.fix(
+                context.change, station, context.tree, told, models, context.deadline
+            )
+            if result.limit:
+                raise Halt(result.limit)
+            code, killed = result.code, result.killed
+        else:
+            code, killed, _, _ = context.host.worker(
+                context.change, station, context.tree, told, models, timeout=seconds
+            )
         if not killed:
             unequipped(context, station)
         why = failure(station, seconds, code, killed)

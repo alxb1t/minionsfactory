@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A brief's `fix codex/<model> <effort>` and `[converge.fix] executor = "codex"` are valid; a fixer naming no host
   runs on Claude and no longer inherits `[converge]`'s executor (0117-codex-converge, phase 1).
+- A Codex fixer starts through the new `Host.fix` and `Run.fix`; Codex not ready, or a usage limit, halts the
+  version `codex usage limit — the fixer · resets <time>`, with no fallback to Claude (0117-codex-converge, phase 2).
+- A limit halts a version only for the stations ahead of its stage, and for neither `rescue` nor `supervise`
+  (debt card 0104·S4; 0117-codex-converge, phase 2).
 
 ## [0.96.0] - 2026-11-11
 

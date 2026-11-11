@@ -10898,6 +10898,98 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     assert [who for who, _ in run.halts] == ["0001-build", "0003-a"]
 
 
+def test_a_codex_fixer_halts_at_a_limit_and_never_falls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    (root / ".minions" / "changes" / "0001-todo").mkdir(parents=True)
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    (tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08").mkdir(parents=True)
+    models = ("codex", "gpt-6.1-sol", "medium")
+    run = conduct["Run"](root, "claude")
+    run.probed.update({"claude", "codex"})
+    fake_codex("", "limit")
+
+    def fix() -> tuple[int, bool, tuple[str, str | None, str | None], str]:
+        deadline = time.monotonic() + 3000
+        ask = f"{_ask(root, 'conformance')}fix it\n"
+        done = run.fix("0001-todo", "converge-fix-r1", tree, ask, models, deadline)
+        return done.code, done.killed, done.models, done.limit
+
+    def told() -> int:
+        return sum("fix it" in " ".join(argv) for argv in _codex_argvs(tmp_path))
+
+    def until(reset: float) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(reset))
+
+    text = "codex usage limit — the fixer · resets "
+    claude_argvs = tmp_path / "claude-argv.jsonl"
+
+    # A limit hours away: no worker of any executor starts.
+    reset = time.time() + 7200
+    run.limited["codex"] = reset
+    assert fix() == (1, False, models, f"{text}{until(reset)}")
+    assert told() == 0 and not claude_argvs.is_file()
+
+    # Codex not ready, and no limit recorded: a failed probe names no reset.
+    run.limited.clear()
+    run.probed.discard("codex")
+    fake_codex("unsandboxed", "")
+    assert fix()[3] == f"{text}unknown"
+    assert told() == 0 and not claude_argvs.is_file()
+
+    # Ready, and the worker meets a Codex usage limit: the same text, the limit kept.
+    run.probed.add("codex")
+    fake_codex("", "limit")
+    limit = fix()[3]
+    recorded = run.limited_until("codex")
+    assert recorded is not None and limit == f"{text}{until(recorded)}"
+    assert told() == 1 and not claude_argvs.is_file()
+
+    # A worker that exits 0 is no limit.
+    run.limited.clear()
+    fake_codex("", "")
+    assert fix() == (0, False, models, "")
+    assert told() == 2 and not claude_argvs.is_file()
+
+
+def test_a_limit_halts_only_the_stations_ahead(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+
+    def joined(change: str, table: str) -> object:
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True)
+        (folder / "models.toml").write_text(table)
+        return conduct["Version"](change, _version(root, change, "- [ ] 1 — Todo\n"))
+
+    build = joined("0001-build", '[build]\nexecutor = "codex"\n[converge]\n')
+    rescue = joined("0002-rescue", '[rescue]\nexecutor = "codex"\n[converge]\n')
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, rescue])
+    run.limited["codex"] = time.time() + 3600
+
+    assert run.on_stations("0001-build") == ["codex", "claude"]
+    assert run.on_stations("0001-build", "build") == ["codex", "claude"]
+    assert run.on_stations("0001-build", "converge") == ["claude"]
+    assert run.on_stations("0001-build", "release") == ["claude"]
+    assert run.on_stations("0002-rescue") == ["claude", "codex"]
+    assert run.on_stations("0002-rescue", "build") == ["claude"]
+
+    changes = ["0001-build", "0002-rescue"]
+    stages = {"0001-build": "release", "0002-rescue": "build"}
+    assert run.hold_limited(changes, [], stages) == set()
+    assert run.halts == []
+
+    run.hold_limited(changes, [], {"0001-build": "build", "0002-rescue": "release"})
+    assert [who for who, _ in run.halts] == ["0001-build"]
+
+
 def test_a_codex_worker_starts_on_mf_settings_alone(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
