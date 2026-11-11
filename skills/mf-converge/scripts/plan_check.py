@@ -32,6 +32,7 @@ CPUS = os.cpu_count() or 1
 RUNNING: set[subprocess.Popen[str]] = set()
 PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
 REVISION = re.compile(r"[0-9a-f]{7,40}")
+TEST_MODULE = re.compile(r"test_.*\.py|.*_test\.py")
 QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
 SHOWN = 5
 CHANGE = re.compile(r"[a-z0-9-]+")
@@ -383,20 +384,23 @@ def is_pytest(argv: list[str]) -> bool:
 
 
 def names_tests(argv: list[str], root: Path) -> bool:
-    """Return whether each operand's file and `::` nodes exist in `root`.
+    """Return whether each operand is a test module whose `::` nodes are tests.
 
-    A `[` parameter id is never vouched for: it exists only on collection.
+    A directory, non-test file or node, or `[` id runs: only collection settles it.
     """
     for word in argv:
         path, *nodes = word.split("::")
         file = root / path
-        if not file.is_file() and not file.is_dir():
+        if not file.is_file() or not TEST_MODULE.fullmatch(file.name):
             return False
         text = _read(file) if nodes else ""
         for node in nodes:
             if "[" in node:  # a parameter id exists only on collection: run it
                 return False
-            if not re.search(rf"\b(?:def|class)\s+{re.escape(node)}\b", text):
+            kind = "def" if node.startswith("test") else "class"
+            if not node.startswith(("test", "Test")) or not re.search(
+                rf"^\s*(?:async\s+)?{kind}\s+{re.escape(node)}\b", text, re.M
+            ):
                 return False
     return True
 

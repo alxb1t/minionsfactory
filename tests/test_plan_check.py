@@ -375,13 +375,23 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     assert check() == (1, ["plan: 1.1 — `pytest -q` exited 3"])
     # A pytest naming a path or node that is gone is no bare pytest: it runs.
     (root / "tests").mkdir(exist_ok=True)
-    (root / "tests/test_here.py").write_text("def test_here():\n    pass\n")
+    (root / "tests/test_here.py").write_text(
+        "def test_here():\n    pass\n\n\ndef _helper():\n    pass\n"
+    )
+    (root / "tests/helpers.py").write_text("X = 1\n")
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "docs/note.md").write_text("x\n")
     here = "tests/test_here.py::test_here"
     # A parameter id cannot be proved to exist without collecting: it runs too.
+    # Nor can a directory, a file pytest never collects or a node that is no test.
     for named in (
         "tests/test_gone.py",
         "tests/test_here.py::test_gone",
         "tests/test_here.py::test_here[missing]",
+        "docs",
+        "tests",
+        "tests/helpers.py",
+        "tests/test_here.py::_helper",
     ):
         _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
         record()
