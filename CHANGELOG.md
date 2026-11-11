@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run directory: the brief, each fact with its lines at `HEAD`, the cited decisions, the requirements the brief
   names, the debt cards on cited files and the skeleton of each artifact; `brief_check.py --sections` prints the
   brief's sections as JSON for it (change `0116-cut-diet`, phase 1).
+- `cut_context.py <brief> <change-id> --scaffold` writes the proposal's frontmatter, title, one line and
+  `## Not in this change`, the design's `## Decisions` table and `## Dependencies`, and `tasks.md`'s `## Progress`
+  and phase headings from the brief, and writes none when one exists. Row `V2` of `cut_check.py` evaluates a `-k`
+  expression against each changed test name, so a nested negation no longer halts on a test it leaves out (change
+  `0116-cut-diet`, phase 2).
 
 ## [0.95.0] - 2026-11-11
 

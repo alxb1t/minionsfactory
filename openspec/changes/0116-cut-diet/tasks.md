@@ -5,7 +5,7 @@ The phases: the context pack, the scaffold with the `V2` fix, then the skill, th
 ## Progress
 
 - [x] 1 — cut_context.py: the context pack · hard
-- [ ] 2 — cut_context.py --scaffold, and row V2 on a negated -k · hard
+- [x] 2 — cut_context.py --scaffold, and row V2 on a negated -k · hard
 - [ ] 3 — The skill, the cache, the decisions and the skill's tests · hard
 
 ## 1 — cut_context.py: the context pack
@@ -35,19 +35,19 @@ The phases: the context pack, the scaffold with the `V2` fix, then the skill, th
 
 ## 2 — cut_context.py --scaffold, and row V2 on a negated -k
 
-- [ ] 2.1 **HALT CHECK** the scaffold's seams exist in `cut_context.py` ([D5](design.md#d5)).
+- [x] 2.1 **HALT CHECK** the scaffold's seams exist in `cut_context.py` ([D5](design.md#d5)).
   Verify: `git grep -n -e '^def item_parts(' -e '^def brief_sections(' -e '^def main(' -- skills/mf-cut-change/scripts/cut_context.py` prints a line for each.
-- [ ] 2.2 In `skills/mf-cut-change/scripts/cut_context.py` add `title_of(slug)` and `proposal_text(sections, slug)`, the proposal of [D5](design.md#d5); add `test_the_proposal_scaffold_holds_the_frontmatter_and_what_is_out` to `tests/test_cut_context.py`.
+- [x] 2.2 In `skills/mf-cut-change/scripts/cut_context.py` add `title_of(slug)` and `proposal_text(sections, slug)`, the proposal of [D5](design.md#d5); add `test_the_proposal_scaffold_holds_the_frontmatter_and_what_is_out` to `tests/test_cut_context.py`.
   Verify: `uv run pytest -q tests/test_cut_context.py -k proposal_scaffold` exits 0.
-- [ ] 2.3 In `skills/mf-cut-change/scripts/cut_context.py` add `design_text(sections, slug)`, the decisions table and `## Dependencies` of [D5](design.md#d5); add `test_the_design_scaffold_numbers_the_decisions_and_lists_the_packages` to `tests/test_cut_context.py`.
+- [x] 2.3 In `skills/mf-cut-change/scripts/cut_context.py` add `design_text(sections, slug)`, the decisions table and `## Dependencies` of [D5](design.md#d5); add `test_the_design_scaffold_numbers_the_decisions_and_lists_the_packages` to `tests/test_cut_context.py`.
   Verify: `uv run pytest -q tests/test_cut_context.py -k design_scaffold` exits 0.
-- [ ] 2.4 In `skills/mf-cut-change/scripts/cut_context.py` add `tasks_text(sections)`, the progress lines and phase headings of [D5](design.md#d5), a phase with no rating stopping with exit 1; add `test_the_tasks_scaffold_lists_each_phase` to `tests/test_cut_context.py`.
+- [x] 2.4 In `skills/mf-cut-change/scripts/cut_context.py` add `tasks_text(sections)`, the progress lines and phase headings of [D5](design.md#d5), a phase with no rating stopping with exit 1; add `test_the_tasks_scaffold_lists_each_phase` to `tests/test_cut_context.py`.
   Verify: `uv run pytest -q tests/test_cut_context.py -k tasks_scaffold` exits 0.
-- [ ] 2.5 In `skills/mf-cut-change/scripts/cut_context.py` give `main` the flag `--scaffold`, which writes the scaffold files and writes none when one exists ([D5](design.md#d5)); add `test_the_scaffold_refuses_a_file_that_exists` to `tests/test_cut_context.py`.
+- [x] 2.5 In `skills/mf-cut-change/scripts/cut_context.py` give `main` the flag `--scaffold`, which writes the scaffold files and writes none when one exists ([D5](design.md#d5)); add `test_the_scaffold_refuses_a_file_that_exists` to `tests/test_cut_context.py`.
   Verify: `uv run pytest -q tests/test_cut_context.py -k scaffold_refuses` exits 0.
-- [ ] 2.6 In `skills/mf-cut-change/scripts/cut_check.py` add `selects(expression, name)`, the `-k` reading and positive match of [D7](design.md#d7); add `test_a_k_expression_selects_by_pytests_rules` to `tests/test_cut_check.py`.
+- [x] 2.6 In `skills/mf-cut-change/scripts/cut_check.py` add `selects(expression, name)`, the `-k` reading and positive match of [D7](design.md#d7); add `test_a_k_expression_selects_by_pytests_rules` to `tests/test_cut_check.py`.
   Verify: `uv run pytest -q tests/test_cut_check.py -k k_expression_selects` exits 0.
-- [ ] 2.7 In `skills/mf-cut-change/scripts/cut_check.py` make `_selected` return the expressions and `row_v2` halt on `selects`, as [D7](design.md#d7) says; in `tests/test_cut_check.py` assert the expressions in `test_a_search_names_its_literal_needle` and add `test_v2_halts_only_on_a_selected_test`.
+- [x] 2.7 In `skills/mf-cut-change/scripts/cut_check.py` make `_selected` return the expressions and `row_v2` halt on `selects`, as [D7](design.md#d7) says; in `tests/test_cut_check.py` assert the expressions in `test_a_search_names_its_literal_needle` and add `test_v2_halts_only_on_a_selected_test`.
   Verify: `uv run pytest -q tests/test_cut_check.py -k v2_halts_only` exits 0.
 
 ## 3 — The skill, the cache, the decisions and the skill's tests

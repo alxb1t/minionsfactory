@@ -2,10 +2,10 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Write the cut's context pack and notes from a brief.
+"""Write the cut's context pack, or with --scaffold its artifacts, from a brief.
 
-    cut_context.py <brief> <change-id>
-Exit 0 every fact placed · 1 one is unplaced · 2 unreadable. Why: 0116-cut-diet D4.
+    cut_context.py <brief> <change-id> [--scaffold]
+Exit 0 done · 1 a fact unplaced or a scaffold refused · 2 unreadable. Why: 0116 D4, D5.
 """
 
 import argparse
@@ -33,6 +33,15 @@ REQUIREMENT = "### Requirement: "
 FENCE = "~~~~"
 CARD_ID = re.compile(r"- \*\*(\S+) — ")
 CHANGE_ID = re.compile(r"\d+-[a-z0-9]+(?:-[a-z0-9]+)*")
+PHASES = "## Phases"
+DECISIONS = "## Decisions"
+DEPENDENCIES = "## Dependencies"
+NOT_IN_THIS = "## Not in this"
+FRONT_KEYS = ("after", "beside", "debt")
+PHASE_HEAD = re.compile(r"(\d+) {2,}(\S.*)")
+RATED = re.compile(r"(.*) · (hard|moderate)\b")
+DECISION_ID = re.compile(r"[QC]\d+")
+FENCE_OPENERS = ("```", "~~~")
 # The headings of each artifact in order, per the cut's rule A1.
 SKELETONS = {
     "proposal.md": """\
@@ -333,18 +342,30 @@ def debt_section(item: list[str] | None, placed: list[Any]) -> str:
         return _section("Debt cards", [])
     debt_match = _load(DEBT_MATCH)
     cited = {cite.path for one in placed for cite in one.cites}
-    listed = {
-        entry.strip("[]` ")
-        for part in item or []
-        if part.startswith("debt:")
-        for entry in part.removeprefix("debt:").split(",")
-    } - {""}
+    listed = set(_ids(item_flags(item or []).get("debt", "")))
     kept = [
         card.strip()
         for card in debt_match.cards(_read(path))
         if debt_match.matched(card, cited) or _card_id(card) in listed
     ]
     return _section("Debt cards", kept)
+
+
+def item_flags(parts: list[str]) -> dict[str, str]:
+    """Return each `key: value` part of an item, from its third part on.
+
+    e.g. ["**`a`**", "`minor`", "after: none", "debt: [x]"] → {"after": "none", ...}
+    """
+    flags = (part.partition(":") for part in parts[2:])
+    return {key.strip(): value.strip() for key, _, value in flags}
+
+
+def _ids(value: str) -> list[str]:
+    """Return the ids of a `[a, b]` list, a bare one or `none`.
+
+    e.g. "[0113·S4, 0114·S1]" → ["0113·S4", "0114·S1"]
+    """
+    return [one for entry in value.split(",") if (one := entry.strip("[]` "))]
 
 
 def _card_id(card: str) -> str:
@@ -379,6 +400,26 @@ def _section(heading: str, parts: list[str]) -> str:
     return f"## {heading}\n\n{'\n\n'.join(parts) or 'None.'}"
 
 
+def _slug(change: str) -> str:
+    """Return a change id without its number; a malformed id stops with exit 2.
+
+    e.g. "0116-cut-diet" → "cut-diet"
+    """
+    if not CHANGE_ID.fullmatch(change):
+        raise Stop(2, f"cut_context: cannot write — `{change}` is no change id")
+    return change.partition("-")[2]
+
+
+def _mkdir(folder: Path) -> None:
+    """Create `folder` and its parents; an unwritable path stops with exit 2."""
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise Stop(
+            2, f"cut_context: cannot write — {folder}: {error.strerror}"
+        ) from None
+
+
 def _write(path: Path, text: str) -> None:
     """Write `text` to `path`; a link or an unwritable path stops with exit 2."""
     if path.is_symlink():
@@ -394,11 +435,10 @@ def pack(brief: Path, change: str) -> int:
 
     The code is 0 when every fact is placed and 1 when one is not.
     """
-    if not CHANGE_ID.fullmatch(change):
-        raise Stop(2, f"cut_context: cannot write — `{change}` is no change id")
+    slug = _slug(change)
     text = _read(brief)
     sections = brief_sections(brief)
-    item = item_parts(sections, change.partition("-")[2])
+    item = item_parts(sections, slug)
     facts_text, placed = facts_section(brief)
     named, index = requirements_sections(brief)
     parts = [
@@ -411,12 +451,7 @@ def pack(brief: Path, change: str) -> int:
         skeletons_section(),
     ]
     folder = run_dir() / "changes" / change
-    try:
-        folder.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        raise Stop(
-            2, f"cut_context: cannot write — {folder}: {error.strerror}"
-        ) from None
+    _mkdir(folder)
     _write(folder / "context.md", "\n\n".join(parts) + "\n")
     facts = _facts()
     lines = [
@@ -435,15 +470,188 @@ def pack(brief: Path, change: str) -> int:
     return 1 if unplaced else 0
 
 
+def title_of(slug: str) -> str:
+    """Return the slug's words, the first capitalised.
+
+    e.g. "cut-diet" → "Cut diet"
+    """
+    words = slug.replace("-", " ")
+    return words[:1].upper() + words[1:]
+
+
+def _cells(line: str) -> list[str]:
+    """Return a table row's cells, split on `|` outside code spans and escapes.
+
+    e.g. "| a | `b | c` |" → ["a", "`b | c`"]
+    """
+    cells: list[str] = []
+    current, code, previous = "", False, ""
+    for char in line.strip():
+        code ^= char == "`"
+        if char == "|" and not code and previous != "\\":
+            cells.append(current.strip())
+            current = ""
+        else:
+            current += char
+        previous = char
+    return cells[1:]
+
+
+def _rows(lines: list[str]) -> list[list[str]]:
+    """Return the cells of each table row among `lines`."""
+    return [_cells(line) for line in lines if line.lstrip().startswith("|")]
+
+
+def proposal_text(sections: dict[str, list[str]], slug: str) -> str:
+    """Return the proposal scaffold: frontmatter, title, one line, what is out.
+
+    A slug with no `## For the cut` item stops with exit 2.
+    """
+    item = item_parts(sections, slug)
+    if item is None or len(item) < 2:
+        raise Stop(2, f"cut_context: cannot write — no `## For the cut` item `{slug}`")
+    flags = item_flags(item)
+    front = [f"bump: {item[1].strip('` ')}"]
+    for key in FRONT_KEYS:
+        ids = [one for one in _ids(flags.get(key, "")) if one != "none"]
+        if ids:
+            front.append(f"{key}: [{', '.join(ids)}]")
+    under = next(
+        (lines for head, lines in sections.items() if head.startswith("# ")), []
+    )
+    one = next((line.strip().strip("*") for line in under if line.strip()), "")
+    out = [line.rstrip() for line in sections.get(NOT_IN_THIS, []) if line.strip()]
+    return "\n".join(
+        ["---", *front, "---", "", f"# {title_of(slug)}", "", one, ""]
+        + ["## Not in this change", "", *(out or ["None."])]
+        + [""]
+    )
+
+
+def design_text(sections: dict[str, list[str]], slug: str) -> str:
+    """Return the design scaffold: the decisions table and the dependencies.
+
+    A row is a `Q` or `C` row of the brief's `## Decisions`, a blank cell a `—`,
+    and a row whose decision is `—` is left out.
+    """
+    kept = [
+        cells
+        for cells in _rows(sections.get(DECISIONS, []))
+        if len(cells) >= 3
+        and DECISION_ID.fullmatch(cells[0].strip("*` "))
+        and cells[1] != "—"
+    ]
+    table = [
+        f"| [D{n}](#d{n}) | {cells[1] or '—'} | {cells[2] or '—'} | — |"
+        for n, cells in enumerate(kept, 1)
+    ]
+    mine = [
+        cells[1:4]
+        for cells in _rows(sections.get(DEPENDENCIES, []))
+        if len(cells) >= 4 and cells[0].strip("*` ") == slug
+    ]
+    needs = (
+        ["| package | constraint | why |", "|---|---|---|"]
+        + [f"| {' | '.join(row)} |" for row in mine]
+        if mine
+        else ["None."]
+    )
+    return "\n".join(
+        [f"# {title_of(slug)} — design", "", DECISIONS, ""]
+        + ["| id | decision | because | rejected |", "|---|---|---|---|", *table]
+        + ["", DEPENDENCIES, "", *needs, ""]
+    )
+
+
+def phases(sections: dict[str, list[str]]) -> list[tuple[str, str, str]]:
+    """Return `(number, title, rating)` of each phase of the brief's `## Phases`.
+
+    A phase starts at `<n>  <text>` and runs over the lines indented below it; one
+    with no ` · hard` or ` · moderate` stops with exit 1.
+    """
+    body = [
+        line
+        for line in sections.get(PHASES, [])
+        if line.strip() and not line.lstrip().startswith(FENCE_OPENERS)
+    ]
+    margin = min((len(line) - len(line.lstrip()) for line in body), default=0)
+    found: list[list[str]] = []
+    for line in body:
+        indent = len(line) - len(line.lstrip())
+        head = PHASE_HEAD.fullmatch(line.strip()) if indent == margin else None
+        if head:
+            found.append([head[1], head[2]])
+        elif found and indent > margin:
+            found[-1].append(line.strip())
+    done: list[tuple[str, str, str]] = []
+    for number, *words in found:
+        rated = RATED.match(" ".join(" ".join(words).split()))
+        if rated is None:
+            raise Stop(1, f"cut_context: scaffold — phase {number} has no rating")
+        done.append((number, rated[1], rated[2]))
+    return done
+
+
+def tasks_text(sections: dict[str, list[str]]) -> str:
+    """Return the tasks scaffold after its title: `## Progress` and a heading a phase.
+
+    A brief with no phase, or a phase with no rating, stops with exit 1.
+    """
+    found = phases(sections)
+    if not found:
+        raise Stop(1, "cut_context: scaffold — the brief's ## Phases holds no phase")
+    return "\n".join(
+        ["## Progress", ""]
+        + [f"- [ ] {number} — {title} · {rating}" for number, title, rating in found]
+        + [
+            line
+            for number, title, _ in found
+            for line in ("", f"## {number} — {title}")
+        ]
+        + [""]
+    )
+
+
+def scaffold(brief: Path, change: str) -> int:
+    """Write the proposal, design and tasks scaffold of `change`; return 0.
+
+    One that exists, a malformed id or a brief that cannot be read stops the run
+    before any file is written.
+    """
+    slug = _slug(change)
+    sections = brief_sections(brief)
+    texts = {
+        "proposal.md": proposal_text(sections, slug),
+        "design.md": design_text(sections, slug),
+        "tasks.md": f"# {title_of(slug)} — tasks\n\n{tasks_text(sections)}",
+    }
+    folder = Path("openspec") / "changes" / change
+    for name in texts:
+        if (folder / name).exists() or (folder / name).is_symlink():
+            raise Stop(
+                1, f"cut_context: scaffold — {folder / name} exists, none written"
+            )
+    _mkdir(folder)
+    for name, text in texts.items():
+        _write(folder / name, text)
+    print(f"cut_context: scaffold — {folder} · {', '.join(texts)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Write a change's context pack from its brief, from the repository root."""
+    """Write a change's context pack, or its scaffold, from the repository root."""
     parser = argparse.ArgumentParser(
         description="Write the cut's context pack and notes from a brief."
     )
     parser.add_argument("brief", type=Path, help="the brief")
     parser.add_argument("change", help="the change id")
+    parser.add_argument(
+        "--scaffold", action="store_true", help="write the artifacts' scaffold instead"
+    )
     args = parser.parse_args(argv)
     try:
+        if args.scaffold:
+            return scaffold(args.brief, args.change)
         return pack(args.brief, args.change)
     except Stop as stop:
         print(stop)

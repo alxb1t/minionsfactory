@@ -539,3 +539,195 @@ def test_a_cite_is_read_at_head_and_cut_at_the_cap(
     assert cut_context.cite_lines(("src/short.py", 5, 6)) == [
         "src/short.py:5-6 — past the end of the file, at 2"
     ]
+
+
+_SCAFFOLD_BRIEF = """\
+# Cut diet · a minor · hard · 2026-11-11
+
+**The cut reads its context once.**
+
+At f349aa8, 2026-11-11.
+
+## Decisions
+| # | decision | the reason that settled it |
+|---|---|---|
+| Q1 | a pack, `a | b` | P11 |
+| Q2 | — | dropped |
+| C1 | a scaffold |  |
+| X9 | not a decision | no |
+
+## Dependencies
+| item | package | constraint | why |
+|---|---|---|---|
+| cut-diet | `markdown-it-py` | `>=3,<4` | parses |
+| other | zzz | * | no |
+
+## Phases
+```
+1  the pack ·
+     hard
+2  scaffold
+   and V2 · moderate · extra
+```
+
+## Not in this
+- the cut's model in code
+- the plan-metrics defects
+
+## For the cut
+1. **`cut-diet`** · `minor` · after: 0115-a, 0115-b · beside: none · debt: [0113·S4]
+   - models: build opus high · converge opus high · release opus high · cut opus high
+"""
+
+
+def _sections(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str
+) -> dict[str, list[str]]:
+    brief = tmp_path / "brief.md"
+    brief.write_text(text)
+    _runner(monkeypatch)
+    return cut_context.brief_sections(brief)
+
+
+def test_the_proposal_scaffold_holds_the_frontmatter_and_what_is_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sections = _sections(tmp_path, monkeypatch, _SCAFFOLD_BRIEF)
+    assert cut_context.title_of("cut-diet") == "Cut diet"
+    assert cut_context.title_of("a") == "A"
+    assert cut_context.proposal_text(sections, "cut-diet") == (
+        "---\nbump: minor\nafter: [0115-a, 0115-b]\ndebt: [0113·S4]\n---\n\n"
+        "# Cut diet\n\nThe cut reads its context once.\n\n"
+        "## Not in this change\n\n"
+        "- the cut's model in code\n- the plan-metrics defects\n"
+    )
+    bare = _SCAFFOLD_BRIEF.replace(
+        " · after: 0115-a, 0115-b · beside: none · debt: [0113·S4]",
+        " · beside: 0115-c · debt: none",
+    ).replace("## Not in this\n- the cut's model in code\n", "")
+    assert cut_context.proposal_text(
+        _sections(tmp_path, monkeypatch, bare), "cut-diet"
+    ).startswith("---\nbump: minor\nbeside: [0115-c]\n---\n\n# Cut diet\n")
+    assert cut_context.proposal_text(
+        _sections(
+            tmp_path, monkeypatch, "# T\n\n## For the cut\n1. **`a`** · `patch`\n"
+        ),
+        "a",
+    ) == ("---\nbump: patch\n---\n\n# A\n\n\n\n## Not in this change\n\nNone.\n")
+    for missing in ("other", "a-b"):
+        with pytest.raises(cut_context.Stop) as stop:
+            cut_context.proposal_text(sections, missing)
+        assert (stop.value.code, missing in str(stop.value)) == (2, True)
+    short = _sections(tmp_path, monkeypatch, "## For the cut\n1. **`cut-diet`**\n")
+    with pytest.raises(cut_context.Stop) as stop:
+        cut_context.proposal_text(short, "cut-diet")
+    assert stop.value.code == 2
+
+
+def test_the_design_scaffold_numbers_the_decisions_and_lists_the_packages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sections = _sections(tmp_path, monkeypatch, _SCAFFOLD_BRIEF)
+    assert cut_context.design_text(sections, "cut-diet") == (
+        "# Cut diet — design\n\n## Decisions\n\n"
+        "| id | decision | because | rejected |\n|---|---|---|---|\n"
+        "| [D1](#d1) | a pack, `a | b` | P11 | — |\n"
+        "| [D2](#d2) | a scaffold | — | — |\n\n"
+        "## Dependencies\n\n"
+        "| package | constraint | why |\n|---|---|---|\n"
+        "| `markdown-it-py` | `>=3,<4` | parses |\n"
+    )
+    other = cut_context.design_text(sections, "other")
+    assert other.endswith(
+        "## Dependencies\n\n| package | constraint | why |\n"
+        "|---|---|---|\n| zzz | * | no |\n"
+    )
+    none = _SCAFFOLD_BRIEF.replace(
+        "| item | package | constraint | why |\n|---|---|---|---|\n", ""
+    )
+    text = cut_context.design_text(_sections(tmp_path, monkeypatch, none), "x")
+    assert text.endswith("## Dependencies\n\nNone.\n")
+    assert cut_context.design_text({}, "cut-diet") == (
+        "# Cut diet — design\n\n## Decisions\n\n"
+        "| id | decision | because | rejected |\n|---|---|---|---|\n\n"
+        "## Dependencies\n\nNone.\n"
+    )
+
+
+def test_the_tasks_scaffold_lists_each_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sections = _sections(tmp_path, monkeypatch, _SCAFFOLD_BRIEF)
+    assert cut_context.phases(sections) == [
+        ("1", "the pack", "hard"),
+        ("2", "scaffold and V2", "moderate"),
+    ]
+    assert cut_context.tasks_text(sections) == (
+        "## Progress\n\n"
+        "- [ ] 1 — the pack · hard\n- [ ] 2 — scaffold and V2 · moderate\n\n"
+        "## 1 — the pack\n\n## 2 — scaffold and V2\n"
+    )
+    loose = "## Phases\n   stray\nnot a head\n1  a · b · hard\n  c\n"
+    assert cut_context.phases(_sections(tmp_path, monkeypatch, loose)) == [
+        ("1", "a · b", "hard")
+    ]
+    for text, said in (
+        ("## Phases\n1  a\n2  b · hard\n", "phase 1 has no rating"),
+        ("## Phases\n", "holds no phase"),
+        ("# T\n", "holds no phase"),
+    ):
+        with pytest.raises(cut_context.Stop) as stop:
+            cut_context.tasks_text(_sections(tmp_path, monkeypatch, text))
+        assert (stop.value.code, said in str(stop.value)) == (1, True)
+
+
+def test_the_scaffold_refuses_a_file_that_exists(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    brief = root / "brief.md"
+    brief.write_text(_SCAFFOLD_BRIEF)
+    monkeypatch.chdir(root)
+    _runner(monkeypatch)
+    folder = root / "openspec" / "changes" / "0116-cut-diet"
+    names = ("proposal.md", "design.md", "tasks.md")
+
+    def scaffold(*extra: str) -> tuple[int, str]:
+        code = cut_context.main([str(brief), "0116-cut-diet", "--scaffold", *extra])
+        return code, capsys.readouterr().out
+
+    folder.mkdir(parents=True)
+    (folder / "design.md").write_text("mine\n")
+    code, out = scaffold()
+    assert (code, "design.md exists, none written" in out) == (1, True)
+    assert sorted(path.name for path in folder.iterdir()) == ["design.md"]
+    (folder / "design.md").unlink()
+    (folder / "tasks.md").symlink_to(root / "nowhere")
+    assert scaffold()[0] == 1
+    assert sorted(path.name for path in folder.iterdir()) == ["tasks.md"]
+    (folder / "tasks.md").unlink()
+    assert scaffold() == (
+        0,
+        "cut_context: scaffold — openspec/changes/0116-cut-diet"
+        " · proposal.md, design.md, tasks.md\n",
+    )
+    written = {name: (folder / name).read_text() for name in names}
+    assert written["tasks.md"].startswith("# Cut diet — tasks\n\n## Progress\n")
+    assert written["design.md"].startswith("# Cut diet — design\n")
+    assert written["proposal.md"].startswith("---\nbump: minor\n")
+    assert str(brief) not in "".join(written.values())
+    code, out = scaffold()
+    assert (code, "proposal.md exists, none written" in out) == (1, True)
+    assert {name: (folder / name).read_text() for name in names} == written
+    unrated = root / "unrated.md"
+    unrated.write_text(_SCAFFOLD_BRIEF.replace(" · moderate", ""))
+    assert cut_context.main([str(unrated), "0117-cut-diet", "--scaffold"]) == 1
+    assert "phase 2 has no rating" in capsys.readouterr().out
+    assert not (root / "openspec" / "changes" / "0117-cut-diet").exists()
+    assert cut_context.main([str(brief), "0117-other", "--scaffold"]) == 2
+    assert "`other`" in capsys.readouterr().out
+    assert cut_context.main([str(brief), "cut-diet", "--scaffold"]) == 2
+    assert "no change id" in capsys.readouterr().out
