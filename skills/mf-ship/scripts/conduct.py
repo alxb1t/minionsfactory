@@ -85,6 +85,9 @@ SPECIFIER = re.compile(r"[<>=!~][<>=!~,.0-9A-Za-z*+ -]*")
 NPM_PREFIX = "npm:"
 NPM_NAME = re.compile(r"(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*")
 NPM_VERSION = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
+NPM_REGISTRY = "https://registry.npmjs.org/"
+NPM_QUIET_DAYS = 7
+LOCK_FILE = "package-lock.json"
 UNAPPROVED = "design.md adds what the brief did not approve"
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -1145,6 +1148,18 @@ def _sync_scripts(primary: Path, roots: Iterable[Path]) -> str | None:
             return failed + next(
                 (line for line in lines if line), f"exit {done.returncode}"
             )
+    return None
+
+
+def _fetch_locks(primary: Path) -> str | None:
+    """Fetch each tracked lock's tree into the npm cache; return why one failed.
+
+    Why: 0121-ui-prepare design D2. e.g. no lock tracked → None
+    """
+    try:
+        _fetch_npm(primary, [], "run")
+    except Stop as stop:
+        return str(stop)
     return None
 
 
@@ -3212,11 +3227,10 @@ def _temp_folder(prefix: str) -> Path:
         raise Stop(2, f"conduct: cannot run — TMPDIR {parent}: {error}") from error
 
 
-def _profile(trees: list[Path], home: Path) -> str:
+def _profile(trees: list[Path], home: Path, network: bool = False) -> str:
     """Return the Seatbelt profile: writes in `trees`, no secret read, no network.
 
-    A later rule beats an earlier one, so the secrets stay denied inside a tree.
-    Why: 0107-sandbox-runner design D1.
+    `network` leaves it open. Why: 0107-sandbox-runner D1; 0121-ui-prepare D3.
     """
 
     def quoted(path: Path) -> str:
@@ -3234,16 +3248,24 @@ def _profile(trees: list[Path], home: Path) -> str:
     secrets = " ".join(
         f"(subpath {quoted(home / secret.removeprefix('~/'))})" for secret in SECRETS
     )
-    return "\n".join(
-        (
-            "(version 1)",
-            "(allow default)",
-            "(deny file-write*)",
-            f"(allow file-write* {writes} {devices})",
-            f"(deny file-read* file-write* {secrets})",
-            "(deny network*)",
-        )
+    # A later rule beats an earlier one, so the secrets stay denied inside a tree.
+    lines = (
+        "(version 1)",
+        "(allow default)",
+        "(deny file-write*)",
+        f"(allow file-write* {writes} {devices})",
+        f"(deny file-read* file-write* {secrets})",
     )
+    return "\n".join(lines if network else (*lines, "(deny network*)"))
+
+
+def _sandbox_exec() -> str:
+    """Return the path of `sandbox-exec`; with none on `PATH`, stop with 2."""
+    if (found := shutil.which("sandbox-exec")) is None:
+        raise Stop(
+            2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
+        )
+    return found
 
 
 def _watch(
@@ -3288,11 +3310,7 @@ def sandboxed(
     A `timeout` ends the command's group and gives 124. Why: 0107-sandbox-runner
     design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
     """
-    sandbox_exec = shutil.which("sandbox-exec")
-    if sandbox_exec is None:
-        raise Stop(
-            2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
-        )
+    sandbox_exec = _sandbox_exec()
     minions = trees[0] / ".minions"
     try:
         os.close(_folder_fd(trees[0], ".minions"))
@@ -6577,7 +6595,11 @@ class Run:
             return 1
         self.unlock(DEBT_LOCK)
         roots = [SKILLS_DIR, *_pin()["trees"]()]
-        if why := _fresh_tmp(self.primary) or _sync_scripts(self.primary, roots):
+        if why := (
+            _fresh_tmp(self.primary)
+            or _sync_scripts(self.primary, roots)
+            or _fetch_locks(self.primary)
+        ):
             self.halt("run", why)
             self.log.event("run", "halt", self.closing())
             return 1
@@ -7097,10 +7119,170 @@ def _plain_row(package: str, constraint: str) -> bool:
     return bool(PACKAGE.fullmatch(package) and SPECIFIER.fullmatch(constraint))
 
 
-def _prefetch(primary: Path, rows: list[list[str]]) -> None:
-    """Fetch each approved row's wheel into the primary's uv cache, or stop with 2.
+def _npm_env(scratch: Path) -> dict[str, str]:
+    """Return the environment of an npm fetch: no npm setting or token, home `scratch`.
 
-    An npm row is checked here, not fetched. Why: 0110-gate-hardening design D4.
+    Why: 0121-ui-prepare design D2.
+    """
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.lower().startswith("npm_config_")
+        and not name.startswith("NPM_")
+        and name not in TOKENS
+    }
+    env["HOME"] = env["TMPDIR"] = str(scratch)
+    return env
+
+
+def _fetch_run(
+    argv: list[str],
+    cwd: Path,
+    writes: list[Path],
+    env: dict[str, str],
+    timeout: float,
+) -> subprocess.CompletedProcess[str]:
+    """Run `argv` under Seatbelt with the network open, writing in `writes` alone.
+
+    No `sandbox-exec` on `PATH` stops with 2. Why: 0121-ui-prepare design D3.
+    """
+    profile = _profile(writes, Path.home(), network=True)
+    return subprocess.run(
+        [_sandbox_exec(), "-p", profile, *argv],
+        cwd=cwd,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+
+
+def _scratch_folder(primary: Path, command: str) -> Path:
+    """Return a fresh folder in the primary's `.minions/tmp`; a link stops with 2."""
+    scratch = primary / ".minions" / "tmp"
+    try:
+        os.close(_folder_fd(primary, ".minions", "tmp"))
+        return Path(tempfile.mkdtemp(dir=scratch))
+    except OSError as error:
+        raise Stop(
+            2, f"{command}: cannot run — scratch folder {scratch}: {error}"
+        ) from error
+
+
+def _npm_tree(scratch: Path) -> dict[tuple[str, str], bool]:
+    """Return each installed package of `scratch`: (name, version) → has install script.
+
+    An unreadable tree lists none. Why: 0121-ui-prepare design D2.
+    """
+    try:
+        packages = json.loads(
+            (scratch / "node_modules" / ".package-lock.json").read_text()
+        )["packages"]
+        return {
+            (key.rsplit("node_modules/", 1)[-1], entry["version"]): bool(
+                entry.get("hasInstallScript")
+            )
+            for key, entry in packages.items()
+            if "version" in entry
+        }
+    except (OSError, ValueError, LookupError, AttributeError, TypeError):
+        return {}
+
+
+def _npm_run(
+    args: list[str], what: str, scratch: Path, cache: Path, command: str
+) -> None:
+    """Run `npm <args>` in `scratch` under the fetch's flags; a failure stops with 2.
+
+    Why: 0121-ui-prepare design D2.
+    """
+    before = time.strftime(
+        "%Y-%m-%d", time.gmtime(time.time() - NPM_QUIET_DAYS * 24 * 3600)
+    )
+    flags = ["--ignore-scripts", "--no-audit", "--no-fund"]
+    flags += ["--registry", NPM_REGISTRY, "--userconfig", "/dev/null"]
+    flags += ["--globalconfig", "/dev/null", "--cache", str(cache)]
+    flags += ["--before", before]
+    try:
+        done = _fetch_run(
+            ["npm", *args, *flags],
+            scratch,
+            [scratch, cache],
+            _npm_env(scratch),
+            PREFETCH_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError) as error:
+        why = error.strerror if isinstance(error, OSError) else "timed out"
+        raise Stop(
+            2, f"{command}: cannot run — fetching {what} failed: {why}"
+        ) from None
+    if done.returncode != 0:
+        raise Stop(
+            2,
+            f"{command}: cannot run — fetching {what} failed: exit {done.returncode}",
+        )
+
+
+def _fetch_npm(primary: Path, rows: list[list[str]], command: str) -> list[str]:
+    """Fetch the default branch's locks and the npm `rows` into the cache; list the new.
+
+    Returns `npm: new <name> <version>` per new package. Why: 0121-ui-prepare design D2.
+    """
+    approved = [row for row in rows if row[0].startswith(NPM_PREFIX)]
+    default = default_branch(primary)
+    listed = _maybe(primary, "ls-tree", "-r", "--name-only", default) or ""
+    locks = [path for path in listed.splitlines() if path.split("/")[-1] == LOCK_FILE]
+    if not locks and not approved:
+        return []
+    if shutil.which("npm") is None:
+        raise Stop(2, f"{command}: cannot run — npm is not on PATH")
+    try:
+        cache = primary / ".minions" / "npm-cache"
+        os.close(_folder_fd(primary, ".minions", "npm-cache"))
+    except OSError as error:
+        raise Stop(2, f"{command}: cannot run — npm cache {cache}: {error}") from error
+    sources = [
+        (
+            lock,
+            _show(primary, default, lock.removesuffix(LOCK_FILE) + "package.json"),
+            _show(primary, default, lock),
+        )
+        for lock in locks
+    ] or [("npm", None, None)]
+    new: dict[tuple[str, str], bool] = {}
+    for label, manifest, lock in sources:
+        scratch = _scratch_folder(primary, command)
+        try:
+            (scratch / "package.json").write_text(manifest or "{}")
+            if lock:
+                (scratch / LOCK_FILE).write_text(lock)
+                _npm_run(["ci"], label, scratch, cache, command)
+            held = _npm_tree(scratch)
+            for package, version in approved:
+                name = f"{package.removeprefix(NPM_PREFIX)}@{version}"
+                _npm_run(
+                    ["install", "--no-save", name], package, scratch, cache, command
+                )
+            new |= {
+                key: new.get(key, False) or script
+                for key, script in _npm_tree(scratch).items()
+                if key not in held
+            }
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+    return [
+        f"npm: new {name} {version}" + (" · install script" if script else "")
+        for (name, version), script in sorted(new.items())
+    ]
+
+
+def _prefetch(primary: Path, rows: list[list[str]]) -> list[str]:
+    """Fetch each approved row's package into the primary's caches; list the new npm.
+
+    A wheel goes to the uv cache, an npm row and each lock to `.minions/npm-cache`.
+    Why: 0110-gate-hardening design D4; 0121-ui-prepare design D2.
     """
     for package, constraint in rows:
         if not _plain_row(package, constraint):
@@ -7114,8 +7296,6 @@ def _prefetch(primary: Path, rows: list[list[str]]) -> None:
                 f"cut: cannot run — the brief's row {package} {constraint} is not"
                 f" {plain}",
             )
-    rows = [row for row in rows if not row[0].startswith(NPM_PREFIX)]
-    scratch = primary / ".minions" / "tmp"
     env = {
         name: value
         for name, value in os.environ.items()
@@ -7123,15 +7303,11 @@ def _prefetch(primary: Path, rows: list[list[str]]) -> None:
     }
     env["UV_CACHE_DIR"] = str(primary / ".minions" / "uv-cache")
     for package, constraint in rows:
-        try:
-            os.close(_folder_fd(primary, ".minions", "tmp"))
-        except OSError as error:
-            raise Stop(
-                2, f"cut: cannot run — scratch folder {scratch}: {error}"
-            ) from error
-        target = tempfile.mkdtemp(dir=scratch)
+        if package.startswith(NPM_PREFIX):
+            continue
+        target = _scratch_folder(primary, "cut")
         command = ["uv", "pip", "install", "--no-config", "--no-build"]
-        command += ["--default-index", PYPI_INDEX, "--target", target]
+        command += ["--default-index", PYPI_INDEX, "--target", str(target)]
         try:
             done = subprocess.run(
                 [*command, f"{package}{constraint}"],
@@ -7153,6 +7329,7 @@ def _prefetch(primary: Path, rows: list[list[str]]) -> None:
                 2,
                 f"cut: cannot run — fetching {package} failed: exit {done.returncode}",
             )
+    return _fetch_npm(primary, rows, "cut")
 
 
 def _rows_hash(rows: list[list[str]]) -> str:
@@ -7280,7 +7457,8 @@ def cut(
     models = _models_text(path.resolve(), slug)
     ids = linked.get("after", [])
     primary = primary_of(cwd)
-    _prefetch(primary, approved)
+    for line in _prefetch(primary, approved):
+        print(line)
     with _queue_lock(primary):
         known = {version.change for version in open_versions(primary)}
         known |= set(_cuts(primary))

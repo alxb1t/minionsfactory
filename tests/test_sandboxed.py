@@ -86,6 +86,21 @@ def test_the_profile_confines_writes_reads_and_network(tmp_path: Path) -> None:
     assert lines.index(allow) < lines.index(deny) < len(lines) - 1
 
 
+def test_a_profile_may_open_the_network(tmp_path: Path) -> None:
+    profile = _conduct()["_profile"]
+    home = tmp_path / "home"
+    trees = [tmp_path]
+
+    closed = profile(trees, home)
+    assert profile(trees, home, network=False) == closed
+    assert "(deny network*)" in closed.splitlines()
+
+    opened = profile(trees, home, network=True)
+    assert "network" not in opened
+    assert opened.splitlines() == closed.splitlines()[:-1]
+    assert opened.splitlines()[-1].startswith("(deny file-read* file-write* ")
+
+
 def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     tmp_path: Path,
     fake_sandbox_exec: Path,

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A `## Dependencies` row `npm:<name>` at an exact version is plain; a range, a tag, a URL, a path, a git reference or an
   alias exits `cut` with 2, and the plan's brief check names it first (0121-ui-prepare, phase 1).
+- `cut` and each run's start fetch each tracked `package-lock.json` tree and the approved `npm:` rows into
+  `.minions/npm-cache`, under the OS sandbox with the network open and scripts off; `cut` prints each new package
+  and its install-script flag. No `npm` on `PATH` stops where a row or a lock needs it (0121-ui-prepare, phase 2).
 
 ## [0.97.0] - 2026-11-11
 

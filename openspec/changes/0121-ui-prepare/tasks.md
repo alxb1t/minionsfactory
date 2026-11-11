@@ -5,7 +5,7 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 ## Progress
 
 - [x] 1 — The rows · moderate
-- [ ] 2 — The fetch · hard
+- [x] 2 — The fetch · hard
 - [ ] 3 — The workers · moderate
 - [ ] 4 — The halt · hard
 - [ ] 5 — The record · moderate
@@ -25,17 +25,17 @@ The phases: the rows, the fetch, the workers, the halt, the record. Each ends on
 
 ## 2 — The fetch
 
-- [ ] 2.1 Add `network=False` to `_profile` in `skills/mf-ship/scripts/conduct.py`: set, the profile holds no `(deny network*)` line; unset, it is today's string. Test both in `test_a_profile_may_open_the_network`, `tests/test_sandboxed.py`.
+- [x] 2.1 Add `network=False` to `_profile` in `skills/mf-ship/scripts/conduct.py`: set, the profile holds no `(deny network*)` line; unset, it is today's string. Test both in `test_a_profile_may_open_the_network`, `tests/test_sandboxed.py`.
   Verify: `uv run pytest -q tests/test_sandboxed.py -k a_profile_may_open_the_network` exits 0.
-- [ ] 2.2 Add `NPM_REGISTRY`, `NPM_QUIET_DAYS`, `_npm_env(scratch)` and `_fetch_run(argv, cwd, writes, env, timeout)` to `conduct.py`, per [D3](design.md#d3) and [D2](design.md#d2) step 4; no `sandbox-exec` stops with 2. Add `_FAKE_NPM` beside `_FAKE_UV` in `tests/test_conduct.py`.
+- [x] 2.2 Add `NPM_REGISTRY`, `NPM_QUIET_DAYS`, `_npm_env(scratch)` and `_fetch_run(argv, cwd, writes, env, timeout)` to `conduct.py`, per [D3](design.md#d3) and [D2](design.md#d2) step 4; no `sandbox-exec` stops with 2. Add `_FAKE_NPM` beside `_FAKE_UV` in `tests/test_conduct.py`.
   Verify: `git grep -n -e '^NPM_REGISTRY' -e '^def _npm_env' -e '^def _fetch_run' -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 2.3 Add `_fetch_npm(primary, rows, command)` to `conduct.py`, [D2](design.md#d2) steps 1 to 5, and have `_prefetch` call it for the npm rows after its wheel loop, so a missing `uv` stops the cut as it does today. Test the argv, the environment, the profile, the cache, a failure, a timeout and a scratch folder left empty in `test_a_cut_fetches_the_npm_rows_it_approves`, `tests/test_conduct.py`.
+- [x] 2.3 Add `_fetch_npm(primary, rows, command)` to `conduct.py`, [D2](design.md#d2) steps 1 to 5, and have `_prefetch` call it for the npm rows after its wheel loop, so a missing `uv` stops the cut as it does today. Test the argv, the environment, the profile, the cache, a failure, a timeout and a scratch folder left empty in `test_a_cut_fetches_the_npm_rows_it_approves`, `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_cut_fetches_the_npm_rows_it_approves` exits 0.
-- [ ] 2.4 Make `_fetch_npm` stop with 2 naming `npm` when no `npm` is on `PATH` and a row or a lock needs it, and run nothing when none does. Test both in `test_a_missing_npm_halts_by_name_only_where_it_is_needed`, `tests/test_conduct.py`.
+- [x] 2.4 Make `_fetch_npm` stop with 2 naming `npm` when no `npm` is on `PATH` and a row or a lock needs it, and run nothing when none does. Test both in `test_a_missing_npm_halts_by_name_only_where_it_is_needed`, `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_missing_npm_halts_by_name_only_where_it_is_needed` exits 0.
-- [ ] 2.5 Return from `_fetch_npm` the lines of [D2](design.md#d2) step 6, make `_prefetch` return them, and have `cut` print them before its own line. Test the lines and the flag in `test_a_cut_prints_the_new_packages_of_the_tree`, `tests/test_conduct.py`.
+- [x] 2.5 Return from `_fetch_npm` the lines of [D2](design.md#d2) step 6, make `_prefetch` return them, and have `cut` print them before its own line. Test the lines and the flag in `test_a_cut_prints_the_new_packages_of_the_tree`, `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_cut_prints_the_new_packages_of_the_tree` exits 0.
-- [ ] 2.6 Add `_fetch_locks(primary)` to `conduct.py`, and call it in `Run.ship` after `_sync_scripts`, halting the run on its text; a default branch `git ls-tree` cannot list is no lock. Test a lock, no lock, an unlistable default and a failed fetch in `test_a_run_start_fetches_each_tracked_lock`, `tests/test_conduct.py`, driven by `_run_claude`.
+- [x] 2.6 Add `_fetch_locks(primary)` to `conduct.py`, and call it in `Run.ship` after `_sync_scripts`, halting the run on its text; a default branch `git ls-tree` cannot list is no lock. Test a lock, no lock, an unlistable default and a failed fetch in `test_a_run_start_fetches_each_tracked_lock`, `tests/test_conduct.py`, driven by `_run_claude`.
   Verify: `uv run pytest -q tests/test_conduct.py -k a_run_start_fetches_each_tracked_lock` exits 0.
 
 ## 3 — The workers
