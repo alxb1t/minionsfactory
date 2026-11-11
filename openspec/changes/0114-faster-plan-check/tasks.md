@@ -4,23 +4,23 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 
 ## Progress
 
-- [ ] 1 — plan_check.py: distinct commands, the gate's green record, the record by tree · hard
+- [x] 1 — plan_check.py: distinct commands, the gate's green record, the record by tree · hard
 - [ ] 2 — The parallel runner and the group kill · hard
 - [ ] 3 — The deadline, the catch-up, the whole-suite flag and the foreground · hard
 
 ## 1 — plan_check.py: distinct commands, the gate's green record, the record by tree
 
-- [ ] 1.1 **HALT CHECK** `plan_check.py` holds the seams this phase changes ([D1](design.md#d1)).
+- [x] 1.1 **HALT CHECK** `plan_check.py` holds the seams this phase changes ([D1](design.md#d1)).
   Verify: `git grep -n -e '^def check_verifies(' -e '^def passed(' -e '^TIMEOUT_SECONDS = ' -- skills/mf-converge/scripts/plan_check.py` prints a line for each.
-- [ ] 1.2 In `skills/mf-converge/scripts/plan_check.py` add `Result` (exit, output, timed out), `run(command, root)`, which returns one, and `report(name, command, result)`, which returns the lines `rerun` returned; delete `rerun`, make `check_verifies` call `run` and `report` in its place, one command at a time, and make `passed`'s docstring name `report`'s rule ([D1](design.md#d1)).
+- [x] 1.2 In `skills/mf-converge/scripts/plan_check.py` add `Result` (exit, output, timed out), `run(command, root)`, which returns one, and `report(name, command, result)`, which returns the lines `rerun` returned; delete `rerun`, make `check_verifies` call `run` and `report` in its place, one command at a time, and make `passed`'s docstring name `report`'s rule ([D1](design.md#d1)).
   Verify: `git grep -n -w rerun -- skills/mf-converge/scripts/plan_check.py` prints nothing.
-- [ ] 1.3 In `skills/mf-converge/scripts/plan_check.py` add `jobs(tasks, human, only)`, and make `check_verifies` take `only=None` and run each distinct command text once, judging its one result by each sub-task's own words ([D1](design.md#d1)); add `test_a_command_named_twice_runs_once` to `tests/test_plan_check.py`.
+- [x] 1.3 In `skills/mf-converge/scripts/plan_check.py` add `jobs(tasks, human, only)`, and make `check_verifies` take `only=None` and run each distinct command text once, judging its one result by each sub-task's own words ([D1](design.md#d1)); add `test_a_command_named_twice_runs_once` to `tests/test_plan_check.py`.
   Verify: `uv run pytest -q tests/test_plan_check.py -k named_twice` exits 0.
-- [ ] 1.4 In `plan_check.py` add `gate()`, which loads `gate_run.py` once by `runpy`, `gate_green()`, `is_pytest(argv)` and `bare_pytest(command)` as [D2](design.md#d2) says, and pass a bare `pytest` unrun when `gate_green()` holds; add `test_a_green_gate_record_passes_a_bare_pytest` to `tests/test_plan_check.py`: a stub `pytest` on `PATH` that exits 3 passes unrun on the record, and runs when its `Verify:` says it prints `1` or the dry run of `make -n gate` differs from the record's.
+- [x] 1.4 In `plan_check.py` add `gate()`, which loads `gate_run.py` once by `runpy`, `gate_green()`, `is_pytest(argv)` and `bare_pytest(command)` as [D2](design.md#d2) says, and pass a bare `pytest` unrun when `gate_green()` holds; add `test_a_green_gate_record_passes_a_bare_pytest` to `tests/test_plan_check.py`: a stub `pytest` on `PATH` that exits 3 passes unrun on the record, and runs when its `Verify:` says it prints `1` or the dry run of `make -n gate` differs from the record's.
   Verify: `uv run pytest -q tests/test_plan_check.py -k green_gate_record` exits 0.
-- [ ] 1.5 In `plan_check.py` add `names_revision(argv)` and `keyed(text, head)`, the key of [D3](design.md#d3): the command text, and `HEAD`'s sha too when `names_revision` holds; add `test_a_command_naming_a_revision_is_keyed_by_head` to `tests/test_plan_check.py`.
+- [x] 1.5 In `plan_check.py` add `names_revision(argv)` and `keyed(text, head)`, the key of [D3](design.md#d3): the command text, and `HEAD`'s sha too when `names_revision` holds; add `test_a_command_naming_a_revision_is_keyed_by_head` to `tests/test_plan_check.py`.
   Verify: `uv run pytest -q tests/test_plan_check.py -k keyed_by_head` exits 0.
-- [ ] 1.6 In `plan_check.py` add `store(tree)`, `keep(tree, key, result)` and `load(tree, key)`, and make `check_verifies` read `HEAD`'s sha once, read a kept result before a run and write the new ones after the batch, on a settled tree and never a timeout ([D3](design.md#d3)); add `test_a_result_is_kept_by_tree_and_reused` to `tests/test_plan_check.py`.
+- [x] 1.6 In `plan_check.py` add `store(tree)`, `keep(tree, key, result)` and `load(tree, key)`, and make `check_verifies` read `HEAD`'s sha once, read a kept result before a run and write the new ones after the batch, on a settled tree and never a timeout ([D3](design.md#d3)); add `test_a_result_is_kept_by_tree_and_reused` to `tests/test_plan_check.py`.
   Verify: `uv run pytest -q tests/test_plan_check.py -k kept_by_tree` exits 0.
 
 ## 2 — The parallel runner and the group kill

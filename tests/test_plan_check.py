@@ -6,6 +6,7 @@ Why: 0103-fewer-rounds design D4.
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -304,6 +305,152 @@ def test_a_plan_check_finds_what_the_plan_left(
         "\n## 2 — Two\n\n- [ ] 2.1 Read more. **CORPUS** `ghost`\n",
     )
     assert check() == (1, ["plan: 2.1 — no case ghost in scripts/corpus.toml"])
+
+
+def _commit_tasks(root: Path, *tasks: str) -> None:
+    """Write `tasks.md` and commit it, so the tree is settled."""
+    _tasks(root, _ONE, *tasks)
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "tasks")
+
+
+def test_a_command_named_twice_runs_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    ran = root / "ran.txt"
+    command = 'sh -c "echo r >> ran.txt; printf 1"'
+    _tasks(
+        root,
+        _ONE,
+        f"- [x] 1.1 First.\n  Verify: `{command}` prints `1`.\n",
+        f"- [x] 1.2 Second.\n  Verify: `{command}` prints `2`.\n",
+        f"- [x] 1.3 Third.\n  Verify: `{command}`.\n",
+    )
+    code = plan_check.main(["--change", _CHANGE, "--base", base])
+    other = "printed other than its Verify: says"
+    assert (code, capsys.readouterr().out.splitlines()) == (
+        1,
+        [f"plan: 1.2 — `{command}` {other}", "  | 1"],
+    )
+    assert ran.read_text() == "r\n"
+
+
+def test_a_green_gate_record_passes_a_bare_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    (stub / "pytest").write_text("#!/bin/sh\nexit 3\n")
+    (stub / "pytest").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    def record(dry: str | None = None) -> None:
+        loaded = plan_check.gate()
+        tree = loaded["settled_tree"]()
+        dry = dry or loaded["dry_run"]()
+        loaded["write_record"](loaded["records"]() / tree, dry, 1)
+
+    bare = "- [x] 1.1 Suite.\n  Verify: `pytest -q`.\n"
+    ran = ["plan: 1.1 — `pytest -q` exited 3"]
+    # No `make gate` target to dry-run: no record can stand, and the pytest runs.
+    _commit_tasks(root, bare)
+    assert check() == (1, ran)
+    # A green record for the tree and the dry run passes it unrun.
+    _commit(root, {"Makefile": "gate:\n\t@true\n"}, "gate")
+    record()
+    assert check() == (0, ["plan: clean"])
+    # A `Verify:` that names an output is no bare pytest: it runs.
+    _commit_tasks(root, "- [x] 1.1 Suite.\n  Verify: `pytest -q` prints `1`.\n")
+    record()
+    assert check() == (1, ["plan: 1.1 — `pytest -q` exited 3"])
+    # A record of another dry run stands for another gate: the pytest runs.
+    _commit_tasks(root, bare)
+    record("0" * 64)
+    assert check() == (1, ran)
+    # An unsettled tree has no record: the pytest runs.
+    record()
+    (root / "stray.txt").write_text("x\n")
+    assert check() == (1, ran)
+
+
+def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
+    for text in (
+        "git rev-parse --verify HEAD",
+        "git log -1",
+        "git diff HEAD~1 --stat",
+        "printf deadbeef",
+        "git",
+    ):
+        assert plan_check.keyed(text, "abc") == f"{text}\nabc"
+    for text in (
+        "git grep -n x -- src",
+        "git ls-files src",
+        "printf 1",
+        "ruff check .",
+    ):
+        assert plan_check.keyed(text, "abc") == text
+
+
+def test_a_result_is_kept_by_tree_and_reused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    ran = tmp_path / "ran.txt"
+    counted = f'sh -c "echo r >> {ran}; printf 1"'
+    bare = "git rev-parse --verify HEAD"
+    tasks = (
+        f"- [x] 1.1 Counted.\n  Verify: `{counted}` prints `1`.\n",
+        f"- [x] 1.2 Bare.\n  Verify: `{bare}`.\n",
+    )
+    _commit_tasks(root, *tasks)
+    kept = root / ".minions" / "plan-check"
+
+    def check() -> tuple[int, list[str], int]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        out = capsys.readouterr().out.splitlines()
+        return code, out, len(list(kept.glob("*/*")))
+
+    def runs() -> int:
+        return len(ran.read_text().splitlines())
+
+    # A settled tree keeps a result for each command, and reads it again.
+    assert check() == (0, ["plan: clean"], 2)
+    assert (check(), runs()) == ((0, ["plan: clean"], 2), 1)
+    # A new commit on the same tree runs the command naming `HEAD` again alone.
+    _git(root, "commit", "-q", "--allow-empty", "-m", "empty")
+    assert (check(), runs()) == ((0, ["plan: clean"], 3), 1)
+    # Another tree has its own results, and a result is judged by the words that
+    # name it.
+    _commit_tasks(root, tasks[0].replace("prints `1`", "prints `2`"))
+    other = "printed other than its Verify: says"
+    out = [f"plan: 1.1 — `{counted}` {other}", "  | 1"]
+    assert (check(), runs()) == ((1, out, 4), 2)
+    assert (check(), runs()) == ((1, out, 4), 2)
+    # An unsettled tree reads nothing and keeps nothing.
+    (root / _FOLDER / "tasks.md").write_text(_ONE + tasks[0])
+    assert (check(), runs()) == ((0, ["plan: clean"], 4), 3)
+    # A timed-out command is never kept.
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
+    _commit_tasks(root, "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n")
+    assert check() == (1, ["plan: 1.1 — `sleep 5` timed out"], 4)
+    # A store that is a link keeps nothing.
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 600)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    shutil.rmtree(kept)
+    kept.symlink_to(elsewhere)
+    _commit_tasks(root, tasks[0])
+    assert (check(), runs()) == ((0, ["plan: clean"], 0), 4)
+    assert list(elsewhere.iterdir()) == []
 
 
 def test_what_the_plan_check_cannot_read_exits_2(

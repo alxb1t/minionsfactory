@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `plan_check.py` runs each distinct `Verify:` command once and judges its result by each sub-task's own words, passes a
+  bare `pytest` on the gate's green record, and keeps results by command in `.minions/plan-check/<tree>/` on a settled
+  tree (change `0114-faster-plan-check`, phase 1).
+
 ## [0.93.0] - 2026-11-11
 
 Gate: local 5m6s · CI not read under mf-ship · 0.92.1: local 4m56s · CI not read under mf-ship

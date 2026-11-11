@@ -9,15 +9,23 @@ the skip, 0108-converge-script.
 """
 
 import argparse
+import contextlib
+import functools
+import hashlib
+import json
+import os
 import re
+import runpy
 import shlex
 import subprocess
 import sys
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 TIMEOUT_SECONDS = 600
+REVISION = re.compile(r"[0-9a-f]{7,40}")
 SHOWN = 5
 CHANGE = re.compile(r"[a-z0-9-]+")
 SUBTASK = re.compile(r"- \[([ x])\] (\d+\.\d+\b.*)$")
@@ -67,6 +75,14 @@ class Task(NamedTuple):
     ticked: bool
     name: str
     text: str
+
+
+class Result(NamedTuple):
+    """One command's finish: its exit code, its output, and whether it timed out."""
+
+    code: int
+    output: str
+    timed_out: bool = False
 
 
 class Command(NamedTuple):
@@ -168,16 +184,11 @@ def verify_of(text: str) -> str | None:
     return None if at < 0 else text[at + len("Verify:") :]
 
 
-def rerun(name: str, command: Command, root: Path) -> list[str]:
-    """Return the lines a command that fails prints, none when it passes.
-
-    Why:
-    0103-fewer-rounds design D4.
-    """
-    argv = tokens(command.text)
+def run(command: str, root: Path) -> Result:
+    """Return a command's finish, run in `root` as argv with no shell."""
     try:
         done = subprocess.run(
-            argv,
+            tokens(command),
             cwd=root,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -185,22 +196,33 @@ def rerun(name: str, command: Command, root: Path) -> list[str]:
             errors="replace",
             timeout=TIMEOUT_SECONDS,
         )
-        code, stdout = done.returncode, done.stdout
     except subprocess.TimeoutExpired:
-        return [f"plan: {name} — `{command.text}` timed out"]
+        return Result(-1, "", True)
     except OSError as error:
-        code, stdout = 127, str(error.strerror)
-    if passed(command, code, stdout):
+        return Result(127, str(error.strerror))
+    return Result(done.returncode, done.stdout)
+
+
+def report(name: str, command: Command, result: Result) -> list[str]:
+    """Return the lines a command that fails prints, none when it passes.
+
+    Why:
+    0103-fewer-rounds design D4; 0114-faster-plan-check design D1.
+    """
+    if result.timed_out:
+        return [f"plan: {name} — `{command.text}` timed out"]
+    if passed(command, result.code, result.output):
         return []
-    shown = [f"  | {line}" for line in stdout.splitlines()[:SHOWN]]
-    result = "printed other than its Verify: says" if code == 0 else f"exited {code}"
-    return [f"plan: {name} — `{command.text}` {result}", *shown]
+    shown = [f"  | {line}" for line in result.output.splitlines()[:SHOWN]]
+    code = result.code
+    verdict = "printed other than its Verify: says" if code == 0 else f"exited {code}"
+    return [f"plan: {name} — `{command.text}` {verdict}", *shown]
 
 
 def passed(command: Command, code: int, stdout: str) -> bool:
     """Return whether a command's exit and output are what its `Verify:` says.
 
-    The rule is `rerun`'s.
+    The rule is `report`'s.
     """
     argv = tokens(command.text)
     search = argv[:1] == ["grep"] or argv[:2] == ["git", "grep"]
@@ -226,23 +248,147 @@ def phases(tasks: str) -> tuple[set[int], set[int]]:
     return ticked, human
 
 
-def check_verifies(tasks: list[Task], human: set[int], root: Path) -> list[str]:
-    """Return a line for each ticked `Verify:` command that fails run again.
+def jobs(
+    tasks: list[Task], human: set[int], only: set[str] | None
+) -> list[tuple[str, Command]]:
+    """Return the `(sub-task, command)` pairs a check judges, in task order.
 
-    Not run: a `**HALT CHECK**` sub-task, a sub-task of a `**HUMAN` phase, and a
-    command naming `plan_check.py`, so a `Verify:` that runs this check ends.
+    Not judged: a `**HALT CHECK**` sub-task, a sub-task of a `**HUMAN` phase, and a
+    command naming `plan_check.py`. `only` names the sub-tasks, ticked or not.
     """
-    problems: list[str] = []
+    found: list[tuple[str, Command]] = []
     for task in tasks:
         skipped = "**HALT CHECK**" in task.text or int(task.name.split(".")[0]) in human
-        if not task.ticked or skipped or (verify := verify_of(task.text)) is None:
+        wanted = task.ticked if only is None else task.name in only
+        if not wanted or skipped or (verify := verify_of(task.text)) is None:
             continue
         try:
             for command in commands(verify):
                 if "plan_check.py" not in command.text:
-                    problems += rerun(task.name, command, root)
+                    tokens(command.text)
+                    found.append((task.name, command))
         except Unparsed as error:
             raise Stop(f"{task.name}: {error}") from None
+    return found
+
+
+@functools.cache
+def gate() -> dict[str, Any]:
+    """Return the names of `gate_run.py`, loaded once from this script's folder."""
+    return runpy.run_path(str(Path(__file__).resolve().parent / "gate_run.py"))
+
+
+def _guarded[T](call: Callable[[], T]) -> T | None:
+    """Return a `gate_run.py` call's result, or None when it stops or times out."""
+    stops = (gate()["Stop"], subprocess.TimeoutExpired)
+    try:
+        return call()
+    except stops:
+        return None
+
+
+def gate_green() -> bool:
+    """Return whether the gate's green record stands for this tree and dry run."""
+    tree = _guarded(gate()["settled_tree"])
+    if tree is None:
+        return False
+    folder, dry = _guarded(gate()["records"]), _guarded(gate()["dry_run"])
+    return (
+        folder is not None
+        and dry is not None
+        and gate()["read_record"](folder / tree).get("dry") == dry
+    )
+
+
+def is_pytest(argv: list[str]) -> bool:
+    """Return whether argv starts `pytest`, `uv run pytest` or `python -m pytest`."""
+    return argv[:1] == ["pytest"] or argv[:3] in (
+        ["uv", "run", "pytest"],
+        ["python", "-m", "pytest"],
+    )
+
+
+def bare_pytest(command: Command) -> bool:
+    """Return whether a pytest command's `Verify:` says it exits 0 and no more."""
+    return (
+        is_pytest(tokens(command.text))
+        and command.count is None
+        and not command.nothing
+    )
+
+
+def names_revision(argv: list[str]) -> bool:
+    """Return whether a command reads a revision, so `HEAD` is part of its key.
+
+    A word starting `HEAD` or a hex sha, or a `git` command but `grep` and `ls-files`.
+    """
+    if any(word.startswith("HEAD") or REVISION.fullmatch(word) for word in argv):
+        return True
+    return argv[:1] == ["git"] and argv[1:2] not in (["grep"], ["ls-files"])
+
+
+def keyed(text: str, head: str) -> str:
+    """Return a command's key: its text, and `HEAD`'s sha when it names a revision."""
+    return f"{text}\n{head}" if names_revision(tokens(text)) else text
+
+
+def store(tree: str) -> Path:
+    """Return the folder that keeps a settled tree's results."""
+    return gate()["records"]().parent / "plan-check" / tree
+
+
+def keep(tree: str, key: str, result: Result) -> None:
+    """Write a result under its key; a store that is a link keeps nothing."""
+    folder = store(tree)
+    if folder.is_symlink() or folder.parent.is_symlink():
+        return
+    path = folder / hashlib.sha256(key.encode()).hexdigest()
+    staged = path.with_name(f"{path.name}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    with contextlib.suppress(OSError):
+        folder.mkdir(parents=True, exist_ok=True)
+        staged.unlink(missing_ok=True)
+        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
+            json.dump({"exit": result.code, "output": result.output}, file)
+        staged.replace(path)
+
+
+def load(tree: str, key: str) -> Result | None:
+    """Return the result kept under a key, or None when none can be read."""
+    path = store(tree) / hashlib.sha256(key.encode()).hexdigest()
+    try:
+        kept = json.loads(path.read_text(errors="replace"))
+        return Result(int(kept["exit"]), str(kept["output"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def check_verifies(
+    tasks: list[Task], human: set[int], root: Path, only: set[str] | None = None
+) -> list[str]:
+    """Return a line for each judged `Verify:` command that fails run again.
+
+    Each distinct command runs once. A bare pytest passes unrun on the gate's green
+    record; a result kept for a settled tree is read, and a new one kept.
+    """
+    pairs = jobs(tasks, human, only)
+    green = any(bare_pytest(command) for _, command in pairs) and gate_green()
+    pending = [(n, c) for n, c in pairs if not (green and bare_pytest(c))]
+    head = _git(root, "rev-parse", "HEAD").stdout.strip()
+    tree = _guarded(gate()["settled_tree"])
+    keys = {command.text: keyed(command.text, head) for _, command in pending}
+    results: dict[str, Result] = {}
+    if tree is not None:
+        results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
+    fresh = {text: run(text, root) for text in keys if text not in results}
+    results |= fresh
+    if tree is not None and _guarded(gate()["settled_tree"]) == tree:
+        for text, result in fresh.items():
+            if not result.timed_out:
+                keep(tree, keys[text], result)
+    problems: list[str] = []
+    for name, command in pending:
+        problems += report(name, command, results[command.text])
     return problems
 
 
