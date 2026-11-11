@@ -1853,7 +1853,8 @@ def test_the_debt_is_written_once_under_its_lock(
     assert events(host)[-1] == (
         f"round 1 · halt — .minions/debt.lock held for 10 minutes · head {_head(host)}"
     )
-    assert sleeps == [5] * 120
+    # A timed `subprocess` wait sleeps too: count the lock's naps alone.
+    assert [nap for nap in sleeps if nap == 5] == [5] * 120
     assert lock.is_dir()
     assert "0001·R5" not in debt.read_text()
     _commit(host.tree, {"src/late.py": "L = 1\n"}, "feat(0001-a): late")
