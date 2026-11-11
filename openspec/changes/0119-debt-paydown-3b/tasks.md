@@ -43,6 +43,6 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 - [x] 3.1 Add the reason of [D15](design.md#d15)'s table as a `# T2: <reason>; 0119-debt-paydown-3b design D15.` line at the top of the body of `test_a_shadow_round_drives_no_fix` and `test_every_station_starts_lean` in `tests/test_conduct.py`; task 2.3 wrote the third.
   Verify: `grep -c -e 'no other run test reaches it' -e 'it writes the operator' tests/test_conduct.py` prints `2`.
 - [x] 3.2 Cut the `_temp_folder` docstring and the `_remove_temp` docstring in `skills/mf-ship/scripts/conduct.py` to a summary line, a blank line and the `Why:` line, per [D15](design.md#d15).
-  Verify: `grep -L -e 'a .000. subfolder' -e 'e.g. ._temp_folder' skills/mf-ship/scripts/conduct.py` prints `skills/mf-ship/scripts/conduct.py`.
+  Verify: `grep -c -e 'a .000. subfolder' -e 'e.g. ._temp_folder' skills/mf-ship/scripts/conduct.py` prints `0`.
 - [x] 3.3 Replace `Why: 0090-supervisor-merge security S2.` in the `_settle_kept` docstring of `skills/mf-ship/scripts/conduct.py` with `Why: 0090-supervisor-merge design D4, its delta's *A supervisor answers what the rescue leaves*.`.
-  Verify: `grep -L 'security S2' skills/mf-ship/scripts/conduct.py` prints `skills/mf-ship/scripts/conduct.py`.
+  Verify: `grep -c 'security S2' skills/mf-ship/scripts/conduct.py` prints `0`.
