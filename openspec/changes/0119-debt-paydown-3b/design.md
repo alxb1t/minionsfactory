@@ -4,7 +4,7 @@ One decision per fix of `conduct.py` and `converge.py`, each behind a test that 
 
 ## Context
 
-The brief's plan splits the debt paydown by file: `0118-debt-paydown-3a` touches no `conduct.py`; this change touches `conduct.py`, `converge.py` and their tests alone. Every card here is a fix of one line and a test, or a reason to record. [Paydown 2](../archive/0088-paydown-2/design.md) is the method: each test red before its fix.
+The brief's plan splits the debt paydown by file: `0118-debt-paydown-3a` touches no `conduct.py`; this change touches `conduct.py`, `converge.py` and their tests, and the archived design lines its fixes make stale ([D17](#d17)). Every card here is a fix of one line and a test, or a reason to record. [Paydown 2](../archive/0088-paydown-2/design.md) is the method: each test red before its fix.
 
 ## Goals / Non-Goals
 
@@ -32,10 +32,11 @@ The brief's plan splits the debt paydown by file: `0118-debt-paydown-3a` touches
 | [D14](#d14) | `converge.halt` stamps nothing on a log whose newest run ended (the ended-log idea); a halt that names a lock ends no run | `stamp.py` refuses an event after `done`, or after a `halt` that names no lock; `resume` goes on from a lock halt | a stamp that rewrites the end |
 | [D15](#d15) | each test-cost card closes on a stated reason beside its test; a docstring over the comment limit is cut to the comment limit | `T2` asks for a reason; `C7` sets the limit | a merge of run tests |
 | [D16](#d16) | a card closed without code shows its evidence here | paydown 2's method | none |
+| [D17](#d17) | the archived design lines that [D9](#d9), [D11](#d11) and [D12](#d12) make stale are corrected in place, each citing its decision here (converge round 1's `R1`, `R2`, `R3`) | the brief's method corrects archived prose in place; a design pointer in the code leads to them | held as debt |
 
 ### D1
 
-Phases follow files and risk: phase 1 holds the security and link cards, phase 2 the stacking, tool, probe, rejoin and converge cards, phase 3 the test-cost reasons and docstrings.
+Phases follow files and risk: phase 1 holds the security and link cards, phase 2 the stacking, tool, probe, rejoin and converge cards, phase 3 the test-cost reasons and docstrings, phase 4 the archived design lines of [D17](#d17).
 
 ### D2
 
@@ -114,6 +115,10 @@ Evidence for a card that closes with no code, as the commands print it at the cu
 |---|---|---|
 | `0112·R3` | `git grep -n 'T2: the three-version test' -- tests/test_conduct.py` | a line: the sync-order test's reason |
 | `0090·R4` | `git grep -n 'security S2' -- skills/mf-ship/scripts/conduct.py` | the `_settle_kept` line alone: no other docstring cites it |
+
+### D17
+
+Converge's round 1 found archived designs that describe the code before this change. `0099-stacked-builds` D1 gives `until` a `stack: bool` that [D9](#d9) replaced with the callable `still`; `0100-worker-diet` D5 matches the missing-tool message anywhere in a result, where [D11](#d11) matches its opening; `0104-codex-limits` D3 probes Codex with any time left, where [D12](#d12) returns False below `PROBE_ROOM`. Phase 4 corrects each line in place and cites the decision here, as paydown 2 corrected archived prose.
 
 ## Tests
 
