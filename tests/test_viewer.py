@@ -7,7 +7,11 @@ Why: 0120-ui-state design, *Tests*.
 import json
 import os
 import runpy
+import signal
+import subprocess
+import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -571,3 +575,322 @@ def test_a_claim_ps_cannot_read_is_unread(tmp_path: Path) -> None:
         "0002-b": "idle",
     }
     assert "stale run" not in [row["kind"] for row in shown["for_you"]]
+
+
+def _viewer() -> dict[str, Any]:
+    """Return the viewer's definitions, loaded by path."""
+    return runpy.run_path(str(_SCRIPT))
+
+
+def test_the_projects_come_from_the_record_and_the_config(tmp_path: Path) -> None:
+    ns = _viewer()
+    top = tmp_path.resolve()
+    for name in ("a", "b", "c", "e"):
+        (top / name / ".minions").mkdir(parents=True)
+    (top / "d").mkdir()
+    listed = [top / name for name in ("a", "b", "d")] + [Path(), top / "e", top / "a"]
+    record = top / "repos"
+    record.write_text("".join(f"{line}\n" if line.name else "\n" for line in listed))
+    rows = [
+        {"path": str(top / "c"), "name": "See"},
+        {"path": str(top / "b"), "name": "Bee"},
+        {"path": str(top / "a"), "hide": True},
+        {"path": str(top / "missing")},
+    ]
+    found = ns["projects"](record, rows)
+    assert [(each.path, each.name) for each in found] == [
+        (top / "c", "See"),
+        (top / "b", "Bee"),
+        (top / "e", "e"),
+    ]
+    assert [each.name for each in ns["projects"](top / "none", rows)] == ["See", "Bee"]
+    config = top / "ui.toml"
+    assert ns["read_config"](config) == (8737, [])
+    config.write_text('port = 9000\n[[container]]\npath = "x"\nname = "X"\n')
+    assert ns["read_config"](config) == (9000, [{"path": "x", "name": "X"}])
+
+
+def test_a_bad_config_exits_2_naming_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    read_config = _viewer()["read_config"]
+    config = tmp_path / "ui.toml"
+    bad = (
+        b"[[[ nope",
+        b"\xff\xfe",
+        b'port = "x"',
+        b"port = true",
+        b"port = 0",
+        b"port = 70000",
+        b'[[container]]\nname = "x"\n',
+        b"[[container]]\npath = 3\n",
+        b'container = "x"',
+    )
+    for text in bad:
+        config.write_bytes(text)
+        with pytest.raises(SystemExit) as caught:
+            read_config(config)
+        assert caught.value.code == 2
+        assert str(config) in capsys.readouterr().err
+
+
+def test_a_project_read_past_its_bound_is_killed(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    os.mkfifo(active / "pid")
+    began = time.monotonic()
+    shown = _viewer()["read_project"](root, None, 1)
+    assert time.monotonic() - began < 8
+    assert (shown["name"], shown["unread"], shown["versions"]) == (
+        "main",
+        "read past 1 s",
+        [],
+    )
+
+
+def test_a_child_that_fails_or_prints_no_state_shows_its_project_unread(
+    tmp_path: Path,
+) -> None:
+    read_project = _viewer()["read_project"]
+    assert "not in a git repository" in read_project(tmp_path, None)["unread"]
+    script = tmp_path / "child.py"
+    read_project.__globals__["SELF"] = script
+    for body, reason in (
+        ("raise SystemExit(3)", "exit 3"),
+        ("print('nope')", "no state read"),
+        ("print('[]')", "no state read"),
+    ):
+        script.write_text(f"{body}\n")
+        assert read_project(tmp_path, None)["unread"] == reason
+    script.write_text('print(\'{"name": "x"}\')\n')
+    assert read_project(tmp_path, "fingerprint") == {"name": "x"}
+
+
+def test_a_frame_numbers_the_whole_state() -> None:
+    ns = _viewer()
+    state = ns["State"]()
+    assert state.latest() == (0, [])
+    assert state.publish([]) is True
+    assert state.publish([]) is False
+    shown = [{"name": "a"}]
+    assert state.publish(shown) is True
+    assert state.latest() == (2, shown)
+    assert state.wait(2, 0) is False
+    assert state.wait(1, 0) is True
+    assert ns["frame"](2, shown) == (
+        'id: 2\nevent: state\ndata: {"seq":2,"projects":[{"name":"a"}]}\n\n'
+    )
+
+
+def test_the_routes_answer_and_refuse(tmp_path: Path) -> None:
+    ns = _viewer()
+    route = ns["route"]
+    page = tmp_path / "index.html"
+    page.write_text("<p>page</p>")
+    route.__globals__["PAGE"] = page
+    state = ns["State"]()
+    shown = [{"name": "a"}]
+    state.publish(shown)
+    local = "127.0.0.1:8737"
+    status, headers, body = route("/", local, 8737, state)
+    assert (status, headers["Content-Type"], body) == (
+        200,
+        "text/html; charset=utf-8",
+        "<p>page</p>",
+    )
+    assert headers["Content-Security-Policy"].startswith("default-src 'none'")
+    status, headers, body = route("/state?x=1", "localhost:8737", 8737, state)
+    assert (status, headers["Content-Type"]) == (200, "application/json")
+    assert json.loads(body) == {"seq": 1, "projects": shown}
+    assert "Content-Security-Policy" not in headers
+    status, headers, body = route("/events", local, 8737, state)
+    assert (status, headers["Content-Type"]) == (200, "text/event-stream")
+    assert next(body) == ns["frame"](1, shown)
+    assert route("/nope", local, 8737, state)[0] == 404
+    for path in ("/", "/state", "/events", "/nope"):
+        for host in (None, "evil.test:8737", "127.0.0.1:9", "127.0.0.1"):
+            assert route(path, host, 8737, state)[0] == 403
+        for host in (local, "127.0.0.1:9", None):
+            answer = route(path, host, 8737, state)[1]
+            for name in ("Cache-Control", "X-Content-Type-Options", "Referrer-Policy"):
+                assert name in answer
+
+
+def test_the_stream_sends_each_new_state_once() -> None:
+    ns = _viewer()
+    state = ns["State"]()
+    state.publish([{"name": "a"}])
+    frames = ns["stream"](state, keepalive=0)
+    assert next(frames) == ns["frame"](1, [{"name": "a"}])
+    assert next(frames) == ": keep-alive\n\n"
+    assert state.publish([{"name": "a"}]) is False
+    assert next(frames) == ": keep-alive\n\n"
+    state.publish([{"name": "b"}])
+    assert next(frames) == ns["frame"](2, [{"name": "b"}])
+    assert next(frames) == ": keep-alive\n\n"
+
+
+def test_a_tick_reads_on_a_change_and_on_time() -> None:
+    ns = _viewer()
+    mark, calls = {"now": "m1"}, []
+    lively = {"level": "quiet", "last": 1.0}
+
+    def read(path: Path, only: str | None) -> dict[str, Any]:
+        calls.append(only)
+        if only == "fingerprint":
+            return {"fingerprint": mark["now"]} if mark["now"] else {"unread": "x"}
+        if only == "liveness":
+            return {"0001-a": lively}
+        return {
+            "name": path.name,
+            "unread": None,
+            "versions": [{"id": "0001-a", "liveness": None}],
+        }
+
+    entries = [ns["Entry"](Path("p1"), "One"), ns["Entry"](Path("p2"), "Two")]
+    memory: dict[Path, list[Any]] = {}
+
+    def run(now: float) -> list[dict[str, Any]]:
+        calls.clear()
+        shown = ns["tick"](now, entries, memory, read)
+        assert [each["name"] for each in shown] == ["One", "Two"]
+        return shown
+
+    run(0)
+    assert sorted(calls, key=str) == [None, None, "fingerprint", "fingerprint"]
+    run(2)
+    assert calls == ["fingerprint", "fingerprint"]
+    shown = run(5)
+    assert sorted(calls) == ["fingerprint", "fingerprint", "liveness", "liveness"]
+    assert shown[0]["versions"][0]["liveness"] == lively
+    run(6)
+    assert calls == ["fingerprint", "fingerprint"]
+    mark["now"] = "m2"
+    shown = run(7)
+    assert sorted(calls, key=str) == [None, None, "fingerprint", "fingerprint"]
+    assert shown[0]["versions"][0]["liveness"] is None
+    run(16)
+    assert sorted(calls) == ["fingerprint", "fingerprint", "liveness", "liveness"]
+    run(17)
+    assert sorted(calls, key=str) == [None, None, "fingerprint", "fingerprint"]
+    mark["now"] = ""
+    run(18)
+    assert sorted(calls, key=str) == [None, None, "fingerprint", "fingerprint"]
+
+
+class _Child:
+    """A started process: it stays alive, or has exited."""
+
+    def __init__(self, pid: int, exits: bool) -> None:
+        self.pid = pid
+        self.exits = exits
+
+    def wait(self, timeout: float) -> int:
+        if self.exits:
+            return 1
+        raise subprocess.TimeoutExpired("viewer", timeout)
+
+
+def _serving(pid: int) -> str:
+    """Return the command line of a server at pid 4242 and of any pid at or below 1."""
+    return "python viewer.py serve" if pid in (1, 4242) else "vim notes"
+
+
+def test_start_finds_and_stop_removes_the_pid_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ns = _viewer()
+    folder = tmp_path / "state" / "minionsfactory"
+    config = tmp_path / "ui.toml"
+    config.write_text("port = 9123\n")
+    spawned: list[tuple[list[str], Path]] = []
+    killed: list[tuple[int, int]] = []
+
+    def spawn(argv: list[str], log: Path) -> _Child:
+        spawned.append((argv, log))
+        return _Child(4242, False)
+
+    assert ns["start"](folder, config, spawn, _serving, wait=0) == 0
+    assert capsys.readouterr().out == "http://127.0.0.1:9123/\n"
+    assert spawned == [([sys.executable, str(_SCRIPT), "serve"], folder / "viewer.log")]
+    assert (folder / "viewer.pid").read_text() == "4242\n"
+    assert (folder / "viewer.port").read_text() == "9123\n"
+    assert folder.stat().st_mode & 0o777 == 0o700
+    assert (folder / "viewer.pid").stat().st_mode & 0o777 == 0o600
+    config.write_text("port = 9999\n")
+    assert ns["start"](folder, config, spawn, _serving, wait=0) == 0
+    assert capsys.readouterr().out == "http://127.0.0.1:9123/\n"
+    assert len(spawned) == 1
+    assert ns["stop"](folder, _serving, lambda pid, sig: killed.append((pid, sig))) == 0
+    assert capsys.readouterr().out == "viewer: stopped\n"
+    assert killed == [(4242, signal.SIGTERM)]
+    assert not (folder / "viewer.pid").exists()
+    assert not (folder / "viewer.port").exists()
+    exited = ns["start"](folder, config, lambda *_: _Child(5, True), _serving, wait=0)
+    assert exited == 1
+    log = folder / "viewer.log"
+    assert capsys.readouterr().out == f"viewer: the server exited — see {log}\n"
+    assert not (folder / "viewer.pid").exists()
+    out = tmp_path / "child.log"
+    child = ns["spawn"]([sys.executable, "-c", "print('hi')"], out)
+    assert child.wait(timeout=30) == 0
+    assert out.read_text() == "hi\n"
+    assert out.stat().st_mode & 0o777 == 0o600
+    assert ns["run_ps"](os.getpid()) == _START
+
+
+def test_stop_signals_only_the_servers_pid(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stop = _viewer()["stop"]
+    killed: list[tuple[int, int]] = []
+
+    def kill(pid: int, sig: int) -> None:
+        killed.append((pid, sig))
+
+    for held in ("7\n", "1\n", "abc\n", None):
+        if held is not None:
+            (tmp_path / "viewer.pid").write_text(held)
+        assert stop(tmp_path, _serving, kill) == 0
+        assert capsys.readouterr().out == "viewer: not running\n"
+        assert killed == []
+        assert not (tmp_path / "viewer.pid").exists()
+    (tmp_path / "viewer.pid").write_text("4242\n")
+    assert stop(tmp_path, _serving, kill) == 0
+    assert capsys.readouterr().out == "viewer: stopped\n"
+    assert killed == [(4242, signal.SIGTERM)]
+
+
+def test_main_runs_serve_start_and_stop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ns = _viewer()
+    main = ns["main"]
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    seen: dict[str, tuple[object, ...]] = {}
+
+    def fake(name: str, code: int) -> Callable[..., int]:
+        def run(*args: object) -> int:
+            seen[name] = args
+            return code
+
+        return run
+
+    main.__globals__.update(
+        serve=fake("serve", 11), start=fake("start", 12), stop=fake("stop", 13)
+    )
+    assert [main(["serve"]), main(["start"]), main(["stop"])] == [11, 12, 13]
+    config = tmp_path / "cfg" / "minionsfactory" / "ui.toml"
+    folder = tmp_path / "state" / "minionsfactory"
+    assert seen["serve"] == (config,)
+    assert seen["start"] == (folder, config, ns["spawn"], ns["run_ps"])
+    assert seen["stop"] == (folder, ns["run_ps"], os.kill)
+    monkeypatch.delenv("XDG_CONFIG_HOME")
+    monkeypatch.delenv("XDG_STATE_HOME")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert ns["config_path"]() == tmp_path / "home/.config/minionsfactory/ui.toml"
+    assert ns["state_folder"]() == tmp_path / "home/.local/state/minionsfactory"
+    assert ns["recorded"]() == tmp_path / "home/.mf-ship-origin/repos"

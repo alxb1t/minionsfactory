@@ -2,30 +2,59 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Project each project's ship line into one state tree, read-only.
+"""Project each project's ship line into one state tree and serve it, read-only.
 
-`viewer.py project <primary>` prints a project's tree as JSON.
-Why: 0120-ui-state design D1, D3.
+`viewer.py project <primary>` prints a tree; `serve`, `start` and `stop` run the server.
+Why: 0120-ui-state design D1, D3, D7, D8.
 """
 
+import contextlib
 import glob
 import hashlib
 import json
 import os
 import re
 import runpy
+import signal
 import stat
+import subprocess
 import sys
+import threading
 import time
+import tomllib
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple, NoReturn, Protocol
 
-SKILLS = Path(__file__).resolve().parents[2]
+SELF = Path(__file__).resolve()
+SKILLS = SELF.parents[2]
 CONDUCT = SKILLS / "mf-ship/scripts/conduct.py"
 CONVERGE = SKILLS / "mf-converge/scripts/converge.py"
+PAGE = SKILLS / "mf-ui/page/index.html"
 PART = 262144
-USAGE = "usage: viewer.py project <primary> [--only liveness|fingerprint]"
+BOUND = 10
+POLL = 2
+REREAD = 10
+LIVENESS = 5
+KEEPALIVE = 15
+START_WAIT = 2
+PORT = 8737
+SECURITY = {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+POLICY = (
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+    "connect-src 'self'; base-uri 'none'; form-action 'none'"
+)
+USAGE = (
+    "usage: viewer.py project <primary> [--only liveness|fingerprint]"
+    " | serve | start | stop"
+)
 STAMP = "%Y%m%d-%H%M%S"
 ACTIVE = 60
 QUIET = 300
@@ -58,6 +87,25 @@ class Version(Protocol):
 
     change: str
     tree: Path
+
+
+class Entry(NamedTuple):
+    """A project the server shows: its primary checkout and its name."""
+
+    path: Path
+    name: str
+
+
+class Child(Protocol):
+    """A started process: its pid, and a wait that raises on a timeout."""
+
+    pid: int
+
+    def wait(self, timeout: float) -> int:
+        """Return the exit code, or raise `subprocess.TimeoutExpired`."""
+
+
+Read = Callable[[Path, str | None], dict[str, Any]]
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -500,10 +548,382 @@ def project(primary: Path, only: str | None, now: float) -> str:
     return json.dumps(shown)
 
 
+def _refuse(message: str) -> NoReturn:
+    """Print a refusal on stderr and exit 2."""
+    print(f"viewer: {message}", file=sys.stderr)
+    raise SystemExit(2)
+
+
+def config_path() -> Path:
+    """Return `ui.toml` under `$XDG_CONFIG_HOME`, else `~/.config`."""
+    base = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(base) if base else Path.home() / ".config") / "minionsfactory/ui.toml"
+
+
+def state_folder() -> Path:
+    """Return the state folder under `$XDG_STATE_HOME`, else `~/.local/state`."""
+    base = os.environ.get("XDG_STATE_HOME")
+    return (Path(base) if base else Path.home() / ".local/state") / "minionsfactory"
+
+
+def recorded() -> Path:
+    """Return the list of repos a run started in, which `conduct.py run` keeps."""
+    return Path.home() / ".mf-ship-origin" / "repos"
+
+
+def read_config(path: Path) -> tuple[int, list[dict[str, Any]]]:
+    """Return the config's port and container rows; a missing file gives the defaults.
+
+    e.g. `port = 9000` and one `[[container]]` row → (9000, [{"path": ...}])
+    """
+    if not path.is_file():
+        return PORT, []
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        _refuse(f"{path}: {error}")
+    port, rows = data.get("port", PORT), data.get("container", [])
+    if not isinstance(port, int) or isinstance(port, bool) or not 0 < port < 65536:
+        _refuse(f"{path}: `port` is not an integer from 1 to 65535")
+    if not isinstance(rows, list) or not all(
+        isinstance(row, dict) and isinstance(row.get("path"), str) for row in rows
+    ):
+        _refuse(f"{path}: a `[[container]]` row has no string `path`")
+    return port, rows
+
+
+def projects(record: Path, rows: list[dict[str, Any]]) -> list[Entry]:
+    """Return the shown projects: the rows first, then the record, each path once.
+
+    e.g. a row with `hide = true` drops its project; a path with no `.minions/` is none
+    """
+    named: dict[Path, dict[str, Any]] = {}
+    for row in rows:
+        named.setdefault(Path(row["path"]).expanduser().resolve(), row)
+    lines = (read_part(record) or "").splitlines()
+    listed = [Path(line.strip()).resolve() for line in lines if line.strip()]
+    found = []
+    for path in dict.fromkeys([*named, *listed]):
+        row = named.get(path, {})
+        if row.get("hide") is True or not (path / ".minions").is_dir():
+            continue
+        name = row.get("name")
+        found.append(Entry(path, name if isinstance(name, str) and name else path.name))
+    return found
+
+
+def _unread(primary: Path, reason: str) -> dict[str, Any]:
+    """Return a project whose read failed: its name, the reason, no versions."""
+    return {
+        "name": primary.name,
+        "unread": reason,
+        "run": None,
+        "for_you": [],
+        "versions": [],
+        "queue": [],
+    }
+
+
+def read_project(primary: Path, only: str | None, bound: int = BOUND) -> dict[str, Any]:
+    """Return one project's read by a child process, killed past `bound` seconds.
+
+    A failed read is a project `unread` with the reason; `only` reads fail the same way.
+    """
+    argv = [sys.executable, str(SELF), "project", str(primary)]
+    child = subprocess.Popen(
+        [*argv, *(["--only", only] if only else [])],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+        start_new_session=True,
+    )
+    try:
+        out, err = child.communicate(timeout=bound)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(child.pid, signal.SIGKILL)
+        child.communicate()
+        return _unread(primary, f"read past {bound} s")
+    if child.returncode:
+        lines = err.strip().splitlines()
+        return _unread(primary, lines[0] if lines else f"exit {child.returncode}")
+    try:
+        shown = json.loads(out)
+    except ValueError:
+        shown = None
+    return shown if isinstance(shown, dict) else _unread(primary, "no state read")
+
+
+class State:
+    """The newest numbered state, shared by the poll thread and the streams."""
+
+    def __init__(self) -> None:
+        """Start at sequence 0 with no projects."""
+        self.seq = 0
+        self.projects: list[dict[str, Any]] = []
+        self.last: str | None = None
+        self.changed = threading.Condition()
+
+    def publish(self, projects: list[dict[str, Any]]) -> bool:
+        """Raise `seq` and wake the streams when `projects` differ; return whether."""
+        text = json.dumps(projects)
+        with self.changed:
+            if text == self.last:
+                return False
+            self.last, self.projects, self.seq = text, projects, self.seq + 1
+            self.changed.notify_all()
+        return True
+
+    def latest(self) -> tuple[int, list[dict[str, Any]]]:
+        """Return the newest `seq` and its projects."""
+        with self.changed:
+            return self.seq, self.projects
+
+    def wait(self, after: int, timeout: float) -> bool:
+        """Block until `seq` is above `after` or the timeout; return whether it is."""
+        with self.changed:
+            return self.changed.wait_for(lambda: self.seq > after, timeout)
+
+
+def frame(seq: int, projects: list[dict[str, Any]]) -> str:
+    r"""Return one server-sent event holding the whole numbered state.
+
+    e.g. `id: 2\nevent: state\ndata: {"seq":2,"projects":[]}\n\n`
+    """
+    data = json.dumps({"seq": seq, "projects": projects}, separators=(",", ":"))
+    return f"id: {seq}\nevent: state\ndata: {data}\n\n"
+
+
+def stream(state: State, keepalive: float = KEEPALIVE) -> Iterator[str]:
+    """Yield the newest frame, each newer one once, and a comment when none comes."""
+    seen = -1
+    while True:
+        seq, shown = state.latest()
+        if seq > seen:
+            seen = seq
+            yield frame(seq, shown)
+        elif not state.wait(seen, keepalive):
+            yield ": keep-alive\n\n"
+
+
+def _answer(
+    status: int, kind: str, body: str | Iterator[str], extra: dict[str, str]
+) -> tuple[int, dict[str, str], str | Iterator[str]]:
+    """Return a status, the headers every answer carries and the body."""
+    return status, {"Content-Type": kind, **SECURITY, **extra}, body
+
+
+def route(
+    path: str, host: str | None, port: int, state: State
+) -> tuple[int, dict[str, str], str | Iterator[str]]:
+    """Return the status, headers and body of a GET; no socket is touched.
+
+    e.g. `/state?x=1` from `127.0.0.1:8737` → 200 and the newest frame as JSON
+    """
+    if host not in (f"127.0.0.1:{port}", f"localhost:{port}"):
+        return _answer(403, "text/plain", "forbidden", {})
+    match path.split("?", 1)[0]:
+        case "/":
+            page = PAGE.read_text(encoding="utf-8")
+            return _answer(
+                200,
+                "text/html; charset=utf-8",
+                page,
+                {"Content-Security-Policy": POLICY},
+            )
+        case "/state":
+            seq, shown = state.latest()
+            body = json.dumps({"seq": seq, "projects": shown})
+            return _answer(200, "application/json", body, {})
+        case "/events":
+            return _answer(200, "text/event-stream", stream(state), {})
+        case _:
+            return _answer(404, "text/plain", "not found", {})
+
+
+def _read_one(
+    now: float, entry: Entry, memory: dict[Path, list[Any]], read: Read
+) -> dict[str, Any]:
+    """Return one project's state: a full read on a change or on time, else liveness."""
+    last: list[Any] | None = memory.get(entry.path)
+    mark = read(entry.path, "fingerprint").get("fingerprint")
+    if last is None or mark is None or mark != last[0] or now - last[1] >= REREAD:
+        last = memory[entry.path] = [mark, now, now, read(entry.path, None)]
+    elif now - last[2] >= LIVENESS:
+        lively = read(entry.path, "liveness")
+        shown: dict[str, Any] = last[3]
+        last[2] = now
+        last[3] = {
+            **shown,
+            "versions": [
+                {**each, "liveness": lively.get(each["id"], each["liveness"])}
+                for each in shown["versions"]
+            ],
+        }
+    project: dict[str, Any] = last[3]
+    return {**project, "name": entry.name}
+
+
+def tick(
+    now: float, entries: list[Entry], memory: dict[Path, list[Any]], read: Read
+) -> list[dict[str, Any]]:
+    """Return each project's state, the projects read in parallel.
+
+    `memory[path]` is the last fingerprint, full read time, liveness time and project.
+    """
+    with ThreadPoolExecutor(max_workers=max(1, len(entries))) as pool:
+        return list(
+            pool.map(lambda entry: _read_one(now, entry, memory, read), entries)
+        )
+
+
+class Handler(BaseHTTPRequestHandler):
+    """Answer a GET by `route`, writing a generator body as it yields."""
+
+    state: State
+    port: int
+
+    def do_GET(self) -> None:  # pragma: no cover
+        """Write the answer `route` gives to this request."""
+        host = self.headers.get("Host")
+        status, headers, body = route(self.path, host, self.port, self.state)
+        self.send_response(status)
+        for key, value in headers.items():
+            self.send_header(key, value)
+        self.end_headers()
+        for chunk in [body] if isinstance(body, str) else body:
+            self.wfile.write(chunk.encode())
+            self.wfile.flush()
+
+
+def serve(config: Path) -> int:  # pragma: no cover
+    """Run the server on `127.0.0.1` in the foreground, polling the projects."""
+    port, rows = read_config(config)
+    state = State()
+    memory: dict[Path, list[Any]] = {}
+
+    def poll() -> None:
+        while True:
+            entries = projects(recorded(), rows)
+            state.publish(tick(time.monotonic(), entries, memory, read_project))
+            time.sleep(POLL)
+
+    Handler.state, Handler.port = state, port
+    threading.Thread(target=poll, daemon=True).start()
+    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    return 0
+
+
+def run_ps(pid: int) -> str:
+    """Return the command line `ps` shows for `pid`, empty when it shows none."""
+    done = subprocess.run(
+        ["ps", "-o", "command=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    return done.stdout.strip()
+
+
+def serves(pid: int, ps: Callable[[int], str]) -> bool:
+    """Return whether `pid` is this script's `serve` command."""
+    words = ps(pid).split()
+    return "serve" in words and any(word.endswith("viewer.py") for word in words)
+
+
+def spawn(argv: list[str], log: Path) -> subprocess.Popen[bytes]:
+    """Start `argv` in a new session, its output appended to `log`, mode 0600."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW
+    fd = os.open(log, flags, 0o600)
+    try:
+        return subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=fd,
+            stderr=fd,
+            start_new_session=True,
+        )
+    finally:
+        os.close(fd)
+
+
+def _private(path: Path, text: str) -> None:
+    """Write `text` at `path`, mode 0600."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w") as file:
+        file.write(text)
+
+
+def _forget(folder: Path) -> None:
+    """Remove the pid and port files, which say a server runs."""
+    for name in ("viewer.pid", "viewer.port"):
+        (folder / name).unlink(missing_ok=True)
+
+
+def _held(folder: Path, name: str) -> int | None:
+    """Return the integer in the state folder's file `name`, None when it holds none."""
+    return _int((read_part(folder / name) or "").strip())
+
+
+def start(
+    folder: Path,
+    config: Path,
+    spawn: Callable[[list[str], Path], Child],
+    ps: Callable[[int], str],
+    wait: float = START_WAIT,
+) -> int:
+    """Print the URL of the running server, starting one detached when none runs.
+
+    Returns 1 when the new server exits within `wait` seconds.
+    """
+    port, _ = read_config(config)
+    pid = _held(folder, "viewer.pid") or 0
+    if pid > 1 and serves(pid, ps):
+        print(f"http://127.0.0.1:{_held(folder, 'viewer.port') or port}/")
+        return 0
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    folder.chmod(0o700)
+    log = folder / "viewer.log"
+    child = spawn([sys.executable, str(SELF), "serve"], log)
+    _private(folder / "viewer.pid", f"{child.pid}\n")
+    _private(folder / "viewer.port", f"{port}\n")
+    try:
+        child.wait(timeout=wait)
+    except subprocess.TimeoutExpired:
+        print(f"http://127.0.0.1:{port}/")
+        return 0
+    _forget(folder)
+    print(f"viewer: the server exited — see {log}")
+    return 1
+
+
+def stop(
+    folder: Path, ps: Callable[[int], str], kill: Callable[[int, int], None]
+) -> int:
+    """End the server `start` started, signalling its pid only while it serves."""
+    pid = _held(folder, "viewer.pid") or 0
+    running = pid > 1 and serves(pid, ps)
+    if running:
+        kill(pid, signal.SIGTERM)
+    _forget(folder)
+    print("viewer: stopped" if running else "viewer: not running")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Run a command: print its JSON, or a usage line and return 2."""
+    """Run a command: print its JSON, serve, start or stop, else a usage line and 2."""
     args = sys.argv[1:] if argv is None else argv
     match args:
+        case ["serve"]:
+            return serve(config_path())
+        case ["start"]:
+            return start(state_folder(), config_path(), spawn, run_ps)
+        case ["stop"]:
+            return stop(state_folder(), run_ps, os.kill)
         case ["project", primary]:
             only = None
         case ["project", primary, "--only", ("liveness" | "fingerprint") as only]:

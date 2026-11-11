@@ -5,7 +5,7 @@ The phases: the projector, the server, the page, the record, and a person's chec
 ## Progress
 
 - [x] 1 — The projector · hard
-- [ ] 2 — The server · hard
+- [x] 2 — The server · hard
 - [ ] 3 — The page · moderate
 - [ ] 4 — The record · moderate
 - [ ] 5 — The live check **HUMAN**
@@ -51,25 +51,25 @@ The phases: the projector, the server, the page, the record, and a person's chec
 
 `viewer.py` gains the projects, the child read, the frame, the routes, the poll and the commands; no test opens a socket.
 
-- [ ] 2.1 Add `read_config` and `projects` for [D6](design.md#d6): the record, `ui.toml`, exit 2 on a bad file.
+- [x] 2.1 Add `read_config` and `projects` for [D6](design.md#d6): the record, `ui.toml`, exit 2 on a bad file.
   Add `test_the_projects_come_from_the_record_and_the_config` and `test_a_bad_config_exits_2_naming_it`.
   Verify: `uv run pytest tests/test_viewer.py -k "from_the_record or bad_config" -q` exits 0.
-- [ ] 2.2 Add `read_project(primary, only, bound)`: the child, its environment and its kill, per [D2](design.md#d2).
+- [x] 2.2 Add `read_project(primary, only, bound)`: the child, its environment and its kill, per [D2](design.md#d2).
   Add `test_a_project_read_past_its_bound_is_killed`, a pipe at the claim's `pid`, the bound 1 s.
   Verify: `uv run pytest tests/test_viewer.py -k read_past_its_bound -q` exits 0.
-- [ ] 2.3 Add `State.publish`, `State.latest` and `frame`, per [D7](design.md#d7).
+- [x] 2.3 Add `State.publish`, `State.latest` and `frame`, per [D7](design.md#d7).
   Add `test_a_frame_numbers_the_whole_state`.
   Verify: `uv run pytest tests/test_viewer.py -k numbers_the_whole_state -q` exits 0.
-- [ ] 2.4 Add `route` and the stream generator, with the `Host` check and the headers of [D7](design.md#d7).
+- [x] 2.4 Add `route` and the stream generator, with the `Host` check and the headers of [D7](design.md#d7).
   Add `test_the_routes_answer_and_refuse` and `test_the_stream_sends_each_new_state_once`.
   Verify: `uv run pytest tests/test_viewer.py -k "routes_answer or stream_sends" -q` exits 0.
-- [ ] 2.5 Add `tick`: the fingerprint, the 10 s re-read and the 5 s liveness, per [D7](design.md#d7).
+- [x] 2.5 Add `tick`: the fingerprint, the 10 s re-read and the 5 s liveness, per [D7](design.md#d7).
   Add `test_a_tick_reads_on_a_change_and_on_time`, with a fake `read`.
   Verify: `uv run pytest tests/test_viewer.py -k reads_on_a_change -q` exits 0.
-- [ ] 2.6 Add `serve` and the handler's `do_GET`, each `# pragma: no cover`: bind `127.0.0.1`, the poll thread, `route` ([D7](design.md#d7)).
+- [x] 2.6 Add `serve` and the handler's `do_GET`, each `# pragma: no cover`: bind `127.0.0.1`, the poll thread, `route` ([D7](design.md#d7)).
   Mark no other line; `serve` and `do_GET` are the only lines nothing can reach without a socket.
   Verify: `grep -c 'pragma: no cover' skills/mf-ui/scripts/viewer.py` prints `2`.
-- [ ] 2.7 Add `start`, `stop` and `serves`, and wire `serve`, `start` and `stop` into `main`, per [D8](design.md#d8).
+- [x] 2.7 Add `start`, `stop` and `serves`, and wire `serve`, `start` and `stop` into `main`, per [D8](design.md#d8).
   Add `test_start_finds_and_stop_removes_the_pid_file`, `test_stop_signals_only_the_servers_pid` and `test_main_runs_serve_start_and_stop`.
   Verify: `uv run pytest tests/test_viewer.py -k "stop_removes or signals_only or runs_serve" -q` exits 0.
 

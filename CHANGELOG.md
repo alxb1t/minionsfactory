@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   why and state, phases with the worktree's ticks, converge's round and verdicts, workers, liveness, the rows for
   the person and the queue; `--only liveness` and `--only fingerprint` print a part. A claim `ps` cannot read is
   `unread`, no failure. The corpus case `viewer` reads this checkout's run directory (0120-ui-state, phase 1).
+- `viewer.py serve`, `start` and `stop` run a loopback server over the recorded projects and `ui.toml`: each project
+  is read by a child killed past 10 s, a changed state is streamed whole and numbered at `/events`, `/state` answers
+  the newest, and a foreign `Host` gets 403. `start` finds a running server, `stop` signals only its pid
+  (0120-ui-state, phase 2).
 
 ## [0.97.0] - 2026-11-11
 
