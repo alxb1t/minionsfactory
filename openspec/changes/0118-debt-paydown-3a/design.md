@@ -113,6 +113,8 @@ each glob ─▶ inputs ─▶ shape? ──no──▶ skipped, counted
 - **The session's own repo.** `_sessions` keeps the first string `cwd` of a transcript. `_operator` takes the marks of the repo `cwd` names: the configured repo equal to it, holding it, or whose `.git/worktrees/<name>` a `gitdir:` line in `cwd`'s `.git` file names. A session whose `cwd` names none keeps every mark. The requirement's list of what a transcript gives gains `cwd`, and the page still writes numbers, ids and times, never a path.
 - **Agent tasks.** `_log_workers` skips a `task_started` whose `task_type` is a string other than `local_agent`; an older log with no `task_type` still counts (0100·S4).
 
+Fix note (2026-11-11, S1): `_own_repo` checks configured repositories from the deepest path outward, so an exact match or the nearest containing repository wins independently of configuration order.
+
 ### D11
 
 `row_v6` is `row_v1`'s twin: for each search of a sub-task and each needle, a later sub-task that names the search's file and quotes the needle in a removed line returns `<task>: <needle> is removed in <later>`.

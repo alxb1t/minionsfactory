@@ -867,7 +867,6 @@ def test_review_metrics_books_a_worker_by_its_log_name(tmp_path: Path) -> None:
     # A log of another form is booked to no role, as a gap.
     _worker_log(tmp_path, "0001-x", "20261109-101500-converge-extra.log", *claude)
     # An older converge log and a mailbox checker's are read as before, and once.
-    # A task that is no agent, though named like a worker, is no worker.
     started = {"type": "system", "subtype": "task_started"}
     agent = started | {"tool_use_id": "t1", "task_type": "local_agent"}
     shell = started | {"tool_use_id": "t2", "task_type": "local_bash"}
@@ -1767,8 +1766,6 @@ def test_a_span_is_bound_to_the_ids_a_cut_queued(tmp_path: Path) -> None:
     assert review_metrics._queued(repos, sessions) == [
         {"chain": 0, "id": "0001-x", "repo": "second", "time": _when(4)}
     ]
-    # A brief named by `$NAME` or `${NAME}`, assigned earlier in the command, binds as
-    # written; a name no word assigns stays as written and binds none.
     for ident in ("0004-b", "0005-c", "0006-d"):
         _cut_log(second, ident, 10)
     cut = "uv run --script conduct.py cut s minor"
@@ -1948,8 +1945,6 @@ def test_operator_work_is_booked_to_the_nearest_mark(
     ]
     assert all(r["seconds"] is None for r in rows)
 
-    # A session whose `cwd` is, holds, or is a worktree of the second repo books to
-    # that repo's marks, though the first repo's mark is nearer.
     other = tmp_path / "other"
     (other / "sub").mkdir(parents=True)
     _run_log(other, "20261105-100000.md", "10:00:05 · 0009-o · spawn — build · model m")
@@ -1957,7 +1952,6 @@ def test_operator_work_is_booked_to_the_nearest_mark(
     tree.mkdir()
     gitdir = other / ".git" / "worktrees" / "tree"
     (tree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
-    # A session with no `cwd`, one naming no repo, and one whose `.git` is a folder.
     nowhere = tmp_path / "nowhere"
     (nowhere / ".git").mkdir(parents=True)
     stray = tmp_path / "stray"
@@ -1998,13 +1992,37 @@ def test_operator_work_is_booked_to_the_nearest_mark(
         "stray": near,
         "missing": near,
     }
-    # With no `repos`, the same session books as before.
     (equal,) = [
         s for s in review_metrics._sessions([folder], set()) if s["id"] == "equal"
     ]
     assert equal["cwd"] == str(other)
     (row,) = review_metrics._operator([equal], [], both)
     assert (row["repo"], row["change"]) == ("repo", "0002-y")
+
+    nested = repo / "service"
+    _run_log(
+        nested, "20261105-100000.md", "10:00:05 · 0010-n · spawn — build · model m"
+    )
+    nested_marks = review_metrics._marks([repo, nested], queued)
+    for name, cwd in (("exact", nested), ("contained", nested / "sub")):
+        _written(
+            tmp_path / "nested-sessions",
+            name,
+            {"type": "user", "timestamp": _at(0), "cwd": str(cwd)},
+            _tool("nested-status", _at(31), "Bash", command="conduct.py status"),
+            _used("nested-message", 30, 11),
+        )
+    nested_sessions = review_metrics._sessions([tmp_path / "nested-sessions"], set())
+    assert {session["id"] for session in nested_sessions} == {"exact", "contained"}
+    for configured in ([repo, nested], [nested, repo]):
+        for session in nested_sessions:
+            (row,) = review_metrics._operator([session], [], nested_marks, configured)
+            assert (row["repo"], row["change"], row["tokens"], row["turns"]) == (
+                "service",
+                "0010-n",
+                11,
+                1,
+            )
 
 
 def test_a_subagent_books_where_its_call_was_launched(tmp_path: Path) -> None:
