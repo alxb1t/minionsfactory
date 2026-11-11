@@ -6157,7 +6157,7 @@ class Run:
             moved = f"changes/{change}/models.toml changed during the run"
             self.log.event("run", "rejoin", f"{change}: still halted — {moved}")
             return False
-        if not self.admit(version):
+        if not self.admit(version, stage):
             return False
         self.log.event("run", "rejoin", f"{change}: {stage}")
         threads[change] = threading.Thread(
@@ -6166,11 +6166,11 @@ class Run:
         threads[change].start()
         return True
 
-    def admit(self, version: Version) -> bool:
+    def admit(self, version: Version, stage: str | None = None) -> bool:
         """Clear a joining version's halts, read its plan, probe its new executors.
 
-        Why: 0063-rejoin design D2, D3; 0082-cut-station design
-        D4; 0085-self-healing-ship design D7.
+        A `stage` leaves out the stations behind it. Why: 0063-rejoin D2, D3;
+        0082-cut-station D4; 0085-self-healing-ship D7; 0117-codex-converge D8.
         """
         change = version.change
         with self.guard:
@@ -6179,7 +6179,8 @@ class Run:
             self.diagnosed.discard(change)
         if change not in self.planned:
             self.read_plan([version])
-        self.probe_for(change, self.named(change), self.on_stations(change))
+        stations = self.on_stations(change, stage)
+        self.probe_for(change, self.named(change), stations)
         return not self.stopped(change)
 
     def probe_for(
@@ -6211,7 +6212,11 @@ class Run:
                         reason for who, reason in self.halts[::-1] if who == change
                     )
                     refused = next(halts, None)
-                    if refused is not None:
+                    # A probe a supplied deadline killed is that request's, not Codex's.
+                    cut_short = deadline is not None and " timed out after " in (
+                        refused or ""
+                    )
+                    if refused is not None and not cut_short:
                         self.refused[executor] = refused
                 if refused is None and executor in stations:
                     self.halt(change, self.limited_reason(executor))

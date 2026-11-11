@@ -11044,6 +11044,53 @@ def test_a_limit_halts_only_the_stations_ahead(tmp_path: Path) -> None:
     run.hold_limited(changes, [], {"0001-build": "build", "0002-rescue": "release"})
     assert [who for who, _ in run.halts] == ["0001-build"]
 
+    # A live rejoin filters by the stage it joins at, as the start does: a Codex
+    # build behind a release, or an optional Codex rescue, halts nothing.
+    run = conduct["Run"](root, "claude")
+    run.read_plan([build, rescue])
+    run.probed.add("claude")
+    run.limited["codex"] = time.time() + 3600
+    assert run.admit(build, "release") and run.admit(rescue, "build")
+    assert run.halts == [] and run.refused == {}
+    assert not run.admit(build, "build")
+    assert [who for who, _ in run.halts] == ["0001-build"]
+
+
+def test_a_fixer_probe_the_deadline_kills_is_no_run_wide_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_unlinked", lambda _: None)
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    (tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08").mkdir(parents=True)
+    log = tmp_path / "killed.log"
+    log.write_text("")
+    run = conduct["Run"](root, "claude")
+    run.probed.add("claude")
+    run.outs["0001-todo", "probe-codex"] = log
+
+    def killed(*_: object, **__: object) -> tuple[int, bool, Path, list[str]]:
+        return 1, True, log, []
+
+    run.worker = killed
+    models = ("codex", "gpt-6.1-sol", "medium")
+    done = run.fix(
+        "0001-todo", "converge-fix-r1", tree, "fix it\n", models, time.monotonic() + 90
+    )
+    assert done.code == 1 and done.limit.startswith("codex usage limit — the fixer")
+    # The timeout halts the fixer's version alone: no refusal is kept for Codex.
+    assert [who for who, _ in run.halts] == ["0001-todo"]
+    assert run.refused == {} and "codex" not in run.probed
+    # A joining version probes Codex afresh instead of inheriting the timeout.
+    fake_codex("")
+    run.worker = conduct["Run"].worker.__get__(run)
+    run.probe_for("0002-b", ["codex"], ["codex"])
+    assert "0002-b" not in [who for who, _ in run.halts]
+
 
 def test_a_codex_worker_starts_on_mf_settings_alone(
     tmp_path: Path,
