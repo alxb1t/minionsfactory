@@ -229,9 +229,13 @@ def cite_lines(cite: tuple[str, int, int]) -> list[str]:
     text = done.stdout.splitlines()
     if start > len(text):
         return [f"{path}:{start}-{end} — past the end of the file, at {len(text)}"]
-    last = min(end, start + SLICE_LINES - 1)
+    last = min(end, start + SLICE_LINES - 1, len(text))
     shown = [f"{number}: {text[number - 1]}" for number in range(start, last + 1)]
-    if last < end:
+    if last < min(end, start + SLICE_LINES - 1):
+        shown.append(
+            f"… {path}:{last + 1}-{end} — past the end of the file, at {len(text)}"
+        )
+    elif last < end:
         shown.append(
             f"… cut at {SLICE_LINES} lines — {path}:{last + 1}-{end} not shown"
         )

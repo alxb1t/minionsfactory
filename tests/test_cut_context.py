@@ -539,6 +539,10 @@ def test_a_cite_is_read_at_head_and_cut_at_the_cap(
     assert cut_context.cite_lines(("src/short.py", 5, 6)) == [
         "src/short.py:5-6 — past the end of the file, at 2"
     ]
+    assert cut_context.cite_lines(("src/short.py", 2, 4)) == [
+        "2: two",
+        "… src/short.py:3-4 — past the end of the file, at 2",
+    ]
 
 
 _SCAFFOLD_BRIEF = """\
