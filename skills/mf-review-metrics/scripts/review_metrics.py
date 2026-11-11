@@ -16,6 +16,7 @@ import json
 import os
 import re
 import runpy
+import shlex
 import statistics
 import subprocess
 import sys
@@ -105,8 +106,7 @@ WORKED = ('"task_started"', '"assistant"', '"turn.completed"', '"result"', '"mf.
 DAY_SECONDS = 86400
 # A station log's `init` event is in its first lines. Why: 0115-plan-metrics design D4.
 INIT_LINES = 5
-# A `conduct.py cut` command, and the line it prints for each version it queued.
-_CUT = re.compile(r"conduct\.py\s+(?:-\S+\s+)*cut\b")
+# The line `conduct.py cut` prints for each version it queued.
 _QUEUED = re.compile(r"^cut: queued (\d{4}-[a-z0-9-]+)", re.MULTILINE)
 _MARK = re.compile(r"^(\d\d:\d\d:\d\d) · (\S+) · (\w+)", re.MULTILINE)
 _CHANGE_ID = re.compile(r"\d{4}-[a-z0-9-]+")
@@ -979,8 +979,31 @@ def _token(words: str, key: str) -> str | None:
 
     e.g. ("x brief=/b/./y.md", "brief") → "/b/y.md"
     """
-    found = re.search(rf"(?:^|\s){key}=(\S+)", words)
-    return _path(found[1]) if found else None
+    for word in _words(words):
+        if word.startswith(f"{key}="):
+            return _path(word[len(key) + 1 :])
+    return None
+
+
+def _words(text: str) -> list[str]:
+    """Return the words of a command or argument line, quotes honoured.
+
+    e.g. 'a brief="/b/my plan.md"' → ["a", "brief=/b/my plan.md"]
+    """
+    try:
+        return shlex.split(text)
+    except ValueError:
+        return text.split()
+
+
+def _is_cut(command: str) -> bool:
+    """Return whether a command runs `conduct.py`, then any flags, then `cut`."""
+    words = _words(command)
+    for place, word in enumerate(words):
+        if os.path.basename(word) == "conduct.py":
+            rest = [w for w in words[place + 1 :] if not w.startswith("-")]
+            return rest[:1] == ["cut"]
+    return False
 
 
 def _call(block: Record, time: datetime | None) -> Record:
@@ -992,7 +1015,7 @@ def _call(block: Record, time: datetime | None) -> Record:
     given = given if isinstance(given, dict) else {}
     skill = str(given.get("skill")) if name == "Skill" else ""
     command = str(given.get("command")) if name == "Bash" else ""
-    cut = bool(_CUT.search(command))
+    cut = _is_cut(command)
     plan = skill == "mf-plan"
     words = command if cut else str(given.get("args")) if plan else ""
     touched = given.get("file_path") if name in ("Write", "Edit") else None
@@ -1029,7 +1052,11 @@ def _events(path: Path) -> list[Record]:
     """
     events: list[Record] = []
     first: dict[str, datetime | None] = {}
-    with path.open(encoding="utf-8", errors="replace") as lines:
+    try:
+        lines = path.open(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    with lines:
         for line in lines:
             row = _object(line)
             message = row.get("message")
@@ -1134,8 +1161,11 @@ def _station_sessions(repos: Iterable[Path]) -> set[str]:
     ]
     sessions: set[str] = set()
     for log in logs:
-        with log.open(encoding="utf-8", errors="replace") as lines:
-            head = [_object(line) for line in islice(lines, INIT_LINES)]
+        try:
+            with log.open(encoding="utf-8", errors="replace") as lines:
+                head = [_object(line) for line in islice(lines, INIT_LINES)]
+        except OSError:
+            continue
         named = (e.get("session_id") for e in head if e.get("subtype") == "init")
         sessions.update(s for s in named if isinstance(s, str))
     return sessions
@@ -1236,18 +1266,20 @@ def _spans(sessions: Sequence[Record]) -> list[Record]:
 
 
 def _cut_made(repos: Sequence[Path], ident: str, time: datetime) -> Path | None:
-    """Return the first repo holding change `ident` and a cut log not older than `time`.
+    """Return the one repo holding change `ident` and a cut log not older than `time`.
 
+    Two such repos are ambiguous, and bind to none: the config's order is no evidence.
     Why: 0115-plan-metrics design D6.
     """
+    found = []
     for repo in repos:
         held = _change_dir(repo, ident).is_dir()
         logs = _station_logs(repo, ident, "cut") if held else []
         if any(
             datetime.fromtimestamp(log.stat().st_mtime, UTC) >= time for log in logs
         ):
-            return repo
-    return None
+            found.append(repo)
+    return found[0] if len(found) == 1 else None
 
 
 def _queued(repos: Sequence[Path], sessions: Sequence[Record]) -> list[Record]:
@@ -1335,14 +1367,19 @@ def _marks(repos: Sequence[Path], queued: Sequence[Record]) -> list[Record]:
     marks = [{"time": q["time"], "repo": q["repo"], "change": q["id"]} for q in queued]
     for repo in repos:
         for log in sorted((repo / RUNS).glob("*.md")):
-            last = datetime.min
-            text = log.read_text(encoding="utf-8", errors="replace")
+            last, days = datetime.min, timedelta(0)
+            try:
+                text = log.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
             for clock, name, event in _MARK.findall(text):
                 try:
                     at = datetime.strptime(f"{log.stem[:8]} {clock}", "%Y%m%d %H:%M:%S")
                 except ValueError:
                     continue
-                last = at + timedelta(days=1) if last - at > HALF_DAY else at
+                if last - (at + days) > HALF_DAY:
+                    days += timedelta(days=1)
+                last = at + days
                 if _CHANGE_ID.fullmatch(name):
                     change = None if event == "removed" else name
                     marks.append(

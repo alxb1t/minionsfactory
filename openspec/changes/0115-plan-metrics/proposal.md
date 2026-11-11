@@ -10,7 +10,7 @@ Read [design](design.md) for the decisions, [tasks](tasks.md) for the phases, an
 
 ## Why
 
-The metrics book only what a run spawns: build, converge, cut and the rest, from their logs. The person's own planning and hand work in an interactive session costs about $1–4 a version for the plan and most of the rest as operator work, measured by hand, and none of it is on the page. A version's cost is understated by what no log holds.
+The metrics book only what a run spawns: build, converge, cut and the rest, from their logs. The person's own planning and hand work in an interactive session is a real cost of each version, as the plan and as operator work, and none of it is on the page. A version's cost is understated by what no log holds.
 
 ## What Changes
 

@@ -1473,6 +1473,47 @@ def test_a_transcript_is_reduced_to_numbers_and_ids(tmp_path: Path) -> None:
     assert events[-1] == {"event": "result", "call": "t3", "ids": ["0001-x"]}
     assert "PLANTED" not in str(events)
 
+    # A quoted path with a space and a quoted script name still parse.
+    quoted = _written(
+        tmp_path,
+        "s2",
+        _tool("q1", _at(1), "Skill", skill="mf-plan", args='brief="/b/my plan.md"'),
+        _tool(
+            "q2",
+            _at(2),
+            "Bash",
+            command='uv run --script "/pkg path/conduct.py" cut s minor brief=/b/x.md',
+        ),
+    )
+    found = {e["id"]: e for e in review_metrics._transcript(quoted)}
+    assert found["q1"]["brief"] == "/b/my plan.md"
+    assert found["q2"]["cut"] is True
+    assert found["q2"]["brief"] == "/b/x.md"
+
+    # An unbalanced quote falls back to plain words.
+    broken = _written(
+        tmp_path,
+        "s3",
+        _tool(
+            "q3",
+            _at(1),
+            "Bash",
+            command='conduct.py cut s minor brief=/b/z.md "open',
+        ),
+    )
+    (call,) = (e for e in review_metrics._transcript(broken) if e["event"] == "call")
+    assert (call["cut"], call["brief"]) == (True, "/b/z.md")
+
+
+def test_an_unreadable_transcript_is_a_gap(tmp_path: Path) -> None:
+    # A folder named like a transcript cannot be opened as one.
+    (tmp_path / "bad.jsonl").mkdir()
+    _written(tmp_path, "good", _plan_call("t1", 1))
+
+    sessions = review_metrics._sessions([tmp_path], set())
+
+    assert [s["id"] for s in sessions] == ["good"]
+
 
 def test_a_session_with_no_marker_is_not_read(tmp_path: Path) -> None:
     usage = {"input_tokens": 3}
@@ -1546,6 +1587,8 @@ def test_a_station_session_is_skipped(tmp_path: Path) -> None:
     # An init past the log's first lines is no station's.
     late = [{"type": "assistant"}] * 5
     _worker_log(repo, "0001-x", "20260101-100000-cut.log", *late, init("s4"))
+    # A log that cannot be opened names no session.
+    (repo / ".minions" / "changes" / "0001-x" / "logs" / "gone.log").mkdir()
     for session in ("s1", "s2", "s3", "s4"):
         _written(folder, session, _plan_call())
     _written(folder, "s5", _tool("t1", _at(1), "Bash", command="ls"))
@@ -1711,6 +1754,11 @@ def test_a_span_is_bound_to_the_ids_a_cut_queued(tmp_path: Path) -> None:
     assert review_metrics._queued(repos, sessions) == [
         {"chain": 0, "id": "0001-x", "repo": "second", "time": _when(4)}
     ]
+    # Two repos holding the id with a fresh cut log are ambiguous: bound to neither,
+    # whatever the order of the config.
+    _cut_log(first, "0001-x", 10)
+    assert review_metrics._cut_made(repos, "0001-x", _when(4)) is None
+    assert review_metrics._cut_made(repos[::-1], "0001-x", _when(4)) is None
 
 
 def test_a_forged_queue_line_binds_nothing(tmp_path: Path) -> None:
@@ -1820,7 +1868,11 @@ def test_operator_work_is_booked_to_the_nearest_mark(
         "20261105-235900.md",
         "23:59:50 · 0004-w · spawn — build · model m",
         "00:00:10 · 0005-v · spawn — build · model m",
+        "13:00:00 · 0007-t · spawn — build · model m",
+        "00:30:00 · 0008-s · spawn — build · model m",
     )
+    # A run log that cannot be read holds no mark.
+    (repo / ".minions" / "runs" / "20261105-120000.md").mkdir()
     # A log whose name is no stamp has no date, so no mark.
     _run_log(repo, "notes.md", "10:00:20 · 0006-q · spawn — build · model m")
     _written(
@@ -1849,6 +1901,8 @@ def test_operator_work_is_booked_to_the_nearest_mark(
         (None, _when(40)),
         ("0004-w", datetime(2026, 11, 5, 23, 59, 50, tzinfo=UTC)),
         ("0005-v", datetime(2026, 11, 6, 0, 0, 10, tzinfo=UTC)),
+        ("0007-t", datetime(2026, 11, 6, 13, 0, 0, tzinfo=UTC)),
+        ("0008-s", datetime(2026, 11, 7, 0, 30, 0, tzinfo=UTC)),
     ]
     rows = review_metrics._operator(sessions, spans, marks)
     assert [(r["repo"], r["change"], r["station"], r["tokens"]) for r in rows] == [
