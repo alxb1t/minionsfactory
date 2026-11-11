@@ -232,16 +232,43 @@ def signature_lines(name: str) -> list[str]:
 def _in_patch(path: str, number: str, text: str) -> bool:
     """Return whether a line is in a `setattr` or `patch` call, one a line or several.
 
-    A call opened on an earlier line counts while its parentheses stay open.
+    A call opened on an earlier line counts while its parentheses stay open, however
+    many lines they span; strings and `#` comments do not count as parentheses.
     """
     if re.search(r"setattr|patch", text):
         return True
-    shown = _git("show", f"HEAD:{path}").stdout.splitlines()
-    before = shown[max(0, int(number) - 5) : int(number) - 1]
-    for at, line in enumerate(before):
-        if re.search(r"(?:setattr|patch)\w*\(", line):
-            opened = "\n".join(before[at:])
-            return opened.count("(") > opened.count(")")
+    source = _git("show", f"HEAD:{path}").stdout
+    stack: list[bool] = []  # one flag per open "(": opened by a patch call
+    quote = ""
+    line = 1
+    before = ""  # the current line's text so far, outside a string
+    at = 0
+    while at < len(source) and line <= int(number):
+        char = source[at]
+        if line == int(number) and any(stack):
+            return True
+        if quote:
+            if char == "\\":
+                at += 1
+            elif source.startswith(quote, at):
+                at += len(quote) - 1
+                quote = ""
+        elif char == "#":
+            at = source.find("\n", at) - 1 if "\n" in source[at:] else len(source)
+        elif char in "'\"":
+            triple = char * 3
+            quote = triple if source.startswith(triple, at) else char
+            at += len(quote) - 1
+        elif char == "(":
+            stack.append(bool(re.search(r"(?:setattr|patch)[\w.]*$", before)))
+        elif char == ")" and stack:
+            stack.pop()
+        if char == "\n":
+            line += 1
+            before = ""
+        elif not quote:
+            before += char
+        at += 1
     return False
 
 
