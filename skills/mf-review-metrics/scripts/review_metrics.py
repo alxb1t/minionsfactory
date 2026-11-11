@@ -1937,12 +1937,17 @@ def _severity_table(records: list[Record]) -> Table:
     return ["grade", "findings"], [[grade, str(count)] for grade, count in grades]
 
 
-def _cost_cell(record: Record, station: str) -> str:
-    """Return a station's spend: "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3"."""
-    cost, turns, tokens, seconds = (
-        record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds")
-    )
-    parts = [
+BOOKED = ("plan", "operator")
+
+
+def _spend_parts(
+    cost: Number | None,
+    turns: Number | None,
+    tokens: Number | None,
+    seconds: Number | None,
+) -> list[str]:
+    """Return a spend's parts; e.g. ["$1.50", "15 turns", "376 tokens", "91 s"]."""
+    return [
         f"${cost:.2f}" if cost is not None else GAP,
         *(
             f"{_figure(value)} {unit}"
@@ -1950,6 +1955,13 @@ def _cost_cell(record: Record, station: str) -> str:
             if value is not None
         ),
     ]
+
+
+def _cost_cell(record: Record, station: str) -> str:
+    """Return a station's spend: "$1.50 · 15 turns · 376 tokens · 91 s · 2 of 3"."""
+    parts = _spend_parts(
+        *(record[f"{key}_{station}"] for key in ("cost", "turns", "tokens", "seconds"))
+    )
     if (first := record[f"first_{station}"]) is not None:
         parts.append(f"first {first}")
     read, spawns = record[f"read_{station}"], record[f"spawns_{station}"]
@@ -1958,13 +1970,59 @@ def _cost_cell(record: Record, station: str) -> str:
     return " · ".join(parts)
 
 
-def cost_table(records: list[Record]) -> Table:
-    """Return a row per change, a column per station, `—` where no log tells."""
+def _booked_cell(rows: Sequence[Record]) -> str:
+    """Return the sum of booked rows as a cost cell, `—` for no row.
+
+    e.g. two `plan` rows of 1 turn each → "$0.01 · 2 turns · 6 tokens · 4 s"
+    """
+    if not rows:
+        return GAP
+    turns, tokens, seconds = (
+        _held(row[key] for row in rows) for key in ("turns", "tokens", "seconds")
+    )
+    cost = _total(row["dollars"] for row in rows)
+    return " · ".join(_spend_parts(cost, turns, tokens, seconds))
+
+
+def cost_table(records: list[Record], booked: Sequence[Record] = ()) -> Table:
+    """Return a row per change, a column per station, `—` where no log tells.
+
+    Rows in `booked` add a `plan` and an `operator` column.
+    Why: 0115-plan-metrics design D8.
+    """
+    added = BOOKED if booked else ()
     return (
-        ["change", *STATIONS],
+        ["change", *STATIONS, *added],
         [
-            [record["change"], *(_cost_cell(record, s) for s in STATIONS)]
+            [
+                record["change"],
+                *(_cost_cell(record, s) for s in STATIONS),
+                *(
+                    _booked_cell(
+                        [
+                            row
+                            for row in booked
+                            if row["change"] == record["change"]
+                            and row["station"] == station
+                        ]
+                    )
+                    for station in added
+                ),
+            ]
             for record in records
+        ],
+    )
+
+
+def _unbooked_table(booked: Sequence[Record]) -> Table:
+    """Return a row per station of the booked rows that name no change."""
+    loose = [row for row in booked if row["change"] is None]
+    return (
+        ["station", "spend"],
+        [
+            [station, _booked_cell([row for row in loose if row["station"] == station])]
+            for station in BOOKED
+            if any(row["station"] == station for row in loose)
         ],
     )
 
@@ -2060,8 +2118,11 @@ def _markdown_table(table: Table) -> str:
     return "\n".join("| " + " | ".join(cells) + " |" for cells in lines)
 
 
-def _repo_section(name: str, records: list[Record], chart: Chart) -> list[str]:
+def _repo_section(
+    name: str, records: list[Record], chart: Chart, booked: Sequence[Record] = ()
+) -> list[str]:
     """Return a repo's lines: its tables, then a chart per measure over its changes."""
+    mine = [row for row in booked if row["repo"] == name]
     lines = [
         '<section class="repo">',
         f"<h2>{_E(name)}</h2>",
@@ -2069,7 +2130,7 @@ def _repo_section(name: str, records: list[Record], chart: Chart) -> list[str]:
         "<h3>findings per grade</h3>",
         _html_table(_severity_table(records)),
         "<h3>cost</h3>",
-        _html_table(cost_table(records)),
+        _html_table(cost_table(records, mine)),
         '<div class="charts">',
     ]
     for field, title in CHARTS.items():
@@ -2087,10 +2148,15 @@ def _every_record(read: list[tuple[str, list[Record]]]) -> list[Record]:
     return [record for _, held in read for record in held]
 
 
-def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) -> str:
+def render_page(
+    read: list[tuple[str, list[Record]]],
+    chart: Chart,
+    style: str,
+    booked: Sequence[Record] = (),
+) -> str:
     """Return the page, laid out per 0045-review-metrics design D7, headline first.
 
-    Why: 0097-cross-model design D12.
+    Why: 0097-cross-model design D12; 0115-plan-metrics design D8.
     """
     records = _every_record(read)
     lines = [
@@ -2103,7 +2169,9 @@ def render_page(read: list[tuple[str, list[Record]]], chart: Chart, style: str) 
         _html_table(headline_table(cross_model(records)["headline"])),
     ]
     for name, held in read:
-        lines += _repo_section(name, held, chart)
+        lines += _repo_section(name, held, chart, booked)
+    if (loose := _unbooked_table(booked))[1]:
+        lines += ["<h2>unbooked</h2>", _html_table(loose)]
     lines += ["<h2>role, executor and model</h2>", _html_table(model_table(records))]
     lines += ["<h2>lacked</h2>", "<ul>"]
     lines += [f"<li>{_E(name)}: {_E(lacked(held))}</li>" for name, held in read]
@@ -2157,8 +2225,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         repos, out = settings(args.config, args.repo, args.out)
         chart, style = load_chart()
+        folders = session_folders(args.config)
+        rows = booked(repos, folders) if folders else []
         read = [(repo.name, read_repo(repo)) for repo in repos]
-        _write(out, render_page(read, chart, style))
+        _write(out, render_page(read, chart, style, rows))
         workers = [
             worker
             for repo in repos
@@ -2171,7 +2241,10 @@ def main(argv: list[str] | None = None) -> int:
             "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
             "records": _priced_rounds(rounds, workers),
             "workers": workers,
-            "stations": [row for record in records for row in _stations(record)],
+            "stations": [
+                *(row for record in records for row in _stations(record)),
+                *rows,
+            ],
             **cross_model(records),
         }
         _write(out.with_name(DATA), json.dumps(data, indent=2) + "\n")

@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `review_metrics.py` books the transcripts' `plan` spans, from an `mf-plan` call to the last write of its brief, to the
   ids a matched `conduct.py cut` queued, split equally or `unbooked`, and the rest as `operator` work to the nearest
   earlier mark of a queued id or a run-log line (change `0115-plan-metrics`, phase 2).
+- `review_metrics.py` puts the `plan` and `operator` rows in `review-metrics.json`'s `stations` and as columns of the
+  page's cost table, with the rows of no change in a table `unbooked`; `mf-review-metrics`, D50 and the principles name
+  the transcripts it reads (change `0115-plan-metrics`, phase 3).
 
 ## [0.94.0] - 2026-11-11
 

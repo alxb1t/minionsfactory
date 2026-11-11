@@ -1910,3 +1910,133 @@ def test_booked_rows_have_the_keys_of_a_station_row(tmp_path: Path) -> None:
     ]
     assert all(set(row) == set(station) for row in rows)
     assert review_metrics.booked([repo], []) == []
+
+
+def _booking(tmp_path: Path) -> tuple[Path, Path]:
+    """Write a repo, three sessions and a config naming them; return both paths."""
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 30)
+    _cut_log(repo, "0002-y", 30)
+    folder = tmp_path / "sessions"
+    _written(
+        folder,
+        "s1",
+        _plan_call("t1", 1),
+        _used("m1", 2, 4),
+        _write("t2", 3, "/b/x.md"),
+        _cut("t3", 4, "/b/x.md"),
+        _queue_answer("t3", "0001-x"),
+        _used("m2", 40, 8),
+    )
+    _written(
+        folder,
+        "s2",
+        _used("u0", 0, 2),
+        _tool("t1", _at(1), "Skill", skill="mf-plan", args="brief=/b/y.md"),
+        _used("u1", 2, 16),
+    )
+    _written(
+        folder,
+        "s3",
+        _tool("t1", _at(10), "Skill", skill="mf-plan", args="brief=/b/z.md"),
+        _used("z1", 11, 2),
+        _write("t2", 12, "/b/z.md"),
+        _cut("t3", 13, "/b/z.md"),
+        _queue_answer("t3", "0001-x"),
+    )
+    config = tmp_path / "config.toml"
+    config.write_text('sessions = ["sessions"]\n', encoding="utf-8")
+    return repo, config
+
+
+def test_the_plan_and_operator_rows_reach_the_data_and_the_page(tmp_path: Path) -> None:
+    repo, config = _booking(tmp_path)
+    out = tmp_path / "site" / "page.html"
+    args = ["--config", str(config), "--repo", str(repo), "--out", str(out)]
+
+    assert review_metrics.main(args) == 0
+
+    data = json.loads(out.with_name("review-metrics.json").read_text())
+    found = [
+        (r["change"], r["station"], r["turns"], r["tokens"])
+        for r in data["stations"]
+        if r["station"] in ("plan", "operator")
+    ]
+    assert sorted(found, key=repr) == sorted(
+        [
+            ("0001-x", "plan", 1, 4),
+            ("0001-x", "plan", 1, 2),
+            (None, "plan", 0, 0),
+            ("0001-x", "operator", 1, 8),
+            (None, "operator", 2, 18),
+        ],
+        key=repr,
+    )
+    assert {r["repo"] for r in data["stations"] if r["change"] is None} == {None}
+
+    page = out.read_text(encoding="utf-8").splitlines()
+    assert page[page.index("<h3>cost</h3>") + 2].endswith(
+        "<th>plan</th><th>operator</th></tr>"
+    )
+    row = next(line for line in page if line.startswith("<tr><td>0001-x</td>"))
+    plan, operator = "$0.00 · 2 turns · 6 tokens · 4 s", "$0.00 · 1 turns · 8 tokens"
+    assert row.endswith(f"<td>{plan}</td><td>{operator}</td></tr>")
+    row = next(line for line in page if line.startswith("<tr><td>0002-y</td>"))
+    assert row.endswith("<td>—</td><td>—</td></tr>")
+    unbooked = page[page.index("<h2>unbooked</h2>") + 1 :]
+    assert "<tr><td>plan</td><td>— · 0 turns · 0 tokens · 0 s</td></tr>" in unbooked
+    assert "<tr><td>operator</td><td>$0.00 · 2 turns · 18 tokens</td></tr>" in unbooked
+
+    # Twin: a config with no `sessions` key books no row, no column and no table.
+    config.write_text('out = "page.html"\n', encoding="utf-8")
+    bare = tmp_path / "bare" / "page.html"
+    args = ["--config", str(config), "--repo", str(repo), "--out", str(bare)]
+    assert review_metrics.main(args) == 0
+    data = json.loads(bare.with_name("review-metrics.json").read_text())
+    assert {r["station"] for r in data["stations"]} == {"cut"}
+    plain = bare.read_text(encoding="utf-8")
+    assert "<th>plan</th>" not in plain
+    assert "unbooked" not in plain
+
+
+def test_a_secret_in_a_transcript_is_never_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    secret, brief = "PLANTED-sk-0123456789", "/vault/PLANTED-brief/x.md"
+    repo = tmp_path / "repo"
+    _cut_log(repo, "0001-x", 30)
+    said = [{"type": "text", "text": secret}]
+    answer = [
+        {
+            "type": "tool_result",
+            "tool_use_id": "t3",
+            "content": f"cut: queued 0001-x\n{secret}",
+        }
+    ]
+    command = f"uv run --script conduct.py cut s minor brief={brief} {secret}"
+    session = _written(
+        tmp_path / "sessions",
+        "s1",
+        _turn("m0", _at(0), {"input_tokens": 3}, "claude-sonnet-5-5"),
+        _line("assistant", _at(0), id="m0", content=said),
+        _tool("t1", _at(1), "Skill", skill="mf-plan", args=f"brief={brief} {secret}"),
+        _write("t2", 3, brief),
+        _tool("t3", _at(4), "Bash", command=command),
+        _line("user", _at(5), content=answer),
+        _line("user", _at(6), content=secret),
+    )
+    config = tmp_path / "config.toml"
+    config.write_text('sessions = ["sessions"]\n', encoding="utf-8")
+    out = tmp_path / "site" / "page.html"
+    args = ["--config", str(config), "--repo", str(repo), "--out", str(out)]
+
+    assert review_metrics.main(args) == 0
+
+    data = out.with_name("review-metrics.json").read_text(encoding="utf-8")
+    stations = {row["station"] for row in json.loads(data)["stations"]}
+    assert {"plan", "operator"} <= stations
+    assert secret in session.read_text(encoding="utf-8")
+    written = [out.read_text(encoding="utf-8"), data, capsys.readouterr().out]
+    for text in written:
+        for planted in (secret, brief, "PLANTED", "vault"):
+            assert planted not in text

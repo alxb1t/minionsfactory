@@ -148,7 +148,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
   the `VERSION` at its release's root ([D43](decisions.md#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue));
 - the review-metrics station's read-only reads of the `.minions/changes/` of repos the operator names
   or a run started in — in a repo no
-  run has moved, its `.minions/findings/` and `.minions/runs/` — and of the operator's Codex sessions, and its page and `review-metrics.json` written to the path the operator
+  run has moved, its `.minions/findings/` and `.minions/runs/` — and of the operator's Codex sessions and the session
+  transcripts of the folders the config's `sessions` key names, read-only, and its page and `review-metrics.json` written to the path the operator
   gives — neither the repos nor the path named in any repo
   ([D50](decisions.md#d50--review-metrics-are-read-across-repos-and-drawn-on-one-page));
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo

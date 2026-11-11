@@ -6,7 +6,7 @@ The phases: the transcript reader, then the spans and their booking, then the ro
 
 - [x] 1 — The transcript reader · hard
 - [x] 2 — The spans, the binding and the operator booking · hard
-- [ ] 3 — The rows in the data and the page, and the record · moderate
+- [x] 3 — The rows in the data and the page, and the record · moderate
 
 ## 1 — The transcript reader
 
@@ -44,15 +44,15 @@ The phases: the transcript reader, then the spans and their booking, then the ro
 
 ## 3 — The rows in the data and the page, and the record
 
-- [ ] 3.1 In `review_metrics.py` make `main` read `session_folders(args.config)` and, when it is not empty, compute `booked(repos, folders)` once before the page is written and add it to `stations` ([D8](design.md#d8)); add `test_the_plan_and_operator_rows_reach_the_data_and_the_page` to `tests/test_review_metrics.py`, whose first half runs `main` over a repo and a transcript folder and finds `plan` and `operator` rows in `review-metrics.json`, and none when the config has no `sessions` key.
+- [x] 3.1 In `review_metrics.py` make `main` read `session_folders(args.config)` and, when it is not empty, compute `booked(repos, folders)` once before the page is written and add it to `stations` ([D8](design.md#d8)); add `test_the_plan_and_operator_rows_reach_the_data_and_the_page` to `tests/test_review_metrics.py`, whose first half runs `main` over a repo and a transcript folder and finds `plan` and `operator` rows in `review-metrics.json`, and none when the config has no `sessions` key.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k reach_the_data` exits 0.
-- [ ] 3.2 In `review_metrics.py` give `render_page`, `_repo_section` and `cost_table` the parameter `booked=()` of [D8](design.md#d8), `main` passing it to `render_page`: the `plan` and `operator` columns after the stations, from the rows of the repo's name, when it is not empty, and a table `unbooked` of the rows with no change; extend `test_the_plan_and_operator_rows_reach_the_data_and_the_page` with the page's columns and its `unbooked` table, and the existing cost table, without rows, unchanged.
+- [x] 3.2 In `review_metrics.py` give `render_page`, `_repo_section` and `cost_table` the parameter `booked=()` of [D8](design.md#d8), `main` passing it to `render_page`: the `plan` and `operator` columns after the stations, from the rows of the repo's name, when it is not empty, and a table `unbooked` of the rows with no change; extend `test_the_plan_and_operator_rows_reach_the_data_and_the_page` with the page's columns and its `unbooked` table, and the existing cost table, without rows, unchanged.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k reach_the_data` exits 0.
-- [ ] 3.3 Add `test_a_secret_in_a_transcript_is_never_written` to `tests/test_review_metrics.py`, per the scenario *A secret in a message*: a secret string in a message's text, a command, a result and a skill's `args`, and the brief's path, appear in none of the page, `review-metrics.json` and the printed summary.
+- [x] 3.3 Add `test_a_secret_in_a_transcript_is_never_written` to `tests/test_review_metrics.py`, per the scenario *A secret in a message*: a secret string in a message's text, a command, a result and a skill's `args`, and the brief's path, appear in none of the page, `review-metrics.json` and the printed summary.
   Verify: `uv run pytest -q tests/test_review_metrics.py -k secret_in_a_transcript` exits 0.
-- [ ] 3.4 In `skills/mf-review-metrics/SKILL.md` name the `sessions` key, the `plan` and `operator` stations and what a transcript is read for, in the description, *Parameters* and the paragraph on the data ([D9](design.md#d9)).
+- [x] 3.4 In `skills/mf-review-metrics/SKILL.md` name the `sessions` key, the `plan` and `operator` stations and what a transcript is read for, in the description, *Parameters* and the paragraph on the data ([D9](design.md#d9)).
   Verify: `git grep -n -F transcripts -- skills/mf-review-metrics/SKILL.md` prints a line.
-- [ ] 3.5 In `docs/decisions.md` D50 add the transcripts of the folders the `sessions` key lists to what the station reads, and its `plan` and `operator` stations to what it writes ([D9](design.md#d9)).
+- [x] 3.5 In `docs/decisions.md` D50 add the transcripts of the folders the `sessions` key lists to what the station reads, and its `plan` and `operator` stations to what it writes ([D9](design.md#d9)).
   Verify: `git grep -n -F transcripts -- docs/decisions.md` prints a line.
-- [ ] 3.6 In `docs/principles.md`, in the exemption of *The repo reaches nothing outside itself* for the review-metrics station, add the session transcripts of the folders the config's `sessions` key names, read-only ([D9](design.md#d9)).
+- [x] 3.6 In `docs/principles.md`, in the exemption of *The repo reaches nothing outside itself* for the review-metrics station, add the session transcripts of the folders the config's `sessions` key names, read-only ([D9](design.md#d9)).
   Verify: `git grep -n -F transcripts -- docs/principles.md` prints a line.
