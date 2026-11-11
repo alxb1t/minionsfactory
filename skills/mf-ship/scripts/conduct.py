@@ -57,8 +57,10 @@ REJOIN_POLL = 10
 # The most of a file a worker leaves that `_bounded` reads.
 READ_BYTES = 65536
 # A Codex limit: the longest wait for a reset, and a window's share that counts as a
-# limit. Why: 0104-codex-limits design D1; 0117-codex-converge design D4.
+# limit, and the converge time a Codex probe needs. Why: 0104-codex-limits design D1;
+# 0117-codex-converge design D4; 0119-debt-paydown-3b design D12.
 LIMIT_WAIT = 900
+PROBE_ROOM = 120
 HEADROOM = 90
 WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
@@ -1564,10 +1566,11 @@ def stage_of(
     ):
         return "build", "closing steps left"
     lacking = [name for name in after if not _shipped(tree, "HEAD", name)]
-    if stacked is not None and lacking:
+    if stacked is not None and (lacking or missing):
         return (
             "stacked",
-            f"built on {' '.join(lacking)} at {stacked[:7]}: waits for its release",
+            f"built on {' '.join(lacking or missing)} at {stacked[:7]}:"
+            " waits for its release",
         )
     # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
     skipped = "converge" in (_skips(runs, change) if skips is None else skips)
@@ -3779,7 +3782,11 @@ def lacked(log: Path) -> list[str]:
                     names[str(block.get("id"))] = str(block.get("name"))
                 elif block.get("type") == "tool_result" and block.get("is_error"):
                     text = _text(block.get("content"))
-                    if MISSING in text:
+                    if (
+                        text.removeprefix("<tool_use_error>")
+                        .lstrip()
+                        .startswith(MISSING)
+                    ):
                         name = names.get(str(block.get("tool_use_id")))
                         found.append(name or text.strip())
     return found
@@ -4436,6 +4443,9 @@ class Run:
         # change from it the re-check read once. Why: 0085-self-healing-ship design D6.
         self.seen_halts: dict[str, tuple[str, str, str] | None] = {}
         self.candidates: dict[str, tuple[str, str, str]] = {}
+        # The versions whose rejoin a running rescue holds, logged once each.
+        # Why: 0119-debt-paydown-3b design D13.
+        self.kept: set[str] = set()
         self.capped: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
         self.outs: dict[tuple[str, str], Path] = {}
@@ -4808,6 +4818,8 @@ class Run:
                 return False
             time.sleep(max(ahead, 0))
         if "codex" not in self.probed:
+            if deadline - time.monotonic() < PROBE_ROOM:
+                return False
             self.probe_for(change, ["codex"], [], deadline)
         return "codex" in self.probed
 
@@ -5513,16 +5525,17 @@ class Run:
         version: Version,
         dependency: str,
         threads: dict[str, threading.Thread],
-        stack: bool,
+        still: Callable[[], list[str]],
     ) -> None:
-        """Wait while the dependency's thread lives; with `stack`, until it may stack.
+        """Wait while the dependency's thread lives, until the version may stack.
 
+        `still` returns the unreleased dependencies, read at each poll.
         Why: 0099-stacked-builds design D1.
         """
         logged = False
         with self.built:
             while self.live(dependency, threads):
-                if stack and self.stackable(version, [dependency]):
+                if self.stackable(version, still()):
                     return
                 if not logged:
                     self.log.event(version.change, "wait", f"after {dependency}")
@@ -5548,7 +5561,7 @@ class Run:
                     dependency in threads
                     and _change_number(dependency) < version.number
                 ):
-                    self.until(version, dependency, threads, left == [dependency])
+                    self.until(version, dependency, threads, unreleased)
             left = unreleased()
         if self.stopped(change):
             return False
@@ -6029,7 +6042,15 @@ class Run:
         for version in versions:
             change = version.change
             thread = threads.get(change)
-            if not names & {"all", change} or (thread and thread.is_alive()):
+            if not names & {"all", change}:
+                continue
+            if thread and thread.is_alive():
+                if change in names and _rescuing(self.runs, change):
+                    _request(self.primary, change)
+                    if change not in self.kept:
+                        self.kept.add(change)
+                        held = f"{change}: still running — its rescue holds the request"
+                        self.log.event("run", "rejoin", held)
                 continue
             if change in cuts:
                 continue

@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 ## Progress
 
 - [x] 1 — The security and link cards · hard
-- [ ] 2 — The stacking, tool, probe, rejoin and converge cards · hard
+- [x] 2 — The stacking, tool, probe, rejoin and converge cards · hard
 - [ ] 3 — The test-cost reasons and the docstrings · moderate
 
 ## 1 — The security and link cards
@@ -25,17 +25,17 @@ Build the settled [design](design.md), one phase at a time; each fix's test step
 
 ## 2 — The stacking, tool, probe, rejoin and converge cards
 
-- [ ] 2.1 Add a step to `test_a_stacked_dependent_resets_and_merges_back` in `tests/test_conduct.py` in which the dependent's tree holds an archive folder for its dependency while the default branch lacks it, and `stage_of` still returns `stacked`. Then change the `stacked` return in `stage_of` of `skills/mf-ship/scripts/conduct.py`, per [D9](design.md#d9).
+- [x] 2.1 Add a step to `test_a_stacked_dependent_resets_and_merges_back` in `tests/test_conduct.py` in which the dependent's tree holds an archive folder for its dependency while the default branch lacks it, and `stage_of` still returns `stacked`. Then change the `stacked` return in `stage_of` of `skills/mf-ship/scripts/conduct.py`, per [D9](design.md#d9).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_stacked_dependent_resets_and_merges_back` exits 0.
-- [ ] 2.2 Add a step to `test_a_dependent_waits_while_its_dependency_works` in `tests/test_conduct.py` in which a dependent names unreleased dependencies A and B, A releases during the wait, and the dependent stacks on B while its thread lives. Then change `Run.until` and `Run.ready` in `skills/mf-ship/scripts/conduct.py`, per [D9](design.md#d9).
+- [x] 2.2 Add a step to `test_a_dependent_waits_while_its_dependency_works` in `tests/test_conduct.py` in which a dependent names unreleased dependencies A and B, A releases during the wait, and the dependent stacks on B while its thread lives. Then change `Run.until` and `Run.ready` in `skills/mf-ship/scripts/conduct.py`, per [D9](design.md#d9).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_dependent_waits_while_its_dependency_works` exits 0.
-- [ ] 2.3 Add a step to `test_a_worker_asking_for_a_missing_tool_halts` in `tests/test_conduct.py` with an errored `Bash` result whose text is `Exit code 1` and a pytest line holding `No such tool available: Task`, asserting `lacked` returns `[]`, and add that test's `# T2: <reason>; 0119-debt-paydown-3b design D15.` line from [D15](design.md#d15)'s table. Then change `lacked` in `skills/mf-ship/scripts/conduct.py`, per [D11](design.md#d11).
+- [x] 2.3 Add a step to `test_a_worker_asking_for_a_missing_tool_halts` in `tests/test_conduct.py` with an errored `Bash` result whose text is `Exit code 1` and a pytest line holding `No such tool available: Task`, asserting `lacked` returns `[]`, and add that test's `# T2: <reason>; 0119-debt-paydown-3b design D15.` line from [D15](design.md#d15)'s table. Then change `lacked` in `skills/mf-ship/scripts/conduct.py`, per [D11](design.md#d11).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_worker_asking_for_a_missing_tool_halts` exits 0.
-- [ ] 2.4 Add a step to `test_a_checker_falls_back_when_the_weekly_window_is_spent` in `tests/test_conduct.py`: discard `"codex"` from `run.probed`, replace `run.probe_for` with a function that fails the test when called, and with a deadline under `PROBE_ROOM` ahead assert `codex_ready` returns False, `run.halts` stays empty and `run.refused` stays empty. Then add `PROBE_ROOM` beside `LIMIT_WAIT` and the early return in `Run.codex_ready` of `skills/mf-ship/scripts/conduct.py`, per [D12](design.md#d12).
+- [x] 2.4 Add a step to `test_a_checker_falls_back_when_the_weekly_window_is_spent` in `tests/test_conduct.py`: discard `"codex"` from `run.probed`, replace `run.probe_for` with a function that fails the test when called, and with a deadline under `PROBE_ROOM` ahead assert `codex_ready` returns False, `run.halts` stays empty and `run.refused` stays empty. Then add `PROBE_ROOM` beside `LIMIT_WAIT` and the early return in `Run.codex_ready` of `skills/mf-ship/scripts/conduct.py`, per [D12](design.md#d12).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_checker_falls_back_when_the_weekly_window_is_spent` exits 0.
-- [ ] 2.5 Add a step to `test_a_fixed_version_rejoins_a_live_run` in `tests/test_conduct.py`: a request for a version whose thread lives and whose last log event is a `rescue` spawn is present again after `take_requests`, and a poll after the thread ends takes it. Then add `self.kept` beside `self.candidates` in `Run.__init__` and the write in `Run.take_requests` of `skills/mf-ship/scripts/conduct.py`, per [D13](design.md#d13).
+- [x] 2.5 Add a step to `test_a_fixed_version_rejoins_a_live_run` in `tests/test_conduct.py`: a request for a version whose thread lives and whose last log event is a `rescue` spawn is present again after `take_requests`, and a poll after the thread ends takes it. Then add `self.kept` beside `self.candidates` in `Run.__init__` and the write in `Run.take_requests` of `skills/mf-ship/scripts/conduct.py`, per [D13](design.md#d13).
   Verify: `uv run pytest -q tests/test_conduct.py -k a_fixed_version_rejoins_a_live_run` exits 0.
-- [ ] 2.6 Add `test_a_halt_on_an_ended_log_is_printed_not_stamped` to `tests/test_converge.py`: on a status log whose newest run ends on `done`, `converge["halt"](context, "git failed")` raises nothing and the log keeps its bytes. Then add the early return to `halt` in `skills/mf-converge/scripts/converge.py`, skipped when the top event is a `halt` whose detail `LOCKED` matches, per [D14](design.md#d14): `test_the_debt_is_written_once_under_its_lock` stamps a halt on top of a lock halt.
+- [x] 2.6 Add `test_a_halt_on_an_ended_log_is_printed_not_stamped` to `tests/test_converge.py`: on a status log whose newest run ends on `done`, `converge["halt"](context, "git failed")` raises nothing and the log keeps its bytes. Then add the early return to `halt` in `skills/mf-converge/scripts/converge.py`, skipped when the top event is a `halt` whose detail `LOCKED` matches, per [D14](design.md#d14): `test_the_debt_is_written_once_under_its_lock` stamps a halt on top of a lock halt.
   Verify: `uv run pytest -q tests/test_converge.py -k "a_halt_on_an_ended_log_is_printed_not_stamped or the_debt_is_written_once_under_its_lock"` exits 0.
 
 ## 3 — The test-cost reasons and the docstrings

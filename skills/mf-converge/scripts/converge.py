@@ -2205,5 +2205,13 @@ def shadow(context: Context, frozen: Freeze) -> None:
 
 
 def halt(context: Context, reason: str) -> None:
-    """Write the `halt` event, ending ` · head <sha>`."""
+    """Write the `halt` event, ending ` · head <sha>`; a log that ended keeps its bytes.
+
+    Why: 0119-debt-paydown-3b design D14.
+    """
+    if (events := latest(context).events) and (
+        events[0].name == "done"
+        or (events[0].name == "halt" and not LOCKED.search(events[0].detail))
+    ):
+        return
     stamp(context, f"halt — {reason} · head {head(context)}")

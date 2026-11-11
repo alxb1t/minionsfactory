@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   turned into a link; a restored `models.toml` is created, never truncated; cleanup chmods no parent of its root; the
   settle check exempts `tests/` and `test/` alone and halts on a commit past integrate's merge; a rejoin stops on a
   brief row with a control character (0119-debt-paydown-3b, phase 1).
+- `conduct.py` waits a stacked version while its dependency is unreleased and recomputes that set at each poll; a
+  failed command that prints the missing-tool phrase is no missing tool; the Codex probe is skipped, and Claude
+  checks, with `PROBE_ROOM` of converge's time left; a request for a version whose rescue runs is kept for the next
+  poll. `converge.py` prints a halt on a log whose run ended and stamps nothing, but a halt that names a lock still
+  stamps (0119-debt-paydown-3b, phase 2).
 
 ## [0.97.0] - 2026-11-11
 

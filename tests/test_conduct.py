@@ -1369,6 +1369,18 @@ def test_a_stacked_dependent_resets_and_merges_back(
     assert run.blocked[-1] == "0002-marks"
     assert not run.stopped("0002-marks")
 
+    # Its own tree holding the dependency's archive does not release it: 0099·S3.
+    closed = _git(marks, "rev-parse", "HEAD")
+    (marks / "openspec/changes/archive").mkdir()
+    _git(
+        marks, "mv", "openspec/changes/0001-todo", "openspec/changes/archive/0001-todo"
+    )
+    _commit(marks, {}, "chore: a worker archives its dependency")
+    _done(root, "0002-marks", _git(marks, "rev-parse", "HEAD"))
+    assert conduct["stage_of"](root, version)[0] == "stacked"
+    _git(marks, "reset", "-q", "--hard", closed)
+    _done(root, "0002-marks", closed)
+
     # The release merged back keeps the dependent's entries alone in [Unreleased].
     (first / "openspec/changes/archive").mkdir()
     folder = "openspec/changes/0001-todo"
@@ -1803,6 +1815,58 @@ def test_a_dependent_waits_while_its_dependency_works(
         "run · halt — halted 0001-todo · blocked none · released v0.1.0"
         " · needs 0001-todo a fix",
     ]
+
+    # A dependency that releases during the wait leaves one to stack on: 0099·S4.
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    pair = tmp_path / "pair"
+    pair.mkdir()
+    root = _primary(pair)
+    trees = {}
+    for change in ("0001-todo", "0002-more"):
+        trees[change] = _version(root, change, "- [x] 1 — Todo\n")
+        _commit(trees[change], {f"{change}.txt": "x\n"}, f"build: {change}")
+        _done(root, change, _git(trees[change], "rev-parse", "HEAD"))
+    after = "0001-todo, 0002-more"
+    waits = _version(root, "0003-dep", "- [ ] 1 — Dep\n", after=after)
+    run = conduct["Run"](root, "claude")
+    run.git_state = conduct["_git_state"](root)
+    version = conduct["Version"]("0003-dep", waits)
+    gate = threading.Event()
+    live = threading.Thread(target=gate.wait)
+    live.start()
+    stacks: list[bool] = []
+
+    def wait_ready() -> None:
+        stacks.append(run.ready(version, {"0001-todo": live}))
+
+    def waiting() -> bool:
+        if not list((root / ".minions" / "runs").glob("*.md")):
+            return False
+        return any(" · 0003-dep · wait — " in line for line in _log(root))
+
+    waiter = threading.Thread(target=wait_ready)
+    waiter.start()
+    try:
+        deadline = time.monotonic() + 30
+        while not waiting() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        first = trees["0001-todo"]
+        (first / "openspec/changes/archive").mkdir()
+        _git(first, "mv", "openspec/changes/0001-todo", "openspec/changes/archive")
+        _commit(first, {}, "chore(release): v0.1.0")
+        merge = "Merge branch '0001-todo'"
+        _git(root, "merge", "-q", "--no-ff", "-m", merge, "0001-todo")
+        waiter.join(10)
+        assert not waiter.is_alive()
+    finally:
+        gate.set()
+        waiter.join()
+        live.join()
+    assert stacks == [True]
+    stacked_on = root / ".minions" / "changes" / "0003-dep" / "stacked-on"
+    assert (
+        stacked_on.read_text() == _git(trees["0002-more"], "rev-parse", "HEAD") + "\n"
+    )
 
 
 @pytest.mark.slow
@@ -3600,6 +3664,38 @@ def test_a_fixed_version_rejoins_a_live_run(
     said = capsys.readouterr().out.splitlines()
     assert "skipped — conduct · rejoined cannot run — git failed" not in said
     assert skipped in said
+
+    # A request for a version whose rescue runs is kept until its thread ends.
+    kept = tmp_path / "kept"
+    kept.mkdir()
+    base = _primary(kept)
+    _version(base, "0001-todo", "- [ ] 1 — Todo\n")
+    conductor = conduct["Run"](base, "claude")
+    taken: list[str] = []
+    conductor.take_back_safely = lambda version, _: taken.append(version.change) or True
+    conductor.log.event("0001-todo", "spawn", "rescue · model default")
+    gate = threading.Event()
+    live = threading.Thread(target=gate.wait, daemon=True)
+    live.start()
+    threads = {"0001-todo": live}
+    request = conduct["_queue"](base) / "rejoin" / "0001-todo"
+    conduct["_request"](base, "0001-todo")
+    for _ in range(2):
+        assert not conductor.take_requests(threads)
+        assert request.is_file()
+    holds = " · run · rejoin — 0001-todo: still running — its rescue holds the request"
+    assert conductor.log.path.read_text().count(holds) == 1
+    # Twin: a request `all` is not kept.
+    request.unlink()
+    conduct["_request"](base, "all")
+    assert not conductor.take_requests(threads)
+    assert not list((request.parent).iterdir())
+    conduct["_request"](base, "0001-todo")
+    gate.set()
+    live.join()
+    assert conductor.take_requests(threads)
+    assert taken == ["0001-todo"]
+    assert not request.exists()
 
 
 @pytest.mark.slow
@@ -10588,6 +10684,8 @@ def test_reach_stops_at_live_worktrees(tmp_path: Path) -> None:
 def test_a_worker_asking_for_a_missing_tool_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
+    # T2: its fake `missing-tool` mode makes the build worker ask for a tool;
+    # no other run test reaches that halt; 0119-debt-paydown-3b design D15.
     conduct = _conduct()
     calls = fake("missing-tool")
     root = _primary(tmp_path)
@@ -10612,6 +10710,11 @@ def test_a_worker_asking_for_a_missing_tool_halts(
     cut = '{"message": "No such tool available\n'
     log.write_text(cut + json.dumps({"message": {"content": [result]}}))
     assert conduct["lacked"](log) == ["No such tool available: Task"]
+    # A failed command that prints the phrase later in its text is no missing tool.
+    printed = {"type": "tool_result", "tool_use_id": "t8", "is_error": True}
+    printed["content"] = "Exit code 1\nFAILED test: No such tool available: Task"
+    log.write_text(json.dumps({"message": {"content": [printed]}}))
+    assert conduct["lacked"](log) == []
 
 
 def test_the_probe_reports_its_first_turn(
@@ -11091,6 +11194,22 @@ def test_a_checker_falls_back_when_the_weekly_window_is_spent(tmp_path: Path) ->
     windows(85)
     assert run.codex_ready("0001-todo", deadline)
 
+    # With less than a probe's room left, Claude checks: no probe, no halt, no refusal.
+    run.probed.discard("codex")
+    probes: list[str] = []
+
+    def probe_for(change: str, *rest: object) -> None:
+        probes.append(change)
+        run.probed.add("codex")
+
+    run.probe_for = probe_for  # type: ignore[method-assign]
+    room = conduct["PROBE_ROOM"]
+    assert not run.codex_ready("0001-todo", time.monotonic() + room - 1)
+    assert (probes, run.halts, run.refused) == ([], [], {})
+    # Twin: with the room, the same call probes.
+    assert run.codex_ready("0001-todo", time.monotonic() + room + 60)
+    assert probes == ["0001-todo"]
+
 
 def test_a_limit_halts_only_the_stations_ahead(tmp_path: Path) -> None:
     conduct = _conduct()
@@ -11158,7 +11277,7 @@ def test_a_fixer_probe_the_deadline_kills_is_no_run_wide_refusal(
     run.worker = killed
     models = ("codex", "gpt-6.1-sol", "medium")
     done = run.fix(
-        "0001-todo", "converge-fix-r1", tree, "fix it\n", models, time.monotonic() + 90
+        "0001-todo", "converge-fix-r1", tree, "fix it\n", models, time.monotonic() + 600
     )
     assert done.code == 1 and done.limit.startswith("codex usage limit — the fixer")
     # The timeout halts the fixer's version alone: no refusal is kept for Codex.
