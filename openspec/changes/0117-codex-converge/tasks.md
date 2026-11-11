@@ -6,7 +6,7 @@ The models line, the fixer on Codex with the stage rule, then the windows, the p
 
 - [x] 1 — the models line: fix codex/<model> in brief_check.py and conduct.py's _models, no inherited executor · moderate
 - [x] 2 — converge.py's fixer on Codex: through the worker call, a limit halts it, no fallback; 0104·S4 · hard
-- [ ] 3 — _headroom over both windows; fix.md's trailer and no-package line; D68, D76, D40; the spec · hard
+- [x] 3 — _headroom over both windows; fix.md's trailer and no-package line; D68, D76, D40; the spec · hard
 
 ## 1 — the models line: fix codex/<model> in brief_check.py and conduct.py's _models, no inherited executor
 
@@ -42,17 +42,17 @@ The models line, the fixer on Codex with the stage rule, then the windows, the p
 
 ## 3 — _headroom over both windows; fix.md's trailer and no-package line; D68, D76, D40; the spec
 
-- [ ] 3.1 In `conduct.py`, make `_headroom(now)` return `(reset, window)` or `None` as [D4](design.md#d4) says, `window` named by a constant `WINDOWS = {"primary": "5-hour", "secondary": "weekly"}`. Make `Run.codex_ready` take the reset from the pair, and `Run.fix` take its `<time>` from the pair when no limit is recorded and append ` · the <window> window` to its text. Update both docstrings.
+- [x] 3.1 In `conduct.py`, make `_headroom(now)` return `(reset, window)` or `None` as [D4](design.md#d4) says, `window` named by a constant `WINDOWS = {"primary": "5-hour", "secondary": "weekly"}`. Make `Run.codex_ready` take the reset from the pair, and `Run.fix` take its `<time>` from the pair when no limit is recorded and append ` · the <window> window` to its text. Update both docstrings.
   Verify: `git grep -n '"secondary": "weekly"' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.2 In `tests/test_conduct.py`, rewrite the `headroom(...)` assertions of `test_the_codex_limit_data_is_read_from_its_rollout` to the pair `_headroom` returns (the `secondary` cases now return a pair, not `None`), and add a rollout with the weekly window at 98% and the 5-hour window at 10%. In `test_a_usage_limit_at_the_probe_is_no_refusal`, make the fake `headroom` return a pair. Add `test_a_checker_falls_back_when_the_weekly_window_is_spent`: `codex_ready` is false with that rollout, and `Run.fix` returns a `limit` ending ` · the weekly window`.
+- [x] 3.2 In `tests/test_conduct.py`, rewrite the `headroom(...)` assertions of `test_the_codex_limit_data_is_read_from_its_rollout` to the pair `_headroom` returns (the `secondary` cases now return a pair, not `None`), and add a rollout with the weekly window at 98% and the 5-hour window at 10%. In `test_a_usage_limit_at_the_probe_is_no_refusal`, make the fake `headroom` return a pair. Add `test_a_checker_falls_back_when_the_weekly_window_is_spent`: `codex_ready` is false with that rollout, and `Run.fix` returns a `limit` ending ` · the weekly window`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "weekly or read_from_its_rollout or no_refusal"` exits 0.
-- [ ] 3.3 In `skills/mf-converge/scripts/converge.py`, add `"attribution"` to `PLACEHOLDERS`; in `fixer` fill it with `Co-Authored-By: Codex <model> <noreply@openai.com>` on Codex and `the attribution line your session names` on Claude ([D5](design.md#d5)).
+- [x] 3.3 In `skills/mf-converge/scripts/converge.py`, add `"attribution"` to `PLACEHOLDERS`; in `fixer` fill it with `Co-Authored-By: Codex <model> <noreply@openai.com>` on Codex and `the attribution line your session names` on Claude ([D5](design.md#d5)).
   Verify: `git grep -n '"attribution"' -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 3.4 In `skills/mf-converge/references/fix.md`, add `- The line your commit's trailer starts with: {attribution}` to the prompt's list, and to the rules `- **A fixer adds no package**: a dependency is the plan's, and a Codex fixer has no network.`
+- [x] 3.4 In `skills/mf-converge/references/fix.md`, add `- The line your commit's trailer starts with: {attribution}` to the prompt's list, and to the rules `- **A fixer adds no package**: a dependency is the plan's, and a Codex fixer has no network.`
   Verify: `git grep -n 'adds no package' -- skills/mf-converge/references/fix.md` prints a line.
-- [ ] 3.5 In `tests/test_converge.py`, add `test_a_codex_fixers_prompt_names_its_attribution`: the prompt `fixer` passes to `host.fix` for `("codex", "gpt-6.1-sol", "medium")` holds `Co-Authored-By: Codex gpt-6.1-sol <noreply@openai.com>`, and the one it passes to `host.worker` for a Claude fixer holds `the attribution line your session names`.
+- [x] 3.5 In `tests/test_converge.py`, add `test_a_codex_fixers_prompt_names_its_attribution`: the prompt `fixer` passes to `host.fix` for `("codex", "gpt-6.1-sol", "medium")` holds `Co-Authored-By: Codex gpt-6.1-sol <noreply@openai.com>`, and the one it passes to `host.worker` for a Claude fixer holds `the attribution line your session names`.
   Verify: `uv run pytest tests/test_converge.py -q -k fixers_prompt` exits 0.
-- [ ] 3.6 In `skills/mf-converge/SKILL.md`'s `fix=` row and `skills/mf-ship/SKILL.md`'s converge row, state that the fixer runs on the executor its table names, Claude when it names none, and that a Codex fixer at a limit halts the version.
+- [x] 3.6 In `skills/mf-converge/SKILL.md`'s `fix=` row and `skills/mf-ship/SKILL.md`'s converge row, state that the fixer runs on the executor its table names, Claude when it names none, and that a Codex fixer at a limit halts the version.
   Verify: `git grep -n 'Codex fixer' -- skills/mf-converge/SKILL.md skills/mf-ship/SKILL.md` prints a line.
-- [ ] 3.7 In `docs/decisions.md`, edit where they live ([D6](design.md#d6)): D68, its `The fixer stays on converge's host` sentence → `A fixer table may name Codex; it halts at a limit and never falls back` and its `Rejected` `a fixer on another host` removed; D76, `a primary window at 90% or more` → `the 5-hour or weekly window at 90% or more`, and its `Accepts` gains `a Codex fixer halts its version at a limit, with no fallback`; D40's last sentence gains `, and a Codex fixer through the run's fixer call`.
+- [x] 3.7 In `docs/decisions.md`, edit where they live ([D6](design.md#d6)): D68, its `The fixer stays on converge's host` sentence → `A fixer table may name Codex; it halts at a limit and never falls back` and its `Rejected` `a fixer on another host` removed; D76, `a primary window at 90% or more` → `the 5-hour or weekly window at 90% or more`, and its `Accepts` gains `a Codex fixer halts its version at a limit, with no fallback`; D40's last sentence gains `, and a Codex fixer through the run's fixer call`.
   Verify: `git grep -n 'fixer stays on converge' -- docs/decisions.md` exits 1.

@@ -56,10 +56,11 @@ OLD_DEBT_LOCK = ".minions/backlog.lock"
 REJOIN_POLL = 10
 # The most of a file a worker leaves that `_bounded` reads.
 READ_BYTES = 65536
-# A Codex limit: the longest wait for a reset, and the primary window's share that
-# counts as a limit. Why: 0104-codex-limits design D1.
+# A Codex limit: the longest wait for a reset, and a window's share that counts as a
+# limit. Why: 0104-codex-limits design D1; 0117-codex-converge design D4.
 LIMIT_WAIT = 900
 HEADROOM = 90
+WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
 STAMP_SCRIPT = Path(__file__).resolve().parents[2] / "mf-converge/scripts/stamp.py"
@@ -3966,12 +3967,17 @@ def _reset_at(log: Path, now: float) -> float:
     return math.inf if clock is None else clock
 
 
-def _headroom(now: float) -> float | None:
-    """Return the reset of a primary window at `HEADROOM` or more, else None."""
-    primary = _windows(_rollout(None)).get("primary")
-    if primary and primary.used >= HEADROOM and primary.resets > now:
-        return primary.resets
-    return None
+def _headroom(now: float) -> tuple[float, str] | None:
+    """Return the reset and name of the latest-resetting spent window, else None.
+
+    A window is spent at `HEADROOM` or more with its reset ahead.
+    """
+    spent = [
+        (window.resets, WINDOWS[name])
+        for name, window in _windows(_rollout(None)).items()
+        if name in WINDOWS and window.used >= HEADROOM and window.resets > now
+    ]
+    return max(spent, default=None)
 
 
 def tokens_of(log: Path) -> int | None:
@@ -4721,13 +4727,16 @@ class Run:
     ) -> Checked:
         """Run converge's Codex fixer as `station`; halt nothing, fall back nowhere.
 
-        Codex not ready, or a usage limit, is its `limit`. Why: 0117 design D3, D7.
+        Codex not ready, or a usage limit, is its `limit`; a spent window is named.
+        Why: 0117 design D3, D4, D7.
         """
 
         def stopped() -> Checked:
-            reset = self.limited_until("codex")
+            reset, window = self.limited_until("codex"), ""
+            if reset is None and (held := _headroom(time.time())):
+                reset, window = held[0], f" · the {held[1]} window"
             when = "unknown" if reset is None else _until(reset)
-            text = f"codex usage limit — the fixer · resets {when}"
+            text = f"codex usage limit — the fixer · resets {when}{window}"
             return Checked(1, False, models, text, False, None)
 
         if not self.codex_ready(change, deadline):
@@ -4772,9 +4781,10 @@ class Run:
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.
 
-        Why: 0104-codex-limits design D3.
+        Why: 0104-codex-limits design D3; 0117-codex-converge design D4.
         """
-        resets = [self.limited_until("codex"), _headroom(time.time())]
+        held = _headroom(time.time())
+        resets = [self.limited_until("codex"), held[0] if held else None]
         if reset := max((at for at in resets if at is not None), default=None):
             ahead = reset - time.time()
             if ahead > LIMIT_WAIT or time.monotonic() + ahead >= deadline:

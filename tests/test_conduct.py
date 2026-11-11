@@ -5123,25 +5123,36 @@ def test_a_limited_checker_falls_back_to_claude(
     monkeypatch.setattr(time, "time", lambda: now[0])
     monkeypatch.setattr(time, "sleep", sleep)
 
-    def windows(
-        primary: float, secondary: float, primary_in: int, second_in: int
-    ) -> None:
+    def written(path: Path, *shares: tuple[float, int]) -> None:
         rates = {
             name: {
                 "used_percent": used,
                 "window_minutes": 300,
                 "resets_at": now[0] + wait,
             }
-            for name, used, wait in (
-                ("primary", primary, primary_in),
-                ("secondary", secondary, second_in),
-            )
+            for name, (used, wait) in zip(("primary", "secondary"), shares, strict=True)
         }
         payload = {"type": "token_count", "rate_limits": rates}
         event = {"type": "event_msg", "payload": payload}
-        (sessions / "rollout-2026-11-08T10-00-00-fake.jsonl").write_text(
-            json.dumps(event) + "\n"
-        )
+        path.write_text(json.dumps(event) + "\n")
+
+    def windows(
+        primary: float,
+        secondary: float,
+        primary_in: int,
+        second_in: int,
+        at_exit: bool = False,
+    ) -> None:
+        # The rollout the fake's thread names is what a limited exit's reset reads. At
+        # `at_exit`, a newer rollout of another thread holds the headroom's read quiet.
+        thread = sessions / "rollout-2026-11-08T10-00-00-fake.jsonl"
+        quiet = sessions / "rollout-2026-11-08T10-00-00-quiet.jsonl"
+        quiet.unlink(missing_ok=True)
+        written(thread, (primary, primary_in), (secondary, second_in))
+        if at_exit:
+            written(quiet, (0, primary_in), (0, second_in))
+            newer = thread.stat().st_mtime + 10
+            os.utime(quiet, (newer, newer))
 
     def spawned() -> tuple[int, int]:
         claudes = (
@@ -5169,19 +5180,19 @@ def test_a_limited_checker_falls_back_to_claude(
     models(on_codex)
 
     # A Codex exit on a limit two hours off: the checker runs on Claude, once.
-    windows(50, 100, 3600, 7200)
+    windows(50, 100, 3600, 7200, at_exit=True)
     assert check() == fell
     assert spawned() == (1, 1) and sleeps == []
     assert run.limited_until("codex") is not None
     # Twin: a limit a quarter hour off is waited for, then Codex runs again.
     run.limited.clear()
-    windows(50, 100, 3600, 600)
+    windows(50, 100, 3600, 600, at_exit=True)
     after[0] = ""
     assert check() == coded
     assert spawned() == (3, 1) and len(sleeps) == 1 and 599 <= sleeps[0] <= 601
     # A second limited exit, on Claude: Codex never runs a third time.
     run.limited.clear()
-    windows(50, 100, 3600, 600)
+    windows(50, 100, 3600, 600, at_exit=True)
     fake_codex("", "limit")
     after[0] = "limit"
     assert check() == fell
@@ -5214,7 +5225,7 @@ def test_a_limited_checker_falls_back_to_claude(
     assert check("shadow-conformance") == stopped
     assert spawned() == (6, 4)
     run.limited.clear()
-    windows(50, 100, 3600, 7200)
+    windows(50, 100, 3600, 7200, at_exit=True)
     fake_codex("", "limit")
     assert check("shadow-conformance") == stopped
     assert spawned() == (7, 4)
@@ -10274,16 +10285,21 @@ def test_the_codex_limit_data_is_read_from_its_rollout(
     assert reset_at(log_of("t4", unnamed), ten) == float("inf")
     assert reset_at(log_of("t4"), ten) == float("inf")
 
-    # The headroom: the newest rollout's primary window at 90% or more, still ahead.
+    # The headroom: the newest rollout's latest-resetting window at 90% or more, still
+    # ahead, with its name.
     headroom = conduct["_headroom"]
     assert headroom(ten) is None
     rollout("h1", limits(primary=(92, ten + 600)))
-    assert headroom(ten) == ten + 600
+    assert headroom(ten) == (ten + 600, "5-hour")
     assert headroom(ten + 700) is None
     rollout("h2", limits(primary=(89, ten + 600), secondary=(95, ten + 600)))
-    assert headroom(ten) is None
+    assert headroom(ten) == (ten + 600, "weekly")
     rollout("h3", limits(secondary=(95, ten + 600)))
-    assert headroom(ten) is None
+    assert headroom(ten) == (ten + 600, "weekly")
+    rollout("h4", limits(primary=(10, ten + 600), secondary=(98, ten + 9000)))
+    assert headroom(ten) == (ten + 9000, "weekly")
+    rollout("h5", limits(primary=(95, ten + 900), secondary=(91, ten + 500)))
+    assert headroom(ten) == (ten + 900, "5-hour")
 
 
 def test_run_refuses_without_worktrees_declared(
@@ -10857,9 +10873,9 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     run.probed.add("codex")
     clock = [time.time()]
 
-    def headroom(now: float) -> float:
+    def headroom(now: float) -> tuple[float, str]:
         clock[0] += 2
-        return now + 1
+        return now + 1, "5-hour"
 
     with monkeypatch.context() as patched:
         patched.setattr(time, "time", lambda: clock[0])
@@ -10956,6 +10972,45 @@ def test_a_codex_fixer_halts_at_a_limit_and_never_falls_back(
     fake_codex("", "")
     assert fix() == (0, False, models, "")
     assert told() == 2 and not claude_argvs.is_file()
+
+
+def test_a_checker_falls_back_when_the_weekly_window_is_spent(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    sessions = tmp_path / "codex-home" / "sessions" / "2026" / "11" / "08"
+    sessions.mkdir(parents=True)
+    now = time.time()
+
+    def windows(weekly: float) -> None:
+        rates = {
+            name: {"used_percent": used, "window_minutes": 300, "resets_at": reset}
+            for name, used, reset in (
+                ("primary", 10, now + 600),
+                ("secondary", weekly, now + 7200),
+            )
+        }
+        payload = {"type": "token_count", "rate_limits": rates}
+        event = json.dumps({"type": "event_msg", "payload": payload})
+        (sessions / "rollout-2026-11-08T10-00-00-fake.jsonl").write_text(event + "\n")
+
+    run = conduct["Run"](root, "claude")
+    run.probed.update({"claude", "codex"})
+    models = ("codex", "gpt-6.1-sol", "medium")
+    deadline = time.monotonic() + 3000
+
+    # The weekly window at 98%, two hours from its reset: Codex is not ready, and the
+    # fixer's limit names the window and starts no Codex worker.
+    windows(98)
+    assert not run.codex_ready("0001-todo", deadline)
+    done = run.fix("0001-todo", "converge-fix-r1", tree, "fix it\n", models, deadline)
+    reset = time.strftime("%Y-%m-%d %H:%M", time.localtime(now + 7200))
+    text = f"codex usage limit — the fixer · resets {reset} · the weekly window"
+    assert (done.code, done.limit) == (1, text)
+    assert _codex_argvs(tmp_path) == []
+    # Twin: at 85% the same window leaves Codex ready.
+    windows(85)
+    assert run.codex_ready("0001-todo", deadline)
 
 
 def test_a_limit_halts_only_the_stations_ahead(tmp_path: Path) -> None:

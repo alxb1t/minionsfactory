@@ -63,6 +63,7 @@ REFERENCES = HERE.parent / "references"
 PLACEHOLDERS = (
     *("change", "role", "round", "base", "head", "range", "scope", "findings", "patch"),
     *("bundle", "debt_cards", "open", "ids", "models", "mode", "evidence"),
+    "attribution",
 )
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -1055,6 +1056,9 @@ def fixer(context: Context, ids: str) -> None:
     """
     executor, model, effort = context.workers["fix"]
     station = f"converge-fix-r{context.round}"
+    attribution = "the attribution line your session names"
+    if executor == "codex":
+        attribution = f"Co-Authored-By: Codex {model} <noreply@openai.com>"
     told = prompt(
         "fix.md",
         role="fix",
@@ -1064,6 +1068,7 @@ def fixer(context: Context, ids: str) -> None:
         findings=" and ".join(str(context.folder / f"{r}.md") for r in ROLES),
         base=context.base,
         evidence=context.folder / "evidence.md",
+        attribution=attribution,
     )
     models = (executor, model, effort or "medium")
     for last in (False, True):

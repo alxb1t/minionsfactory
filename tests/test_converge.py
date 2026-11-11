@@ -2142,6 +2142,25 @@ def test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit(host: Host) ->
     assert host.fixed == []
 
 
+def test_a_codex_fixers_prompt_names_its_attribution(host: Host) -> None:
+    codex = ("codex", "gpt-6.1-sol", "medium")
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    assert run(host, {**_WORKERS, "fix": codex}) == 0
+
+    assert (
+        "Co-Authored-By: Codex gpt-6.1-sol <noreply@openai.com>" in host.codexed[0][2]
+    )
+    assert host.fixed == []
+
+    assert run(host, _WORKERS) == 0
+
+    assert "the attribution line your session names" in host.fixed[0][2]
+    assert len(host.codexed) == 1
+
+
 def _twice(
     first: Callable[[str], None], then: Callable[[str], None]
 ) -> Callable[[str], None]:
