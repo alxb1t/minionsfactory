@@ -11,7 +11,7 @@ Reading map: [design](design.md) holds the decisions and the test cost, [tasks](
 
 ## Why
 
-`plan_check.py` re-ran every ticked `Verify:` one at a time, and 0110's plan checks took about 10 min each, most of it the whole-suite `pytest` lines the gate had already run. Each fix pass lost about 30 min of wall time to it. Converge's Step 7 has no deadline to stop a hung command (debt `0108·S4`).
+`plan_check.py` re-ran every ticked `Verify:` one at a time, and 0110's plan checks took about 10 min each, most of it the whole-suite `pytest` lines the gate had already run. Each fix pass lost much of its wall time to it. Converge's Step 7 has no deadline to stop a hung command (debt `0108·S4`).
 
 ## What Changes
 

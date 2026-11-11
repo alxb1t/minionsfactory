@@ -301,6 +301,32 @@ def test_a_command_that_ignores_sigterm_is_killed_after_the_grace(
     assert time.monotonic() - started < 30
 
 
+_ORPHAN = (
+    "import subprocess, sys, time;"
+    " code = 'import signal, time;"
+    " signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)';"
+    " child = subprocess.Popen([sys.executable, '-c', code],"
+    " stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL);"
+    " open(sys.argv[1], 'w').write(str(child.pid));"
+    " time.sleep(60)"
+)
+
+
+def test_a_child_that_outlives_its_parent_is_killed_after_the_grace(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    trees = _trees(tmp_path)
+    child = tmp_path / "orphan.pid"
+    out = io.StringIO()
+
+    code = _conduct()["sandboxed"](
+        [*_python(_ORPHAN), str(child)], trees[0], trees, out, timeout=1, grace=0.5
+    )
+
+    assert code == 124
+    assert _gone(int(child.read_text()))
+
+
 def _repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()

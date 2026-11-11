@@ -287,7 +287,12 @@ def _needle_named_nowhere(root: Path) -> None:
 
 def _pytest_names_no_test_file(root: Path) -> None:
     old = "Verify: `grep -n x a.py` prints a line."
-    _edit(root, "tasks.md", old, "Verify: `uv run pytest -q -k widget` exits 0.")
+    _edit(
+        root,
+        "tasks.md",
+        old,
+        "Verify: `uv run pytest -q --junitxml out/r.xml -k widget` exits 0.",
+    )
 
 
 def _impact_names_a_stranger(root: Path) -> None:

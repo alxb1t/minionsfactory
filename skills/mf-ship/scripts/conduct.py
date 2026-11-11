@@ -3243,15 +3243,21 @@ def _watch(
 ) -> None:
     """End `group` after `timeout` s: SIGTERM, then SIGKILL after `grace`.
 
-    Return at once when `done` is set first. Why: 0114-faster-plan-check design D5.
+    Return when `done` is set first. Once expired, wait for the group to empty or
+    `grace` to pass, then SIGKILL. Why: 0114-faster-plan-check design D5.
     """
     if done.wait(max(timeout, 0)):
         return
     expired.set()
     with contextlib.suppress(ProcessLookupError):
         os.killpg(group, signal.SIGTERM)
-    if done.wait(grace):
-        return
+    end = time.monotonic() + grace
+    while time.monotonic() < end:
+        try:
+            os.killpg(group, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.02)
     with contextlib.suppress(ProcessLookupError):
         os.killpg(group, signal.SIGKILL)
 
@@ -3293,6 +3299,7 @@ def sandboxed(
     env["TMPDIR"] = str(tmp)
     denied = False
     done, expired = threading.Event(), threading.Event()
+    watching: threading.Thread | None = None
     try:
         with subprocess.Popen(
             [sandbox_exec, "-p", _profile([*trees, tmp], Path.home()), *argv],
@@ -3307,13 +3314,16 @@ def sandboxed(
         ) as process:
             if timeout is not None:
                 watcher = (process.pid, timeout, grace, done, expired)
-                threading.Thread(target=_watch, args=watcher, daemon=True).start()
+                watching = threading.Thread(target=_watch, args=watcher, daemon=True)
+                watching.start()
             for line in process.stdout or ():
                 print(line, end="", file=out or sys.stdout, flush=True)
                 denied = denied or CODEX_DENIAL in line
             code = process.wait()
     finally:
         done.set()
+        if watching is not None:
+            watching.join()
         _remove_temp(tmp, out)
     if expired.is_set():
         print(

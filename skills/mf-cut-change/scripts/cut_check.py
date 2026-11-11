@@ -680,6 +680,48 @@ def _test_path(word: str) -> bool:
     return word.endswith(".py") or "::" in word or named
 
 
+VALUE_OPTIONS = frozenset(
+    [
+        "-c",
+        "-k",
+        "-m",
+        "-o",
+        "-p",
+        "-W",
+        "--basetemp",
+        "--cache-dir",
+        "--confcutdir",
+        "--deselect",
+        "--html",
+        "--ignore",
+        "--ignore-glob",
+        "--junit-xml",
+        "--junitxml",
+        "--log-file",
+        "--override-ini",
+        "--report-log",
+        "--rootdir",
+    ]
+)
+
+
+def _operands(words: list[str]) -> list[str]:
+    """Return the words that are no option and no value of an option taking one.
+
+    e.g. ["pytest", "--junitxml", "out/r.xml", "t.py"] → ["pytest", "t.py"]
+    """
+    kept: list[str] = []
+    skip = False
+    for word in words:
+        if skip:
+            skip = False
+        elif word in VALUE_OPTIONS:
+            skip = True
+        else:
+            kept.append(word)
+    return kept
+
+
 def row_v5(change: Change, plan: dict[str, Any]) -> str | None:
     """Return each `pytest` command of a `Verify:` that names no test file."""
     found = [
@@ -687,7 +729,7 @@ def row_v5(change: Change, plan: dict[str, Any]) -> str | None:
         for task in plan["subtasks"](change.tasks)
         for command in _commands(task.text, plan)
         if plan["is_pytest"](words := _words(command))
-        and not any(_test_path(word) for word in words)
+        and not any(_test_path(word) for word in _operands(words))
     ]
     return " · ".join(found) or None
 

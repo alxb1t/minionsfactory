@@ -381,12 +381,38 @@ def is_pytest(argv: list[str]) -> bool:
     )
 
 
-def bare_pytest(command: Command) -> bool:
-    """Return whether a pytest command's `Verify:` says it exits 0 and no more."""
+def names_tests(argv: list[str], root: Path) -> bool:
+    """Return whether each test path or node a pytest argv names exists in `root`.
+
+    An operand has a `/`, a `.py` or a `::`; its file and each `::` node must exist.
+    An option's value may read as an operand: that command runs, not skips.
+    """
+    for word in argv:
+        if word.startswith("-") or not ("/" in word or ".py" in word or "::" in word):
+            continue
+        path, *nodes = word.split("::")
+        file = root / path
+        if not file.is_file() and not file.is_dir():
+            return False
+        text = _read(file) if nodes else ""
+        for node in nodes:
+            name = re.escape(node.partition("[")[0])
+            if not re.search(rf"\b(?:def|class)\s+{name}\b", text):
+                return False
+    return True
+
+
+def bare_pytest(command: Command, root: Path) -> bool:
+    """Return whether a pytest command's `Verify:` says it exits 0 and no more.
+
+    Its test paths and nodes must exist, so a green gate vouches for it.
+    """
+    argv = tokens(command.text)
     return (
-        is_pytest(tokens(command.text))
+        is_pytest(argv)
         and command.count is None
         and not command.nothing
+        and names_tests(argv, root)
     )
 
 
@@ -401,7 +427,10 @@ def names_revision(argv: list[str]) -> bool:
 
 
 def keyed(text: str, head: str) -> str:
-    """Return a command's key: its text, and `HEAD`'s sha when it names a revision."""
+    """Return a command's key: its text, and the refs' state when it names a revision.
+
+    `head` is `HEAD`'s sha and every ref's, so another branch moving ends a reuse.
+    """
     return f"{text}\n{head}" if names_revision(tokens(text)) else text
 
 
@@ -445,9 +474,10 @@ def check_verifies(
     record; a result kept for a settled tree is read, and a new one kept.
     """
     pairs = jobs(tasks, human, only)
-    green = any(bare_pytest(command) for _, command in pairs) and gate_green()
-    pending = [(n, c) for n, c in pairs if not (green and bare_pytest(c))]
-    head = _git(root, "rev-parse", "HEAD").stdout.strip()
+    green = any(bare_pytest(c, root) for _, c in pairs) and gate_green()
+    pending = [(n, c) for n, c in pairs if not (green and bare_pytest(c, root))]
+    refs = _git(root, "for-each-ref", "--format=%(objectname) %(refname)").stdout
+    head = _git(root, "rev-parse", "HEAD").stdout.strip() + "\n" + refs
     tree = _guarded(gate()["settled_tree"])
     keys = {command.text: keyed(command.text, head) for _, command in pending}
     results: dict[str, Result] = {}

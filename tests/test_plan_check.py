@@ -373,6 +373,17 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     _commit_tasks(root, "- [x] 1.1 Suite.\n  Verify: `pytest -q` prints `1`.\n")
     record()
     assert check() == (1, ["plan: 1.1 — `pytest -q` exited 3"])
+    # A pytest naming a path or node that is gone is no bare pytest: it runs.
+    (root / "tests").mkdir(exist_ok=True)
+    (root / "tests/test_here.py").write_text("def test_here():\n    pass\n")
+    here = "tests/test_here.py::test_here"
+    for named in ("tests/test_gone.py", "tests/test_here.py::test_gone"):
+        _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
+        record()
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+    _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {here}`.\n")
+    record()
+    assert check() == (0, ["plan: clean"])
     # A record of another dry run stands for another gate: the pytest runs.
     _commit_tasks(root, bare)
     record("0" * 64)
@@ -399,6 +410,25 @@ def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
         "ruff check .",
     ):
         assert plan_check.keyed(text, "abc") == text
+
+
+def test_another_branch_moving_ends_the_reuse_of_a_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    command = "git diff --quiet other HEAD"
+    _commit_tasks(root, f"- [x] 1.1 Same.\n  Verify: `{command}`.\n")
+    _git(root, "branch", "other")
+
+    def check() -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    assert check() == (0, ["plan: clean"])
+    # `other` moves; HEAD and the tree stay: the kept success is not read again.
+    _git(root, "branch", "-f", "other", "HEAD~1")
+    assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
 
 
 def test_a_result_is_kept_by_tree_and_reused(
