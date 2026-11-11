@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `plan_check.py --only` checks named sub-tasks, which a catch-up runs for the `Verify:` lines it adds; `cut_check.py`
   row `V5` flags a `pytest` that names no test file; the fixer and the build's close run the plan check in the
   foreground (change `0114-faster-plan-check`, phase 3).
+- `plan_check.py` passes a bare `pytest` on the gate's green record only when each word after its prefix is a quiet flag
+  or an operand that exists; a `-k`, `-m` or `--deselect` selection and any other option run, so a selection that
+  matches nothing fails (change `0114-faster-plan-check`, phase 4).
 
 ## [0.93.0] - 2026-11-11
 

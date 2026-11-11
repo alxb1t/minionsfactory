@@ -389,6 +389,15 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {here}`.\n")
     record()
     assert check() == (0, ["plan: clean"])
+    # A selection or another option is no quiet flag: the pytest runs.
+    file = "tests/test_here.py"
+    for named in (f"{file} -k gone", f"{file} -m gone", f"-c other.ini {file}"):
+        _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
+        record()
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+    _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {file}`.\n")
+    record()
+    assert check() == (0, ["plan: clean"])
     # A record of another dry run stands for another gate: the pytest runs.
     _commit_tasks(root, bare)
     record("0" * 64)

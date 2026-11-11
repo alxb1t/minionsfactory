@@ -32,6 +32,7 @@ CPUS = os.cpu_count() or 1
 RUNNING: set[subprocess.Popen[str]] = set()
 PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
 REVISION = re.compile(r"[0-9a-f]{7,40}")
+QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
 SHOWN = 5
 CHANGE = re.compile(r"[a-z0-9-]+")
 ID = re.compile(r"\d+\.\d+")
@@ -382,14 +383,11 @@ def is_pytest(argv: list[str]) -> bool:
 
 
 def names_tests(argv: list[str], root: Path) -> bool:
-    """Return whether each test path or node a pytest argv names exists in `root`.
+    """Return whether each operand's file and `::` nodes exist in `root`.
 
-    An operand has a `/`, a `.py` or a `::`; its file and each `::` node must exist.
-    A `[` parameter id is never vouched for, nor an option value read as an operand.
+    A `[` parameter id is never vouched for: it exists only on collection.
     """
     for word in argv:
-        if word.startswith("-") or not ("/" in word or ".py" in word or "::" in word):
-            continue
         path, *nodes = word.split("::")
         file = root / path
         if not file.is_file() and not file.is_dir():
@@ -403,17 +401,27 @@ def names_tests(argv: list[str], root: Path) -> bool:
     return True
 
 
+def _vouched(word: str, root: Path) -> bool:
+    """Return whether a word after the pytest prefix keeps the gate's proof."""
+    return word in QUIET_OPTIONS or (
+        not word.startswith("-") and names_tests([word], root)
+    )
+
+
 def bare_pytest(command: Command, root: Path) -> bool:
     """Return whether a pytest command's `Verify:` says it exits 0 and no more.
 
-    Its test paths and nodes must exist, so a green gate vouches for it.
+    Only a quiet option or an operand that exists follows the prefix: a selection
+    or any other option runs, so a green gate vouches for the rest.
     """
     argv = tokens(command.text)
     return (
         is_pytest(argv)
         and command.count is None
         and not command.nothing
-        and names_tests(argv, root)
+        and all(
+            _vouched(word, root) for word in argv[1 if argv[0] == "pytest" else 3 :]
+        )
     )
 
 
