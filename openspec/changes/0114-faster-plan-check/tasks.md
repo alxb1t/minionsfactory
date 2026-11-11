@@ -8,6 +8,7 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 - [x] 2 — The parallel runner and the group kill · hard
 - [x] 3 — The deadline, the catch-up, the whole-suite flag and the foreground · hard
 - [x] 4 — A selection or an option runs a bare pytest · moderate
+- [ ] 5 — pytest's own collection proves a bare pytest · moderate
 
 ## 1 — plan_check.py: distinct commands, the gate's green record, the record by tree
 
@@ -67,4 +68,9 @@ The phases: what `plan_check.py` runs and keeps, the parallel runner and the gro
 ## 4 — A selection or an option runs a bare pytest
 
 - [x] 4.1 In `skills/mf-converge/scripts/plan_check.py` make `bare_pytest` hold only when every word after the pytest prefix is `-q`, `-qq`, `-v`, `-vv`, `-x` or `-s`, or an operand whose path exists and whose `::` nodes `names_tests` finds, so a `-k`, `-m` or `--deselect` selection and any other option run ([D2](design.md#d2)); in `tests/test_plan_check.py` extend `test_a_green_gate_record_passes_a_bare_pytest` so that on a green record `pytest -q tests/test_here.py -k gone`, `pytest -q tests/test_here.py -m gone` and `pytest -q -c other.ini tests/test_here.py` each run and exit 3, while `pytest -q tests/test_here.py` passes unrun.
+  Verify: `uv run pytest -q tests/test_plan_check.py -k green_gate_record` exits 0.
+
+## 5 — pytest's own collection proves a bare pytest
+
+- [ ] 5.1 In `skills/mf-converge/scripts/plan_check.py` make a bare pytest pass unrun only when its argv with `--collect-only -q` appended, run by the same runner under the same deadline, exits 0 and prints at least one collected test ([D2](design.md#d2)); in `tests/test_plan_check.py` extend `test_a_green_gate_record_passes_a_bare_pytest` so that on a green record a node under the wrong parent (`tests/test_here.py::test_a::test_b`) and a test file holding no test each run and fail, while `pytest -q tests/test_here.py` passes unrun.
   Verify: `uv run pytest -q tests/test_plan_check.py -k green_gate_record` exits 0.

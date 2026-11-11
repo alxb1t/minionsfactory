@@ -58,6 +58,13 @@ A **pytest command** is one whose argv starts `pytest`, `uv run pytest` or `pyth
 
 A **bare pytest** is a pytest command whose `Command` has no `count` and no `nothing`: its `Verify:` says it exits 0 and no more. It passes unrun when `gate_green()` holds and every word after its pytest prefix is one of `-q`, `-qq`, `-v`, `-vv`, `-x` or `-s`, or an operand whose file or folder exists and each of whose `::` nodes a `def` or `class` of that file names, a `[` parameter id never among them. Any other word runs it: a `-k`, `-m` or `--deselect` selection, which the gate's run does not prove selects a test, and any other option, such as `-c` or `-p`, which can change what pytest collects. A `-k` that selects nothing exits 5 run alone, and so fails here: the plan check exists to catch a ticked `Verify:` that a later task broke, which the build's run before the tick cannot. Decided by the supervisor under the person's delegation, 2026-11-11, on adversarial card S1.
 
+**Collection proves it, not the text.** A bare pytest passes unrun only when, besides the above, the same argv with
+`--collect-only -q` appended exits 0 and prints at least one collected test; any other result runs the command. pytest
+itself then settles a node's ancestry, a parameter id, a file whose tests moved and a selection: the textual checks
+cannot, as rounds 1–5 found one case after another. The collection runs under the same deadline and group kill as any
+command and takes seconds. Re-planned by the planner under the person's delegation, 2026-11-11: S1 came back three times
+with a new case of one invariant, a re-plan and not a grant.
+
 ### D3
 
 The store is `records().parent / "plan-check" / <tree>/`, beside `gate` in the primary's `.minions`. A file is named by the sha256 of the **key**: the command text, and `HEAD`'s sha after a newline when the command **names a revision** — a word that starts `HEAD`, a word that fully matches `[0-9a-f]{7,40}`, or a `git` command whose second word is not `grep` or `ls-files`, which read the tree alone. It holds JSON, `{"exit": <code>, "output": <text>}`, which `passed()` reads again.
