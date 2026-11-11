@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.97.0] - 2026-11-11
+
+Gate: local 6m58s · CI not read under mf-ship · 0.96.0: local 6m24s · CI not read under mf-ship
+
 - A brief's `fix codex/<model> <effort>` and `[converge.fix] executor = "codex"` are valid; a fixer naming no host
   runs on Claude and no longer inherits `[converge]`'s executor (0117-codex-converge, phase 1).
 - A Codex fixer starts through the new `Host.fix` and `Run.fix`; Codex not ready, or a usage limit, halts the
