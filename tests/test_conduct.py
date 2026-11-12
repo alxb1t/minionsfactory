@@ -4525,6 +4525,32 @@ _LOCKED = {
 }
 
 
+@pytest.mark.skipif(shutil.which("npm") is None, reason="needs a real npm")
+def test_the_npm_fetch_flags_load_in_the_real_npm(tmp_path: Path) -> None:
+    # The fake npm never loads configuration: the real one refuses one path as both.
+    flags = _conduct()["_npm_flags"](tmp_path, tmp_path / "cache")
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path)}
+    ours = subprocess.run(
+        ["npm", "config", "get", "registry", *flags],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert ours.returncode == 0, ours.stderr
+    shared = ["--userconfig", "/dev/null", "--globalconfig", "/dev/null"]
+    both = subprocess.run(
+        ["npm", "config", "get", "registry", *shared],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert both.returncode != 0  # the probe sees the refusal this test guards
+
+
 def test_a_cut_fetches_the_npm_rows_it_approves(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

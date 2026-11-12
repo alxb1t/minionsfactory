@@ -7309,10 +7309,8 @@ def _npm_tree(scratch: Path) -> dict[tuple[str, str], bool]:
         return {}
 
 
-def _npm_run(
-    args: list[str], what: str, scratch: Path, cache: Path, command: str
-) -> None:
-    """Run `npm <args>` in `scratch` under the fetch's flags; a failure stops with 2.
+def _npm_flags(scratch: Path, cache: Path) -> list[str]:
+    """Build the flags every npm fetch runs under, apart from the operator's settings.
 
     Why: 0121-ui-prepare design D2.
     """
@@ -7323,10 +7321,19 @@ def _npm_run(
     # npm refuses one path as both configs: each is its own absent scratch file.
     flags += ["--registry", NPM_REGISTRY, "--userconfig", str(scratch / "user.npmrc")]
     flags += ["--globalconfig", str(scratch / "global.npmrc"), "--cache", str(cache)]
-    flags += ["--before", before]
+    return [*flags, "--before", before]
+
+
+def _npm_run(
+    args: list[str], what: str, scratch: Path, cache: Path, command: str
+) -> None:
+    """Run `npm <args>` in `scratch` under the fetch's flags; a failure stops with 2.
+
+    Why: 0121-ui-prepare design D2.
+    """
     try:
         done = _fetch_run(
-            ["npm", *args, *flags],
+            ["npm", *args, *_npm_flags(scratch, cache)],
             scratch,
             [scratch, cache],
             _npm_env(scratch),
