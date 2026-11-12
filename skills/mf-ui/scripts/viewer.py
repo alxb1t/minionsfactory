@@ -233,12 +233,13 @@ class Reader:
         """Read a log's events; a line earlier than the one before is a day on.
 
         The whole log is streamed, so a spawn or a midnight far back still counts; only
-        the events the projector reads, and the last one, are kept.
+        the events the projector reads, and the last of each version, are kept.
         """
         base = datetime.strptime(log.stem[:15], STAMP)
-        days, before, found = 0, 0, []
-        newest: Event | None = None
-        for line in read_lines(log):
+        days, before = 0, 0
+        found: dict[int, Event] = {}
+        last: dict[str, tuple[int, Event]] = {}
+        for number, line in enumerate(read_lines(log)):
             if not (match := self.conduct["EVENT"].match(line)):
                 continue
             hours, minutes, seconds = (int(part) for part in line[:8].split(":"))
@@ -247,14 +248,12 @@ class Reader:
             before = moment
             at = base.replace(hour=hours, minute=minutes, second=seconds)
             at += timedelta(days=days)
-            newest = Event(
-                match[1], match[2], line[match.end() :], at.timestamp(), line
-            )
-            if newest.name in READ_EVENTS:
-                found.append(newest)
-        if newest and (not found or found[-1] is not newest):
-            found.append(newest)
-        return found
+            event = Event(match[1], match[2], line[match.end() :], at.timestamp(), line)
+            last[event.who] = (number, event)
+            if event.name in READ_EVENTS:
+                found[number] = event
+        found.update(last.values())
+        return [found[number] for number in sorted(found)]
 
     def newest(self) -> list[Event]:
         """Return the newest run log's events, none without a log."""

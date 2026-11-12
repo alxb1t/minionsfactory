@@ -327,6 +327,9 @@ def test_a_halt_stands_in_the_newest_log_until_the_version_rejoins(
     # A rejoin the run refused leaves the halt standing.
     refused = "12:00:01 · run · rejoin — 0001-a: still halted — answered"
     assert state([again, refused, sibling], "20261103-130000") == "halted"
+    # A later line of any event kind ends it, though no reader keeps that event's name.
+    checked = "12:00:01 · 0001-a · check — passed"
+    assert state([again, checked, sibling], "20261103-140000") == "idle"
 
 
 @pytest.mark.slow
