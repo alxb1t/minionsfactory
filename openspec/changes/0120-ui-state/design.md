@@ -102,17 +102,21 @@ cut       id · state (cut|cut halted) · halt
 |---|---|---|
 | 1 | `unread` | a read of the version raised |
 | 2 | `needs you` | the stage is `human`, `integrating` or `released` |
-| 3 | `halted` | the stage is `converge-halted`; or the stage is `build` and `_build_halt` names `HEAD`; or a rescue's diagnosis stands |
+| 3 | `halted` | the stage is `converge-halted`; or the stage is `build` and `_build_halt` names `HEAD`; or a halt stands in the newest run log |
 | 4 | `blocked` | the stage is `waiting`, and a version its `why` (`after <id> …`) names is `halted` or `needs you` |
 | 5 | `waiting` | the stage is `waiting` |
 | 6 | `stacked` | the stage is `stacked` |
 | 7 | `running` | a station stage, the claim `live`, and an unfinished spawn of the version |
 | 8 | `idle` | a station stage otherwise |
 
-A **station stage** is one of `build`, `converge`, `integrate` and `release`. A **rescue's diagnosis stands** when the last
-line of the newest run log that has `<id>` as its who is `halt — rescue diagnosed …`: the run logs that halt right after its
-`run · rescue — <id>: diagnosed · …` line, and any later line of the version, a `spawn` or a `rejoin`, ends it. A version the
-home queue holds as a queued cut is no version: it is a `cut` row of the queue, as `status` prints it.
+A **station stage** is one of `build`, `converge`, `integrate` and `release`. A **halt stands in the newest run log** when
+the version's last line there is a `halt — …` line with `<id>` as its who: a worker's exit (`halt — build worker exit 1`), a
+check's failure or a rescue's diagnosis alike. The version's lines are those with `<id>` as their who and the run's
+`run · rejoin — <id>: …` lines but a refused `still …` or `skipped …` one; any later line of the version, a `spawn` or a
+taken `rejoin`, ends the halt. The state's `why` stays the stage's. A halt in an older run log is not shown: a newer log with
+no line of the version ends it, as the workers of [D5](#d5) end with their log, and what carries a halt across runs is the
+stage, `converge-halted` or a `build.halt` that names `HEAD`. A version the home queue holds as a queued cut is no version: it
+is a `cut` row of the queue, as `status` prints it.
 
 **For you** holds these rows, in this order of kind and by id within one, each with its `why`:
 
@@ -299,6 +303,7 @@ take a fake spawn, `ps` and signal.
 | unit | `test_read_part_reads_a_regular_file_only` | a pipe, a link and a missing file read `None`; the head and the tail are bounded |
 | integration | `test_a_version_shows_its_phases_with_the_trees_ticks` | `box` at `HEAD`, `done` and `total` from the worktree's `tasks.md`, `null` when it cannot be read |
 | integration | `test_the_projector_gives_each_state_its_why` | each state of [D4](#d4) on one repository, with the stage's why |
+| integration | `test_a_halt_stands_in_the_newest_log_until_the_version_rejoins` | a halt in an older log ends with a newer sibling-only log; a taken rejoin ends it, a refused one does not |
 | integration | `test_a_version_that_raises_is_unread_alone` | a version whose `tasks.md` at `HEAD` has no `## Progress` list is `unread` with the reason, the rest of its project read |
 | integration | `test_converge_shows_its_round_cap_blockers_and_each_role` | the run's mark, `fixing`, `CAP`, each role's verdict and verdicts-line fields, the fallback |
 | integration | `test_workers_are_the_unfinished_spawns` | pairing by station, several in converge, a stale claim gives `idle` |
@@ -329,8 +334,9 @@ Evidence, counted at the cut:
 
 Each test sits at the lowest layer that can fail for it (`T1`): the state rules, the frame, the routes and the commands are
 calls, and the integration tests run the real child on a real repository, since the readers' behaviour is the thing proved.
-No test removes or merges another, so there is no table for `I16`. The `slow` marker is not needed: the child's bound is a
-parameter, and the test that kills a read sets it to 1 s.
+No test removes or merges another, so there is no table for `I16`. The child's bound is a parameter, and the test that kills
+a read sets it to 1 s. The worker, halt, state and liveness tests carry the `slow` marker: each builds a repository and runs
+the projector several times, over 5 s, which the child's bound does not cover.
 
 ## Dependencies
 

@@ -9,8 +9,9 @@ executor, model, effort and fallback, its workers, its liveness and its dim note
 and its queued cuts. A state SHALL be one of `running`, `idle`, `waiting`, `stacked`, `blocked`, `halted`, `needs you` or
 `unread`, by fixed rules read from the stage, the run log, the claim and the change folder: `running` is a station stage with an
 unfinished spawn under a live claim, `idle` a station stage with none, `blocked` a waiting version that names a dependency
-halted or needing a person, `halted` a `converge-halted` stage, a `build` stage whose `build.halt` names `HEAD`, or a rescue's
-diagnosis, and
+halted or needing a person, `halted` a `converge-halted` stage, a `build` stage whose `build.halt` names `HEAD`, or a version
+whose last line of the newest run log is a halt, a worker's exit or a rescue's diagnosis alike, until a later line of the
+version or a newer run log with none ends it, and
 `needs you` a `human`, `integrating` or `released` stage. **For you** SHALL hold each version that needs a person or is halted,
 each queued cut that halted, a stale claim, a usage limit whose reset is ahead and an unpushed default branch, each row with its
 `why`; a rescue's or a supervisor's decision SHALL show dim on its version and never in it. The server SHALL list the projects the
@@ -28,6 +29,12 @@ bound to `127.0.0.1`; any other path SHALL be 404, and a request whose `Host` is
   blocked dependent, a stacked one and a queued cut that halted
 - **THEN** the projector prints each version with its state, its stage and the stage's `why`, its phases with the worktree's ticks,
   and the halted cut in the queue and in **for you**
+
+#### Scenario: A halt in the newest run log
+- **WHEN** a version's last line of the newest run log is `halt — rescue diagnosed`, and then a newer run log holds only a
+  sibling's lines, and then the newest log holds its halt again followed by the run's `rejoin — <id>: build`
+- **THEN** the version shows halted, then the state its stage gives once the newer log stands, and again once the rejoin
+  follows its halt, while a refused `rejoin — <id>: still …` leaves it halted
 
 #### Scenario: Converge and workers
 - **WHEN** a version's status log holds a run marked `· amend`, a `verdicts` line per role and a top line `fix — sent R1`, and the
