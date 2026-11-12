@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.99.0] - 2026-11-12
+
+Gate: local 17m27s · CI not read under mf-ship · 0.98.1: local 7m8s · CI not read under mf-ship
+
 - A `## Dependencies` row `npm:<name>` at an exact version is plain; a range, a tag, a URL, a path, a git reference or an
   alias exits `cut` with 2, and the plan's brief check names it first (0121-ui-prepare, phase 1).
 - `cut` and each run's start fetch each tracked `package-lock.json` tree and the approved `npm:` rows into

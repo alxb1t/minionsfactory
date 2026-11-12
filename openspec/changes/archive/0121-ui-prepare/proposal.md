@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.99
 beside: [0118-debt-paydown-3a, 0119-debt-paydown-3b, 0120-ui-state]
 ---
 
