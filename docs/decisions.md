@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
+     D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
@@ -178,7 +178,29 @@ queue holds.**
   planning thread then cut the queued id by hand.
 - **Rejected:** approval read from the brief at cut time, which the cutter can edit · a rejoin copying the brief's rows
   again unconditionally, which takes a row a cutter planted after a disk fix (the person's decision on `0091·S1`) · a
-  nested line under the item · judging a looser constraint, which needs each ecosystem's version grammar.
+  nested line under the item · judging a looser constraint, which needs each ecosystem's version grammar; an exact npm
+  version needs none ([D81](#d81--an-npm-package-is-approved-at-an-exact-version-and-installed-offline)).
+
+### D81 · An npm package is approved at an exact version and installed offline
+
+**An npm package is a `## Dependencies` row `npm:<name>` at an exact version, a scoped name allowed; a range, a tag, a URL,
+a path, a git reference or an alias is refused at the queue. `conduct.py cut` and each run's start fetch the lock's tree and
+the cut's approved rows into `.minions/npm-cache`, under the OS sandbox with the network open, install scripts off, the
+registry fixed and nothing published in the last 7 days resolved. A Claude worker, a Codex worker and `sandboxed()` run npm
+from that cache, offline, scripts off. A version whose tracked `package.json` holds a direct package that the default
+branch lacks and no row approves at that exact version halts before converge.**
+
+- **Why:** a worker with the registry in reach installs any package, through `make` if not by typing `npm`; the person
+  approves the direct packages, and the lock pins what they pull in. The cache alone leaves a package a worker adds to a
+  manifest unjudged, so the build's end checks the manifest against the rows the cut kept in `design.md`.
+- **Accepts:** the lock's tree is trusted as the person committed it to the default branch, so the 7 days bound what a row
+  resolves alone · a package that needs its install script fails red at the gate, and the queue prints its flag · a run
+  starts with the network where a lock is tracked · the fetch acts once the machine's pin moves ([D55](#d55--one-pinned-mf-release-per-machine)).
+- **Rejected:** a range or a tag, which needs a grammar per ecosystem ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)) ·
+  a `Ship network:` line for the registry, which takes a publish while the proxy reads a hostname alone · `npm` on a
+  worker's allowlist · a fetch outside the sandbox, as the wheel fetch runs, because npm unpacks archives · a fetch at
+  `rejoin` or by a worker · the cache alone, with no check at the build's end.
+- **Amends:** D62's rejected grammar, narrowed for an exact version.
 
 ### D65 · A lighter plan review and build
 

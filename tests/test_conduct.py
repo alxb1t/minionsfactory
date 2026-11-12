@@ -4,6 +4,7 @@ Real git in scratch repositories with linked worktrees; `fake_worker.py` is the 
 agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
+import datetime
 import fnmatch
 import hashlib
 import io
@@ -498,6 +499,122 @@ def test_status_reads_each_stage_from_disk(
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
     _git(tree, "tag", "v0.1.0")
     assert stage().endswith(" · released")
+
+
+_NPM_ROWS = "## Dependencies\n\n| package | constraint | why |\n|---|---|---|\n{rows}\n"
+
+
+def _manifest(sections: dict[str, dict[str, str]]) -> str:
+    return json.dumps(sections)
+
+
+def _land(tree: Path, change: str, rows: str = "") -> None:
+    """Commit the cut's `design.md` with `rows` under its `## Dependencies`."""
+    design = _NPM_ROWS.format(rows=rows) if rows else "## Dependencies\n\nNone.\n"
+    folder = f"openspec/changes/{change}"
+    _commit(
+        tree,
+        {f"{folder}/design.md": design},
+        f"docs({change}): land the change directory",
+    )
+
+
+@pytest.mark.slow
+def test_a_manifest_is_judged_by_the_rows_of_the_cut(tmp_path: Path) -> None:
+    conduct = _conduct()
+    flag = conduct["UNAPPROVED_NPM"]
+    root = _primary(tmp_path)
+    vue = {"dependencies": {"vue": "3.5.43"}}
+    _commit(root, {"ui/package.json": _manifest(vue)}, "ui")
+    tree = _version(root, "0001-todo", "- [ ] 1 — One\n")
+
+    def judged() -> str | None:
+        return conduct["_npm_unapproved"](tree, "0001-todo", "main")
+
+    def manifest(
+        sections: dict[str, dict[str, str]], path: str = "ui/package.json"
+    ) -> None:
+        _commit(tree, {path: _manifest(sections)}, "manifest")
+
+    # A package the default branch holds at that specifier needs no row.
+    assert judged() is None
+    # No cut commit means no row.
+    manifest({"dependencies": {"vue": "3.5.43", "left-pad": "1.3.0"}})
+    assert judged() == f"{flag}: ui/package.json left-pad 1.3.0"
+    # A row of a cut `design.md` that holds none, or is out of shape, approves nothing.
+    for text in ("None.\n", "no table\n", "| package |\n|---|\n| npm:left-pad |\n"):
+        body = f"## Dependencies\n\n{text}"
+        folder = "openspec/changes/0001-todo"
+        landed = "docs(0001-todo): land the change directory"
+        _commit(tree, {f"{folder}/design.md": body}, landed)
+        assert judged() == f"{flag}: ui/package.json left-pad 1.3.0"
+    # A row names the package at exactly that specifier.
+    _land(tree, "0001-todo", "| npm:left-pad | 1.3.0 | pad |\n| left-pad | >=1 | py |")
+    assert judged() is None
+    manifest({"dependencies": {"vue": "3.5.43", "left-pad": "^1.3.0"}})
+    assert judged() == f"{flag}: ui/package.json left-pad ^1.3.0"
+    manifest({"dependencies": {"vue": "^3.5.43"}})
+    assert judged() == f"{flag}: ui/package.json vue ^3.5.43"
+    # A scoped name is a row too.
+    _land(tree, "0001-todo", "| npm:@vitejs/plugin-vue | 6.0.1 | plugin |")
+    manifest({"devDependencies": {"@vitejs/plugin-vue": "6.0.1"}})
+    assert judged() is None
+    # Each direct section is read, and a nested manifest at its own path.
+    for section in conduct["DIRECT"]:
+        manifest({section: {"left-pad": "1.3.0"}})
+        assert judged() == f"{flag}: ui/package.json left-pad 1.3.0"
+    manifest(vue)
+    manifest(vue, "package.json")
+    assert judged() == f"{flag}: package.json vue 3.5.43"
+    # A packed dependency tree is no manifest of the version.
+    manifest({}, "package.json")
+    manifest({"dependencies": {"left-pad": "1.3.0"}}, "ui/node_modules/x/package.json")
+    assert judged() is None
+    # A manifest no one can read holds no direct package.
+    for text in (
+        "not json",
+        "[]",
+        '{"dependencies": []}',
+        '{"dependencies": {"a": 1}}',
+    ):
+        _commit(tree, {"ui/package.json": text}, "odd")
+        assert judged() is None
+    # With no default manifest to read, every direct package needs a row.
+    manifest(vue)
+    assert conduct["_npm_unapproved"](tree, "0001-todo", "nowhere") == (
+        f"{flag}: ui/package.json vue 3.5.43"
+    )
+    # A symlinked manifest holds only its target's name in git: it is refused.
+    _git(tree, "rm", "-q", "ui/package.json")
+    (tree / "ui" / "package.json").symlink_to("manifest.json")
+    (tree / "ui" / "manifest.json").write_text(_manifest(vue))
+    _git(tree, "add", "ui")
+    _git(tree, "commit", "-q", "-m", "link")
+    assert judged() == f"{flag}: ui/package.json is a symlink"
+
+
+def test_a_build_halts_on_a_direct_npm_package_no_row_approves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+
+    def check() -> tuple[int, str]:
+        _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+        capsys.readouterr()
+        code = _main(
+            conduct, root, "check", "build", "0001-todo", monkeypatch=monkeypatch
+        )
+        return code, capsys.readouterr().out.strip()
+
+    assert check() == (0, "check: build · pass")
+    manifest = _manifest({"dependencies": {"left-pad": "1.3.0"}})
+    _commit(tree, {"ui/package.json": manifest}, "the ui")
+    halt = f"{conduct['UNAPPROVED_NPM']}: ui/package.json left-pad 1.3.0"
+    assert check() == (1, f"check: build · fail — {halt}")
+    _land(tree, "0001-todo", "| npm:left-pad | 1.3.0 | pad |")
+    assert check() == (0, "check: build · pass")
 
 
 @pytest.mark.slow
@@ -3850,7 +3967,7 @@ def _swap_runner(conduct: dict[str, Any]) -> None:
     """Run `brief_check.py` by this interpreter and fetch no wheel: no `uv` needed."""
     names = conduct["main"].__globals__
     names["UV_RUN"] = (sys.executable,)
-    names["_prefetch"] = lambda primary, rows: None
+    names["_prefetch"] = lambda primary, rows: []
 
 
 def test_parallel_cuts_reserve_apart_and_start_one_run(
@@ -4093,6 +4210,37 @@ def test_a_cut_queues_a_codex_fixer(tmp_path: Path, fake: Callable[..., Path]) -
     )
 
 
+def test_an_npm_row_is_plain_only_at_an_exact_version() -> None:
+    plain_row = _conduct()["_plain_row"]
+    plain = (
+        ("npm:vue", "3.5.43"),
+        ("npm:@vitejs/plugin-vue", "6.0.1"),
+        ("npm:vue", "3.5.43-beta.1"),
+        ("left-pad", ">=1.3,<2"),
+        ("right-pad", "==2.0.1"),
+    )
+    refused = (
+        ("npm:vue", "^3.5.43"),
+        ("npm:vue", "~3.5.43"),
+        ("npm:vue", "3.5"),
+        ("npm:vue", "latest"),
+        ("npm:vue", ">=3.5.43"),
+        ("npm:vue", "https://registry.invalid/vue-3.5.43.tgz"),
+        ("npm:vue", "./vendor/vue"),
+        ("npm:vue", "github:vuejs/core"),
+        ("npm:vue", "git+https://example.invalid/vue.git#3.5.43"),
+        ("npm:vue@npm:other", "1.0.0"),
+        ("npm:Vue", "3.5.43"),
+        ("npm:", "3.5.43"),
+        ("npm:@scope", "3.5.43"),
+        ("left-pad", "1.3.0"),
+        ("left-pad", "^2"),
+        ("https://index.invalid/left-pad.whl", ">=1"),
+    )
+    assert [plain_row(*row) for row in plain] == [True] * len(plain)
+    assert [plain_row(*row) for row in refused] == [False] * len(refused)
+
+
 _FAKE_UV = """
 import json
 import os
@@ -4231,6 +4379,482 @@ def test_a_cut_prefetches_its_approved_wheels(
     assert linked.value.code == 2
     assert fetched() == []
     assert os.listdir(elsewhere) == []
+
+
+@pytest.mark.slow
+def test_a_cut_refuses_an_npm_row_that_is_no_exact_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+    fake_sandbox_exec: Path,
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    names["_prefetch"] = conduct["_prefetch"]
+    npm = _fake_npm(tmp_path, monkeypatch)
+    bin_ = tmp_path / "uv-bin"
+    bin_.mkdir()
+    (bin_ / "uv").write_text(f"#!{sys.executable} -S{_FAKE_UV}")
+    (bin_ / "uv").chmod(0o755)
+    record = tmp_path / "uv-record.jsonl"
+    monkeypatch.setenv("PATH", str(bin_), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_UV_RECORD", str(record))
+    brief = tmp_path / "brief.md"
+
+    def cut(*rows: str) -> str:
+        table = "".join(f"| a | {row} | a pad |\n" for row in rows)
+        head = "| item | package | constraint | why |\n|---|---|---|---|\n"
+        brief.write_text(f"# brief\n\n## Dependencies\n{head}{table}\n{_items('a')}")
+        return conduct["cut"](
+            root, "a", "minor", f"brief={brief}", [], "claude", None, None
+        )
+
+    def fetched() -> list[list[str]]:
+        lines = record.read_text().splitlines() if record.is_file() else []
+        record.unlink(missing_ok=True)
+        return [json.loads(line)["argv"] for line in lines]
+
+    # A plain npm row is no wheel: the Python row beside it is the only wheel fetch.
+    assert cut("npm:vue | 3.5.43", "left-pad | >=1.3") == (
+        "cut: queued 0001-a · the live run takes it"
+    )
+    assert [argv[-1] for argv in fetched()] == ["left-pad>=1.3"]
+    assert ["vue@3.5.43" in run["argv"] for run in _npm_runs(npm)] == [True]
+
+    # A row out of shape stops the cut before any fetch, the good rows included.
+    before = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+    refused = (
+        "npm:vue | ^3.5.43",
+        "npm:vue | latest",
+        "npm:vue | https://registry.invalid/vue-3.5.43.tgz",
+        "npm:vue | ./vendor/vue",
+        "npm:vue | github:vuejs/core",
+        "npm:vue@npm:other | 1.0.0",
+    )
+    for row in refused:
+        with pytest.raises(conduct["Stop"]) as stopped:
+            cut("left-pad | >=1.3", row)
+        assert stopped.value.code == 2
+        package, constraint = row.split(" | ")
+        assert str(stopped.value) == (
+            f"cut: cannot run — the brief's row {package} {constraint} is not"
+            " npm:<name> at an exact version"
+        )
+        assert fetched() == []
+        assert _npm_runs(npm) == []
+        after = (sorted(os.listdir(root / ".minions" / "cuts")), conduct["_cuts"](root))
+        assert after == before
+        assert not (root / ".minions" / "changes" / "0002-a").exists()
+
+
+_FAKE_NPM = """
+import json
+import os
+import shutil
+import sys
+import time
+from pathlib import Path
+
+cwd = Path.cwd()
+
+
+def read(name):
+    return (cwd / name).read_text() if (cwd / name).is_file() else None
+
+
+record = {
+    "argv": sys.argv[1:],
+    "env": dict(os.environ),
+    "cwd": str(cwd),
+    "manifest": read("package.json"),
+    "lock": read("package-lock.json"),
+}
+log = Path(os.environ["FAKE_NPM_RECORD"])
+seen = len(log.read_text().splitlines()) if log.is_file() else 0
+with log.open("a") as file:
+    file.write(json.dumps(record) + "\\n")
+tree = os.environ.get("FAKE_NPM_LOCK_" + sys.argv[1].upper())
+tree = tree or os.environ.get("FAKE_NPM_LOCK")
+steps = os.environ.get("FAKE_NPM_STEPS")
+if steps:
+    tree = steps.split(os.pathsep)[seen]
+if tree:
+    (cwd / "node_modules").mkdir(exist_ok=True)
+    shutil.copy(tree, cwd / "node_modules" / ".package-lock.json")
+time.sleep(float(os.environ.get("FAKE_NPM_SLEEP", "0")))
+sys.exit(int(os.environ.get("FAKE_NPM_EXIT", "0")))
+"""
+
+
+def _fake_npm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put a fake `npm` first on `PATH`; return the file it records each run in."""
+    folder = tmp_path / "npm-bin"
+    folder.mkdir()
+    (folder / "npm").write_text(f"#!{sys.executable} -S{_FAKE_NPM}")
+    (folder / "npm").chmod(0o755)
+    record = tmp_path / "npm-record.jsonl"
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_NPM_RECORD", str(record))
+    return record
+
+
+def _npm_runs(record: Path) -> list[dict[str, Any]]:
+    """Return each run the fake `npm` recorded, then forget them."""
+    lines = record.read_text().splitlines() if record.is_file() else []
+    record.unlink(missing_ok=True)
+    return [json.loads(line) for line in lines]
+
+
+def _hidden_lock(path: Path, *packages: tuple[str, str, bool]) -> str:
+    """Write the `node_modules/.package-lock.json` the fake `npm` leaves; return it."""
+    entries: dict[str, dict[str, Any]] = {"node_modules/linked": {"link": True}}
+    for key, version, script in packages:
+        entries[f"node_modules/{key}"] = {"version": version}
+        if script:
+            entries[f"node_modules/{key}"]["hasInstallScript"] = True
+    path.write_text(json.dumps({"lockfileVersion": 3, "packages": entries}))
+    return str(path)
+
+
+_LOCKED = {
+    "ui/package.json": '{"name": "ui"}\n',
+    "ui/package-lock.json": '{"lockfileVersion": 3}\n',
+}
+
+
+@pytest.mark.skipif(shutil.which("npm") is None, reason="needs a real npm")
+def test_the_npm_fetch_flags_load_in_the_real_npm(tmp_path: Path) -> None:
+    # The fake npm never loads configuration: the real one refuses one path as both.
+    flags = _conduct()["_npm_flags"](tmp_path, tmp_path / "cache")
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path)}
+    ours = subprocess.run(
+        ["npm", "config", "get", "registry", *flags],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert ours.returncode == 0, ours.stderr
+    shared = ["--userconfig", "/dev/null", "--globalconfig", "/dev/null"]
+    both = subprocess.run(
+        ["npm", "config", "get", "registry", *shared],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert both.returncode != 0  # the probe sees the refusal this test guards
+
+
+def test_a_cut_fetches_the_npm_rows_it_approves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_sandbox_exec: Path,
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    record = _fake_npm(tmp_path, monkeypatch)
+    for name in ("NPM_TOKEN", "NPM_CONFIG_REGISTRY", "npm_config_cache", "GH_TOKEN"):
+        monkeypatch.setenv(name, "leak")
+    monkeypatch.setenv("KEPT", "yes")
+    scratch = root / ".minions" / "tmp"
+    cache = root / ".minions" / "npm-cache"
+    rows = [["npm:vue", "3.5.43"], ["npm:@vitejs/plugin-vue", "6.0.1"]]
+    flags = ["--ignore-scripts", "--no-audit", "--no-fund"]
+    flags += ["--registry", "https://registry.npmjs.org/", "--userconfig", "<user>"]
+    flags += ["--globalconfig", "<global>", "--cache", str(cache), "--before"]
+
+    def stripped(run: dict[str, Any]) -> list[str]:
+        # npm refuses one path as both configs: each is its own, empty, in the scratch.
+        argv = list(run["argv"])
+        paths = []
+        for flag, mark in (("--userconfig", "<user>"), ("--globalconfig", "<global>")):
+            at = argv.index(flag) + 1
+            paths.append(Path(argv[at]))
+            argv[at] = mark
+        assert paths[0] != paths[1]
+        for path in paths:
+            assert path.parent.resolve() == Path(run["cwd"]).resolve()
+            assert not path.exists()
+        return argv
+
+    # No lock: each row installs, in order, into a scratch folder of its own.
+    assert conduct["_prefetch"](root, rows) == []
+    runs = _npm_runs(record)
+    assert [run["argv"][:3] for run in runs] == [
+        ["install", "--no-save", "vue@3.5.43"],
+        ["install", "--no-save", "@vitejs/plugin-vue@6.0.1"],
+    ]
+    for run in runs:
+        assert stripped(run)[3:-1] == flags
+        week = datetime.date.today() - datetime.date.fromisoformat(run["argv"][-1])
+        assert 6 <= week.days <= 8
+        folder = Path(run["cwd"])
+        assert folder.parent == scratch.resolve()
+        env = run["env"]
+        assert not [n for n in env if n.lower().startswith("npm_config_")]
+        assert not [n for n in env if n.startswith("NPM_")]
+        assert "GH_TOKEN" not in env
+        assert env["KEPT"] == "yes"
+        assert Path(env["HOME"]).resolve() == Path(env["TMPDIR"]).resolve() == folder
+        assert run["manifest"] == "{}"
+        assert run["lock"] is None
+    assert os.listdir(scratch) == []
+    assert cache.is_dir()
+    assert fake_sandbox_exec.read_text() == conduct["_profile"](
+        [folder, cache], Path.home(), network=True
+    )
+    assert "network" not in fake_sandbox_exec.read_text()
+
+    # A tracked lock installs first, from the default branch's own files.
+    _commit(root, _LOCKED, "lock")
+    assert conduct["_prefetch"](root, rows[:1]) == []
+    ci, install = _npm_runs(record)
+    assert ci["argv"][0] == "ci"
+    assert stripped(ci)[1:-1] == flags
+    assert install["argv"][:3] == ["install", "--no-save", "vue@3.5.43"]
+    assert ci["cwd"] == install["cwd"]
+    for run in (ci, install):
+        assert run["manifest"] == _LOCKED["ui/package.json"]
+        assert run["lock"] == _LOCKED["ui/package-lock.json"]
+    assert conduct["_prefetch"](root, []) == []
+    assert [run["argv"][0] for run in _npm_runs(record)] == ["ci"]
+    assert os.listdir(scratch) == []
+
+    # A failure or a timeout names the package, or the lock, and leaves no scratch.
+    monkeypatch.setenv("FAKE_NPM_EXIT", "1")
+    with pytest.raises(conduct["Stop"]) as failed:
+        conduct["_prefetch"](root, rows[:1])
+    assert failed.value.code == 2
+    assert str(failed.value) == (
+        "cut: cannot run — fetching ui/package-lock.json failed: exit 1"
+    )
+    assert [run["argv"][0] for run in _npm_runs(record)] == ["ci"]
+    monkeypatch.delenv("FAKE_NPM_EXIT")
+    monkeypatch.setenv("FAKE_NPM_SLEEP", "5")
+    names["PREFETCH_SECONDS"] = 0.2
+    with pytest.raises(conduct["Stop"]) as slow:
+        conduct["_prefetch"](root, rows[:1])
+    assert str(slow.value) == (
+        "cut: cannot run — fetching ui/package-lock.json failed: timed out"
+    )
+    names["PREFETCH_SECONDS"] = 600
+    monkeypatch.delenv("FAKE_NPM_SLEEP")
+    _git(root, "rm", "-q", "-r", "ui")
+    _git(root, "commit", "-q", "-m", "drop the lock")
+    monkeypatch.setenv("FAKE_NPM_EXIT", "3")
+    with pytest.raises(conduct["Stop"]) as row:
+        conduct["_prefetch"](root, rows)
+    assert str(row.value) == "cut: cannot run — fetching npm:vue failed: exit 3"
+    monkeypatch.delenv("FAKE_NPM_EXIT")
+    _npm_runs(record)
+
+    def gone(*args: object, **kwargs: object) -> None:
+        raise FileNotFoundError(2, "No such file or directory")
+
+    with monkeypatch.context() as broken:
+        broken.setitem(names, "_fetch_run", gone)
+        with pytest.raises(conduct["Stop"]) as missing:
+            conduct["_prefetch"](root, rows)
+    assert str(missing.value) == (
+        "cut: cannot run — fetching npm:vue failed: No such file or directory"
+    )
+    assert os.listdir(scratch) == []
+
+    # No `sandbox-exec` stops the fetch with 2 before any run.
+    real = shutil.which
+    with monkeypatch.context() as bare:
+        bare.setattr(
+            shutil,
+            "which",
+            lambda name, *a, **k: (
+                None if name == "sandbox-exec" else real(name, *a, **k)
+            ),
+        )
+        with pytest.raises(conduct["Stop"], match="sandbox-exec is not on PATH") as bad:
+            conduct["_prefetch"](root, rows)
+    assert bad.value.code == 2
+    assert _npm_runs(record) == []
+
+    # A link where the cache or the scratch folder goes stops the fetch before any run.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    shutil.rmtree(cache)
+    cache.symlink_to(elsewhere)
+    with pytest.raises(conduct["Stop"], match="npm cache") as cached:
+        conduct["_prefetch"](root, rows)
+    assert cached.value.code == 2
+    cache.unlink()
+    shutil.rmtree(scratch)
+    scratch.symlink_to(elsewhere)
+    with pytest.raises(conduct["Stop"], match="scratch folder") as linked:
+        conduct["_prefetch"](root, rows)
+    assert linked.value.code == 2
+    assert _npm_runs(record) == []
+    assert os.listdir(elsewhere) == []
+
+
+def test_a_missing_npm_halts_by_name_only_where_it_is_needed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_sandbox_exec: Path,
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    record = _fake_npm(tmp_path, monkeypatch)
+    real = shutil.which
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda name, *a, **k: None if name == "npm" else real(name, *a, **k),
+    )
+    fetch = conduct["_fetch_npm"]
+
+    # Neither a row nor a lock: `npm` is not looked for, and nothing runs.
+    assert fetch(root, [], "cut") == []
+    assert fetch(root, [["left-pad", ">=1.3"]], "cut") == []
+
+    # An npm row needs it.
+    with pytest.raises(conduct["Stop"]) as row:
+        fetch(root, [["npm:vue", "3.5.43"]], "cut")
+    assert row.value.code == 2
+    assert str(row.value) == "cut: cannot run — npm is not on PATH"
+
+    # A tracked lock needs it, at a run's start too.
+    _commit(root, _LOCKED, "lock")
+    with pytest.raises(conduct["Stop"]) as lock:
+        fetch(root, [], "run")
+    assert str(lock.value) == "run: cannot run — npm is not on PATH"
+    assert conduct["_fetch_locks"](root) == "run: cannot run — npm is not on PATH"
+    assert _npm_runs(record) == []
+    assert not fake_sandbox_exec.exists()
+
+
+@pytest.mark.slow
+def test_a_cut_prints_the_new_packages_of_the_tree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake_sandbox_exec: Path,
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    _claimed(conduct, root)
+    _swap_runner(conduct)
+    names["_prefetch"] = conduct["_prefetch"]
+    record = _fake_npm(tmp_path, monkeypatch)
+    held = [("esbuild", "0.25.0", True), ("left", "1.0.0", False)]
+    grown = [
+        ("esbuild", "0.25.0", True),
+        ("left", "1.1.0", False),
+        ("vue", "3.5.43", True),
+        ("vue/node_modules/@vue/shared", "3.5.43", False),
+    ]
+    monkeypatch.setenv("FAKE_NPM_LOCK_CI", _hidden_lock(tmp_path / "held.json", *held))
+    grown_lock = _hidden_lock(tmp_path / "grown.json", *grown)
+    monkeypatch.setenv("FAKE_NPM_LOCK_INSTALL", grown_lock)
+    lines = [
+        "npm: new @vue/shared 3.5.43",
+        "npm: new left 1.1.0",
+        "npm: new vue 3.5.43 · install script",
+    ]
+    brief = tmp_path / "brief.md"
+    table = "| item | package | constraint | why |\n|---|---|---|---|\n"
+    table += "| a | npm:vue | 3.5.43 | the ui |\n"
+    brief.write_text(f"# brief\n\n## Dependencies\n{table}\n{_items('a')}")
+
+    # Two locks name the same new packages: each line is printed once.
+    _commit(
+        root,
+        {**_LOCKED, "docs/package.json": "{}\n", "docs/package-lock.json": "{}\n"},
+        "locks",
+    )
+    assert conduct["_prefetch"](root, [["npm:vue", "3.5.43"]]) == lines
+    assert len(_npm_runs(record)) == 4
+    assert conduct["_prefetch"](root, []) == []
+    _npm_runs(record)
+
+    # A tree no run could read lists nothing.
+    unread = tmp_path / "unread.json"
+    for text in ("{", "[]", "{}", '{"packages": []}', '{"packages": {"a": 1}}'):
+        unread.write_text(text)
+        monkeypatch.setenv("FAKE_NPM_LOCK_INSTALL", str(unread))
+        assert conduct["_fetch_npm"](root, [["npm:vue", "3.5.43"]], "cut") == []
+    monkeypatch.setenv("FAKE_NPM_LOCK_INSTALL", grown_lock)
+    _npm_runs(record)
+
+    # `cut` prints the lines before its own.
+    capsys.readouterr()
+    said = conduct["cut"](
+        root, "a", "minor", f"brief={brief}", [], "claude", None, None
+    )
+    assert capsys.readouterr().out == "".join(f"{line}\n" for line in lines)
+    assert said == "cut: queued 0001-a · the live run takes it"
+
+    # A later install prunes the earlier unsaved row: each row's package still lists.
+    _git(root, "rm", "-q", "-r", "ui", "docs")
+    _git(root, "commit", "-q", "-m", "drop the locks")
+    _npm_runs(record)
+    first = _hidden_lock(tmp_path / "first.json", ("left-pad", "1.3.0", False))
+    second = _hidden_lock(tmp_path / "second.json", ("is-number", "7.0.0", True))
+    monkeypatch.delenv("FAKE_NPM_LOCK_INSTALL")
+    monkeypatch.setenv("FAKE_NPM_STEPS", os.pathsep.join([first, second]))
+    rows = [["npm:left-pad", "1.3.0"], ["npm:is-number", "7.0.0"]]
+    assert conduct["_fetch_npm"](root, rows, "cut") == [
+        "npm: new is-number 7.0.0 · install script",
+        "npm: new left-pad 1.3.0",
+    ]
+
+
+@pytest.mark.slow
+def test_a_run_start_fetches_each_tracked_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+    fake_sandbox_exec: Path,
+) -> None:
+    # No lower layer reaches `Run.ship()`'s order. Why: 0121-ui-prepare design D2.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    record = _fake_npm(tmp_path, monkeypatch)
+
+    # No lock tracked: no fetch.
+    assert conduct["_fetch_locks"](root) is None
+    assert _npm_runs(record) == []
+
+    # A failed fetch halts the run before any worker, naming the lock.
+    _commit(root, _LOCKED, "lock")
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    monkeypatch.setenv("FAKE_NPM_EXIT", "1")
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    log = conduct["last_log"](root / ".minions" / "runs").read_text()
+    assert (
+        " · run · halt — run: cannot run — fetching ui/package-lock.json failed: exit 1"
+        in log
+    )
+    assert _calls(calls) == []
+    assert [run["argv"][0] for run in _npm_runs(record)] == ["ci"]
+    monkeypatch.delenv("FAKE_NPM_EXIT")
+
+    # A lock: one `npm ci` of the default branch's files, before any worker.
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    (run,) = _npm_runs(record)
+    assert run["argv"][0] == "ci"
+    assert run["lock"] == _LOCKED["ui/package-lock.json"]
+    assert "release 0001-todo" in _calls(calls)
+
+    # A default branch git cannot list holds no lock.
+    _git(root, "branch", "-m", "main", "trunk")
+    assert conduct["_fetch_locks"](root) is None
+    assert _npm_runs(record) == []
 
 
 def test_a_started_run_is_seen_by_its_claim_or_its_end(
@@ -11543,6 +12167,30 @@ def test_a_linked_tree_writes_under_the_codex_sandbox(
     assert done.returncode == 0, done.stderr
 
 
+def test_a_worker_carries_the_npm_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    repo = (root, root / ".git")
+    argv = conduct["argv"]
+    cache = f"npm_config_cache={root / '.minions' / 'npm-cache'}"
+    settings = ["npm_config_offline=true", "npm_config_ignore_scripts=true"]
+    assert list(conduct["NPM_SETTINGS"]) == settings
+
+    claude = argv("claude", "Do it.", tree, None, None, repo)
+    prefix = claude[: claude.index("claude")]
+    tmp = f"TMPDIR={root / '.minions' / 'tmp'}"
+    assert prefix[prefix.index(tmp) + 1 :] == [cache, *settings]
+
+    codex = argv("codex", "Do it.", tree, None, None, repo)
+    prefix = codex[: codex.index("codex")]
+    assert prefix[-3:] == [cache, *settings]
+    assert prefix[-4].startswith("PATH=")
+
+
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -11619,8 +12267,13 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp = f"TMPDIR={root / '.minions' / 'tmp'}"
     claude = argv("claude", "Do it.", root, "opus", "high", repo)
     unset = ["env", "-u", "VIRTUAL_ENV"]
-    assert claude[: len(hooks_off) + 5] == [*unset, *hooks_off, cache, tmp]
-    claude = claude[len(hooks_off) + 5 :]
+    assert claude[: claude.index("claude")][: len(hooks_off) + 5] == [
+        *unset,
+        *hooks_off,
+        cache,
+        tmp,
+    ]
+    claude = claude[claude.index("claude") :]
     assert claude[:3] == ["claude", "-p", f"Do it.\n\n{rules}"]
     assert claude[3:7] == ["--model", "opus", "--effort", "high"]
     assert "--settings" in claude
@@ -11705,11 +12358,12 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     roots = json.dumps(
         [str(root / ".git"), *gitdir_roots, str(root), str(tree), str(temp)]
     )
-    assert codex[: len(hooks_off) + 6] == [*unset, *hooks_off, cache, *own]
-    codex = codex[len(hooks_off) + 6 :]
-    assert codex[0].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
-    assert codex[1:5] == ["codex", "exec", "-s", "workspace-write"]
-    assert codex[5:7] == ["--ignore-user-config", "--json"]
+    prefix = codex[: codex.index("codex")]
+    assert prefix[: len(hooks_off) + 6] == [*unset, *hooks_off, cache, *own]
+    assert prefix[len(hooks_off) + 6].startswith("PATH=/usr/bin:/bin:/usr/sbin:/sbin:")
+    codex = codex[codex.index("codex") :]
+    assert codex[:4] == ["codex", "exec", "-s", "workspace-write"]
+    assert codex[4:6] == ["--ignore-user-config", "--json"]
     assert "allow_login_shell=false" in codex
     assert f"sandbox_workspace_write.writable_roots={roots}" in codex
     # The temp folder is a root by its name alone: Codex's own root of `TMPDIR`,

@@ -450,6 +450,20 @@ def test_a_dependencies_table_is_read(
     assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I11", "A1"]
 
 
+def test_an_npm_row_in_the_dependencies_table_is_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    table = (
+        "| package | constraint | why |\n|---|---|---|\n| `npm:vue` | `3.5.43` | ui |\n"
+    )
+    _edit(root, "design.md", "## Dependencies\n\nNone.", f"## Dependencies\n\n{table}")
+    _tools(tmp_path, monkeypatch)
+    assert _halted(_run(root, monkeypatch, capsys)[1]) == []
+
+
 def test_i4_names_each_defect_of_the_tasks_shape(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

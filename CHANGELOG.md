@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.99.0] - 2026-11-12
+
+Gate: local 17m27s · CI not read under mf-ship · 0.98.1: local 7m8s · CI not read under mf-ship
+
+- A `## Dependencies` row `npm:<name>` at an exact version is plain; a range, a tag, a URL, a path, a git reference or an
+  alias exits `cut` with 2, and the plan's brief check names it first (0121-ui-prepare, phase 1).
+- `cut` and each run's start fetch each tracked `package-lock.json` tree and the approved `npm:` rows into
+  `.minions/npm-cache`, under the OS sandbox with the network open and scripts off; `cut` prints each new package
+  and its install-script flag. No `npm` on `PATH` stops where a row or a lock needs it (0121-ui-prepare, phase 2).
+- A Claude worker, a Codex worker and `sandboxed()` run npm from `.minions/npm-cache`, offline, with install scripts
+  off, so no worker reaches the registry (0121-ui-prepare, phase 3).
+- A build whose tracked `package.json` holds a direct package that neither the default branch's file nor an `npm:` row
+  of the cut's `design.md` approves at that exact version halts before converge, naming the file, package and
+  specifier (0121-ui-prepare, phase 4).
+- Decision D81, the principle *A new dependency halts for a person*, the threat model and the skills of ship, plan,
+  cut and build state how an npm package is approved at an exact version and installed offline (0121-ui-prepare,
+  phase 5).
+
 ## [0.98.1] - 2026-11-12
 
 Gate: local 7m8s · CI not read under mf-ship · 0.98.0: local 15m1s · CI not read under mf-ship

@@ -86,6 +86,21 @@ def test_the_profile_confines_writes_reads_and_network(tmp_path: Path) -> None:
     assert lines.index(allow) < lines.index(deny) < len(lines) - 1
 
 
+def test_a_profile_may_open_the_network(tmp_path: Path) -> None:
+    profile = _conduct()["_profile"]
+    home = tmp_path / "home"
+    trees = [tmp_path]
+
+    closed = profile(trees, home)
+    assert profile(trees, home, network=False) == closed
+    assert "(deny network*)" in closed.splitlines()
+
+    opened = profile(trees, home, network=True)
+    assert "network" not in opened
+    assert opened.splitlines() == closed.splitlines()[:-1]
+    assert opened.splitlines()[-1].startswith("(deny file-read* file-write* ")
+
+
 def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     tmp_path: Path,
     fake_sandbox_exec: Path,
@@ -133,6 +148,27 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
         conduct["sandboxed"](_python("pass"), planted, [planted.resolve()])
     assert stop.value.code == 2
     assert not (outside / "tmp").exists()
+
+
+def test_a_sandboxed_command_has_npm_offline_with_scripts_off(
+    tmp_path: Path,
+    fake_sandbox_exec: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    conduct = _conduct()
+    trees = _trees(tmp_path)
+    monkeypatch.setenv("npm_config_offline", "false")
+    monkeypatch.setenv("npm_config_ignore_scripts", "false")
+    monkeypatch.setenv("npm_config_cache", str(tmp_path / "other-cache"))
+
+    code = conduct["sandboxed"](_python(_DUMP), trees[1], trees)
+
+    env = json.loads(capsys.readouterr().out)["env"]
+    assert code == 0
+    assert env["npm_config_cache"] == str(trees[0] / ".minions" / "npm-cache")
+    assert env["npm_config_offline"] == "true"
+    assert env["npm_config_ignore_scripts"] == "true"
 
 
 @pytest.mark.parametrize(

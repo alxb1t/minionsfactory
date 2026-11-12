@@ -84,7 +84,16 @@ BLOCK_HEADING = re.compile(r"<h[12](?:[\s/>]|$)", re.IGNORECASE)
 APPROVED = ["item", "package", "constraint", "why"]
 PACKAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 SPECIFIER = re.compile(r"[<>=!~][<>=!~,.0-9A-Za-z*+ -]*")
+NPM_PREFIX = "npm:"
+NPM_NAME = re.compile(r"(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*")
+NPM_VERSION = re.compile(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?")
+NPM_REGISTRY = "https://registry.npmjs.org/"
+NPM_QUIET_DAYS = 7
+LOCK_FILE = "package-lock.json"
 UNAPPROVED = "design.md adds what the brief did not approve"
+UNAPPROVED_NPM = "a package.json holds a direct npm package no row approves"
+MANIFEST = "package.json"
+DIRECT = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 CLAIM_SECONDS = 30
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
@@ -320,6 +329,9 @@ HOOKS_OFF = (
     *("GIT_CONFIG_KEY_0=core.hooksPath", "GIT_CONFIG_VALUE_0=/dev/null"),
     *("GIT_CONFIG_KEY_1=core.fsmonitor", "GIT_CONFIG_VALUE_1=false"),
 )
+# A worker's npm reads the run's cache offline and runs no install script.
+# Why: 0121-ui-prepare design D4.
+NPM_SETTINGS = ("npm_config_offline=true", "npm_config_ignore_scripts=true")
 # A primary checkout and its common directory, None outside a repo.
 type Repo = tuple[Path, Path | None]
 # The URLs git fetches `origin` from, then the ones it pushes to.
@@ -845,6 +857,57 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
     return f"{UNAPPROVED}: {', '.join(added)}" if added else None
 
 
+def _direct(text: str | None) -> list[tuple[str, str]]:
+    """Return the `(name, specifier)` pairs a manifest's direct sections hold.
+
+    A missing, unreadable or odd-shaped manifest holds none.
+    """
+    try:
+        manifest = json.loads(text or "")
+    except ValueError:
+        return []
+    if not isinstance(manifest, dict):
+        return []
+    pairs: list[tuple[str, str]] = []
+    for section in DIRECT:
+        held = manifest.get(section)
+        if isinstance(held, dict):
+            pairs += [(n, s) for n, s in held.items() if isinstance(s, str)]
+    return pairs
+
+
+def _npm_unapproved(tree: Path, change: str, default: str) -> str | None:
+    """Return the first direct npm package nothing approves, or None.
+
+    A package passes on the default branch's manifest or a row of the cut's `design.md`.
+    Why: 0121-ui-prepare design D5.
+    """
+    cut = _cut_commit(tree, change)
+    design = _show(tree, cut, f"openspec/changes/{change}/design.md") if cut else None
+    rows = _rows(design or "", DEPENDENCIES) or []
+    approved = {
+        (row[0].removeprefix(NPM_PREFIX), row[1])
+        for row in rows[1:]
+        if len(row) > 1 and row[0].startswith(NPM_PREFIX)
+    }
+    listed = _maybe(tree, "ls-tree", "-r", "-z", "HEAD") or ""
+    entries = sorted(e.split("\t", 1) for e in listed.split("\0") if "\t" in e)
+    manifests = [
+        (info.split()[0], path)
+        for info, path in entries
+        if path.split("/")[-1] == MANIFEST and "node_modules" not in path.split("/")
+    ]
+    for mode, path in manifests:
+        if mode == "120000":
+            # Git holds a link's target name, which npm follows and this cannot read.
+            return f"{UNAPPROVED_NPM}: {path} is a symlink"
+        held = set(_direct(_show(tree, default, path)))
+        for name, specifier in _direct(_show(tree, "HEAD", path)):
+            if (name, specifier) not in held | approved:
+                return f"{UNAPPROVED_NPM}: {path} {name} {specifier}"
+    return None
+
+
 def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
     """Return each change's old-layout files, each with its path in the change's folder.
 
@@ -1156,6 +1219,18 @@ def _sync_scripts(primary: Path, roots: Iterable[Path]) -> str | None:
             return failed + next(
                 (line for line in lines if line), f"exit {done.returncode}"
             )
+    return None
+
+
+def _fetch_locks(primary: Path) -> str | None:
+    """Fetch each tracked lock's tree into the npm cache; return why one failed.
+
+    Why: 0121-ui-prepare design D2. e.g. no lock tracked → None
+    """
+    try:
+        _fetch_npm(primary, [], "run")
+    except Stop as stop:
+        return str(stop)
     return None
 
 
@@ -1605,7 +1680,7 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
         return "the tree is not clean"
     if not _closed(primary / ".minions", tree, change):
         return f"no .minions/changes/{change}/build.done names HEAD"
-    return None
+    return _npm_unapproved(tree, change, default_branch(primary))
 
 
 def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str | None:
@@ -3228,11 +3303,10 @@ def _temp_folder(prefix: str) -> Path:
         raise Stop(2, f"conduct: cannot run — TMPDIR {parent}: {error}") from error
 
 
-def _profile(trees: list[Path], home: Path) -> str:
+def _profile(trees: list[Path], home: Path, network: bool = False) -> str:
     """Return the Seatbelt profile: writes in `trees`, no secret read, no network.
 
-    A later rule beats an earlier one, so the secrets stay denied inside a tree.
-    Why: 0107-sandbox-runner design D1.
+    `network` leaves it open. Why: 0107-sandbox-runner D1; 0121-ui-prepare D3.
     """
 
     def quoted(path: Path) -> str:
@@ -3250,16 +3324,24 @@ def _profile(trees: list[Path], home: Path) -> str:
     secrets = " ".join(
         f"(subpath {quoted(home / secret.removeprefix('~/'))})" for secret in SECRETS
     )
-    return "\n".join(
-        (
-            "(version 1)",
-            "(allow default)",
-            "(deny file-write*)",
-            f"(allow file-write* {writes} {devices})",
-            f"(deny file-read* file-write* {secrets})",
-            "(deny network*)",
-        )
+    # A later rule beats an earlier one, so the secrets stay denied inside a tree.
+    lines = (
+        "(version 1)",
+        "(allow default)",
+        "(deny file-write*)",
+        f"(allow file-write* {writes} {devices})",
+        f"(deny file-read* file-write* {secrets})",
     )
+    return "\n".join(lines if network else (*lines, "(deny network*)"))
+
+
+def _sandbox_exec() -> str:
+    """Return the path of `sandbox-exec`; with none on `PATH`, stop with 2."""
+    if (found := shutil.which("sandbox-exec")) is None:
+        raise Stop(
+            2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
+        )
+    return found
 
 
 def _watch(
@@ -3304,11 +3386,7 @@ def sandboxed(
     A `timeout` ends the command's group and gives 124. Why: 0107-sandbox-runner
     design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
     """
-    sandbox_exec = shutil.which("sandbox-exec")
-    if sandbox_exec is None:
-        raise Stop(
-            2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
-        )
+    sandbox_exec = _sandbox_exec()
     minions = trees[0] / ".minions"
     try:
         os.close(_folder_fd(trees[0], ".minions"))
@@ -3325,6 +3403,12 @@ def sandboxed(
         env[key] = value
     env["UV_OFFLINE"] = "1"
     env["UV_CACHE_DIR"] = str(trees[0] / ".minions" / "uv-cache")
+    for pair in (
+        f"npm_config_cache={trees[0] / '.minions' / 'npm-cache'}",
+        *NPM_SETTINGS,
+    ):
+        key, _, value = pair.partition("=")
+        env[key] = value
     env["TMPDIR"] = str(tmp)
     denied = False
     done, expired = threading.Event(), threading.Event()
@@ -3481,6 +3565,7 @@ def argv(
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
     cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
+    npm = f"npm_config_cache={primary / '.minions' / 'npm-cache'}"
     if executor == "claude":
         # A worker's `mktemp` lands inside its sandbox.
         # Why: 0084-ship-fixes-2 design D6.
@@ -3492,6 +3577,7 @@ def argv(
         allowed += [f"Edit(/{path})" for path in edits]
         return [
             *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch),
+            *(npm, *NPM_SETTINGS),
             *(("FORCE_PROMPT_CACHING_5M=1",) if station else ()),
             *("claude", "-p", prompt),
             *(("--model", model) if model else ()),
@@ -3531,7 +3617,17 @@ def argv(
     system = "/usr/bin:/bin:/usr/sbin:/sbin"
     path = f"PATH={system}:{os.environ.get('PATH', '')}"
     own = (f"TMPDIR={temp}", f"TMPPREFIX={temp}/zsh")
-    env = ("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, *own, path)
+    env = (
+        "env",
+        "-u",
+        "VIRTUAL_ENV",
+        *HOOKS_OFF,
+        cache,
+        *own,
+        path,
+        npm,
+        *NPM_SETTINGS,
+    )
     return [
         *env,
         *("codex", "exec"),
@@ -6617,7 +6713,11 @@ class Run:
             return 1
         self.unlock(DEBT_LOCK)
         roots = [SKILLS_DIR, *_pin()["trees"]()]
-        if why := _fresh_tmp(self.primary) or _sync_scripts(self.primary, roots):
+        if why := (
+            _fresh_tmp(self.primary)
+            or _sync_scripts(self.primary, roots)
+            or _fetch_locks(self.primary)
+        ):
             self.halt("run", why)
             self.log.event("run", "halt", self.closing())
             return 1
@@ -7123,19 +7223,206 @@ def _approval(path: Path, slug: str, command: str) -> list[list[str]]:
     return approved
 
 
-def _prefetch(primary: Path, rows: list[list[str]]) -> None:
-    """Fetch each approved row's wheel into the primary's uv cache, or stop with 2.
+def _plain_row(package: str, constraint: str) -> bool:
+    """Return whether a `## Dependencies` row is plain, as its ecosystem reads it.
 
-    Why: 0110-gate-hardening design D4.
+    e.g. `("npm:vue", "3.5.43")` is plain, `("npm:vue", "^3.5.43")` is not.
+    Why: 0121-ui-prepare design D1.
+    """
+    if package.startswith(NPM_PREFIX):
+        return bool(
+            NPM_NAME.fullmatch(package.removeprefix(NPM_PREFIX))
+            and NPM_VERSION.fullmatch(constraint)
+        )
+    return bool(PACKAGE.fullmatch(package) and SPECIFIER.fullmatch(constraint))
+
+
+def _npm_env(scratch: Path) -> dict[str, str]:
+    """Return the environment of an npm fetch: no npm setting or token, home `scratch`.
+
+    Why: 0121-ui-prepare design D2.
+    """
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.lower().startswith("npm_config_")
+        and not name.startswith("NPM_")
+        and name not in TOKENS
+    }
+    env["HOME"] = env["TMPDIR"] = str(scratch)
+    return env
+
+
+def _fetch_run(
+    argv: list[str],
+    cwd: Path,
+    writes: list[Path],
+    env: dict[str, str],
+    timeout: float,
+) -> subprocess.CompletedProcess[str]:
+    """Run `argv` under Seatbelt with the network open, writing in `writes` alone.
+
+    No `sandbox-exec` on `PATH` stops with 2. Why: 0121-ui-prepare design D3.
+    """
+    profile = _profile(writes, Path.home(), network=True)
+    return subprocess.run(
+        [_sandbox_exec(), "-p", profile, *argv],
+        cwd=cwd,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+
+
+def _scratch_folder(primary: Path, command: str) -> Path:
+    """Return a fresh folder in the primary's `.minions/tmp`; a link stops with 2."""
+    scratch = primary / ".minions" / "tmp"
+    try:
+        os.close(_folder_fd(primary, ".minions", "tmp"))
+        return Path(tempfile.mkdtemp(dir=scratch))
+    except OSError as error:
+        raise Stop(
+            2, f"{command}: cannot run — scratch folder {scratch}: {error}"
+        ) from error
+
+
+def _npm_tree(scratch: Path) -> dict[tuple[str, str], bool]:
+    """Return each installed package of `scratch`: (name, version) → has install script.
+
+    An unreadable tree lists none. Why: 0121-ui-prepare design D2.
+    """
+    try:
+        packages = json.loads(
+            (scratch / "node_modules" / ".package-lock.json").read_text()
+        )["packages"]
+        return {
+            (key.rsplit("node_modules/", 1)[-1], entry["version"]): bool(
+                entry.get("hasInstallScript")
+            )
+            for key, entry in packages.items()
+            if "version" in entry
+        }
+    except (OSError, ValueError, LookupError, AttributeError, TypeError):
+        return {}
+
+
+def _npm_flags(scratch: Path, cache: Path) -> list[str]:
+    """Build the flags every npm fetch runs under, apart from the operator's settings.
+
+    Why: 0121-ui-prepare design D2.
+    """
+    before = time.strftime(
+        "%Y-%m-%d", time.gmtime(time.time() - NPM_QUIET_DAYS * 24 * 3600)
+    )
+    flags = ["--ignore-scripts", "--no-audit", "--no-fund"]
+    # npm refuses one path as both configs: each is its own absent scratch file.
+    flags += ["--registry", NPM_REGISTRY, "--userconfig", str(scratch / "user.npmrc")]
+    flags += ["--globalconfig", str(scratch / "global.npmrc"), "--cache", str(cache)]
+    return [*flags, "--before", before]
+
+
+def _npm_run(
+    args: list[str], what: str, scratch: Path, cache: Path, command: str
+) -> None:
+    """Run `npm <args>` in `scratch` under the fetch's flags; a failure stops with 2.
+
+    Why: 0121-ui-prepare design D2.
+    """
+    try:
+        done = _fetch_run(
+            ["npm", *args, *_npm_flags(scratch, cache)],
+            scratch,
+            [scratch, cache],
+            _npm_env(scratch),
+            PREFETCH_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError) as error:
+        why = error.strerror if isinstance(error, OSError) else "timed out"
+        raise Stop(
+            2, f"{command}: cannot run — fetching {what} failed: {why}"
+        ) from None
+    if done.returncode != 0:
+        raise Stop(
+            2,
+            f"{command}: cannot run — fetching {what} failed: exit {done.returncode}",
+        )
+
+
+def _fetch_npm(primary: Path, rows: list[list[str]], command: str) -> list[str]:
+    """Fetch the default branch's locks and the npm `rows` into the cache; list the new.
+
+    Returns `npm: new <name> <version>` per new package. Why: 0121-ui-prepare design D2.
+    """
+    approved = [row for row in rows if row[0].startswith(NPM_PREFIX)]
+    default = default_branch(primary)
+    listed = _maybe(primary, "ls-tree", "-r", "--name-only", default) or ""
+    locks = [path for path in listed.splitlines() if path.split("/")[-1] == LOCK_FILE]
+    if not locks and not approved:
+        return []
+    if shutil.which("npm") is None:
+        raise Stop(2, f"{command}: cannot run — npm is not on PATH")
+    try:
+        cache = primary / ".minions" / "npm-cache"
+        os.close(_folder_fd(primary, ".minions", "npm-cache"))
+    except OSError as error:
+        raise Stop(2, f"{command}: cannot run — npm cache {cache}: {error}") from error
+    sources = [
+        (
+            lock,
+            _show(primary, default, lock.removesuffix(LOCK_FILE) + "package.json"),
+            _show(primary, default, lock),
+        )
+        for lock in locks
+    ] or [("npm", None, None)]
+    new: dict[tuple[str, str], bool] = {}
+    for label, manifest, lock in sources:
+        scratch = _scratch_folder(primary, command)
+        try:
+            (scratch / "package.json").write_text(manifest or "{}")
+            if lock:
+                (scratch / LOCK_FILE).write_text(lock)
+                _npm_run(["ci"], label, scratch, cache, command)
+            held = _npm_tree(scratch)
+            for package, version in approved:
+                name = f"{package.removeprefix(NPM_PREFIX)}@{version}"
+                _npm_run(
+                    ["install", "--no-save", name], package, scratch, cache, command
+                )
+                # The next install prunes this unsaved row, so read the tree now.
+                new |= {
+                    key: new.get(key, False) or script
+                    for key, script in _npm_tree(scratch).items()
+                    if key not in held
+                }
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+    return [
+        f"npm: new {name} {version}" + (" · install script" if script else "")
+        for (name, version), script in sorted(new.items())
+    ]
+
+
+def _prefetch(primary: Path, rows: list[list[str]]) -> list[str]:
+    """Fetch each approved row's package into the primary's caches; list the new npm.
+
+    A wheel goes to the uv cache, an npm row and each lock to `.minions/npm-cache`.
+    Why: 0110-gate-hardening design D4; 0121-ui-prepare design D2.
     """
     for package, constraint in rows:
-        if not (PACKAGE.fullmatch(package) and SPECIFIER.fullmatch(constraint)):
+        if not _plain_row(package, constraint):
+            plain = (
+                f"{NPM_PREFIX}<name> at an exact version"
+                if package.startswith(NPM_PREFIX)
+                else "a package name and a plain version specifier"
+            )
             raise Stop(
                 2,
-                f"cut: cannot run — the brief's row {package} {constraint} is not a"
-                " package name and a plain version specifier",
+                f"cut: cannot run — the brief's row {package} {constraint} is not"
+                f" {plain}",
             )
-    scratch = primary / ".minions" / "tmp"
     env = {
         name: value
         for name, value in os.environ.items()
@@ -7143,15 +7430,11 @@ def _prefetch(primary: Path, rows: list[list[str]]) -> None:
     }
     env["UV_CACHE_DIR"] = str(primary / ".minions" / "uv-cache")
     for package, constraint in rows:
-        try:
-            os.close(_folder_fd(primary, ".minions", "tmp"))
-        except OSError as error:
-            raise Stop(
-                2, f"cut: cannot run — scratch folder {scratch}: {error}"
-            ) from error
-        target = tempfile.mkdtemp(dir=scratch)
+        if package.startswith(NPM_PREFIX):
+            continue
+        target = _scratch_folder(primary, "cut")
         command = ["uv", "pip", "install", "--no-config", "--no-build"]
-        command += ["--default-index", PYPI_INDEX, "--target", target]
+        command += ["--default-index", PYPI_INDEX, "--target", str(target)]
         try:
             done = subprocess.run(
                 [*command, f"{package}{constraint}"],
@@ -7173,6 +7456,7 @@ def _prefetch(primary: Path, rows: list[list[str]]) -> None:
                 2,
                 f"cut: cannot run — fetching {package} failed: exit {done.returncode}",
             )
+    return _fetch_npm(primary, rows, "cut")
 
 
 def _rows_hash(rows: list[list[str]]) -> str:
@@ -7300,7 +7584,8 @@ def cut(
     models = _models_text(path.resolve(), slug)
     ids = linked.get("after", [])
     primary = primary_of(cwd)
-    _prefetch(primary, approved)
+    for line in _prefetch(primary, approved):
+        print(line)
     with _queue_lock(primary):
         known = {version.change for version in open_versions(primary)}
         known |= set(_cuts(primary))

@@ -209,10 +209,14 @@ reality, it halts.**
 
 **A package is added only if the change's `design.md` lists it under `## Dependencies`, approved by a person: at the
 cut, or for a queued cut at the plan, the run checking it against the queued rows
-([D62](decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Any other stops the build.**
+([D62](decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). A Python row is a package and a version
+specifier; an npm row is `npm:<name>` at an exact version
+([D81](decisions.md#d81--an-npm-package-is-approved-at-an-exact-version-and-installed-offline)). Any other stops the build.**
 
 - **Why:** an agent installing freely is the supply-chain surface.
 - **Held by:** `mf-build` stop-condition 4, which reads `## Dependencies` at the cut commit; `mf-cut-change`
-  Step 9; `conduct.py`'s cut check, held by
+  Step 9; `conduct.py`'s build check, which halts a version whose `package.json` holds a direct npm package no row
+  approves at that exact version (D81), held by
+  `tests/test_conduct.py::test_a_build_halts_on_a_direct_npm_package_no_row_approves`; `conduct.py`'s cut check, held by
   `tests/test_conduct.py::test_a_cut_halt_is_shown_and_rejoin_cuts_again`;
   `tests/test_skills.py::test_the_cut_and_the_build_carry_the_same_contract_ids`, which holds `I11` in both skills.
