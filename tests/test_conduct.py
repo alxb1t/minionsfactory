@@ -584,6 +584,13 @@ def test_a_manifest_is_judged_by_the_rows_of_the_cut(tmp_path: Path) -> None:
     assert conduct["_npm_unapproved"](tree, "0001-todo", "nowhere") == (
         f"{flag}: ui/package.json vue 3.5.43"
     )
+    # A symlinked manifest holds only its target's name in git: it is refused.
+    _git(tree, "rm", "-q", "ui/package.json")
+    (tree / "ui" / "package.json").symlink_to("manifest.json")
+    (tree / "ui" / "manifest.json").write_text(_manifest(vue))
+    _git(tree, "add", "ui")
+    _git(tree, "commit", "-q", "-m", "link")
+    assert judged() == f"{flag}: ui/package.json is a symlink"
 
 
 def test_a_build_halts_on_a_direct_npm_package_no_row_approves(
@@ -4465,10 +4472,15 @@ record = {
     "manifest": read("package.json"),
     "lock": read("package-lock.json"),
 }
-with Path(os.environ["FAKE_NPM_RECORD"]).open("a") as file:
+log = Path(os.environ["FAKE_NPM_RECORD"])
+seen = len(log.read_text().splitlines()) if log.is_file() else 0
+with log.open("a") as file:
     file.write(json.dumps(record) + "\\n")
 tree = os.environ.get("FAKE_NPM_LOCK_" + sys.argv[1].upper())
 tree = tree or os.environ.get("FAKE_NPM_LOCK")
+steps = os.environ.get("FAKE_NPM_STEPS")
+if steps:
+    tree = steps.split(os.pathsep)[seen]
 if tree:
     (cwd / "node_modules").mkdir(exist_ok=True)
     shutil.copy(tree, cwd / "node_modules" / ".package-lock.json")
@@ -4529,8 +4541,22 @@ def test_a_cut_fetches_the_npm_rows_it_approves(
     cache = root / ".minions" / "npm-cache"
     rows = [["npm:vue", "3.5.43"], ["npm:@vitejs/plugin-vue", "6.0.1"]]
     flags = ["--ignore-scripts", "--no-audit", "--no-fund"]
-    flags += ["--registry", "https://registry.npmjs.org/", "--userconfig", "/dev/null"]
-    flags += ["--globalconfig", "/dev/null", "--cache", str(cache), "--before"]
+    flags += ["--registry", "https://registry.npmjs.org/", "--userconfig", "<user>"]
+    flags += ["--globalconfig", "<global>", "--cache", str(cache), "--before"]
+
+    def stripped(run: dict[str, Any]) -> list[str]:
+        # npm refuses one path as both configs: each is its own, empty, in the scratch.
+        argv = list(run["argv"])
+        paths = []
+        for flag, mark in (("--userconfig", "<user>"), ("--globalconfig", "<global>")):
+            at = argv.index(flag) + 1
+            paths.append(Path(argv[at]))
+            argv[at] = mark
+        assert paths[0] != paths[1]
+        for path in paths:
+            assert path.parent.resolve() == Path(run["cwd"]).resolve()
+            assert not path.exists()
+        return argv
 
     # No lock: each row installs, in order, into a scratch folder of its own.
     assert conduct["_prefetch"](root, rows) == []
@@ -4540,7 +4566,7 @@ def test_a_cut_fetches_the_npm_rows_it_approves(
         ["install", "--no-save", "@vitejs/plugin-vue@6.0.1"],
     ]
     for run in runs:
-        assert run["argv"][3:-1] == flags
+        assert stripped(run)[3:-1] == flags
         week = datetime.date.today() - datetime.date.fromisoformat(run["argv"][-1])
         assert 6 <= week.days <= 8
         folder = Path(run["cwd"])
@@ -4565,7 +4591,7 @@ def test_a_cut_fetches_the_npm_rows_it_approves(
     assert conduct["_prefetch"](root, rows[:1]) == []
     ci, install = _npm_runs(record)
     assert ci["argv"][0] == "ci"
-    assert ci["argv"][1:-1] == flags
+    assert stripped(ci)[1:-1] == flags
     assert install["argv"][:3] == ["install", "--no-save", "vue@3.5.43"]
     assert ci["cwd"] == install["cwd"]
     for run in (ci, install):
@@ -4745,6 +4771,20 @@ def test_a_cut_prints_the_new_packages_of_the_tree(
     )
     assert capsys.readouterr().out == "".join(f"{line}\n" for line in lines)
     assert said == "cut: queued 0001-a · the live run takes it"
+
+    # A later install prunes the earlier unsaved row: each row's package still lists.
+    _git(root, "rm", "-q", "-r", "ui", "docs")
+    _git(root, "commit", "-q", "-m", "drop the locks")
+    _npm_runs(record)
+    first = _hidden_lock(tmp_path / "first.json", ("left-pad", "1.3.0", False))
+    second = _hidden_lock(tmp_path / "second.json", ("is-number", "7.0.0", True))
+    monkeypatch.delenv("FAKE_NPM_LOCK_INSTALL")
+    monkeypatch.setenv("FAKE_NPM_STEPS", os.pathsep.join([first, second]))
+    rows = [["npm:left-pad", "1.3.0"], ["npm:is-number", "7.0.0"]]
+    assert conduct["_fetch_npm"](root, rows, "cut") == [
+        "npm: new is-number 7.0.0 · install script",
+        "npm: new left-pad 1.3.0",
+    ]
 
 
 @pytest.mark.slow

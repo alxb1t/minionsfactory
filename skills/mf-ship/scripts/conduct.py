@@ -890,9 +890,17 @@ def _npm_unapproved(tree: Path, change: str, default: str) -> str | None:
         for row in rows[1:]
         if len(row) > 1 and row[0].startswith(NPM_PREFIX)
     }
-    listed = _maybe(tree, "ls-tree", "-r", "--name-only", "-z", "HEAD") or ""
-    paths = sorted(p for p in listed.split("\0") if p.split("/")[-1] == MANIFEST)
-    for path in (p for p in paths if "node_modules" not in p.split("/")):
+    listed = _maybe(tree, "ls-tree", "-r", "-z", "HEAD") or ""
+    entries = sorted(e.split("\t", 1) for e in listed.split("\0") if "\t" in e)
+    manifests = [
+        (info.split()[0], path)
+        for info, path in entries
+        if path.split("/")[-1] == MANIFEST and "node_modules" not in path.split("/")
+    ]
+    for mode, path in manifests:
+        if mode == "120000":
+            # Git holds a link's target name, which npm follows and this cannot read.
+            return f"{UNAPPROVED_NPM}: {path} is a symlink"
         held = set(_direct(_show(tree, default, path)))
         for name, specifier in _direct(_show(tree, "HEAD", path)):
             if (name, specifier) not in held | approved:
@@ -7312,8 +7320,9 @@ def _npm_run(
         "%Y-%m-%d", time.gmtime(time.time() - NPM_QUIET_DAYS * 24 * 3600)
     )
     flags = ["--ignore-scripts", "--no-audit", "--no-fund"]
-    flags += ["--registry", NPM_REGISTRY, "--userconfig", "/dev/null"]
-    flags += ["--globalconfig", "/dev/null", "--cache", str(cache)]
+    # npm refuses one path as both configs: each is its own absent scratch file.
+    flags += ["--registry", NPM_REGISTRY, "--userconfig", str(scratch / "user.npmrc")]
+    flags += ["--globalconfig", str(scratch / "global.npmrc"), "--cache", str(cache)]
     flags += ["--before", before]
     try:
         done = _fetch_run(
@@ -7375,11 +7384,12 @@ def _fetch_npm(primary: Path, rows: list[list[str]], command: str) -> list[str]:
                 _npm_run(
                     ["install", "--no-save", name], package, scratch, cache, command
                 )
-            new |= {
-                key: new.get(key, False) or script
-                for key, script in _npm_tree(scratch).items()
-                if key not in held
-            }
+                # The next install prunes this unsaved row, so read the tree now.
+                new |= {
+                    key: new.get(key, False) or script
+                    for key, script in _npm_tree(scratch).items()
+                    if key not in held
+                }
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
     return [
