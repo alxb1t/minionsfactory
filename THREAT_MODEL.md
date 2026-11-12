@@ -28,6 +28,14 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `Write`, each of `SECRETS` denied to `Read`. A Claude worker loads user settings alone, so a project's settings and
   `.mcp.json` start nothing, and no MCP server starts, the operator's own included: the probe fails when its `init` event
   lists one. A Codex worker starts with `--ignore-user-config`: the operator's Codex config starts nothing.
+- **An npm package travels the approval's path of Python's**
+  ([D81](docs/decisions.md#d81--an-npm-package-is-approved-at-an-exact-version-and-installed-offline)): a row
+  `npm:<name>` at an exact version is copied into the home queue and compared with the committed `design.md`, as
+  [D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan) holds. The fetch runs at the conductor under
+  the OS sandbox with the network open: it writes its scratch folder and `.minions/npm-cache` alone, reads no credential
+  path, runs no install script and reads no npm setting of the person's environment or home folder. `.minions/npm-cache` is
+  a run-directory folder, so a worker may write it and its npm reads it offline, scripts off. A build's end halts a version
+  whose `package.json` holds a direct package no row approves.
 - **A mixed run crosses hosts at each station**: what a Codex station wrote reaches the next Claude station's sandbox, and
   never its start. A Codex worker starts with its trees untrusted, so a worker-written `.codex/` starts nothing.
   The conductor parses a Codex worker's JSON log, which the worker writes: a forged event misstates a denial, a limit, a
@@ -55,7 +63,7 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   scratch repo, with no system config or attributes, so no worker-written filter runs, and with no ignore file or allow
   comment honoured; a hit halts the run, its secret redacted, as does an octopus merge, whose diff git does not show, and a
   run without Betterleaks does not start.
-- **The viewer runs outside the sandbox** ([D81](docs/decisions.md#d81--the-viewer-is-an-operator-tool)): it reads files a
+- **The viewer runs outside the sandbox** ([D82](docs/decisions.md#d82--the-viewer-is-an-operator-tool)): it reads files a
   worker wrote, each project in a child it kills past its bound, binds `127.0.0.1`, refuses a foreign `Host` and sets every
   string as text. Any local process of the operator can open its stream, and no worker can bind loopback.
 - **A person's yes, or `merge=yes` from a run the person started or a cut the person queued**, precedes every merge and
@@ -177,6 +185,7 @@ hooks reshape the whole run, is on it.
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
   one a version a run.
+- **A security card is the category its checker writes.** C4 of `0095-converge-roles`, confirmed by the person on 2026-11-11: the rescue and the supervisor are barred from a card whose Priority's category is `security`, so a security harm graded under another category reaches them under the version's switch ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts), [D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)).
 - **A planted skip.** `models.toml` is worker-writable, so a worker can write `skip = true` under `[converge]` or a checker's
   table and skip the check that would catch it ([D75](docs/decisions.md#d75--a-person-may-skip-converge-or-a-checker-per-version)).
   Accepted, as the `decide` switch is. The fix is moving the switches where no worker writes.
@@ -184,6 +193,8 @@ hooks reshape the whole run, is on it.
 ## Known gaps
 
 Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts `Ship tools:`.
+
+- A plugin enabled outside the user settings file, managed settings among them, still starts in a Claude worker (`0100·S6`).
 
 - A Codex worker can read `~`.
 - A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.

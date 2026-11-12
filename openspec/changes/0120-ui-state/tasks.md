@@ -83,9 +83,9 @@ The phases: the projector, the server, the page and the record. The person check
 
 - [x] 4.1 Write `skills/mf-ui/SKILL.md`: the role OPERATOR, `/mf-ui` and `/mf-ui stop`, the state folder, `ui.toml`, `scripts/viewer.py`.
   Verify: `grep -n 'scripts/viewer.py' skills/mf-ui/SKILL.md` prints a line.
-- [x] 4.2 Add D81 to `docs/decisions.md` beside D50 and to its index lines, with the text of [D10](design.md#d10).
-  Verify: `grep -c '^### D81 · ' docs/decisions.md` prints `1`.
-- [x] 4.3 Add the viewer's bullet to *The repo reaches nothing outside itself* in `docs/principles.md`, linking D81.
+- [x] 4.2 Add D82 to `docs/decisions.md` beside D50 and to its index lines, with the text of [D10](design.md#d10).
+  Verify: `grep -c '^### D82 · ' docs/decisions.md` prints `1`.
+- [x] 4.3 Add the viewer's bullet to *The repo reaches nothing outside itself* in `docs/principles.md`, linking D82.
   Verify: `grep -n 'decisions.md#d81' docs/principles.md` prints a line.
 - [x] 4.4 Add the viewer's *Trust boundaries* bullet to `THREAT_MODEL.md`, as [D10](design.md#d10) says.
   Verify: `grep -n 'The viewer' THREAT_MODEL.md` prints a line.

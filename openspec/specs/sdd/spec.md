@@ -4384,7 +4384,10 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 
 `make corpus` SHALL run `scripts/corpus.py`, which SHALL run each `[[case]]` of `scripts/corpus.toml` — a reader's argv, run
 with no shell from the repository root — once per file its `each` globs match under the run directory, or once when it has
-none, writing only under the run directory's `corpus/`. It SHALL exit 1 naming each run that exits non-zero, 2 when the cases
+none, writing only under the run directory's `corpus/`. A case MAY hold a `shape`, a regular expression: `corpus.py` SHALL run
+the case only over the inputs whose text it matches, in multiline mode, SHALL print how many it skipped, and SHALL exit 2 for a
+`shape` that is no regular expression. It SHALL exit 2 when `corpus/<case>` is a link, before it deletes or writes anything
+under it. It SHALL exit 1 naming each run that exits non-zero, 2 when the cases
 file cannot be read or the run directory is a link, and 0 otherwise. `make gate` and `make check` SHALL NOT run it.
 `skills/mf-cut-change/SKILL.md` SHALL mark each sub-task that adds or alters code reading the run directory, run logs or Codex
 sessions `` **CORPUS** `<case>` `` in a repository whose root `Makefile` has a `corpus` target, and SHALL plan the case in
@@ -4403,6 +4406,14 @@ not hold.
 #### Scenario: A marked sub-task with no case
 - **WHEN** a ticked sub-task is marked `` **CORPUS** `review-metrics` `` and `scripts/corpus.toml` holds no case of that name
 - **THEN** `plan_check.py` exits 1, naming the sub-task and the case
+
+#### Scenario: An input older than the card shape
+- **WHEN** a case holds `shape = '^ok'` and one of its inputs does not open with `ok`
+- **THEN** the reader runs over the others, and the case's line reads `1 skipped`
+
+#### Scenario: A linked case folder
+- **WHEN** `corpus/<case>` is a link to a folder holding files
+- **THEN** `make corpus` exits 2 naming the case, and the folder keeps its files
 
 ### Requirement: A converge conductor stubs a skipped checker
 
@@ -4551,7 +4562,8 @@ own fresh temporary folder, and to `/dev/null` and the terminal devices; SHALL r
 (`~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.netrc`, `~/.gnupg`, `~/.kube`, `~/.docker/config.json`, `~/.git-credentials`,
 `~/.config/git/credentials`, `~/.npmrc`, `~/.pypirc`, `~/.codex/auth.json` and `~/.claude/.credentials.json`) and write none; and
 SHALL have no network of any kind, loopback included. It SHALL start with the credential variables of a Claude worker unset, with
-`VIRTUAL_ENV` unset, with git's hooks off, with `UV_OFFLINE=1`, with `uv`'s cache in the run directory, and with `TMPDIR` naming that
+`VIRTUAL_ENV` unset, with git's hooks off, with `UV_OFFLINE=1`, with `uv`'s cache in the run directory, with npm offline, its
+install scripts off and its cache in the run directory, and with `TMPDIR` naming that
 temporary folder: one made for the command alone, outside every repository, under the conductor's own `TMPDIR`, and removed by
 `conduct.py` when the command ends. A conductor whose own `TMPDIR` lies inside a git repository SHALL run nothing, print a line
 naming `TMPDIR` and exit 2. Its exit code SHALL be the
@@ -4586,6 +4598,10 @@ Converge SHALL give each command it runs the seconds left to its own deadline.
 - **WHEN** `GITHUB_TOKEN` and `VIRTUAL_ENV` are set where `conduct.py sandboxed` starts
 - **THEN** the command sees neither, and sees `UV_OFFLINE=1`
 
+#### Scenario: A command's npm
+- **WHEN** a command run through `conduct.py sandboxed` reads its environment
+- **THEN** it sees `npm_config_offline=true`, `npm_config_ignore_scripts=true` and `npm_config_cache` naming `.minions/npm-cache` of the primary
+
 #### Scenario: A command's own temporary folder
 - **WHEN** a command run through `conduct.py sandboxed` runs `git rev-parse` in its `TMPDIR`, and writes a file there
 - **THEN** the `git rev-parse` fails, the write succeeds, and the folder is gone after the command ends
@@ -4611,9 +4627,9 @@ printing one line a check and exiting 1 on any that fails; a failed precondition
 place the brief's facts with `facts.py`, name the deleted or renamed symbols to `facts.py readers`, and run `cut_check.py` for
 the self-check. `cut_check.py` SHALL decide `I2`, `I3`, `I4`, `I11`, `I12`, `I13`, `I14`, `I17`, `I18` and `I19`, the headings
 `A1` and `A2`, `P9` and `P13`'s three-line task, folding in `openspec validate --strict`, the gate-edit check, the search script
-and the corpus check of `plan_check.py`; it SHALL also decide the `Verify:` sequencing rows `V1` to `V5` — a needle an earlier
+and the corpus check of `plan_check.py`; it SHALL also decide the `Verify:` sequencing rows `V1` to `V6` — a needle an earlier
 task already adds, a `-k` that selects tests a later task adds or deletes, a `git grep` of a file not committed before its
-phase ends, a needle its task never names, a `pytest` command that names no test path — and the record's consistency rows `K1` to `K6` — the proposal's `## Impact` against
+phase ends, a needle its task never names, a `pytest` command that names no test path, a needle a later task removes — and the record's consistency rows `K1` to `K6` — the proposal's `## Impact` against
 the tasks' files, the design's `## Tests` against the tasks' test files, the decision index against the decision headings, each
 decision a task cites, each cited Step and constant, and two tasks on one line. It SHALL print each row it leaves to judgment —
 `I5` to `I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs — and a summary line, and exit 1 on a mechanical failure, which the
@@ -4661,6 +4677,10 @@ unplaced.
 #### Scenario: A whole-suite pytest
 - **WHEN** a sub-task's `Verify:` runs `pytest` with no test path, or with `-m "not slow"` alone
 - **THEN** `cut_check.py` prints the failed row `V5` naming the sub-task and asking for the test files, and exits 1
+
+#### Scenario: A needle a later task removes
+- **WHEN** a sub-task's `Verify:` greps a needle in a file, and a later sub-task naming that file holds a fenced `diff` block with the needle in a removed line
+- **THEN** `cut_check.py` prints the failed row `V6` naming both sub-tasks, and exits 1
 
 #### Scenario: A record that disagrees with itself
 - **WHEN** a task links `design.md#d9` and `design.md` has no `### D9` heading
@@ -4869,12 +4889,13 @@ converge judges nothing SHALL stay true: the evidence holds facts a tool found, 
 
 ### Requirement: A queued cut prefetches the packages it approves
 
-`conduct.py cut`, after it reads the brief's `## Dependencies` and before it reserves a number, SHALL fetch each package the
+`conduct.py cut`, after it reads the brief's `## Dependencies` and before it reserves a number, SHALL fetch each Python package the
 brief approves for the slug into `.minions/uv-cache`, wheels only, from PyPI's hosts only, so the sandboxed gate's offline
-`uv sync --locked` finds it. It SHALL refuse a row whose package is not a plain name or whose constraint is not a plain
+`uv sync --locked` finds it. It SHALL refuse a Python row whose package is not a plain name or whose constraint is not a plain
 version specifier, each clause an operator and a version — a bare version, a URL, a path or a VCS reference included — and a fetch that
 fails, exiting 2 and reserving nothing.
 The fetch SHALL read no `uv` or `pip` setting of the person's environment or home folder, and SHALL have a timeout.
+A row whose package starts `npm:` is no Python row: [A queued cut fetches the npm packages it approves](#requirement-a-queued-cut-fetches-the-npm-packages-it-approves) holds it.
 
 #### Scenario: An approved package
 - **WHEN** the brief approves `ast-grep-cli` at `>=0.51.1,<0.52` for the slug
@@ -4885,7 +4906,7 @@ The fetch SHALL read no `uv` or `pip` setting of the person's environment or hom
 - **THEN** `conduct.py cut` exits 2 naming the row, and runs no fetch and reserves nothing
 
 #### Scenario: A bare version
-- **WHEN** a row's constraint is `1.3.0`, with no operator
+- **WHEN** a Python row's constraint is `1.3.0`, with no operator
 - **THEN** `conduct.py cut` exits 2 naming the row, and runs no fetch and reserves nothing
 
 #### Scenario: A brief with no package
@@ -4901,11 +4922,12 @@ The fetch SHALL read no `uv` or `pip` setting of the person's environment or hom
 `skills/mf-review-metrics/scripts/review_metrics.py` SHALL read an interactive session's transcripts only from the folders
 the config's `sessions` key lists, each a list of strings, none listed and none read, and SHALL book their cost as two
 stations of a change, `plan` and `operator`, beside the stations a run spawns, in the `stations` of `review-metrics.json` and
-as columns of the page's cost table. It SHALL read from a transcript only the line's `type` and `timestamp`, an assistant
+as columns of the page's cost table. It SHALL read from a transcript only the line's `type`, `timestamp` and `cwd`, an assistant
 message's `id`, `model` and `usage`, a tool call's name and id, the `brief=` and `from=` tokens of an `mf-plan` call, the path
 of a `Write` or `Edit` call, whether a `Bash` call runs `conduct.py cut`, and the ids of a `cut: queued <id>` line, and SHALL
 write numbers, change ids and times, never text or a path. It SHALL read a session only when it holds a call of a skill named
-`mf-*` or of `conduct.py`.
+`mf-*` or of `conduct.py`. A `brief=$NAME` or `brief=${NAME}` token of a command SHALL be read as the value of an earlier
+`NAME=<value>` word of the same command, and as written when no word assigns the name.
 
 A message SHALL be priced once by its `id`, its tokens priced by `prices.toml` under its model, a gap with no row; a message
 with no token is no turn. A session whose id a station log's `init` event names SHALL be skipped, with its subagents: the run's
@@ -4918,7 +4940,9 @@ to the ids of the `cut: queued <id>` lines in the results of a `conduct.py cut` 
 only when `<id>` has a change folder in a repo read and a cut log of that change written after the call; a span that queued
 several ids SHALL be split equally among them, a span that queued none booked `unbooked`, and a `from=` continuation in a later
 session SHALL join the span of the brief it continues. Every message outside a span SHALL be `operator`, booked to the open
-version the nearest earlier mark names — a valid `cut: queued` line, or a run-log line naming a change — else `unbooked`.
+version the nearest earlier mark names — a valid `cut: queued` line, or a run-log line naming a change — else `unbooked`. A
+session whose first `cwd` names a repo read, as that folder, one under it, or a worktree of it, SHALL take the marks of that
+repo alone.
 
 #### Scenario: No sessions key
 - **WHEN** the config holds no `sessions` key
@@ -4951,6 +4975,14 @@ version the nearest earlier mark names — a valid `cut: queued` line, or a run-
 #### Scenario: One usage per message
 - **WHEN** a transcript holds several lines of one message `id`
 - **THEN** its usage is priced once
+
+#### Scenario: A brief named by a variable
+- **WHEN** a `conduct.py cut` command reads `B=<brief>; … brief=$B`
+- **THEN** the span of that brief is bound to the ids the call queued
+
+#### Scenario: A session in one repo, a mark in another
+- **WHEN** two repos each hold a mark, a session's first `cwd` is the second repo, and the first repo's mark is the nearer
+- **THEN** the session's operator messages book to the second repo's mark
 
 ### Requirement: A cut reads one context pack
 
@@ -5055,3 +5087,75 @@ A fixer's prompt SHALL name the `Co-Authored-By:` line its commit ends with: `Co
 #### Scenario: A Codex fixer's prompt
 - **WHEN** converge starts a Codex fixer on `gpt-6.1-sol`
 - **THEN** its prompt holds `Co-Authored-By: Codex gpt-6.1-sol <noreply@openai.com>`
+
+### Requirement: A queued cut fetches the npm packages it approves
+
+A `## Dependencies` row whose package is `npm:<name>`, a scoped name allowed, and whose constraint is one exact version, SHALL be
+an npm row. `conduct.py cut` SHALL refuse an npm row whose name or version is anything else — a range, a tag, a URL, a path, a
+git reference or an alias included — exiting 2 and reserving nothing; a Python row SHALL read as before. At each `conduct.py cut`
+and at each run's start, for each `package-lock.json` tracked at the default branch, and at a cut for an empty manifest where the
+cut approves npm rows in a repository with none, the conductor SHALL install the lock's tree and then the cut's approved npm rows
+into `.minions/npm-cache`, from a scratch folder under `.minions/tmp`, under the OS sandbox with the network open: it SHALL write
+the scratch folder and the cache alone, read no credential path, run no install script, fix the registry to npm's own, read no
+npm setting of the person's environment or home folder, resolve nothing published in the last 7 days, and have a timeout. A fetch
+that fails or times out at a cut SHALL exit 2 and reserve nothing; at a run's start it SHALL halt the run. A missing `npm` SHALL
+halt by name, only where a row or a lock needs it. The cut SHALL print each package the approved rows add to the lock's tree, its
+version and its install-script flag.
+
+#### Scenario: An approved npm package
+- **WHEN** the brief approves `npm:vue` at `3.5.43` for the slug
+- **THEN** `conduct.py cut` runs `npm` with install scripts off, the fixed registry and a 7-day bound under the OS sandbox with the network open, into `.minions/npm-cache`, and queues the cut
+
+#### Scenario: A row that is no exact version
+- **WHEN** an npm row's constraint is `^3.5.43`, `latest`, a URL, a path or a git reference, or its name is an alias
+- **THEN** `conduct.py cut` exits 2 naming the row, and runs no fetch and reserves nothing
+
+#### Scenario: A tracked lock
+- **WHEN** the default branch tracks a `package-lock.json` and a run starts
+- **THEN** the conductor installs that lock's tree into `.minions/npm-cache`
+- **AND WHEN** a repository tracks no lock and the cut approves no npm row
+- **THEN** no `npm` runs
+
+#### Scenario: A fetch that fails
+- **WHEN** the npm fetch exits non-zero or times out at a cut
+- **THEN** `conduct.py cut` exits 2 naming the package, and reserves nothing
+
+#### Scenario: No npm
+- **WHEN** `npm` is not on `PATH` and a row or a lock needs it
+- **THEN** the conductor halts, naming `npm`
+- **AND WHEN** no row and no lock needs it
+- **THEN** it halts for nothing
+
+#### Scenario: The queue prints the new packages
+- **WHEN** an approved row pulls in packages the lock's tree lacks
+- **THEN** the cut prints each one with its version and its install-script flag
+
+### Requirement: A worker's npm runs offline from the run directory's cache
+
+A Claude worker, a Codex worker and a plain command run by `conduct.py sandboxed` SHALL start with `npm_config_cache` naming
+`.minions/npm-cache` of the primary, `npm_config_offline=true` and `npm_config_ignore_scripts=true`, so no worker reaches the npm
+registry and no install script runs. `AGENTS.md` of this repository SHALL declare no `Ship` line for it.
+
+#### Scenario: A Claude worker and a Codex worker
+- **WHEN** the conductor builds the command line of a Claude worker, and of a Codex worker
+- **THEN** each carries the npm settings beside `UV_CACHE_DIR`
+
+### Requirement: A build halts on a direct npm package no row approves
+
+When a build ends, `conduct.py` SHALL compare each `package.json` tracked on the version's branch with the default branch's file
+at the same path and with the npm rows of `design.md`'s `## Dependencies` at the cut commit. A direct package — one under
+`dependencies`, `devDependencies`, `optionalDependencies` or `peerDependencies` — that the default branch's manifest does not hold at
+that specifier, and that no row approves at that exact version, SHALL halt the version before converge, naming the file, the
+package and its specifier.
+
+#### Scenario: A package no row approves
+- **WHEN** a version's `ui/package.json` adds `left-pad` at `1.3.0` and no row names `npm:left-pad` at `1.3.0`
+- **THEN** the version halts before converge, naming `ui/package.json`, `left-pad` and `1.3.0`
+
+#### Scenario: Every package approved
+- **WHEN** each package a version adds is a row of the cut's `design.md` at the same exact version
+- **THEN** the version goes on to converge
+
+#### Scenario: A range for an approved package
+- **WHEN** a version's manifest holds `vue` at `^3.5.43` and the row approves `3.5.43`
+- **THEN** the version halts, naming the package and `^3.5.43`

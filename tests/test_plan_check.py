@@ -188,21 +188,22 @@ def test_a_plan_check_finds_what_the_plan_left(
     assert check() == (0, ["plan: clean"])
 
     # A command past the timeout, and one that cannot start, fail.
-    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
-    _tasks(
-        root,
-        _ONE,
-        "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n",
-        "- [x] 1.2 Missing.\n  Verify: `nonesuch-program`.\n",
-    )
-    assert check() == (
-        1,
-        [
-            "plan: 1.1 — `sleep 5` timed out",
-            "plan: 1.2 — `nonesuch-program` exited 127",
-            "  | No such file or directory",
-        ],
-    )
+    with monkeypatch.context() as timeout_patch:
+        timeout_patch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
+        _tasks(
+            root,
+            _ONE,
+            "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n",
+            "- [x] 1.2 Missing.\n  Verify: `nonesuch-program`.\n",
+        )
+        assert check() == (
+            1,
+            [
+                "plan: 1.1 — `sleep 5` timed out",
+                "plan: 1.2 — `nonesuch-program` exited 127",
+                "  | No such file or directory",
+            ],
+        )
 
     # A box left unticked under a ticked phase; an unticked phase's are fine.
     _tasks(
@@ -592,7 +593,6 @@ def test_a_result_is_kept_by_tree_and_reused(
 
     assert check() == (0, ["plan: clean"], 2)
     assert (check(), runs()) == ((0, ["plan: clean"], 2), 1)
-    # A new commit on the same tree runs every command again: `HEAD` keys them all.
     _git(root, "commit", "-q", "--allow-empty", "-m", "empty")
     assert (check(), runs()) == ((0, ["plan: clean"], 4), 2)
     # Another tree has its own results, and a result is judged by the words that

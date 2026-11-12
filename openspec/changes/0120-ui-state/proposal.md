@@ -26,7 +26,7 @@ what waits for them. Every fact is already on disk, so a viewer can read it with
 - **A server** reads each project in a child process the server kills past 10 s, serves `/`, `/events` and `/state` on
   `127.0.0.1` and refuses a foreign `Host`. `/events` streams each whole numbered state as server-sent events.
 - **A page**, one HTML file with an inline script and style, no build step, sets every string as text.
-- **A record**: decision [D81](design.md#d10), a bullet under *The repo reaches nothing outside itself*, a requirement
+- **A record**: decision [D82](design.md#d10), a bullet under *The repo reaches nothing outside itself*, a requirement
   beside review metrics', a `THREAT_MODEL.md` entry, and the README, `AGENTS.md`, docs map and `CHANGELOG.md` rows.
 - **A corpus case**, `viewer`, runs the projector over this checkout's run directory.
 

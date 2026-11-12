@@ -383,6 +383,13 @@ def packages(brief: str, lines: list[str], conduct: dict[str, Any]) -> list[str]
             )
         if not package or not constraint:
             found.append(f"## Dependencies row {number} — no package or constraint")
+        elif package.startswith(conduct["NPM_PREFIX"]) and not conduct["_plain_row"](
+            package, constraint
+        ):
+            found.append(
+                f"## Dependencies row {number} — not an npm package at an exact"
+                f" version: {package} {constraint}"
+            )
     return found
 
 

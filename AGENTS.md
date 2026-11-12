@@ -17,7 +17,7 @@ mandatory shared context. Every station but the cut, the build and the converge 
 
 **The cut and the build read the index `skills/mf-converge/scripts/bundle.py --decisions` prints and, in full, the
 decisions their work cites or touches; [the principles](docs/principles.md) and [the threat model](THREAT_MODEL.md)
-when a task names the file. The converge conductor reads none of it.**
+when a task names the file or a path `## Surfaces` of the threat model matches. The converge conductor reads none of it.**
 
 **Converge's conformance worker reads, of the decisions, those its change cites, in full, and an index of all — its
 `bundle.md` — in place of the whole page; its adversarial worker reads the threat model.**

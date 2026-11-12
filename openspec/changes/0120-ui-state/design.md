@@ -36,7 +36,7 @@ The Vue board that replaces the plain page, `ui · prepare` and the designed pan
 | [D7](#d7) | The server polls every 2 s, serves `/`, `/events` and `/state`, refuses a foreign `Host` and numbers each changed whole state | with no login, the `Host` check stops another site's page reading the stream by DNS rebinding | a wildcard bind · a CORS header · a websocket |
 | [D8](#d8) | `start` runs the server detached and prints its URL, a second `start` finds it, `stop` ends it; its pid, port and log are files in its own state folder | stop needs the pid, and no launchd (D22) | launchd · a file in a repo |
 | [D9](#d9) | The page is one HTML file with an inline script and style, no build, every string set as text | the Vue board replaces it; worker-written text must never become markup | a framework · `innerHTML` |
-| [D10](#d10) | D81 records the viewer as an operator tool; the principle, the threat model, the README, `AGENTS.md` and the docs map name it | the viewer reads what the sandbox keeps workers from | an exemption in prose alone |
+| [D10](#d10) | D82 records the viewer as an operator tool; the principle, the threat model, the README, `AGENTS.md` and the docs map name it | the viewer reads what the sandbox keeps workers from | an exemption in prose alone |
 | [D11](#d11) | A corpus case `viewer` runs the projector over this checkout's run directory | `make corpus` holds each reader of run data against real files | a fixture-only proof |
 
 ### D1
@@ -263,10 +263,10 @@ from `started`. It builds nodes with `createElement` and `textContent`; it holds
 
 ### D10
 
-D81 is added to `docs/decisions.md` beside D50, in the group of the check loop and the release, and to the page's index
+D82 is added to `docs/decisions.md` beside D50, in the group of the check loop and the release, and to the page's index
 lines:
 
-> **D81 · The viewer is an operator tool.** `mf-ui` reads the recorded and configured projects' run directories, worktrees
+> **D82 · The viewer is an operator tool.** `mf-ui` reads the recorded and configured projects' run directories, worktrees
 > and queue entries, writes only its own state files in the operator's state folder, binds loopback and shows worker-written
 > text as text. **Why:** a person who conducts several versions needs one page of them, and the sandbox that keeps workers
 > from loopback and the home folder does not bind the operator's own tool. **Rejected:** a root `ui/` · a station of the
@@ -274,7 +274,7 @@ lines:
 > server kills, and the stream is a read of the machine's own projects that any local process can open.
 
 The principle *The repo reaches nothing outside itself* gains a bullet for the viewer's reads and its state folder, linking
-D81. `THREAT_MODEL.md` gains one *Trust boundaries* bullet: the viewer runs outside the sandbox, reads worker-written files,
+D82. `THREAT_MODEL.md` gains one *Trust boundaries* bullet: the viewer runs outside the sandbox, reads worker-written files,
 kills a read past its bound, binds `127.0.0.1`, refuses a foreign `Host` and sets text only. `README.md`'s skill table, the
 `skills/` entry of `AGENTS.md`'s layout and `docs/README.md`'s `skills/` row name `mf-ui`. The `CHANGELOG.md` entries are the
 build's own, one a phase.
@@ -349,7 +349,7 @@ None.
 - **The page's script has no test run** under a browser: the person's check against a live run after the release is its proof, and `test_the_page_sets_text_only`
   holds the markup sinks out.
 - **Any local process can open the stream.** Loopback and the `Host` check stop other sites, not other processes of the same
-  operator; D81 accepts it.
+  operator; D82 accepts it.
 - **A read costs a process per project every tick** for the fingerprint. The full read waits for a change or 10 s.
 - **`unpushed` is a local read**, so it shows what the last fetch or push left, never what `origin` holds now.
 - **A repo still on the old run layout** is read as the readers read it; no old-layout mark is shown.

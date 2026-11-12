@@ -17,7 +17,7 @@ description: Show every project's ship line as one live page on loopback — eac
 
 The projects are the lines of `~/.mf-ship-origin/repos` that hold `.minions/`. The optional `ui.toml`, in
 `$XDG_CONFIG_HOME/minionsfactory/`, else `~/.config/minionsfactory/`, sets `port` (default `8737`) and `[[container]]` rows
-of `path`, `name` and `hide`, per [D81](../../docs/decisions.md#d81--the-viewer-is-an-operator-tool).
+of `path`, `name` and `hide`, per [D82](../../docs/decisions.md#d82--the-viewer-is-an-operator-tool).
 
 ## Run
 

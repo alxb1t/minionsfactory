@@ -12,10 +12,10 @@ description: Build the active in-repo change phase by phase — one phase at a t
 Before work, read root `AGENTS.md` — the gate, the conventions and seams, the guardrails — the mandatory context it
 names, and a root `CODING_STANDARDS.md`, `CODE_STANDARDS.md` or `CONTRIBUTING.md` it does not name. Of the decisions,
 run `uv run --script <this package>/../mf-converge/scripts/bundle.py --decisions openspec/changes/<change-id>/proposal.md
-openspec/changes/<change-id>/design.md openspec/changes/<change-id>/tasks.md` and read what it prints — the decisions
+openspec/changes/<change-id>/design.md openspec/changes/<change-id>/tasks.md openspec/changes/<change-id>/specs/*/spec.md` and read what it prints — the decisions
 the change cites, in full, and an index — and in full any other decision whose index line a phase touches;
 `ARCHITECTURE.md` and `docs/adr/*.md` whole, when present. Read the principles and the threat model —
-`docs/principles.md` and `THREAT_MODEL.md`, or the ones `AGENTS.md` names — when a task names the file. They are
+`docs/principles.md` and `THREAT_MODEL.md`, or the ones `AGENTS.md` names — when a task names the file or a path `## Surfaces` of the threat model matches. They are
 what is *true* of the repository, not a script. The change itself is
 authoritative. Missing root `AGENTS.md` → **halt**, naming it. A contradiction between those files that decides a
 phase's code → **halt**, naming both. A phase that would break a decision in force, and no task of the change amends
@@ -318,7 +318,9 @@ else, and halts naming it and `/mf-ship`, whose run moves it.
    `git log --diff-filter=A --format=%h -- openspec/changes/<change-id>/design.md`. More than one commit means
    design.md was deleted and added again: halt. Listed → add it as listed. Not listed, or a `## Dependencies` the
    branch changed since the cut → state the justification and stop for approval: dependencies are the
-   supply-chain surface, and human-gated.
+   supply-chain surface, and human-gated. An npm package is a row `npm:<name>` at an exact version: a direct package
+   in a `package.json` that no row approves at that version, and the default branch lacks, is not listed, and the
+   run's build check halts the version on it.
 5. **A gate that only goes green by weakening it** — a plan problem, not a coding shortcut: halt. A deletion the
    `## Tests` table names is the plan, not a weakening.
 

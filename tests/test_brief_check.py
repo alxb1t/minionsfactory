@@ -379,6 +379,36 @@ def test_a_hard_brief_is_ready_for_the_cut(
     assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
+def test_an_npm_row_is_checked_at_the_plan(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    item = "0083-plan-queues"
+    plain = ("npm:vue | 3.5.43", "npm:@vitejs/plugin-vue | 6.0.1", "left-pad | >=1.3")
+    body = _READY.replace(
+        "None.", _TABLE + "".join(f"| {item} | {row} | a pad |\n" for row in plain)
+    )
+    assert brief_check.main([str(_write(tmp_path, body))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    refused = (
+        "npm:vue | ^3.5.43",
+        "npm:vue | latest",
+        "npm:vue@npm:other | 1.0.0",
+        "npm:vue | github:vuejs/core",
+    )
+    body = _READY.replace(
+        "None.",
+        _TABLE
+        + "| 0083-plan-queues | left-pad | 1.3.0 | a pad |\n"
+        + "".join(f"| {item} | {row} | a pad |\n" for row in refused),
+    )
+    assert brief_check.main([str(_write(tmp_path, body))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"brief: halt — ## Dependencies row {n} — not an npm package at an exact"
+        f" version: {row.replace(' | ', ' ')}"
+        for n, row in enumerate(refused, 2)
+    ]
+
+
 def test_a_brief_out_of_shape_halts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
