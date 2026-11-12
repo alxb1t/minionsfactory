@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.100.0] - 2026-11-12
+
+Gate: local 8m37s · CI not read under mf-ship · 0.99.0: local 17m27s · CI not read under mf-ship
+
 - `skills/mf-ui/scripts/viewer.py project <primary>` prints one project's state tree as JSON: each version's stage,
   why and state, phases with the worktree's ticks, converge's round and verdicts, workers, liveness, the rows for
   the person and the queue; `--only liveness` and `--only fingerprint` print a part. A claim `ps` cannot read is
