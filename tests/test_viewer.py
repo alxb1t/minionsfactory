@@ -303,6 +303,33 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
 
 
 @pytest.mark.slow
+def test_a_halt_stands_in_the_newest_log_until_the_version_rejoins(
+    tmp_path: Path,
+) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    _version(root, "0002-b", "- [ ] 1 — One\n")
+    diagnosed = "10:00:00 · 0001-a · halt — rescue diagnosed — rescue.md"
+
+    def state(lines: list[str], stamp: str) -> str:
+        _run_log(root, lines, stamp=stamp)
+        return _by_id(_tree(root))["0001-a"]["state"]
+
+    # An older log's diagnosis is no line of the newest log: a sibling-only log ends it.
+    assert state([diagnosed], "20261103-100000") == "halted"
+    sibling = "11:00:00 · 0002-b · spawn — build · model m"
+    assert state([sibling], "20261103-110000") == "idle"
+    # A rejoin of the version, a line of the run's, ends its halt as a later line does.
+    rejoin = "12:00:01 · run · rejoin — 0001-a: build"
+    again = "12:00:00 · 0001-a · halt — rescue diagnosed — rescue.md"
+    sibling = "12:00:02 · 0002-b · spawn — build · model m"
+    assert state([again, rejoin, sibling], "20261103-120000") == "idle"
+    # A rejoin the run refused leaves the halt standing.
+    refused = "12:00:01 · run · rejoin — 0001-a: still halted — answered"
+    assert state([again, refused, sibling], "20261103-130000") == "halted"
+
+
+@pytest.mark.slow
 def test_the_projector_gives_each_state_its_why(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     one = "- [ ] 1 — One\n"

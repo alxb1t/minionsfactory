@@ -59,7 +59,9 @@ STAMP = "%Y%m%d-%H%M%S"
 ACTIVE = 60
 QUIET = 300
 ROLES = ("conformance", "adversarial")
-READ_EVENTS = frozenset({"spawn", "finish", "halt", "limited", "rescue", "supervise"})
+READ_EVENTS = frozenset(
+    {"spawn", "finish", "halt", "limited", "rescue", "supervise", "rejoin"}
+)
 NEEDS_YOU = ("human", "integrating", "released")
 SUFFIX = re.compile(r" · (?:hard|moderate)$")
 SUBTASK = re.compile(r"^- \[([ x])\] (\d+)\.\d+ ", re.MULTILINE)
@@ -393,8 +395,26 @@ class Reader:
         e.g. `halt — build worker exit 1` or `halt — rescue diagnosed`; a later spawn
         of the version, or a newer log with no line of its own, clears it
         """
-        mine = [event for event in self.newest() if event.who == change]
-        return bool(mine) and mine[-1].name == "halt"
+        mine = [
+            event
+            for event in self.newest()
+            if event.who == change or self._rejoins(event, change)
+        ]
+        return bool(mine) and mine[-1].who == change and mine[-1].name == "halt"
+
+    @staticmethod
+    def _rejoins(event: Event, change: str) -> bool:
+        """Return whether a line is the run taking the version back, not refusing it.
+
+        e.g. `run · rejoin — 0001-a: build` → true; `… 0001-a: still halted — x` → false
+        """
+        rest = event.detail.removeprefix(f"{change}: ")
+        return (
+            event.who == "run"
+            and event.name == "rejoin"
+            and rest != event.detail
+            and not rest.startswith(("still", "skipped"))
+        )
 
     def state(self, version: Version, stage: str, workers: list[dict[str, Any]]) -> str:
         """Return a version's state by the first matching row, `blocked` aside."""
