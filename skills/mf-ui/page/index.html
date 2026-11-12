@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mf-ui</title>
+<style>
+:root {
+  --base: #24273a;
+  --mantle: #1e2030;
+  --surface: #363a4f;
+  --text: #cad3f5;
+  --subtext: #a5adcb;
+  --overlay: #6e738d;
+  --blue: #8aadf4;
+  --red: #ed8796;
+  --peach: #f5a97f;
+  --yellow: #eed49f;
+  --green: #a6da95;
+  --mauve: #c6a0f6;
+}
+body {
+  margin: 0;
+  background: var(--base);
+  color: var(--text);
+  font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace;
+}
+main {
+  max-width: 72ch;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+h1, h2 { font-size: 1em; margin: 0; }
+h1 { color: var(--subtext); font-weight: normal; }
+section {
+  margin-top: 2rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--surface);
+}
+section.unread h2 { color: var(--overlay); opacity: 0.7; }
+.run, .dim { color: var(--overlay); }
+.block { margin-top: 1rem; padding: 0.5rem 0.75rem; background: var(--mantle); }
+.row { white-space: pre-wrap; overflow-wrap: anywhere; }
+.label { color: var(--subtext); margin-top: 1rem; }
+.s-running { color: var(--blue); }
+.s-idle { color: var(--overlay); }
+.s-waiting, .s-stacked { color: var(--subtext); }
+.s-blocked { color: var(--yellow); }
+.s-halted { color: var(--red); }
+.s-needs-you { color: var(--peach); }
+.s-unread { color: var(--overlay); opacity: 0.7; }
+.s-cut { color: var(--mauve); }
+.s-cut-halted { color: var(--red); }
+.l-active { color: var(--green); }
+.l-recent { color: var(--subtext); }
+.l-quiet { color: var(--overlay); }
+.ticked { color: var(--green); }
+</style>
+</head>
+<body>
+<main id="root"></main>
+<script>
+"use strict";
+var root = document.getElementById("root");
+var current = null;
+
+function el(tag, cls, text) {
+  var node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined && text !== null) node.textContent = String(text);
+  return node;
+}
+
+function add(parent, tag, cls, text) {
+  var node = el(tag, cls, text);
+  parent.appendChild(node);
+  return node;
+}
+
+function slug(state) {
+  return "s-" + String(state).replace(/ /g, "-");
+}
+
+function elapsed(since, now) {
+  if (since === null || since === undefined) return "";
+  var seconds = Math.max(0, Math.floor(now - since));
+  if (seconds < 60) return seconds + "s";
+  if (seconds < 3600) return Math.floor(seconds / 60) + "m";
+  return Math.floor(seconds / 3600) + "h " + Math.floor((seconds % 3600) / 60) + "m";
+}
+
+function parts(list) {
+  return list.filter(function (each) {
+    return each !== null && each !== undefined && each !== "";
+  }).join(" · ");
+}
+
+function role(name, each) {
+  if (!each) return null;
+  return parts([
+    name,
+    each.verdict,
+    each.open_blocking === null ? null : "open " + each.open_blocking,
+    each.round === null || each.round === undefined ? null : "round " + each.round,
+    each.executor,
+    each.model,
+    each.effort,
+    each.tokens === null ? null : each.tokens + " tokens",
+    each.fallback ? "fallback" : null,
+  ]);
+}
+
+function renderConverge(parent, converge) {
+  if (!converge) return;
+  add(parent, "div", "row", parts([
+    "converge",
+    converge.run === null ? null : "run " + converge.run,
+    converge.mark,
+    converge.round === null ? null : "round " + converge.round + " of " + converge.cap,
+    converge.fixing ? "fixing" : null,
+  ]));
+  var roles = converge.roles || {};
+  Object.keys(roles).forEach(function (name) {
+    var line = role(name, roles[name]);
+    if (line) add(parent, "div", "row dim", "  " + line);
+  });
+}
+
+function renderVersion(parent, version, now) {
+  var block = add(parent, "div", "block");
+  var head = add(block, "div", "row");
+  add(head, "span", "", version.id + "  ");
+  add(head, "span", slug(version.state), version.state);
+  if (version.unread) {
+    add(block, "div", "row dim", version.unread);
+    return;
+  }
+  add(block, "div", "row", parts([version.stage, version.why]));
+  (version.workers || []).forEach(function (worker) {
+    add(block, "div", "row", parts([
+      worker.station,
+      worker.model,
+      worker.effort,
+      worker.executor,
+      elapsed(worker.started, now),
+    ]));
+  });
+  if (version.liveness) {
+    var level = version.liveness.level;
+    add(block, "div", "row l-" + level, parts([
+      level,
+      elapsed(version.liveness.last, now) + " since a change",
+    ]));
+  }
+  (version.phases || []).forEach(function (phase) {
+    var line = add(block, "div", "row");
+    add(line, "span", phase.box ? "ticked" : "dim", phase.box ? "[x] " : "[ ] ");
+    add(line, "span", "", parts([
+      phase.number + " — " + phase.title,
+      phase.rating,
+      phase.total === null ? null : phase.done + "/" + phase.total,
+    ]));
+  });
+  renderConverge(block, version.converge);
+  (version.notes || []).forEach(function (note) {
+    add(block, "div", "row dim", note.text);
+  });
+}
+
+function renderProject(parent, project, now) {
+  var section = add(parent, "section", project.unread ? "unread" : "");
+  add(section, "h2", "", project.name);
+  if (project.unread) {
+    add(section, "div", "row dim", project.unread);
+    return;
+  }
+  if (project.run) {
+    add(section, "div", "run", parts([
+      "claim " + project.run.claim,
+      project.run.log,
+      project.run.last,
+    ]));
+  }
+  if (project.for_you.length) {
+    add(section, "div", "label", "for you");
+    project.for_you.forEach(function (row) {
+      var line = add(section, "div", "row");
+      add(line, "span", slug(row.kind), row.kind);
+      add(line, "span", "", "  " + parts([row.id, row.why]));
+    });
+  }
+  project.versions.forEach(function (version) {
+    renderVersion(section, version, now);
+  });
+  if (project.queue.length) {
+    add(section, "div", "label", "queue");
+    project.queue.forEach(function (cut) {
+      var line = add(section, "div", "row");
+      add(line, "span", slug(cut.state), cut.state);
+      add(line, "span", "", "  " + parts([cut.id, cut.halt]));
+    });
+  }
+}
+
+function render() {
+  if (!current) return;
+  var now = Date.now() / 1000;
+  var next = document.createDocumentFragment();
+  add(next, "h1", "", "mf-ui · state " + current.seq);
+  if (!current.projects.length) add(next, "div", "row dim", "no projects");
+  current.projects.forEach(function (project) {
+    renderProject(next, project, now);
+  });
+  root.replaceChildren(next);
+}
+
+var source = new EventSource("/events");
+source.addEventListener("state", function (event) {
+  current = JSON.parse(event.data);
+  render();
+});
+source.onerror = function () {
+  document.title = "mf-ui · reconnecting";
+};
+source.onopen = function () {
+  document.title = "mf-ui";
+};
+setInterval(render, 1000);
+</script>
+</body>
+</html>

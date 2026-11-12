@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.100.0] - 2026-11-12
+
+Gate: local 8m37s · CI not read under mf-ship · 0.99.0: local 17m27s · CI not read under mf-ship
+
+- `skills/mf-ui/scripts/viewer.py project <primary>` prints one project's state tree as JSON: each version's stage,
+  why and state, phases with the worktree's ticks, converge's round and verdicts, workers, liveness, the rows for
+  the person and the queue; `--only liveness` and `--only fingerprint` print a part. A claim `ps` cannot read is
+  `unread`, no failure. The corpus case `viewer` reads this checkout's run directory (0120-ui-state, phase 1).
+- `viewer.py serve`, `start` and `stop` run a loopback server over the recorded projects and `ui.toml`: each project
+  is read by a child killed past 10 s, a changed state is streamed whole and numbered at `/events`, `/state` answers
+  the newest, and a foreign `Host` gets 403. `start` finds a running server, `stop` signals only its pid
+  (0120-ui-state, phase 2).
+- `skills/mf-ui/page/index.html` is the viewer's page: one file with an inline script and style, in the Macchiato
+  tokens, that opens `/events`, renders each whole state and counts elapsed time itself. It sets every string as
+  text, and a test holds the markup sinks out of `skills/mf-ui/` (0120-ui-state, phase 3).
+- `skills/mf-ui/SKILL.md` gives `/mf-ui` and `/mf-ui stop`. D82 records the viewer as an operator tool; the principle *The
+  repo reaches nothing outside itself*, the threat model, `README.md`, `AGENTS.md` and `docs/README.md` name it
+  (0120-ui-state, phase 4).
+
 ## [0.99.0] - 2026-11-12
 
 Gate: local 17m27s · CI not read under mf-ship · 0.98.1: local 7m8s · CI not read under mf-ship

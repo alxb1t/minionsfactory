@@ -10,7 +10,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
 ```
   plan ────▶ cut ───▶ build ───▶ converge ───▶ release
     └─ Planning ─┘       └─ The check loop and the release ─┘
-     D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
+     D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
   The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
@@ -479,6 +479,17 @@ writes into no repo and is no station of the line.**
 
 - **Why:** choosing a review model, and seeing what it costs, needs the record of every past converge in one place.
 - **Rejected:** a recommendation on the page · reading inside a run · a copy of the chart code.
+
+### D82 · The viewer is an operator tool
+
+**`mf-ui` reads the recorded and configured projects' run directories, worktrees and queue entries, writes only its own state
+files in the operator's state folder, binds loopback and shows worker-written text as text.**
+
+- **Why:** a person who conducts several versions needs one page of them, and the sandbox that keeps workers from loopback and
+  the home folder does not bind the operator's own tool.
+- **Rejected:** a root `ui/` · a station of the line · a write to a repo.
+- **Accepts:** an unsandboxed server reads files a worker wrote, so a read runs in a child the server kills, and the stream is a
+  read of the machine's own projects that any local process can open.
 
 ### D63 · An answered amend gets one round over its range
 
