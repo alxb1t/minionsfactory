@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: v0.101.1
 beside: [0123-linux-ci-green, 0124-structure-rules, 0122-card-title]
 ---
 

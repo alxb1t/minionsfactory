@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.101.1] - 2026-11-14
+
+Gate: local 6m19s · CI not read under mf-ship · 0.101.0: local 7m38s · CI not read under mf-ship
+
 - `tests/test_sandboxed.py::test_the_deny_lists_are_literals` holds `SECRETS`, `TOKENS`, `NETWORK` and `HOOKS_OFF` as
   literals: the loops built their expectation from the list, so an entry removed left them green
   (0125-conductor-guards, phase 1).
