@@ -16,7 +16,7 @@ from pathlib import Path
 NEAR = 5
 ROLES = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
 # `debt_match.py`'s card split and `What it affects` spans, copied.
-TITLE = re.compile(r"^- \*\*\S+ — ")
+TITLE = re.compile(r"^- \*\*[^\s*]+ — ")
 AFFECTS = re.compile(r"^[ \t]+- \*\*What it affects:\*\*(.*)$", re.MULTILINE)
 SPAN = re.compile(r"`([^`]+)`")
 LINES = re.compile(r":\d+(?:-\d+)?$")

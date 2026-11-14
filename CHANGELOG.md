@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A card's title is a line `- **<id> — ` whose id holds no `*`, in every reader of cards: `converge.py`, `open_cards.py`,
+  `debt_match.py`, `overlap.py`, `conduct.py` and `cut_context.py`. A pass bullet such as `- **stale-claim** — ran.` is no
+  card, so converge no longer rewrites a file whose cards were fine. `worker.md` says no line outside a card starts with
+  `- **` (0122-card-title, phase 1).
+
 ## [0.100.0] - 2026-11-12
 
 Gate: local 8m37s · CI not read under mf-ship · 0.99.0: local 17m27s · CI not read under mf-ship

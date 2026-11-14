@@ -200,7 +200,7 @@ NON_SECURITY = (
     "maintainability",
 )
 SMALL = ("one line", "a test", "one line and a test")
-CARD = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
+CARD = re.compile(r"^- \*\*([^\s*]+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 SKILLS_DIR = Path(__file__).resolve().parents[2]
@@ -7988,7 +7988,7 @@ def _cards(debt: Path, change: str) -> list[str]:
     for line in debt.read_text().splitlines() if debt.is_file() else []:
         if line.startswith("## "):
             inside = line.strip() == f"## {change}"
-        elif inside and (card := re.match(r"- \*\*(\S+) — ", line)):
+        elif inside and (card := re.match(r"- \*\*([^\s*]+) — ", line)):
             ids.append(card[1])
     return ids
 
