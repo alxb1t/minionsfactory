@@ -5,7 +5,7 @@ The record, the module map with its rule, loads and cycles, names and OS command
 ## Progress
 
 - [x] 1 — The record · moderate
-- [ ] 2 — The module map and its rule · hard
+- [x] 2 — The module map and its rule · hard
 - [ ] 3 — Loads and cycles · hard
 - [ ] 4 — Names and OS commands · hard
 - [ ] 5 — The recipes · moderate
@@ -27,13 +27,13 @@ The record, the module map with its rule, loads and cycles, names and OS command
 
 ## 2 — The module map and its rule
 
-- [ ] 2.1 Create `tests/test_structure.py` with `python_files(root)` and `edges(root)` per [D2](design.md#d2), and tests named `test_edges_…` that hold them: a name in a docstring, a self-name and a longer text are no edge; `mf-x/scripts/y.py` is one.
+- [x] 2.1 Create `tests/test_structure.py` with `python_files(root)` and `edges(root)` per [D2](design.md#d2), and tests named `test_edges_…` that hold them: a name in a docstring, a self-name and a longer text are no edge; `mf-x/scripts/y.py` is one.
   Verify: `uv run pytest tests/test_structure.py -q -k edges` passes.
-- [ ] 2.2 Write `docs/modules.md`: a line saying what the page is for, then [D3](design.md#d3)'s table, a row for each Python file under the skills and scripts folders, its layer and the base names `edges` finds.
+- [x] 2.2 Write `docs/modules.md`: a line saying what the page is for, then [D3](design.md#d3)'s table, a row for each Python file under the skills and scripts folders, its layer and the base names `edges` finds.
   Verify: `grep -n "scripts/conduct.py" docs/modules.md` prints its row.
-- [ ] 2.3 In `tests/test_structure.py`, add `check_map(root)` — rule 5 — with its real-tree test and planted twins, named `test_check_map_…`: a file with no row, a row with no file, a `names` cell that differs, a layer outside the list, a base name that more than one file holds.
+- [x] 2.3 In `tests/test_structure.py`, add `check_map(root)` — rule 5 — with its real-tree test and planted twins, named `test_check_map_…`: a file with no row, a row with no file, a `names` cell that differs, a layer outside the list, a base name that more than one file holds.
   Verify: `uv run pytest tests/test_structure.py -q -k check_map` passes.
-- [ ] 2.4 In `docs/README.md`, add a row for `modules.md` to *The pages* table.
+- [x] 2.4 In `docs/README.md`, add a row for `modules.md` to *The pages* table.
   Verify: `git grep -n "modules.md" docs/README.md` prints the row.
 
 ## 3 — Loads and cycles

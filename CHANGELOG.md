@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/decisions.md` gains `D83`: the code is layered, a call goes down only, the conductor alone loads a station,
   and the gate holds the shape. `D2` and `D57` allow one shared home, `skills/mflib/`; `D79` adds that a rule's list
   of the sites a change cannot clean only shrinks (0124-structure-rules, phase 1).
+- `docs/modules.md` maps each Python file under `skills/` and `scripts/` to its layer and the files it names, and
+  `tests/test_structure.py` holds the map to the tree: a file with no row, a row with no file, a `names` cell that
+  differs, an unknown layer or a shared base name fails the gate (0124-structure-rules, phase 2).
 
 ## [0.100.0] - 2026-11-12
 

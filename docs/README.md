@@ -23,6 +23,7 @@ What holds, and what was chosen.
 |---|---|
 | [principles.md](principles.md) | the rules every station follows, each with why and what holds it |
 | [decisions.md](decisions.md) | the choices in force, each with its reason |
+| [modules.md](modules.md) | the module map: each script's layer and the files it names, which `tests/test_structure.py` holds |
 
 ## Where the rest lives
 
