@@ -4207,7 +4207,8 @@ phase is ticked at `HEAD` and the tree is clean; any other outcome SHALL halt th
 spawned again only after a rescue's or a supervisor's taken amend. The close worker's check SHALL stay the build check.
 `skills/mf-build/SKILL.md` SHALL build the named phase alone under `phase=<N>`, halting when it is not the first unticked one,
 SHALL run simplify, the metrics and `build.done` alone under `phase=close`, halting on an unticked phase, and SHALL build every
-phase and close when given neither. Each phase SHALL append what the next phase needs to
+phase and close when given neither. After each phase's commit it SHALL print the phase's `## Progress` line as `HEAD` holds it,
+quote that line in its close-out, and tick and commit a line still unticked before it ends. Each phase SHALL append what the next phase needs to
 `.minions/changes/<change-id>/build-notes.md`, under a `## <N> — <Title>` line, and SHALL read that file as evidence. After a
 phase worker exits 0, `conduct.py` SHALL keep at most 40 lines of what it appended, dropping the rest and logging it, and SHALL
 halt the version, writing nothing, when the file is a link. A stacked dependent's amend reset SHALL remove its
@@ -4233,6 +4234,11 @@ halt the version, writing nothing, when the file is a link. A stacked dependent'
 #### Scenario: A phase worker that ticks nothing
 - **WHEN** a phase worker exits 0 and its phase is still unticked at `HEAD`
 - **THEN** the version halts on the build check, and no worker for that phase is spawned again without an amend
+
+#### Scenario: A phase's tick is read back
+- **WHEN** a build worker has committed a phase whose `## Progress` line `HEAD` still holds unticked
+- **THEN** the worker ticks the box, commits it, and prints the line again before its close-out
+- **AND** its close-out quotes the line it printed
 
 #### Scenario: A stacked dependent is reset
 - **WHEN** a stacked dependent's dependency changes a decision, and the dependent is reset to its cut commit
@@ -4744,7 +4750,9 @@ process the run starts through its own worker and checker calls, with a prompt t
 role's reference. The script SHALL run the gate, `gate_check.py`, `plan_check.py` and each `Verify:` and **Still true?** command
 under `conduct.py`'s sandbox runner, never bare. It SHALL read a findings file's frontmatter keys `files`, `commits`, `passes` and
 `inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them SHALL be
-malformed. The status log's events and their text SHALL stay as before.
+malformed. `converge.py`, `open_cards.py`, `debt_match.py`, `overlap.py`, `conduct.py` and `cut_context.py` SHALL read a card's
+title as a line that starts `- **<id> — ` with an id holding no `*`, so a bullet that closes its bold after its first word,
+as `- **stale-claim** — ran.`, is no card. The status log's events and their text SHALL stay as before.
 
 The script SHALL go on where it can: a worker that exits non-zero or leaves no file SHALL get one fresh retry; a malformed
 findings file SHALL get one rewrite worker, then a debt card for it, and the run SHALL go on; a fixer whose gate is red or whose tree
@@ -4761,6 +4769,11 @@ stays red and a security card SHALL still halt.
 #### Scenario: A malformed findings file
 - **WHEN** a checker's findings file lacks `passes`, or holds a card with no `Amend:` field
 - **THEN** one rewrite worker is started for it, and a file still malformed becomes one debt card and no halt
+
+#### Scenario: A bold-led bullet that is no card
+- **WHEN** a findings file holds `- **stale-claim** — ran.` under a `## Passes` heading and `- **Spec** — none.` in its Summary, beside cards that carry their `Amend:` fields
+- **THEN** the file is read with those cards alone, and no rewrite worker is started for it
+- **AND** `open_cards.py` writes those cards alone
 
 #### Scenario: A worker exits 1
 - **WHEN** a checker exits 1 or leaves no findings file

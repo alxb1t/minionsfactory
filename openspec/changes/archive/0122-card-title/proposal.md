@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: 0.100.2
 ---
 
 # Card title
