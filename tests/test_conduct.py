@@ -9512,12 +9512,9 @@ def test_stop_ends_a_live_run(
         "10:00:01 · 0001-todo · spawn — build · model default\n"
     )
     log.write_text(opening)
-    sleep = shutil.which("sleep")
-    assert sleep
     executor = tmp_path / "claude"
-    executor.symlink_to(sleep)
     conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
-    worker = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    worker = subprocess.Popen(["sleep", "60"], start_new_session=True)
     _register(worker.pid, str(executor), _GROUP_START)
     active.mkdir()
     (active / "pid").write_text(str(conductor.pid))
@@ -10923,16 +10920,13 @@ def test_a_stale_claim_is_cleared(
 
     (active / "pid").write_text(str(dead.pid))
     executor = tmp_path / "claude"
-    sleep = shutil.which("sleep")
-    assert sleep
-    executor.symlink_to(sleep)
-    group = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    group = subprocess.Popen(["sleep", "60"], start_new_session=True)
     _register(group.pid, str(executor), _GROUP_START)
     (active / str(group.pid)).write_text(_lstart(group.pid))
-    recycled = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    recycled = subprocess.Popen(["sleep", "60"], start_new_session=True)
     _register(recycled.pid, str(executor), _GROUP_START)
     (active / str(recycled.pid)).write_text("Thu Jan  1 00:00:00 1970\n")
-    unstamped = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    unstamped = subprocess.Popen(["sleep", "60"], start_new_session=True)
     _register(unstamped.pid, str(executor), _GROUP_START)
     (active / str(unstamped.pid)).touch()
     (active / "0").touch()
@@ -10963,7 +10957,7 @@ def test_a_stale_claim_is_cleared(
     foreign = subprocess.Popen(["sleep", "60"], start_new_session=True)
     _register(foreign.pid, "sleep", _GROUP_START)
     (active / str(foreign.pid)).write_text(_lstart(foreign.pid))
-    sibling = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    sibling = subprocess.Popen(["sleep", "60"], start_new_session=True)
     _register(sibling.pid, str(executor), _GROUP_START)
     (active / str(sibling.pid)).write_text(_lstart(sibling.pid))
     with pytest.raises(conduct["Stop"], match=f"group {foreign.pid} .*no executor"):
@@ -10984,7 +10978,7 @@ def test_a_stale_claim_is_cleared(
 
     active.mkdir()
     (active / "pid").write_text(str(dead.pid))
-    refusing = subprocess.Popen([str(executor), "60"], start_new_session=True)
+    refusing = subprocess.Popen(["sleep", "60"], start_new_session=True)
     _register(refusing.pid, str(executor), _GROUP_START)
     (active / str(refusing.pid)).write_text(_lstart(refusing.pid))
     held = (active / "pid", active / str(refusing.pid))

@@ -77,6 +77,16 @@ def test_open_cards_extract_what_a_verify_judges(
     assert out.read_text() == "# conformance.md — the cards a verify judges\n\nNone.\n"
 
 
+def test_open_cards_leave_a_bold_bullet_out(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    findings, out = tmp_path / "conformance.md", tmp_path / "conformance.open.md"
+    findings.write_text(_FRONT + "## Passes\n\n- **stale-claim** — ran.\n\n" + _OPEN)
+
+    assert _run(capsys, findings, out) == (0, "open cards: 1 of conformance.md\n")
+    assert out.read_text() == f"# conformance.md — the cards a verify judges\n\n{_OPEN}"
+
+
 def test_open_cards_refuse_what_they_cannot_read(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

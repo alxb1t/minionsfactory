@@ -167,7 +167,7 @@ Next: /mf-build
 
 Print the repository root in chat only; a secret appears by its env-var name, never a value. All pass → the
 person has done it: search their evidence files for the operator's home path, the repository's root and key
-shapes, and halt on a hit. Stage them by name, never a gitignored path and never `git add -f`; then items 3–6,
+shapes, and halt on a hit. Stage them by name, never a gitignored path and never `git add -f`; then items 3–7,
 ticking the `N.M` boxes with the phase's box at item 5.
 
 1. **Do the phase's tasks.** Test-first where there is logic: the failing test for the phase's acceptance at the
@@ -215,7 +215,11 @@ ticking the `N.M` boxes with the phase's box at item 5.
 
    and a phase that adds an end-to-end test carries `T2`'s reason, one line per test:
    `new e2e: <test> — <why no existing test reaches the state>`.
-7. **Hand over to the next phase.** After the commit, append one section to
+7. **Read the tick back.** After the commit, run
+   `git grep -n -e '^- \[.\] <N> — ' HEAD -- openspec/changes/<change-id>/tasks.md` and print its output. A `[ ]` in it
+   is ticked, staged by name and committed `docs(<change-id>): tick phase <N>` with the trailer block of item 6, and
+   the command runs again.
+8. **Hand over to the next phase.** After the commit, append one section to
    `.minions/changes/<change-id>/build-notes.md`, the run directory's: a `## <N> — <Title>` line, then what the next
    phase needs that `tasks.md`, `design.md` and `git log` do not say — a symbol's real home, a helper a test uses, a
    command that works, a trap met. 40 lines at most, the heading among them. Never the diff, never a task restated.
@@ -283,7 +287,7 @@ names it. Then it removes `.minions/changes/<change-id>/build.closing`.
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-Your sentences: the phases built, the gate's exit code, how many verifications ran and passed — naming any that
+Your sentences: the phases built, quoting the `## Progress` line of each as item 7 printed it, the gate's exit code, how many verifications ran and passed — naming any that
 did not — the simplify commit id, `lean already` or `nothing kept`, and the metrics page with the counts line its
 `page` printed, or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
 Under `phase=<N>`, they name the phase built, its check's exit and its verifications, and the last line is

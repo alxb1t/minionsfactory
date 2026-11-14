@@ -181,6 +181,20 @@ def test_each_failed_precondition_is_named(
     assert all(line.startswith("cut_pre: ") for line in lines)
 
 
+def test_an_empty_gate_halts_under_inherited_make_flags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("MAKEFLAGS", "w")
+    root = _repo(tmp_path, gate="gate:\n")
+    _tools(tmp_path, monkeypatch)
+    _, lines = _run(root, monkeypatch, capsys, _ID)
+    assert (
+        "cut_pre: halt — gate: `make -n gate` prints no command: the recipe is empty"
+    ) in lines
+
+
 def test_a_queued_id_names_the_answer(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

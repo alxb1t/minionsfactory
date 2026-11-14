@@ -17,7 +17,7 @@ from pathlib import Path
 
 JUDGED = ("open", "fixed", "wontfix")
 KNOWN = (*JUDGED, "verified", "accepted")
-TITLE = re.compile(r"^- \*\*(\S+) — ")
+TITLE = re.compile(r"^- \*\*([^\s*]+) — ")
 # Any top-level bold line, off the card's form or not: names a stray Status's card.
 NAMED = re.compile(r"^[-*] \*\*([^\s*:]+)")
 STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\S*)", re.MULTILINE)

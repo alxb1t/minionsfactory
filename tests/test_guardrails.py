@@ -59,6 +59,14 @@ def test_the_isolation_fixture_holds_home_under_tmp_path(tmp_path: Path) -> None
     assert temp.is_relative_to(tmp_path.parent)
     assert not temp.is_relative_to(tmp_path)
 
+    only = subprocess.run(
+        ["git", "config", "--global", "--get", "user.useConfigOnly"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert only.stdout.strip() == "true"
+
     subprocess.run(["git", "config", "--global", "mf.probe", "yes"], check=True)
 
     assert "probe = yes" in (Path.home() / ".gitconfig").read_text()

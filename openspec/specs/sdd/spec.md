@@ -4207,7 +4207,8 @@ phase is ticked at `HEAD` and the tree is clean; any other outcome SHALL halt th
 spawned again only after a rescue's or a supervisor's taken amend. The close worker's check SHALL stay the build check.
 `skills/mf-build/SKILL.md` SHALL build the named phase alone under `phase=<N>`, halting when it is not the first unticked one,
 SHALL run simplify, the metrics and `build.done` alone under `phase=close`, halting on an unticked phase, and SHALL build every
-phase and close when given neither. Each phase SHALL append what the next phase needs to
+phase and close when given neither. After each phase's commit it SHALL print the phase's `## Progress` line as `HEAD` holds it,
+quote that line in its close-out, and tick and commit a line still unticked before it ends. Each phase SHALL append what the next phase needs to
 `.minions/changes/<change-id>/build-notes.md`, under a `## <N> — <Title>` line, and SHALL read that file as evidence. After a
 phase worker exits 0, `conduct.py` SHALL keep at most 40 lines of what it appended, dropping the rest and logging it, and SHALL
 halt the version, writing nothing, when the file is a link. A stacked dependent's amend reset SHALL remove its
@@ -4233,6 +4234,11 @@ halt the version, writing nothing, when the file is a link. A stacked dependent'
 #### Scenario: A phase worker that ticks nothing
 - **WHEN** a phase worker exits 0 and its phase is still unticked at `HEAD`
 - **THEN** the version halts on the build check, and no worker for that phase is spawned again without an amend
+
+#### Scenario: A phase's tick is read back
+- **WHEN** a build worker has committed a phase whose `## Progress` line `HEAD` still holds unticked
+- **THEN** the worker ticks the box, commits it, and prints the line again before its close-out
+- **AND** its close-out quotes the line it printed
 
 #### Scenario: A stacked dependent is reset
 - **WHEN** a stacked dependent's dependency changes a decision, and the dependent is reset to its cut commit
@@ -4744,7 +4750,9 @@ process the run starts through its own worker and checker calls, with a prompt t
 role's reference. The script SHALL run the gate, `gate_check.py`, `plan_check.py` and each `Verify:` and **Still true?** command
 under `conduct.py`'s sandbox runner, never bare. It SHALL read a findings file's frontmatter keys `files`, `commits`, `passes` and
 `inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them SHALL be
-malformed. The status log's events and their text SHALL stay as before.
+malformed. `converge.py`, `open_cards.py`, `debt_match.py`, `overlap.py`, `conduct.py` and `cut_context.py` SHALL read a card's
+title as a line that starts `- **<id> — ` with an id holding no `*`, so a bullet that closes its bold after its first word,
+as `- **stale-claim** — ran.`, is no card. The status log's events and their text SHALL stay as before.
 
 The script SHALL go on where it can: a worker that exits non-zero or leaves no file SHALL get one fresh retry; a malformed
 findings file SHALL get one rewrite worker, then a debt card for it, and the run SHALL go on; a fixer whose gate is red or whose tree
@@ -4761,6 +4769,11 @@ stays red and a security card SHALL still halt.
 #### Scenario: A malformed findings file
 - **WHEN** a checker's findings file lacks `passes`, or holds a card with no `Amend:` field
 - **THEN** one rewrite worker is started for it, and a file still malformed becomes one debt card and no halt
+
+#### Scenario: A bold-led bullet that is no card
+- **WHEN** a findings file holds `- **stale-claim** — ran.` under a `## Passes` heading and `- **Spec** — none.` in its Summary, beside cards that carry their `Amend:` fields
+- **THEN** the file is read with those cards alone, and no rewrite worker is started for it
+- **AND** `open_cards.py` writes those cards alone
 
 #### Scenario: A worker exits 1
 - **WHEN** a checker exits 1 or leaves no findings file
@@ -5232,3 +5245,37 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 #### Scenario: A pid that is not the server
 - **WHEN** the pid file names a process whose command is not the viewer's server
 - **THEN** `stop` signals nothing, removes the stale files and says it was not running, and `start` starts a new server
+
+### Requirement: The gate holds the structure rules
+
+`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. Each rule SHALL carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
+
+#### Scenario: A load the map does not declare
+- **WHEN** a script names a file of another station that its row in `docs/modules.md` does not list
+- **THEN** `tests/test_structure.py` fails naming both files, and the gate is red
+
+#### Scenario: A station loads a station
+- **WHEN** a station's script names a script of another station and the pair is on no exception list
+- **THEN** the loads rule fails naming the pair
+
+#### Scenario: A private name crosses a file
+- **WHEN** a script reads `_name` from a file it names and the pair is on no exception list
+- **THEN** the names rule fails naming the file and the name
+
+#### Scenario: A cycle
+- **WHEN** two scripts name each other and the cycle is on no exception list
+- **THEN** the cycles rule fails naming the files of the cycle
+
+#### Scenario: An OS command outside its files
+- **WHEN** a script outside the listed files names `caffeinate`
+- **THEN** the OS-command rule fails naming the file and the command
+
+#### Scenario: A file with no row
+- **WHEN** a Python file under `skills/` has no row in `docs/modules.md`
+- **THEN** the map rule fails naming the file
+- **AND WHEN** a row names a file that is gone
+- **THEN** the map rule fails naming the row
+
+#### Scenario: A stale exception
+- **WHEN** a listed exception no longer exists in the tree
+- **THEN** the rule that lists it fails naming the exception, so a list only shrinks

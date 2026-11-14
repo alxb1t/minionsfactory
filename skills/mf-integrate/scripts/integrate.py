@@ -32,6 +32,11 @@ CITATION = re.compile(r"(\bD|#d)(\d+)\b")
 EDITED = ("## MODIFIED Requirements", "## REMOVED Requirements")
 TOKEN = re.compile(r"\w+|\s+|[^\w\s]")
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
+# Why: 0123-linux-ci-green design D1 — the replay needs no identity from the machine.
+SCRATCH_IDENTITY = (
+    *("-c", "user.name=mf-integrate", "-c", "user.email=mf-integrate@example.invalid"),
+    *("-c", "commit.gpgsign=false"),
+)
 # Each old-layout path of a change in the run directory.
 # Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D3.
 OLD_LAYOUT = (
@@ -720,6 +725,7 @@ def replay(cwd: Path, merge: str) -> str:
         # A recorded resolution is a person's; rerere must not replay it.
         merged = _run(
             scratch,
+            *SCRATCH_IDENTITY,
             *("-c", "rerere.enabled=false", "merge", "-q", "--no-ff", "--no-commit"),
             parents[1],
         )

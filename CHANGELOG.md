@@ -20,6 +20,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `mf-build`'s `W5` gains a clause: a guard that is a conjunction has one case per conjunct, built so that only that
   conjunct can halt it. A case where the first conjunct fails let the others go unheld (0125-conductor-guards, phase 4).
 
+## [0.101.0] - 2026-11-14
+
+Gate: local 7m38s · CI not read under mf-ship · 0.100.2: local 8m5s · CI not read under mf-ship
+
+- `docs/decisions.md` gains `D83`: the code is layered, a call goes down only, the conductor alone loads a station,
+  and the gate holds the shape. `D2` and `D57` allow one shared home, `skills/mflib/`; `D79` adds that a rule's list
+  of the sites a change cannot clean only shrinks (0124-structure-rules, phase 1).
+- `docs/modules.md` maps each Python file under `skills/` and `scripts/` to its layer and the files it names, and
+  `tests/test_structure.py` holds the map to the tree: a file with no row, a row with no file, a path with two rows,
+  a `names` cell that differs, an unknown layer, a `conductor` or `home` row outside its folder or a shared base name
+  fails the gate. A file names another by a string constant ending in its base name or by an import of its module
+  (0124-structure-rules, phase 2).
+- `tests/test_structure.py` holds loads and cycles: a script names only its own folder, the home or, from the
+  conductor, a station, and no names make a cycle. Today's breaches sit in `LOADS_OUTSIDE` and `CYCLE_FILES`, which
+  only shrink: a listed entry the tree no longer holds fails (0124-structure-rules, phase 3).
+- `tests/test_structure.py` holds private names and OS commands: no script takes a `_name` from a file it names, and
+  `sandbox-exec`, `caffeinate`, `sysctl` and `ps` appear only in listed files. Today's sites sit in `PRIVATE_REACH`
+  and `OS_NAMES`, which only shrink (0124-structure-rules, phase 4).
+- `docs/recipes.md` says what a new station, state file, OS or executor edits today, the row it adds to
+  `docs/modules.md` and the structure rule that holds it; `docs/README.md` and `AGENTS.md` name both pages
+  (0124-structure-rules, phase 5).
+
+## [0.100.2] - 2026-11-14
+
+Gate: local 8m5s · CI not read under mf-ship · 0.100.1: local 10m26s · CI not read under mf-ship
+
+- A card's title is a line `- **<id> — ` whose id holds no `*`, in every reader of cards: `converge.py`, `open_cards.py`,
+  `debt_match.py`, `overlap.py`, `conduct.py` and `cut_context.py`. A pass bullet such as `- **stale-claim** — ran.` is no
+  card, so converge no longer rewrites a file whose cards were fine. `worker.md` says no line outside a card starts with
+  `- **` (0122-card-title, phase 1).
+- `mf-build` reads a phase's `## Progress` line back at `HEAD` after its commit, ticks and commits a box found unticked,
+  and quotes the line in the close-out, so a tick the worker claims is a tick `HEAD` holds (0122-card-title, phase 2).
+
+## [0.100.1] - 2026-11-14
+
+Gate: local 10m26s · CI not read under mf-ship · 0.100.0: local 8m37s · CI not read under mf-ship
+
+- `integrate.py`'s replay merges under `SCRATCH_IDENTITY`, so a machine with no git identity runs it; the tests'
+  `isolated_home` sets `user.useConfigOnly`, so the macOS gate fails on a missing identity as Linux does
+  (0123-linux-ci-green, phase 1).
+- `gate_run.py`'s and `cut_pre.py`'s dry runs drop `MAKEFLAGS`, `MFLAGS` and `MAKELEVEL`, so a caller's make no
+  longer changes the dry run's hash or hides an empty recipe (0123-linux-ci-green, phase 2).
+- `test_stop_ends_a_live_run` and `test_a_stale_claim_is_cleared` start a plain `sleep` and register the `comm` of a
+  fake `claude`, so they need no link to the machine's `sleep` (0123-linux-ci-green, phase 3).
+
 ## [0.100.0] - 2026-11-12
 
 Gate: local 8m37s · CI not read under mf-ship · 0.99.0: local 17m27s · CI not read under mf-ship
