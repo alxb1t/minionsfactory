@@ -5,7 +5,7 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
 ## Progress
 
 - [x] 1 — The sandbox's lists · moderate
-- [ ] 2 — The push guard and the remote call · hard
+- [x] 2 — The push guard and the remote call · hard
 - [ ] 3 — Npm and processes · moderate
 - [ ] 4 — W5's clause · moderate
 
@@ -26,7 +26,7 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
   Verify: `uv run pytest tests/test_conduct.py -q -k no_tag_names` exits 0.
 - [x] 2.5 Add `test_an_octopus_with_a_recorded_release_is_not_pushed`: one `--no-ff` merge of `main`, then that release's tip, then an empty side commit on the recorded head, in that parent order, the release's build commit empty too. Same expectation.
   Verify: `uv run pytest tests/test_conduct.py -q -k octopus` exits 0.
-- [ ] 2.6 In `test_a_key_set_after_the_refusal_reaches_nothing`, add a step after the planted keys, the decoy bare repo made before it: within a `monkeypatch.context()` that sets the module's `_urls` to return `conduct["_urls"](root)` as read before the plant, set `url.<decoy path>.pushInsteadOf` to the origin's path in the primary's config, refresh `conductor.git_state`, run `conductor.push_left((0,))`, and assert the decoy bare repo holds no ref; then unset the key, with the real `_urls` back for the test's later steps ([D3](design.md#d3)).
+- [x] 2.6 In `test_a_key_set_after_the_refusal_reaches_nothing`, add a step after the planted keys, the decoy bare repo made before it: within a `monkeypatch.context()` that sets the module's `_urls` to return `conduct["_urls"](root)` as read before the plant, set `url.<decoy path>.pushInsteadOf` to the origin's path in the primary's config, refresh `conductor.git_state`, run `conductor.push_left((0,))`, and assert the decoy bare repo holds no ref; then unset the key, with the real `_urls` back for the test's later steps ([D3](design.md#d3)).
   Verify: `git grep -n 'pushInsteadOf' tests/test_conduct.py` prints the plant.
 
 ## 3 — Npm and processes

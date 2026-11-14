@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_sandboxed.py::test_the_deny_lists_are_literals` holds `SECRETS`, `TOKENS`, `NETWORK` and `HOOKS_OFF` as
   literals: the loops built their expectation from the list, so an entry removed left them green
   (0125-conductor-guards, phase 1).
+- `tests/test_conduct.py` holds each conjunct of the push guard `_foreign_commit` with its own case — an octopus,
+  another subject, a tag off the tip, a merge that adds a file — and plants `url.<decoy>.pushInsteadOf` to hold that a
+  remote call reads no repo's config (0125-conductor-guards, phase 2).
 
 ## [0.100.0] - 2026-11-12
 

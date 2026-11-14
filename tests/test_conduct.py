@@ -105,6 +105,20 @@ def _released(
     _git(root, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch)
 
 
+def _unmerged_release(root: Path, tag: str) -> tuple[str, str]:
+    """Return the recorded head and the tagged tip of `_released`'s branch, unmerged."""
+    branch = f"release-{tag}"
+    _git(root, "switch", "-q", "-c", branch)
+    _git(root, "commit", "-q", "--allow-empty", "-m", f"build {tag}")
+    head = _git(root, "rev-parse", "HEAD").strip()
+    _conduct()["_record_release"](root, branch, head)
+    _git(root, "commit", "-q", "--allow-empty", "-m", f"chore(release): {tag}")
+    _git(root, "tag", "-a", "-m", tag, tag)
+    tip = _git(root, "rev-parse", "HEAD").strip()
+    _git(root, "switch", "-q", "main")
+    return head, tip
+
+
 def _lstart(pid: int) -> str:
     command = ["env", "LC_ALL=C", "TZ=UTC0", "ps", "-o", "lstart=", "-p", str(pid)]
     return subprocess.run(command, capture_output=True, text=True).stdout.strip()
@@ -7811,9 +7825,19 @@ def test_a_key_set_after_the_refusal_reaches_nothing(
     assert not ran.exists()
     assert conduct["_pushed"](root, "release-v0.2.0", "v0.2.0") is False
     assert not ran.exists()
-    conduct["_kept_file"](root).unlink()
     decoy = tmp_path / "decoy.git"
     _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(decoy))
+    # A key a URL-addressed push obeys: the push reads no repo's config. `_urls` keeps
+    # its read from before the plant, as the refusal reads the config clean.
+    urls = conduct["_urls"](root)
+    with monkeypatch.context() as held:
+        held.setitem(module, "_urls", lambda _: urls)
+        _git(root, "config", f"url.{decoy}.pushInsteadOf", str(origin))
+        conductor.git_state = conduct["_git_state"](root)
+        conductor.push_left((0,))
+        assert _git(decoy, "for-each-ref") == ""
+    _git(root, "config", "--unset", f"url.{decoy}.pushInsteadOf")
+    conduct["_kept_file"](root).unlink()
     _git(root, "remote", "set-url", "origin", str(decoy))
     conductor.git_state = conduct["_git_state"](root)
     conductor.push_left((0,))
@@ -7973,6 +7997,73 @@ def test_a_release_merge_no_run_made_is_not_pushed(
     for tag in refused:
         _git(root, "merge", "-q", "--no-ff", "-m", "a merge", f"release-{tag}")
     halts_on(_git(root, "rev-parse", "main")[:7])
+
+
+def test_a_release_merge_that_adds_a_file_is_not_pushed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct, root, _ = _origin_judged(tmp_path, monkeypatch, capsys, fake)
+    base = _git(root, "rev-parse", "origin/main").strip()
+    _unmerged_release(root, "v0.9.0")
+    _git(root, "merge", "-q", "--no-ff", "--no-commit", "release-v0.9.0")
+    (root / "mine.txt").write_text("x\n")
+    _git(root, "add", "mine.txt")
+    _git(root, "commit", "-q", "-m", "Merge branch 'release-v0.9.0'")
+    with pytest.raises(conduct["Stop"], match="no run's release"):
+        conduct["_foreign_commit"](root, base, "main")
+
+
+def test_a_merge_on_a_recorded_head_with_another_subject_is_not_pushed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct, root, _ = _origin_judged(tmp_path, monkeypatch, capsys, fake)
+    base = _git(root, "rev-parse", "origin/main").strip()
+    head, _ = _unmerged_release(root, "v0.8.0")
+    _git(root, "switch", "-q", "-c", "side", head)
+    _git(root, "commit", "-q", "--allow-empty", "-m", "feat: side")
+    _git(root, "tag", "-a", "-m", "v0.9.0", "v0.9.0")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'side'", "side")
+    with pytest.raises(conduct["Stop"], match="no run's release"):
+        conduct["_foreign_commit"](root, base, "main")
+
+
+def test_a_tip_no_tag_names_is_not_pushed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct, root, _ = _origin_judged(tmp_path, monkeypatch, capsys, fake)
+    base = _git(root, "rev-parse", "origin/main").strip()
+    head, _ = _unmerged_release(root, "v0.9.0")
+    _git(root, "tag", "-f", "-a", "-m", "v0.9.0", "v0.9.0", head)
+    _git(root, "merge", "-q", "--no-ff", "-m", "a merge", "release-v0.9.0")
+    with pytest.raises(conduct["Stop"], match="no run's release"):
+        conduct["_foreign_commit"](root, base, "main")
+
+
+def test_an_octopus_with_a_recorded_release_is_not_pushed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct, root, _ = _origin_judged(tmp_path, monkeypatch, capsys, fake)
+    base = _git(root, "rev-parse", "origin/main").strip()
+    head, _ = _unmerged_release(root, "v0.9.0")
+    _git(root, "switch", "-q", "-c", "side", head)
+    _git(root, "commit", "-q", "--allow-empty", "-m", "side")
+    _git(root, "switch", "-q", "main")
+    _git(root, "merge", "-q", "--no-ff", "-m", "an octopus", "release-v0.9.0", "side")
+    with pytest.raises(conduct["Stop"], match="no run's release"):
+        conduct["_foreign_commit"](root, base, "main")
 
 
 def test_a_bare_version_tag_is_not_pushed(
