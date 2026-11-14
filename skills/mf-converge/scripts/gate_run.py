@@ -79,13 +79,29 @@ def settled_tree() -> str | None:
     return _git("write-tree").strip()
 
 
+def _overrides() -> str:
+    """Return the variable overrides a caller's make passes down; the gate keeps them.
+
+    e.g. MAKEFLAGS=" -w -- SKIP=1" → "SKIP=1"
+    """
+    found: set[str] = set()
+    for name in ("MAKEFLAGS", "MFLAGS"):
+        words = os.environ.get(name, "").split()
+        if "--" in words:
+            found.update(words[words.index("--") + 1 :])
+    return "\n".join(sorted(found))
+
+
 def dry_run() -> str:
-    """Return the sha256 of `make -n gate`'s output; a failure stops with its code."""
+    """Return the sha256 of `make -n gate`'s output and the inherited overrides.
+
+    A failure stops with its code.
+    """
     done = _run(["make", "-n", "gate"], _dry_env())
     if done.returncode != 0:
         sys.stderr.write(done.stderr)
         raise Stop(done.returncode, "gate: cannot run — `make -n gate` failed")
-    return hashlib.sha256(done.stdout.encode()).hexdigest()
+    return hashlib.sha256(f"{done.stdout}\0{_overrides()}".encode()).hexdigest()
 
 
 def read_record(path: Path) -> dict[str, str]:

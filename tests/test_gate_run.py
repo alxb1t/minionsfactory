@@ -83,6 +83,7 @@ def test_a_green_run_is_recorded_and_reused_on_the_same_tree(tmp_path: Path) -> 
     assert _runs(log) == 2
 
 
+@pytest.mark.slow
 def test_a_record_holds_under_inherited_make_flags(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -94,6 +95,20 @@ def test_a_record_holds_under_inherited_make_flags(
     again = _gate(root)
     assert again.stdout.startswith("gate: reused — "), again.stdout
     assert _runs(log) == 1
+
+
+def test_a_record_is_not_reused_across_inherited_make_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, log = tmp_path / "repo", tmp_path / "runs.log"
+    _repo(root, log, recipe="$(if $(SKIP),true,false)")
+    monkeypatch.setenv("MAKEFLAGS", " -- SKIP=1")
+    assert _gate(root).returncode == 0
+    monkeypatch.delenv("MAKEFLAGS")
+    plain = _gate(root)
+    assert plain.returncode == 2, plain.stdout
+    assert "gate: reused" not in plain.stdout
+    assert _runs(log) == 2
 
 
 def test_a_red_run_records_nothing(tmp_path: Path) -> None:
