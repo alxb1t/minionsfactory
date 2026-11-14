@@ -9,6 +9,7 @@ Exit 0 no halt · 1 a halt · 2 unrunnable. Why: 0106-cut-scripts design D5.
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -18,17 +19,21 @@ from pathlib import Path
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-[a-z0-9]+(?:-[a-z0-9]+)*")
 NO_WORK = ("is up to date", "Nothing to be done")
+CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 
 
 class Stop(Exception):
     """End the run with exit 2; the message is what it prints."""
 
 
-def _tool(argv: list[str]) -> subprocess.CompletedProcess[str] | None:
+def _tool(
+    argv: list[str], env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str] | None:
     """Return a finished process run here, or None when it cannot start or hangs."""
     try:
         return subprocess.run(
             argv,
+            env=env,
             capture_output=True,
             text=True,
             errors="replace",
@@ -138,7 +143,8 @@ def check_gate(change: str, unattended: bool) -> str | None:
 
     `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and `$(MAKE)`.
     """
-    done = _tool(["make", "-n", "gate"])
+    env = {key: value for key, value in os.environ.items() if key not in CLEARED}
+    done = _tool(["make", "-n", "gate"], env)
     if done is None or done.returncode:
         return "`make -n gate` does not run: the root Makefile has no `gate` target"
     commands = [

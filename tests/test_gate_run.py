@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-converge" / "scripts" / "gate_run.py"
 
@@ -78,6 +80,34 @@ def test_a_green_run_is_recorded_and_reused_on_the_same_tree(tmp_path: Path) -> 
     _git(root, "commit", "-q", "-m", "edit")
     committed = _gate(root)
     assert committed.stdout.startswith("gate: reused — "), committed.stdout
+    assert _runs(log) == 2
+
+
+@pytest.mark.slow
+def test_a_record_holds_under_inherited_make_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, log = tmp_path / "repo", tmp_path / "runs.log"
+    _repo(root, log)
+    monkeypatch.setenv("MAKEFLAGS", "w")
+    assert _gate(root).returncode == 0
+    monkeypatch.delenv("MAKEFLAGS")
+    again = _gate(root)
+    assert again.stdout.startswith("gate: reused — "), again.stdout
+    assert _runs(log) == 1
+
+
+def test_a_record_is_not_reused_across_inherited_make_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, log = tmp_path / "repo", tmp_path / "runs.log"
+    _repo(root, log, recipe="$(if $(SKIP),true,false)")
+    monkeypatch.setenv("MAKEFLAGS", " -- SKIP=1")
+    assert _gate(root).returncode == 0
+    monkeypatch.delenv("MAKEFLAGS")
+    plain = _gate(root)
+    assert plain.returncode == 2, plain.stdout
+    assert "gate: reused" not in plain.stdout
     assert _runs(log) == 2
 
 
