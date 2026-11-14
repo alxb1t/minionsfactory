@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
-  The shape D1…D4, D52 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
+  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
 ```
 
 ## The shape
@@ -32,7 +32,8 @@ all about one thing.**
 **What MinionsFactory ships is a way of working — grill, cut, build, converge, release — as installable skills. It
 is not a framework. The stations install nothing into the repo they work on; `mf-bootstrap` writes a new
 repo's starting files, once. A skill may bundle a standard-library script, or one whose PEP 723
-header names a package the person approved, run from its own package and never copied into the target ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).**
+header names a package the person approved, run from its own package and never copied into the target ([D43](#d43--project-health-is-measured-per-change-from-the-repos-own-catalogue)).
+Scripts may share code from one home under `skills/`, `skills/mflib/`, which the pin exports with the skills.**
 
 - **Why:** a tool installed per repo is a copy of the contract in every target.
 
@@ -60,6 +61,23 @@ that exact version, checked against the release's checksum. Betterleaks, the gat
 - **Why:** uv pins what PyPI ships, and a scanner with no PyPI build still needs one version everywhere; the checksum
   keeps CI's copy the one `AGENTS.md` names.
 - **Accepts:** a local gate runs the version on `PATH`, and fails where the tool is missing.
+
+### D83 · The code is layered, with named seams, held by the gate
+
+**The code has layers: the skills' prose, their scripts, one shared home, `skills/mflib/`, and the ports a script
+reaches the world through. A call goes down only. The conductor is the one script that loads a station, in process, as
+it loads `converge.py` ([D78](#d78--the-converge-conductor-is-a-script)); no station loads another station or the
+conductor. The world is reached through named seams — the platform, the executor, the host and the tooling.
+`docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds the map, the loads, the private
+names, the cycles and the OS commands in `make gate` and `make check`.**
+
+- **Why:** the refactoring series moves code one region at a time, and a shape no gate holds drifts back with the next
+  feature: a load of another station, a borrowed private name, a cycle, an OS command in a new file.
+- **Accepts:** today's breaches, each on a list in `tests/test_structure.py` that only shrinks
+  ([D79](#d79--a-tool-finds-a-checker-judges)) · a name that is no load, held as an edge · a row in `docs/modules.md`
+  for each new script.
+- **Rejected:** a layer table beyond the map's layers · a rule per file · a new gate step · a decision per rule.
+- **Amends:** D2, D57 and D79, each edited where it lives.
 
 ## Planning
 
@@ -574,7 +592,8 @@ pass; only the environment, a loop outcome, a red gate and a security card halt.
 family, a docstring limit, a call with no timeout — is a line of `make gate`, its sites cleaned in the change that adds it.
 Converge writes `evidence.md` in the change's run folder at every freeze: the suppressions, skips, removed tests and
 gate-config edits of the diff, the plan check, the names the diff removes and where the tree still holds them, and the cost
-of each added test. Each checker starts from it, never re-derives a line it holds, and judges its judgment half.**
+of each added test. Each checker starts from it, never re-derives a line it holds, and judges its judgment half.
+Where a change cannot clean every site, the rule carries a named list of the rest, which only shrinks: a listed site that is gone fails the rule, and a change that adds one to a list already in the tree is rejected in review.**
 
 - **Why:** the checkers spent tokens on facts a script finds, and the same syntactic classes came back as debt cards.
 - **Accepts:** a line the evidence lists that is no defect, a move between files among them — the checker judges it ·
@@ -1060,6 +1079,6 @@ script on an old layout halts, naming `/mf-ship`, and `review_metrics.py` reads 
 
 - **Why:** a person, or a viewer, reading one version opens one folder, not seven by kind and one per run.
 - **Accepts:** a repo no run has moved halts its hand-run stations until a run moves it · a file the move does not name
-  stays where it is.
-- **Rejected:** keeping `<id>_` prefixes · a shared helper module · reading both layouts in the stage machine · a
+  stays where it is · a script finds the change folder through its own `_change_dir` until the shared home holds the finder.
+- **Rejected:** keeping `<id>_` prefixes · reading both layouts in the stage machine · a
   one-off migration of other repos · the probe's log in a change's folder.

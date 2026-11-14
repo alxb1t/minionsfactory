@@ -4,7 +4,7 @@ The record, the module map with its rule, loads and cycles, names and OS command
 
 ## Progress
 
-- [ ] 1 — The record · moderate
+- [x] 1 — The record · moderate
 - [ ] 2 — The module map and its rule · hard
 - [ ] 3 — Loads and cycles · hard
 - [ ] 4 — Names and OS commands · hard
@@ -12,16 +12,16 @@ The record, the module map with its rule, loads and cycles, names and OS command
 
 ## 1 — The record
 
-- [ ] 1.1 Add `### D83 · The code is layered, with named seams, held by the gate` to `docs/decisions.md`, after `D52`, as [D7](design.md#d7) says.
+- [x] 1.1 Add `### D83 · The code is layered, with named seams, held by the gate` to `docs/decisions.md`, after `D52`, as [D7](design.md#d7) says.
   Verify: `git grep -n "^### D83 " docs/decisions.md` prints the heading.
-- [ ] 1.2 Add `D83` to the index line of *The shape* in `docs/decisions.md`, so the shape's ids read `D1…D4, D52, D83`.
+- [x] 1.2 Add `D83` to the index line of *The shape* in `docs/decisions.md`, so the shape's ids read `D1…D4, D52, D83`.
   Verify: `git grep -n -F "D52, D83" docs/decisions.md` prints the index line.
-- [ ] 1.3 In `docs/decisions.md`, `D57`: drop "a shared helper module" from *Rejected*, and append to its *Accepts* bullet "· a script finds the change folder through its own `_change_dir` until the shared home holds the finder".
+- [x] 1.3 In `docs/decisions.md`, `D57`: drop "a shared helper module" from *Rejected*, and append to its *Accepts* bullet "· a script finds the change folder through its own `_change_dir` until the shared home holds the finder".
   Verify: `git grep -n "a shared helper module" docs/decisions.md` prints nothing.
-- [ ] 1.4 In `docs/decisions.md`, `D2`: add one sentence at the end of the bold statement, before its closing `**`, starting on a new line.
+- [x] 1.4 In `docs/decisions.md`, `D2`: add one sentence at the end of the bold statement, before its closing `**`, starting on a new line.
   The sentence: "Scripts may share code from one home under `skills/`, `skills/mflib/`, which the pin exports with the skills."
   Verify: `git grep -n "^Scripts may share code" docs/decisions.md` prints the line.
-- [ ] 1.5 In `docs/decisions.md`, `D79`: add a sentence at the end of the bold statement, before its closing `**`, starting on a new line ([D6](design.md#d6)).
+- [x] 1.5 In `docs/decisions.md`, `D79`: add a sentence at the end of the bold statement, before its closing `**`, starting on a new line ([D6](design.md#d6)).
   The sentence: "Where a change cannot clean every site, the rule carries a named list of the rest, which only shrinks: a listed site that is gone fails the rule, and a change that adds one to a list already in the tree is rejected in review."
   Verify: `git grep -n "^Where a change cannot clean every site" docs/decisions.md` prints the line.
 
