@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.101.0] - 2026-11-14
+
+Gate: local 7m38s · CI not read under mf-ship · 0.100.2: local 8m5s · CI not read under mf-ship
+
 - `docs/decisions.md` gains `D83`: the code is layered, a call goes down only, the conductor alone loads a station,
   and the gate holds the shape. `D2` and `D57` allow one shared home, `skills/mflib/`; `D79` adds that a rule's list
   of the sites a change cannot clean only shrinks (0124-structure-rules, phase 1).
