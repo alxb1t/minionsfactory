@@ -12,7 +12,7 @@ The card title in every reader of cards, then the tick read in the build skill.
 - [x] 1.1 In `skills/mf-converge/scripts/converge.py`, change `TITLE` and `DEBT_TITLE` per [D1](design.md#d1): `(\S+)` becomes `([^\s*]+)`.
   Verify: `git grep -c -F -e '[^\s*]+' -- skills/mf-converge/scripts/converge.py` prints `skills/mf-converge/scripts/converge.py:2`.
 - [x] 1.2 In `skills/mf-converge/scripts/open_cards.py`, `skills/mf-converge/scripts/debt_match.py` and `skills/mf-converge/scripts/overlap.py`, change `TITLE` the same way: `\S+` becomes `[^\s*]+`, the capture kept in `open_cards.py`.
-  Verify: `git grep -c -F -e '[^\s*]+' -- skills/mf-converge/scripts/open_cards.py skills/mf-converge/scripts/debt_match.py skills/mf-converge/scripts/overlap.py` prints each file with `1`.
+  Verify: `git grep -c -F -e '[^\s*]+' -- skills/mf-converge/scripts/open_cards.py skills/mf-converge/scripts/debt_match.py skills/mf-converge/scripts/overlap.py` prints one line for each of the three files, each ending in a colon and 1.
 - [x] 1.3 In `skills/mf-ship/scripts/conduct.py`, change `CARD` and the `re.match` in `_cards` the same way, `\S+` becoming `[^\s*]+` with the capture kept, per [D2](design.md#d2) and [D7](design.md#d7).
   Verify: `git grep -c -F -e '[^\s*]+' -- skills/mf-ship/scripts/conduct.py` prints `skills/mf-ship/scripts/conduct.py:2`.
 - [x] 1.4 In `skills/mf-cut-change/scripts/cut_context.py`, change `CARD_ID` the same way: `\S+` becomes `[^\s*]+`, the capture kept.
