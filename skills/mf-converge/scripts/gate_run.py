@@ -20,6 +20,7 @@ from pathlib import Path
 
 TIMEOUT_SECONDS = 600
 GATE_SECONDS = 3600
+CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 
 
 class Stop(Exception):
@@ -48,6 +49,11 @@ def _make_env() -> dict[str, str]:
     return {key: value for key, value in os.environ.items() if key != "VIRTUAL_ENV"}
 
 
+def _dry_env() -> dict[str, str]:
+    """Return `_make_env()` without the make variables a caller's make passes down."""
+    return {k: v for k, v in _make_env().items() if k not in CLEARED}
+
+
 def _git(*args: str) -> str:
     """Return a git command's stdout; a failure stops the run with exit 2."""
     done = _run(["git", *args])
@@ -73,13 +79,29 @@ def settled_tree() -> str | None:
     return _git("write-tree").strip()
 
 
+def _overrides() -> str:
+    """Return the variable overrides a caller's make passes down; the gate keeps them.
+
+    e.g. MAKEFLAGS=" -w -- SKIP=1" → "SKIP=1"
+    """
+    found: set[str] = set()
+    for name in ("MAKEFLAGS", "MFLAGS"):
+        words = os.environ.get(name, "").split()
+        if "--" in words:
+            found.update(words[words.index("--") + 1 :])
+    return "\n".join(sorted(found))
+
+
 def dry_run() -> str:
-    """Return the sha256 of `make -n gate`'s output; a failure stops with its code."""
-    done = _run(["make", "-n", "gate"], _make_env())
+    """Return the sha256 of `make -n gate`'s output and the inherited overrides.
+
+    A failure stops with its code.
+    """
+    done = _run(["make", "-n", "gate"], _dry_env())
     if done.returncode != 0:
         sys.stderr.write(done.stderr)
         raise Stop(done.returncode, "gate: cannot run — `make -n gate` failed")
-    return hashlib.sha256(done.stdout.encode()).hexdigest()
+    return hashlib.sha256(f"{done.stdout}\0{_overrides()}".encode()).hexdigest()
 
 
 def read_record(path: Path) -> dict[str, str]:
