@@ -5,15 +5,17 @@ The declared shape of the scripts: each Python file under `skills/` and `scripts
 
 The layers:
 
-- **`conductor`** — the scripts that run a version's line and load a station in process.
+- **`conductor`** — the scripts under `skills/mf-ship/scripts/` that run a version's line and load a station in process.
 - **`station`** — a station's own scripts.
 - **`reader`** — the operator's readers of run data, and the metric scripts.
 - **`gate`** — the scripts `make gate` and `make corpus` run.
 - **`home`** — the shared home, `skills/mflib/`; no row until it exists.
 
+A row gives a path once, and `check_map` fails on a `conductor` or `home` row outside its folder.
+
 A file **names** another when a string constant outside its docstrings ends in the other's base name, after its last
-`/`: `"mf-integrate/scripts/integrate.py"` names `integrate.py`, `"run integrate.py"` names nothing. The `names` cell
-lists those base names in order, `—` for none.
+`/`, or when an import loads the other's module by name: `"mf-integrate/scripts/integrate.py"` and `import integrate`
+name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists those base names in order, `—` for none.
 
 | path | layer | names |
 |---|---|---|

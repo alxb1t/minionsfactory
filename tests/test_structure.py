@@ -2,6 +2,7 @@
 
 import ast
 import re
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ _FOLDERS = ("skills", "scripts")
 _OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 _MAP = "docs/modules.md"
 _LAYERS = ("conductor", "station", "reader", "gate", "home")
+_SEATS = {"conductor": "skills/mf-ship/scripts/", "home": "skills/mflib/"}
 
 LOADS_OUTSIDE: frozenset[tuple[str, str]] = frozenset(
     {
@@ -103,6 +105,22 @@ def _strings(tree: ast.Module) -> list[str]:
     ]
 
 
+def _imported(tree: ast.Module) -> set[str]:
+    """Return the base name `<module>.py` of each module an import in `tree` loads.
+
+    e.g. `import a.y`, `from .y import z` and `from . import y` → `{"y.py"}`
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            found.update(
+                [node.module] if node.module else (alias.name for alias in node.names)
+            )
+    return {f"{name.rpartition('.')[2]}.py" for name in found}
+
+
 def _parse(root: Path) -> dict[str, ast.Module]:
     """Return each script's path mapped to its syntax tree."""
     return {
@@ -120,17 +138,31 @@ def edges(root: Path) -> dict[str, list[str]]:
 
 
 def _edges(trees: dict[str, ast.Module]) -> dict[str, list[str]]:
-    """Return each path of `trees` mapped to the sorted paths its strings name."""
+    """Return each path of `trees` mapped to the sorted paths it names or imports."""
     by_base: dict[str, list[str]] = {}
     for path in trees:
         by_base.setdefault(path.rpartition("/")[2], []).append(path)
     found: dict[str, list[str]] = {}
     for path, tree in trees.items():
-        bases = {text.rpartition("/")[2] for text in _strings(tree)}
+        bases = {text.rpartition("/")[2] for text in _strings(tree)} | _imported(tree)
         found[path] = sorted(
             other for base in bases for other in by_base.get(base, []) if other != path
         )
     return found
+
+
+def _map_lines(root: Path) -> list[tuple[str, str, str]]:
+    """Return the path, layer and `names` cell of each row of the map's table, in order.
+
+    e.g. `[("skills/mf-ship/scripts/pin.py", "conductor", "conduct.py")]`
+    """
+    lines: list[tuple[str, str, str]] = []
+    for line in (root / _MAP).read_text(encoding="utf-8").splitlines():
+        if not line.startswith("| `"):
+            continue
+        path, layer, names = (cell.strip() for cell in line.strip("|").split("|"))
+        lines.append((path.strip("`"), layer, names))
+    return lines
 
 
 def map_rows(root: Path) -> dict[str, tuple[str, str]]:
@@ -138,13 +170,7 @@ def map_rows(root: Path) -> dict[str, tuple[str, str]]:
 
     e.g. `{"skills/mf-ship/scripts/pin.py": ("conductor", "conduct.py")}`
     """
-    rows: dict[str, tuple[str, str]] = {}
-    for line in (root / _MAP).read_text(encoding="utf-8").splitlines():
-        if not line.startswith("| `"):
-            continue
-        path, layer, names = (cell.strip() for cell in line.strip("|").split("|"))
-        rows[path.strip("`")] = (layer, names)
-    return rows
+    return {path: (layer, names) for path, layer, names in _map_lines(root)}
 
 
 def check_map(root: Path) -> list[str]:
@@ -153,9 +179,15 @@ def check_map(root: Path) -> list[str]:
     e.g. `["scripts/x.py: no row in docs/modules.md"]`
     """
     found = edges(root)
-    rows = map_rows(root)
+    lines = _map_lines(root)
+    rows = dict.fromkeys(path for path, _, _ in lines)
     breaches = [f"{path}: no row in {_MAP}" for path in found if path not in rows]
     breaches += [f"{path}: a row with no file" for path in rows if path not in found]
+    breaches += [
+        f"{path}: {count} rows in {_MAP}"
+        for path, count in Counter(path for path, _, _ in lines).items()
+        if count > 1
+    ]
     by_base: dict[str, list[str]] = {}
     for path in found:
         by_base.setdefault(path.rpartition("/")[2], []).append(path)
@@ -164,9 +196,12 @@ def check_map(root: Path) -> list[str]:
         for base, paths in by_base.items()
         if len(paths) > 1
     ]
-    for path, (layer, names) in rows.items():
+    for path, layer, names in lines:
         if layer not in _LAYERS:
             breaches.append(f"{path}: layer {layer!r} is none of {', '.join(_LAYERS)}")
+        seat = _SEATS.get(layer, "")
+        if not path.startswith(seat):
+            breaches.append(f"{path}: layer {layer!r} outside {seat}")
         if path in found:
             named = ", ".join(sorted(other.rpartition("/")[2] for other in found[path]))
             if names != (named or "—"):
@@ -236,9 +271,14 @@ def check_cycles(root: Path, listed: frozenset[str] = CYCLE_FILES) -> list[str]:
 
 
 def _top_names(tree: ast.Module) -> set[str]:
-    """Return the names `tree` defines by `def`, `class` or assignment at its top."""
+    """Return the names `tree` binds at its top by `def`, `class`, assignment or import.
+
+    A top-level `if` or `try` binds at the top too, in each of its branches.
+    """
     found: set[str] = set()
-    for node in tree.body:
+    todo: list[ast.stmt] = list(tree.body)
+    while todo:
+        node = todo.pop()
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
             found.add(node.name)
         elif isinstance(node, ast.Assign | ast.AnnAssign):
@@ -249,6 +289,15 @@ def _top_names(tree: ast.Module) -> set[str]:
                 for name in ast.walk(target)
                 if isinstance(name, ast.Name)
             )
+        elif isinstance(node, ast.Import | ast.ImportFrom):
+            found.update(
+                (alias.asname or alias.name).partition(".")[0] for alias in node.names
+            )
+        elif isinstance(node, ast.If):
+            todo += node.body + node.orelse
+        elif isinstance(node, ast.Try | ast.TryStar):
+            todo += node.body + node.orelse + node.finalbody
+            todo += [stmt for handler in node.handlers for stmt in handler.body]
     return found
 
 
@@ -378,6 +427,28 @@ def test_edges_skip_a_name_inside_longer_text(tmp_path: Path) -> None:
     assert edges(root)["scripts/x.py"] == []
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import y\n",
+        "import y as w\n",
+        "from y import _z\n",
+        "from . import y\n",
+        "from .y import z\n",
+    ],
+    ids=["import", "import-as", "from-import", "relative", "relative-from"],
+)
+def test_edges_find_an_import_of_another_script(tmp_path: Path, source: str) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": source, "scripts/y.py": ""})
+    assert edges(root)["scripts/x.py"] == ["scripts/y.py"]
+
+
+def test_edges_skip_an_import_of_no_script(tmp_path: Path) -> None:
+    source = "import yy\nimport os.path\nfrom os import y\n"
+    root = _plant(tmp_path, {"scripts/x.py": source, "scripts/y.py": ""})
+    assert edges(root)["scripts/x.py"] == []
+
+
 def test_edges_cover_each_python_file_of_the_tree() -> None:
     assert sorted(edges(_REPO)) == python_files(_REPO)
     assert "skills/mf-ship/scripts/conduct.py" in python_files(_REPO)
@@ -433,6 +504,25 @@ def test_check_map_fails_on_a_base_name_two_files_hold(tmp_path: Path) -> None:
     assert check_map(root) == [
         "y.py: a base name held by scripts/y.py, skills/mf-a/scripts/y.py"
     ]
+
+
+@pytest.mark.parametrize(
+    ("layer", "folder"),
+    [("conductor", "skills/mf-ship/scripts/"), ("home", "skills/mflib/")],
+    ids=["conductor", "home"],
+)
+def test_check_map_fails_on_a_layer_outside_its_folder(
+    tmp_path: Path, layer: str, folder: str
+) -> None:
+    path = "skills/mf-a/scripts/x.py"
+    root = _mapped(tmp_path, {path: ""}, f"| `{path}` | {layer} | — |\n")
+    assert check_map(root) == [f"{path}: layer {layer!r} outside {folder}"]
+
+
+def test_check_map_fails_on_a_path_with_two_rows(tmp_path: Path) -> None:
+    rows = "| `scripts/x.py` | gate | — |\n| `scripts/x.py` | reader | — |\n"
+    root = _mapped(tmp_path, {"scripts/x.py": ""}, rows)
+    assert check_map(root) == ["scripts/x.py: 2 rows in docs/modules.md"]
 
 
 _STATIONS = (
@@ -541,11 +631,42 @@ def test_check_names_holds_on_the_tree() -> None:
         'Y = "y.py"\ngetattr(ns, "_z")\n',
         'Y = "y.py"\nns._z\n',
         'Y = "y.py"\nfrom y import _z\n',
+        "from y import _z\n",
+        "import y\ny._z()\n",
     ],
-    ids=["subscript", "get", "getattr", "attribute", "from-import"],
+    ids=[
+        "subscript",
+        "get",
+        "getattr",
+        "attribute",
+        "from-import",
+        "from-import-only",
+        "import-attribute",
+    ],
 )
 def test_check_names_fails_on_a_private_reach(tmp_path: Path, source: str) -> None:
     root = _named(tmp_path, source)
+    assert check_names(root, listed=frozenset()) == [
+        "x.py takes _z: a private name of a file it names, not listed in PRIVATE_REACH"
+    ]
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        'import sys\nif sys.platform == "darwin":\n    def _z() -> None: ...\n',
+        "if True:\n    pass\nelse:\n    _z = 1\n",
+        "try:\n    _z = 1\nexcept ImportError:\n    pass\n",
+        "try:\n    pass\nexcept ImportError:\n    _z = 1\n",
+        "import os as _z\n",
+        "from os import path as _z\n",
+    ],
+    ids=["if", "else", "try", "except", "import-as", "from-import-as"],
+)
+def test_check_names_fails_on_a_private_name_defined_below_the_top(
+    tmp_path: Path, target: str
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": _REACH, "scripts/y.py": target})
     assert check_names(root, listed=frozenset()) == [
         "x.py takes _z: a private name of a file it names, not listed in PRIVATE_REACH"
     ]

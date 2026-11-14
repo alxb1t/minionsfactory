@@ -52,6 +52,7 @@ os.path.basename(word) == "conduct.py"                  edge: review_metrics.py 
 ```
 
 An edge is a name, not proof of a load: a script that only names another is held to the same rules. The base names under `skills/` and `scripts/` must be unique, since an edge finds its file by base name; `check_map` fails on a base name that more than one file holds.
+Fix note (2026-11-14, S2): an `import` or `from … import` whose module, or whose relative alias, is another script's module name is an edge too.
 
 ### D3
 
@@ -66,6 +67,7 @@ The map is a table in `docs/modules.md`, one row for each Python file under `ski
 Today's layers: `conduct.py` and `pin.py` are the `conductor`; each script of `mf-plan`, `mf-cut-change`, `mf-build`, `mf-converge`, `mf-integrate` and `mf-release` is a `station`; `viewer.py`, `review_metrics.py` and the scripts under `scripts/metrics/` are `reader`; `scripts/corpus.py` and `scripts/docstrings.py` are `gate`. `home` is for a file under `skills/mflib/`, which no row uses until that folder exists.
 
 Rule 5, the map: `check_map` fails on a file with no row, a row with no file, a layer outside the list, a `names` cell that differs from the edges found, and a base name that more than one file holds. The `names` cell makes a new load a visible diff of the map.
+Fix note (2026-11-14, S1 and S4): `check_map` also fails on a path with more than one row, and on a `conductor` row outside `skills/mf-ship/scripts/` or a `home` row outside `skills/mflib/`.
 
 ### D4
 
@@ -89,6 +91,7 @@ Rule 2, private names. A **private reach** in F holds when F has a string consta
 Today's reaches are the conductor's helpers read from `brief_check.py`, `pin.py` and `viewer.py` through the dict `runpy` hands back: `_rows` and `_plain_row`; `_scratch` and `_kept_origin`; `_claim`, `_cuts`, `_progress`, `_rating`, `_frontmatter`, `_build_halt`, `_maybe` and `_queue`. `review_metrics.py` also reads `_STYLE` of `metrics.py` as an attribute of the module it loads.
 
 Rule 4, OS commands. A string constant outside a docstring that holds `sandbox-exec`, `caffeinate`, `sysctl` or `ps` as a whole word names it. `OS_NAMES` lists each `(file, command)` today, written from the rule's output; the cut found `conduct.py`, `awake.py` and `viewer.py`.
+Fix note (2026-11-14, S3): a name G defines at the top level counts its imports' aliases and the bindings under a top-level `if` or `try`.
 
 ### D6
 
