@@ -68,7 +68,7 @@ PLACEHOLDERS = (
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 FRONT = re.compile(r"\A---\n(.*?\n)---\n", re.DOTALL)
-TITLE = re.compile(r"^- \*\*(\S+) — ")
+TITLE = re.compile(r"^- \*\*([^\s*]+) — ")
 FIELD = re.compile(r"^[ \t]+- \*\*(.+?):?\*\*:?[ \t]*(.*)$")
 BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
 INTEGERS = ("round", "open_blocking", "files", "commits")
@@ -90,7 +90,7 @@ COMMAND = re.compile(r"`([^`]+)`")
 REPEAT = re.compile(r"repeat of `?([\w·]+)")
 NOTE = re.compile(r"^Fix note \(\d{4}-\d\d-\d\d, ([^)]+)\):")
 DECISION = re.compile(r"^### (D\d+)\b")
-DEBT_TITLE = re.compile(r"^- \*\*(\S+) — ", re.MULTILINE)
+DEBT_TITLE = re.compile(r"^- \*\*([^\s*]+) — ", re.MULTILINE)
 DEBT_PREAMBLE = (
     "# Debt\n\n*Deferred work from converge, one heading per change; a paydown change"
     " lists the ids it closes under `debt:`.*\n"

@@ -18,7 +18,7 @@ from pathlib import Path
 
 HEADING = "# Debt cards on the diff's files"
 DIFF = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.MULTILINE)
-TITLE = re.compile(r"^- \*\*\S+ — ")
+TITLE = re.compile(r"^- \*\*[^\s*]+ — ")
 AFFECTS = re.compile(r"^[ \t]+- \*\*What it affects:\*\*(.*)$", re.MULTILINE)
 SPAN = re.compile(r"`([^`]+)`")
 LINES = re.compile(r":\d+(?:-\d+)?$")

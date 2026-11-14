@@ -71,6 +71,7 @@ wrong type, or holds a card with no **Amend** line; a stub, `mode: skipped`, nee
 **The body is a list of cards**, one per finding, in the shape [`## The card`](#the-card) fixes. The fix and
 verify passes change a card's **Status** field and leave its other fields as the station wrote them, save
 **Amend**, which a fixer setting an [amend card](#the-card)'s `wontfix` sets `yes`.
+No line outside a card starts with `- **`: write a pass or a Summary item as a plain bullet.
 
 **Each station grades on its own scale:**
 

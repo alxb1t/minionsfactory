@@ -25,6 +25,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/modules.md` and the structure rule that holds it; `docs/README.md` and `AGENTS.md` name both pages
   (0124-structure-rules, phase 5).
 
+## [0.100.2] - 2026-11-14
+
+Gate: local 8m5s · CI not read under mf-ship · 0.100.1: local 10m26s · CI not read under mf-ship
+
+- A card's title is a line `- **<id> — ` whose id holds no `*`, in every reader of cards: `converge.py`, `open_cards.py`,
+  `debt_match.py`, `overlap.py`, `conduct.py` and `cut_context.py`. A pass bullet such as `- **stale-claim** — ran.` is no
+  card, so converge no longer rewrites a file whose cards were fine. `worker.md` says no line outside a card starts with
+  `- **` (0122-card-title, phase 1).
+- `mf-build` reads a phase's `## Progress` line back at `HEAD` after its commit, ticks and commits a box found unticked,
+  and quotes the line in the close-out, so a tick the worker claims is a tick `HEAD` holds (0122-card-title, phase 2).
+
+## [0.100.1] - 2026-11-14
+
+Gate: local 10m26s · CI not read under mf-ship · 0.100.0: local 8m37s · CI not read under mf-ship
+
+- `integrate.py`'s replay merges under `SCRATCH_IDENTITY`, so a machine with no git identity runs it; the tests'
+  `isolated_home` sets `user.useConfigOnly`, so the macOS gate fails on a missing identity as Linux does
+  (0123-linux-ci-green, phase 1).
+- `gate_run.py`'s and `cut_pre.py`'s dry runs drop `MAKEFLAGS`, `MFLAGS` and `MAKELEVEL`, so a caller's make no
+  longer changes the dry run's hash or hides an empty recipe (0123-linux-ci-green, phase 2).
+- `test_stop_ends_a_live_run` and `test_a_stale_claim_is_cleared` start a plain `sleep` and register the `comm` of a
+  fake `claude`, so they need no link to the machine's `sleep` (0123-linux-ci-green, phase 3).
+
 ## [0.100.0] - 2026-11-12
 
 Gate: local 8m37s · CI not read under mf-ship · 0.99.0: local 17m27s · CI not read under mf-ship
