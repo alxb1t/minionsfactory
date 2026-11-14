@@ -6,7 +6,7 @@ The record, the module map with its rule, loads and cycles, names and OS command
 
 - [x] 1 — The record · moderate
 - [x] 2 — The module map and its rule · hard
-- [ ] 3 — Loads and cycles · hard
+- [x] 3 — Loads and cycles · hard
 - [ ] 4 — Names and OS commands · hard
 - [ ] 5 — The recipes · moderate
 
@@ -38,10 +38,10 @@ The record, the module map with its rule, loads and cycles, names and OS command
 
 ## 3 — Loads and cycles
 
-- [ ] 3.1 In `tests/test_structure.py`, add `check_loads(root, listed=LOADS_OUTSIDE)` — rule 1 — and the literal `LOADS_OUTSIDE`, written from the rule's output ([D4](design.md#d4)).
+- [x] 3.1 In `tests/test_structure.py`, add `check_loads(root, listed=LOADS_OUTSIDE)` — rule 1 — and the literal `LOADS_OUTSIDE`, written from the rule's output ([D4](design.md#d4)).
   Its tests are named `test_check_loads_…`; twins: a station naming another station fails; the same folder, the home and a conductor naming a station pass; a listed pair the tree no longer holds fails.
   Verify: `uv run pytest tests/test_structure.py -q -k check_loads` passes.
-- [ ] 3.2 In `tests/test_structure.py`, add `check_cycles(root, listed=CYCLE_FILES)` — rule 3 — and the literal `CYCLE_FILES`, written from the rule's output ([D4](design.md#d4)).
+- [x] 3.2 In `tests/test_structure.py`, add `check_cycles(root, listed=CYCLE_FILES)` — rule 3 — and the literal `CYCLE_FILES`, written from the rule's output ([D4](design.md#d4)).
   Its tests are named `test_check_cycles_…`; twins: a planted cycle fails; a listed file the tree no longer holds in a cycle fails.
   Verify: `uv run pytest tests/test_structure.py -q -k check_cycles` passes.
 

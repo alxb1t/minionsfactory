@@ -9,6 +9,26 @@ _OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 _MAP = "docs/modules.md"
 _LAYERS = ("conductor", "station", "reader", "gate", "home")
 
+LOADS_OUTSIDE: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("brief_check.py", "conduct.py"),
+        ("brief_check.py", "verify_check.py"),
+        ("converge.py", "integrate.py"),
+        ("cut_check.py", "gate_check.py"),
+        ("cut_check.py", "plan_check.py"),
+        ("cut_context.py", "brief_check.py"),
+        ("cut_context.py", "bundle.py"),
+        ("cut_context.py", "debt_match.py"),
+        ("facts.py", "brief_check.py"),
+        ("review_metrics.py", "conduct.py"),
+        ("review_metrics.py", "metrics.py"),
+        ("review_metrics.py", "overlap.py"),
+        ("viewer.py", "conduct.py"),
+        ("viewer.py", "converge.py"),
+    }
+)
+CYCLE_FILES: frozenset[str] = frozenset({"brief_check.py", "conduct.py", "pin.py"})
+
 
 def python_files(root: Path) -> list[str]:
     """Return the sorted repo-relative path of each `*.py` under the script folders.
@@ -110,6 +130,65 @@ def check_map(root: Path) -> list[str]:
                     f"{path}: the map names {names!r}, the file {named or '—'!r}"
                 )
     return breaches
+
+
+def _against(found: set[str], listed: set[str], what: str, name: str) -> list[str]:
+    """Return a line for each entry found and not listed, and each listed, not found.
+
+    e.g. `["x.py: in a cycle, not listed in CYCLE_FILES"]`
+    """
+    new = [f"{entry}: {what}, not listed in {name}" for entry in sorted(found - listed)]
+    gone = [f"{entry}: listed in {name}, not found" for entry in sorted(listed - found)]
+    return new + gone
+
+
+def _allowed(path: str, other: str, layer: dict[str, str]) -> bool:
+    """Return whether rule 1 lets the script at `path` name the one at `other`."""
+    return (
+        path.rpartition("/")[0] == other.rpartition("/")[0]
+        or layer.get(other) == "home"
+        or (layer.get(path) == "conductor" and layer.get(other) == "station")
+    )
+
+
+def check_loads(
+    root: Path, listed: frozenset[tuple[str, str]] = LOADS_OUTSIDE
+) -> list[str]:
+    """Return a breach line for each name the layers do not allow — rule 1.
+
+    e.g. `["converge.py → integrate.py: a load the layers do not allow, …"]`
+    """
+    layer = {path: cells[0] for path, cells in map_rows(root).items()}
+    found = {
+        f"{path.rpartition('/')[2]} → {other.rpartition('/')[2]}"
+        for path, named in edges(root).items()
+        for other in named
+        if not _allowed(path, other, layer)
+    }
+    shown = {" → ".join(pair) for pair in listed}
+    return _against(found, shown, "a load the layers do not allow", "LOADS_OUTSIDE")
+
+
+def _reach(found: dict[str, list[str]], start: str) -> set[str]:
+    """Return the paths reachable from `start` by one edge or more."""
+    seen: set[str] = set()
+    todo = list(found[start])
+    while todo:
+        path = todo.pop()
+        if path not in seen:
+            seen.add(path)
+            todo.extend(found[path])
+    return seen
+
+
+def check_cycles(root: Path, listed: frozenset[str] = CYCLE_FILES) -> list[str]:
+    """Return a breach line for each file in a cycle and not listed — rule 3.
+
+    e.g. `["pin.py: in a cycle, not listed in CYCLE_FILES"]`
+    """
+    found = edges(root)
+    cyclic = {path.rpartition("/")[2] for path in found if path in _reach(found, path)}
+    return _against(cyclic, set(listed), "in a cycle", "CYCLE_FILES")
 
 
 def _plant(root: Path, files: dict[str, str]) -> Path:
@@ -225,4 +304,89 @@ def test_check_map_fails_on_a_base_name_two_files_hold(tmp_path: Path) -> None:
     root = _mapped(tmp_path, {"scripts/y.py": "", "skills/mf-a/scripts/y.py": ""}, rows)
     assert check_map(root) == [
         "y.py: a base name held by scripts/y.py, skills/mf-a/scripts/y.py"
+    ]
+
+
+_STATIONS = (
+    "| `skills/mf-a/scripts/x.py` | station | y.py |\n"
+    "| `skills/mf-b/scripts/y.py` | station | — |\n"
+)
+_STATION_LOAD = {
+    "skills/mf-a/scripts/x.py": 'Y = "mf-b/scripts/y.py"\n',
+    "skills/mf-b/scripts/y.py": "",
+}
+
+
+def test_check_loads_holds_on_the_tree() -> None:
+    assert check_loads(_REPO) == []
+
+
+def test_check_loads_fails_on_a_station_naming_another_station(
+    tmp_path: Path,
+) -> None:
+    root = _mapped(tmp_path, _STATION_LOAD, _STATIONS)
+    assert check_loads(root, listed=frozenset()) == [
+        "x.py → y.py: a load the layers do not allow, not listed in LOADS_OUTSIDE"
+    ]
+
+
+def test_check_loads_passes_a_listed_pair(tmp_path: Path) -> None:
+    root = _mapped(tmp_path, _STATION_LOAD, _STATIONS)
+    assert check_loads(root, listed=frozenset({("x.py", "y.py")})) == []
+
+
+def test_check_loads_passes_the_folder_the_home_and_the_conductor(
+    tmp_path: Path,
+) -> None:
+    files = {
+        "skills/mf-a/scripts/x.py": 'W = "w.py"\nH = "mflib/h.py"\n',
+        "skills/mf-a/scripts/w.py": "",
+        "skills/mflib/h.py": "",
+        "skills/mf-ship/scripts/c.py": 'X = "mf-a/scripts/x.py"\n',
+    }
+    rows = (
+        "| `skills/mf-a/scripts/x.py` | station | h.py, w.py |\n"
+        "| `skills/mf-a/scripts/w.py` | station | — |\n"
+        "| `skills/mflib/h.py` | home | — |\n"
+        "| `skills/mf-ship/scripts/c.py` | conductor | x.py |\n"
+    )
+    root = _mapped(tmp_path, files, rows)
+    assert check_loads(root, listed=frozenset()) == []
+
+
+def test_check_loads_fails_on_a_listed_pair_the_tree_no_longer_holds(
+    tmp_path: Path,
+) -> None:
+    files = {**_STATION_LOAD, "skills/mf-a/scripts/x.py": ""}
+    root = _mapped(tmp_path, files, _STATIONS)
+    assert check_loads(root, listed=frozenset({("x.py", "y.py")})) == [
+        "x.py → y.py: listed in LOADS_OUTSIDE, not found"
+    ]
+
+
+_CYCLE = {"scripts/x.py": 'Y = "y.py"\n', "scripts/y.py": 'X = "x.py"\n'}
+
+
+def test_check_cycles_holds_on_the_tree() -> None:
+    assert check_cycles(_REPO) == []
+
+
+def test_check_cycles_fails_on_a_planted_cycle(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {**_CYCLE, "scripts/z.py": 'X = "x.py"\n'})
+    assert check_cycles(root, listed=frozenset()) == [
+        "x.py: in a cycle, not listed in CYCLE_FILES",
+        "y.py: in a cycle, not listed in CYCLE_FILES",
+    ]
+
+
+def test_check_cycles_passes_a_listed_cycle(tmp_path: Path) -> None:
+    root = _plant(tmp_path, _CYCLE)
+    assert check_cycles(root, listed=frozenset({"x.py", "y.py"})) == []
+
+
+def test_check_cycles_fails_on_a_listed_file_in_no_cycle(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {**_CYCLE, "scripts/y.py": ""})
+    assert check_cycles(root, listed=frozenset({"x.py", "y.py"})) == [
+        "x.py: listed in CYCLE_FILES, not found",
+        "y.py: listed in CYCLE_FILES, not found",
     ]

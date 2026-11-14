@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/modules.md` maps each Python file under `skills/` and `scripts/` to its layer and the files it names, and
   `tests/test_structure.py` holds the map to the tree: a file with no row, a row with no file, a `names` cell that
   differs, an unknown layer or a shared base name fails the gate (0124-structure-rules, phase 2).
+- `tests/test_structure.py` holds loads and cycles: a script names only its own folder, the home or, from the
+  conductor, a station, and no names make a cycle. Today's breaches sit in `LOADS_OUTSIDE` and `CYCLE_FILES`, which
+  only shrink: a listed entry the tree no longer holds fails (0124-structure-rules, phase 3).
 
 ## [0.100.0] - 2026-11-12
 
