@@ -126,7 +126,7 @@ This change adds tests and removes none. Counts come from `uv run pytest tests/t
 | step of an existing test | `_outside`'s config, `DIRECT`, `reset_stack`, `grant` | `tests/test_conduct.py` |
 | end-to-end | none | |
 
-Before: 221 tests collected. After: 228, seven new.
+Before: 221 tests collected. After: 229, eight new: the seven of the phases, and converge's S1 case, the another-subject case run again with subject `chore(release): v0.8.0` on a side tip tagged `v0.9.0`.
 
 No new end-to-end run: `T1` puts each guard at the lowest layer that can fail for it, a direct call. `T2` extends the tests that already reach the state.
 
