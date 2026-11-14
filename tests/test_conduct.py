@@ -570,11 +570,18 @@ def test_a_manifest_is_judged_by_the_rows_of_the_cut(tmp_path: Path) -> None:
     manifest({"dependencies": {"vue": "^3.5.43"}})
     assert judged() == f"{flag}: ui/package.json vue ^3.5.43"
     # A scoped name is a row too.
-    _land(tree, "0001-todo", "| npm:@vitejs/plugin-vue | 6.0.1 | plugin |")
     manifest({"devDependencies": {"@vitejs/plugin-vue": "6.0.1"}})
+    assert judged() == f"{flag}: ui/package.json @vitejs/plugin-vue 6.0.1"
+    _land(tree, "0001-todo", "| npm:@vitejs/plugin-vue | 6.0.1 | plugin |")
     assert judged() is None
     # Each direct section is read, and a nested manifest at its own path.
-    for section in conduct["DIRECT"]:
+    sections = (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+    )
+    for section in sections:
         manifest({section: {"left-pad": "1.3.0"}})
         assert judged() == f"{flag}: ui/package.json left-pad 1.3.0"
     manifest(vue)
@@ -1447,6 +1454,14 @@ def test_a_stacked_dependent_resets_and_merges_back(
     _git(root, "config", "--unset", "mf.race")
     run.git_state = conduct["_git_state"](root)
     assert _git(marks, "rev-parse", "HEAD") == stacked
+    # A key that names a program halts the reset before the branch moves.
+    _git(root, "config", "core.pager", "cat")
+    run.git_state = conduct["_git_state"](root)
+    with pytest.raises(conduct["Stop"], match="could name a program"):
+        run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+    _git(root, "config", "--unset", "core.pager")
+    run.git_state = conduct["_git_state"](root)
     # The reset drops the notes of the build it throws away.
     notes = stacked_on.with_name("build-notes.md")
     # A folder at the notes halts the version before the reset moves its branch.
@@ -9887,6 +9902,12 @@ def test_a_grant_buys_one_round(
     capped = "# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n"
     _cards(root, "0001-todo", _git(tree, "rev-parse", "HEAD"), "a design change")
     assert conduct["stage_of"](root, version)[0] == "converge-halted"
+    # With no live run, a grant holds the run's preconditions before it records.
+    dirt = root / "dirt.txt"
+    dirt.write_text("x\n")
+    assert grant() == (2, "run: cannot run — the primary's tree is not clean")
+    assert started == [] and not grants.exists()
+    dirt.unlink()
     recorded = (0, "grant: recorded · run started · pid 4242")
     assert grant() == recorded
     assert started == [(root, "claude")]
@@ -10982,6 +11003,47 @@ def test_a_stale_claim_is_cleared(
     refusing.kill()
     for process in (recycled, unstamped, refusing):
         process.wait(timeout=10)
+
+
+def test_a_claim_naming_a_low_group_signals_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    active = tmp_path / "active"
+    active.mkdir()
+    for group in (0, 1):
+        _register(group, "claude", _GROUP_START)
+        (active / str(group)).write_text(_GROUP_START)
+    signalled: list[tuple[int, int]] = []
+    # With no guard, group 0 is the test runner's own.
+    monkeypatch.setattr(os, "killpg", lambda pid, sig: signalled.append((pid, sig)))
+    conduct["_clear"](active)
+    assert signalled == []
+    assert not active.exists()
+
+
+def test_bounded_reads_only_a_regular_file_of_the_cap(tmp_path: Path) -> None:
+    conduct = _conduct()
+    bounded, cap = conduct["_bounded"], conduct["READ_BYTES"]
+    pipe = tmp_path / "pipe"
+    os.mkfifo(pipe)
+    read: list[str | None] = []
+    # A pipe opened blocking waits for a writer: the join bounds a red run.
+    reader = threading.Thread(target=lambda: read.append(bounded(pipe)), daemon=True)
+    reader.start()
+    reader.join(timeout=10)
+    assert not reader.is_alive()
+    assert read == [None]
+    over = tmp_path / "over"
+    over.write_text("a" * (cap + 1))
+    small = tmp_path / "small"
+    small.write_text("a\n")
+    link = tmp_path / "link"
+    link.symlink_to(small)
+    assert (bounded(over), bounded(link)) == (None, None)
+    full = tmp_path / "full"
+    full.write_text("a" * cap)
+    assert bounded(full) == "a" * cap
 
 
 def test_a_usage_limit_is_named(

@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_conduct.py` holds each conjunct of the push guard `_foreign_commit` with its own case — an octopus,
   another subject, a tag off the tip, a merge that adds a file — and plants `url.<decoy>.pushInsteadOf` to hold that a
   remote call reads no repo's config (0125-conductor-guards, phase 2).
+- `tests/test_conduct.py` holds the npm sections as a literal and has new cases for `_clear`'s guard on groups 0 and 1,
+  `reset_stack`'s refusal of a program key, a grant's preconditions, and `_bounded`'s refusal of a FIFO, a file over
+  the cap and a link. Before this, any of these guards could be removed and the suite stayed green
+  (0125-conductor-guards, phase 3).
 
 ## [0.100.0] - 2026-11-12
 

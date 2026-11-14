@@ -6,7 +6,7 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
 
 - [x] 1 — The sandbox's lists · moderate
 - [x] 2 — The push guard and the remote call · hard
-- [ ] 3 — Npm and processes · moderate
+- [x] 3 — Npm and processes · moderate
 - [ ] 4 — W5's clause · moderate
 
 ## 1 — The sandbox's lists
@@ -31,15 +31,15 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
 
 ## 3 — Npm and processes
 
-- [ ] 3.1 In `test_a_manifest_is_judged_by_the_rows_of_the_cut`, loop over the literal `("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")` in place of `conduct["DIRECT"]`. Before the `_land` of the `@vitejs/plugin-vue` row, add a `devDependencies` step that expects the unapproved line ([D4](design.md#d4)).
+- [x] 3.1 In `test_a_manifest_is_judged_by_the_rows_of_the_cut`, loop over the literal `("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")` in place of `conduct["DIRECT"]`. Before the `_land` of the `@vitejs/plugin-vue` row, add a `devDependencies` step that expects the unapproved line ([D4](design.md#d4)).
   Verify: `git grep -n '"peerDependencies"' tests/test_conduct.py` prints the literal.
-- [ ] 3.2 Add `test_a_claim_naming_a_low_group_signals_nothing`, after `test_a_stale_claim_is_cleared`. `active/0` and `active/1` each hold a start time the fake `ps` confirms, with `_register` naming an executor; `os.killpg` is a recorder, as `os.kill` is in `test_stop_ends_a_live_run`. `conduct["_clear"](active)` records no call ([D5](design.md#d5)).
+- [x] 3.2 Add `test_a_claim_naming_a_low_group_signals_nothing`, after `test_a_stale_claim_is_cleared`. `active/0` and `active/1` each hold a start time the fake `ps` confirms, with `_register` naming an executor; `os.killpg` is a recorder, as `os.kill` is in `test_stop_ends_a_live_run`. `conduct["_clear"](active)` records no call ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_conduct.py -q -k low_group` exits 0.
-- [ ] 3.3 In `test_a_stacked_dependent_resets_and_merges_back`, after the `mf.race` step, set `core.pager` in the primary's config and refresh `run.git_state`. Expect `run.reset_stack(version)` to raise `Stop` matching `could name a program` and `marks` to stay at `stacked`; then unset the key and refresh.
+- [x] 3.3 In `test_a_stacked_dependent_resets_and_merges_back`, after the `mf.race` step, set `core.pager` in the primary's config and refresh `run.git_state`. Expect `run.reset_stack(version)` to raise `Stop` matching `could name a program` and `marks` to stay at `stacked`; then unset the key and refresh.
   Verify: `git grep -n 'core.pager' tests/test_conduct.py` prints the plant.
-- [ ] 3.4 In `test_a_grant_buys_one_round`, before the grant that records, write `dirt.txt` in the primary, expect `grant()` to return `(2, "run: cannot run — the primary's tree is not clean")`, with `started == []` and no `grants` file; then remove `dirt.txt`.
+- [x] 3.4 In `test_a_grant_buys_one_round`, before the grant that records, write `dirt.txt` in the primary, expect `grant()` to return `(2, "run: cannot run — the primary's tree is not clean")`, with `started == []` and no `grants` file; then remove `dirt.txt`.
   Verify: `git grep -n 'dirt.txt' tests/test_conduct.py` prints the step.
-- [ ] 3.5 Add `test_bounded_reads_only_a_regular_file_of_the_cap`: a FIFO, a file of `READ_BYTES + 1` bytes and a link to a regular file within the cap each read as `None` through `conduct["_bounded"]`; a file of exactly `READ_BYTES` reads whole. The FIFO read runs in a daemon thread joined with a timeout, and the test fails when the thread lives.
+- [x] 3.5 Add `test_bounded_reads_only_a_regular_file_of_the_cap`: a FIFO, a file of `READ_BYTES + 1` bytes and a link to a regular file within the cap each read as `None` through `conduct["_bounded"]`; a file of exactly `READ_BYTES` reads whole. The FIFO read runs in a daemon thread joined with a timeout, and the test fails when the thread lives.
   Verify: `uv run pytest tests/test_conduct.py -q -k bounded_reads_only` exits 0.
 
 ## 4 — W5's clause
