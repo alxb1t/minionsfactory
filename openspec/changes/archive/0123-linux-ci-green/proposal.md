@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: 0.100.1
 ---
 
 # Linux CI green
