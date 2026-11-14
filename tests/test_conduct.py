@@ -8031,17 +8031,19 @@ def test_a_release_merge_that_adds_a_file_is_not_pushed(
         conduct["_foreign_commit"](root, base, "main")
 
 
+@pytest.mark.parametrize("subject", ["feat: side", "chore(release): v0.8.0"])
 def test_a_merge_on_a_recorded_head_with_another_subject_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     fake: Callable[..., Path],
+    subject: str,
 ) -> None:
     conduct, root, _ = _origin_judged(tmp_path, monkeypatch, capsys, fake)
     base = _git(root, "rev-parse", "origin/main").strip()
     head, _ = _unmerged_release(root, "v0.8.0")
     _git(root, "switch", "-q", "-c", "side", head)
-    _git(root, "commit", "-q", "--allow-empty", "-m", "feat: side")
+    _git(root, "commit", "-q", "--allow-empty", "-m", subject, "-m", "side")
     _git(root, "tag", "-a", "-m", "v0.9.0", "v0.9.0")
     _git(root, "switch", "-q", "main")
     _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'side'", "side")
