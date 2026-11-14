@@ -101,6 +101,48 @@ def test_a_profile_may_open_the_network(tmp_path: Path) -> None:
     assert opened.splitlines()[-1].startswith("(deny file-read* file-write* ")
 
 
+def test_the_deny_lists_are_literals() -> None:
+    conduct = _conduct()
+
+    assert conduct["SECRETS"] == (
+        "~/.ssh",
+        "~/.aws",
+        "~/.config/gh",
+        "~/.netrc",
+        "~/.gnupg",
+        "~/.kube",
+        "~/.docker/config.json",
+        "~/.git-credentials",
+        "~/.config/git/credentials",
+        "~/.npmrc",
+        "~/.pypirc",
+        "~/.codex/auth.json",
+        "~/.claude/.credentials.json",
+    )
+    assert conduct["TOKENS"] == (
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+        "NPM_TOKEN",
+        "NODE_AUTH_TOKEN",
+        "UV_PUBLISH_TOKEN",
+        "TWINE_PASSWORD",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "OPENAI_API_KEY",
+    )
+    assert conduct["NETWORK"] == ("pypi.org", "files.pythonhosted.org")
+    assert conduct["HOOKS_OFF"] == (
+        "GIT_CONFIG_COUNT=2",
+        "GIT_CONFIG_KEY_0=core.hooksPath",
+        "GIT_CONFIG_VALUE_0=/dev/null",
+        "GIT_CONFIG_KEY_1=core.fsmonitor",
+        "GIT_CONFIG_VALUE_1=false",
+    )
+
+
 def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     tmp_path: Path,
     fake_sandbox_exec: Path,

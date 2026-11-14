@@ -4,14 +4,14 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
 
 ## Progress
 
-- [ ] 1 — The sandbox's lists · moderate
+- [x] 1 — The sandbox's lists · moderate
 - [ ] 2 — The push guard and the remote call · hard
 - [ ] 3 — Npm and processes · moderate
 - [ ] 4 — W5's clause · moderate
 
 ## 1 — The sandbox's lists
 
-- [ ] 1.1 In `tests/test_sandboxed.py`, add `test_the_deny_lists_are_literals`. It asserts `conduct["SECRETS"]`, `conduct["TOKENS"]` (holding `"GITHUB_TOKEN"`), `conduct["NETWORK"]` and `conduct["HOOKS_OFF"]` each equal a literal tuple of the entries at `skills/mf-ship/scripts/conduct.py:248-271` and `:327-331` ([D1](design.md#d1)). Leave the loops over the lists as they are.
+- [x] 1.1 In `tests/test_sandboxed.py`, add `test_the_deny_lists_are_literals`. It asserts `conduct["SECRETS"]`, `conduct["TOKENS"]` (holding `"GITHUB_TOKEN"`), `conduct["NETWORK"]` and `conduct["HOOKS_OFF"]` each equal a literal tuple of the entries at `skills/mf-ship/scripts/conduct.py:248-271` and `:327-331` ([D1](design.md#d1)). Leave the loops over the lists as they are.
   Verify: `git grep -n '"GITHUB_TOKEN"' tests/test_sandboxed.py` prints the literal line.
 
 ## 2 — The push guard and the remote call
