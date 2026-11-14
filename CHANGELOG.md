@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `reset_stack`'s refusal of a program key, a grant's preconditions, and `_bounded`'s refusal of a FIFO, a file over
   the cap and a link. Before this, any of these guards could be removed and the suite stayed green
   (0125-conductor-guards, phase 3).
+- `mf-build`'s `W5` gains a clause: a guard that is a conjunction has one case per conjunct, built so that only that
+  conjunct can halt it. A case where the first conjunct fails let the others go unheld (0125-conductor-guards, phase 4).
 
 ## [0.100.0] - 2026-11-12
 

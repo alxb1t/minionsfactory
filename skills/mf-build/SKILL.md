@@ -335,7 +335,7 @@ renaming a thing other text refers to: a module, a file, a term, a rule.
 | **W2** | **A retirement searches the whole tree** — code, tests, docs, specs, `README.md`, `AGENTS.md` — and lists every hit as fixed or kept, with the reason, in the phase's commit body (Step 2, item 6) |
 | **W3** | **No *only*, *never* or *nothing else* in a claim of fact about code without a named test** that fails when the claim stops being true. An instruction (*never `git add -A`*), or a principle held by a named skill step, is not such a claim |
 | **W4** | **No counts in prose or comments** — name the things. The full rule and its one exception are `P12` |
-| **W5** | **A test that holds a guard ships with a twin** showing the test fails when the guard is gone, placed per `T6` |
+| **W5** | **A test that holds a guard ships with a twin** showing the test fails when the guard is gone, placed per `T6`; a guard that is a conjunction has one case per conjunct, built so that only that conjunct can halt it |
 | **W6** | **The change that makes the docs false corrects them**, in the same change |
 
 ## Rules for tests

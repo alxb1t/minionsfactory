@@ -7,7 +7,7 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
 - [x] 1 — The sandbox's lists · moderate
 - [x] 2 — The push guard and the remote call · hard
 - [x] 3 — Npm and processes · moderate
-- [ ] 4 — W5's clause · moderate
+- [x] 4 — W5's clause · moderate
 
 ## 1 — The sandbox's lists
 
@@ -44,5 +44,5 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
 
 ## 4 — W5's clause
 
-- [ ] 4.1 In `skills/mf-build/SKILL.md`, end the `W5` row's text with the clause "; a guard that is a conjunction has one case per conjunct, built so that only that conjunct can halt it", after "placed per `T6`" ([D7](design.md#d7)).
+- [x] 4.1 In `skills/mf-build/SKILL.md`, end the `W5` row's text with the clause "; a guard that is a conjunction has one case per conjunct, built so that only that conjunct can halt it", after "placed per `T6`" ([D7](design.md#d7)).
   Verify: `git grep -n conjunct skills/mf-build/SKILL.md` prints the `W5` row.
