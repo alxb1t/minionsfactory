@@ -19,7 +19,7 @@ The audit proved each by a change to the code that left the suite green. The con
 
 - `tests/test_sandboxed.py` holds `SECRETS`, `TOKENS`, `NETWORK` and `HOOKS_OFF` as literals in one test.
 - `tests/test_conduct.py` holds one case per conjunct of the push guard `_foreign_commit`, each built so that only that conjunct can halt it.
-- A step of `test_a_key_set_after_the_refusal_reaches_nothing` plants a key a URL-addressed call obeys: `url.<decoy>.insteadOf`.
+- A step of `test_a_key_set_after_the_refusal_reaches_nothing` plants a key a URL-addressed push obeys: `url.<decoy>.pushInsteadOf`, with `_urls` held at its read before the plant.
 - `test_a_manifest_is_judged_by_the_rows_of_the_cut` loops over a literal of the npm sections `DIRECT` names.
 - New cases hold `_clear`'s guard on groups 0 and 1, `reset_stack`'s refusal of a program key, a grant's preconditions, and `_bounded`'s refusal of a FIFO, an oversized file and a link.
 - `skills/mf-build/SKILL.md`'s `W5` gains a clause: a guard that is a conjunction has one case per conjunct.

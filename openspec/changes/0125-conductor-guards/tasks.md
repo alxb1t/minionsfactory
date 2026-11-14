@@ -16,18 +16,18 @@ The test case each guard of the conductor lacks, then `W5`'s clause. Decisions: 
 
 ## 2 — The push guard and the remote call
 
-- [ ] 2.1 In `tests/test_conduct.py`, add `def _unmerged_release(root, tag)` after `_released`. It makes `_released`'s branch, its recorded head through `conduct["_record_release"]`, its `chore(release): <tag>` tip and its annotated tag, stops before the merge, and returns the head and the tip.
+- [x] 2.1 In `tests/test_conduct.py`, add `def _unmerged_release(root, tag)` after `_released`. It makes `_released`'s branch, its recorded head through `conduct["_record_release"]`, its `chore(release): <tag>` tip and its annotated tag, stops before the merge, and returns the head and the tip.
   Verify: `git grep -n 'def _unmerged_release' tests/test_conduct.py` prints the definition.
-- [ ] 2.2 Add `test_a_release_merge_that_adds_a_file_is_not_pushed` after `test_a_release_merge_no_run_made_is_not_pushed`: a `--no-ff` merge of a recorded release's tip that adds a file of its own. It expects `conduct["_foreign_commit"](root, base, "main")` to raise `Stop` matching `no run's release` ([D2](design.md#d2)).
+- [x] 2.2 Add `test_a_release_merge_that_adds_a_file_is_not_pushed` after `test_a_release_merge_no_run_made_is_not_pushed`: a `--no-ff` merge of a recorded release's tip that adds a file of its own. It expects `conduct["_foreign_commit"](root, base, "main")` to raise `Stop` matching `no run's release` ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_conduct.py -q -k adds_a_file` exits 0.
-- [ ] 2.3 Add `test_a_merge_on_a_recorded_head_with_another_subject_is_not_pushed`: a side commit on a recorded head, empty, subject `feat: side`, tagged `v0.9.0`, merged `--no-ff`. Same expectation.
+- [x] 2.3 Add `test_a_merge_on_a_recorded_head_with_another_subject_is_not_pushed`: a side commit on a recorded head, empty, subject `feat: side`, tagged `v0.9.0`, merged `--no-ff`. Same expectation.
   Verify: `uv run pytest tests/test_conduct.py -q -k another_subject` exits 0.
-- [ ] 2.4 Add `test_a_tip_no_tag_names_is_not_pushed`: a tip on a recorded head named `chore(release): v0.9.0`, with the tag `v0.9.0` moved to the head and not on the tip, merged `--no-ff`. Same expectation.
+- [x] 2.4 Add `test_a_tip_no_tag_names_is_not_pushed`: a tip on a recorded head named `chore(release): v0.9.0`, with the tag `v0.9.0` moved to the head and not on the tip, merged `--no-ff`. Same expectation.
   Verify: `uv run pytest tests/test_conduct.py -q -k no_tag_names` exits 0.
-- [ ] 2.5 Add `test_an_octopus_with_a_recorded_release_is_not_pushed`: one `--no-ff` merge of `main`, then that release's tip, then an empty side commit on the recorded head, in that parent order, the release's build commit empty too. Same expectation.
+- [x] 2.5 Add `test_an_octopus_with_a_recorded_release_is_not_pushed`: one `--no-ff` merge of `main`, then that release's tip, then an empty side commit on the recorded head, in that parent order, the release's build commit empty too. Same expectation.
   Verify: `uv run pytest tests/test_conduct.py -q -k octopus` exits 0.
-- [ ] 2.6 In `test_a_key_set_after_the_refusal_reaches_nothing`, add a step after the planted keys, the decoy bare repo made before it: set `url.<decoy path>.insteadOf` to the origin's path in the primary's config, refresh `conductor.git_state`, run `conductor.push_left((0,))`, and assert the decoy bare repo holds no ref ([D3](design.md#d3)).
-  Verify: `git grep -n 'insteadOf' tests/test_conduct.py` prints the plant.
+- [ ] 2.6 In `test_a_key_set_after_the_refusal_reaches_nothing`, add a step after the planted keys, the decoy bare repo made before it: within a `monkeypatch.context()` that sets the module's `_urls` to return `conduct["_urls"](root)` as read before the plant, set `url.<decoy path>.pushInsteadOf` to the origin's path in the primary's config, refresh `conductor.git_state`, run `conductor.push_left((0,))`, and assert the decoy bare repo holds no ref; then unset the key, with the real `_urls` back for the test's later steps ([D3](design.md#d3)).
+  Verify: `git grep -n 'pushInsteadOf' tests/test_conduct.py` prints the plant.
 
 ## 3 — Npm and processes
 

@@ -33,7 +33,7 @@ Each guard sits where `conduct.py` names it today: the lists at `conduct.py:248-
 |---|---|---|---|
 | [D1](#d1) | The sandbox's lists are literals in one test of `tests/test_sandboxed.py` | a removal then edits a test | a literal in `test_conduct.py`: the loops there stay as they are |
 | [D2](#d2) | The push guard gets one unit case per conjunct, each calling `_foreign_commit` on a history that holds every other conjunct | only then does a removed conjunct leave a case red | a case through `halts_on`: a full run costs more and adds no proof |
-| [D3](#d3) | `_outside`'s config isolation is held by a new step of the existing test, planting `url.<decoy>.insteadOf` | `T2`: extend before adding; the key is one a URL-addressed call obeys | `remote.origin.uploadpack`: a URL call never reads it |
+| [D3](#d3) | `_outside`'s config isolation is held by a new step of the existing test, planting `url.<decoy>.pushInsteadOf` with `_urls` held at its read before the plant | `T2`: extend before adding; the key is one a URL-addressed push obeys and a URL-addressed `ls-remote` does not | `remote.origin.uploadpack`: a URL call never reads it; `url.<decoy>.insteadOf`: `_unpushed`'s `ls-remote` reads the empty decoy and halts before any push |
 | [D4](#d4) | `DIRECT`'s sections are a literal in the test, and the `devDependencies` case fails before it passes | with `DIRECT` cut to `("dependencies",)` every case that reaches `_direct` still passes | looping over `conduct["DIRECT"]` |
 | [D5](#d5) | Each guard of the processes and trees has one planted case | the audit proved each guard removable with the suite green | none |
 | [D6](#d6) | A case's twin is its red run, in the phase's commit body | `T6`: the guard test's red run with the guard removed; a mutation tool is not in the repo | a mutation tool |
@@ -71,7 +71,9 @@ The existing `test_a_tagged_side_merge_is_not_pushed`, `test_a_release_merge_no_
 
 ### D3
 
-`_outside` runs a remote call from a scratch repo, so the primary's config is never read. The audit's proof: the scratch made to carry the primary's whole config leaves every test green. `test_a_key_set_after_the_refusal_reaches_nothing` plants only keys a URL-addressed call never reads. A new step plants `url.<decoy path>.insteadOf` set to the origin's path in the primary's config, runs `push_left` as the test's own steps do, and expects the decoy bare repo to hold no ref.
+`_outside` runs a remote call from a scratch repo, so the primary's config is never read. The audit's proof: the scratch made to carry the primary's whole config leaves every test green. `test_a_key_set_after_the_refusal_reaches_nothing` plants only keys a URL-addressed call never reads. A new step plants `url.<decoy path>.pushInsteadOf` set to the origin's path in the primary's config, runs `push_left` as the test's own steps do, and expects the decoy bare repo to hold no ref.
+
+`git remote get-url` expands `insteadOf` and `pushInsteadOf`, so `_urls` (`conduct.py:1834`) would read the decoy, and `_refuse_origin` (`conduct.py:2022`) would halt on the kept URLs before any remote call. The step therefore holds `_urls` at what it returned before the plant, within a `monkeypatch.context()`, as the test already holds `_refuse_config_commands`: the refusal reads the config clean, then the key is set. The test's later steps run with the real `_urls`. With the scratch carrying the primary's whole config, `_unpushed`'s `ls-remote` still reads the origin, and the push goes to the decoy, which then holds `main`: red. With the code as it is, the push goes to the origin, which refuses it, and the decoy holds no ref: green.
 
 ### D4
 
