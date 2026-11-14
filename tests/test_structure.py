@@ -1,7 +1,10 @@
 """The structure rules over the scripts, per 0124 design D1."""
 
 import ast
+import re
 from pathlib import Path
+
+import pytest
 
 _REPO = Path(__file__).resolve().parent.parent
 _FOLDERS = ("skills", "scripts")
@@ -28,6 +31,36 @@ LOADS_OUTSIDE: frozenset[tuple[str, str]] = frozenset(
     }
 )
 CYCLE_FILES: frozenset[str] = frozenset({"brief_check.py", "conduct.py", "pin.py"})
+PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("brief_check.py", "_plain_row"),
+        ("brief_check.py", "_rows"),
+        ("pin.py", "_kept_origin"),
+        ("pin.py", "_scratch"),
+        ("review_metrics.py", "_STYLE"),
+        ("viewer.py", "_build_halt"),
+        ("viewer.py", "_claim"),
+        ("viewer.py", "_cuts"),
+        ("viewer.py", "_frontmatter"),
+        ("viewer.py", "_maybe"),
+        ("viewer.py", "_progress"),
+        ("viewer.py", "_queue"),
+        ("viewer.py", "_rating"),
+    }
+)
+OS_NAMES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("awake.py", "caffeinate"),
+        ("awake.py", "ps"),
+        ("conduct.py", "caffeinate"),
+        ("conduct.py", "ps"),
+        ("conduct.py", "sandbox-exec"),
+        ("conduct.py", "sysctl"),
+        ("viewer.py", "ps"),
+    }
+)
+_OS_WORDS = re.compile(r"\b(sandbox-exec|caffeinate|sysctl|ps)\b")
+_PLAIN = ("self", "cls")
 
 
 def python_files(root: Path) -> list[str]:
@@ -70,18 +103,29 @@ def _strings(tree: ast.Module) -> list[str]:
     ]
 
 
+def _parse(root: Path) -> dict[str, ast.Module]:
+    """Return each script's path mapped to its syntax tree."""
+    return {
+        path: ast.parse((root / path).read_text(encoding="utf-8"))
+        for path in python_files(root)
+    }
+
+
 def edges(root: Path) -> dict[str, list[str]]:
     """Return each script's path mapped to the sorted paths of the scripts it names.
 
     e.g. `"b/y.py"` in `a/x.py` → `{"a/x.py": ["b/y.py"], "b/y.py": []}`
     """
-    files = python_files(root)
+    return _edges(_parse(root))
+
+
+def _edges(trees: dict[str, ast.Module]) -> dict[str, list[str]]:
+    """Return each path of `trees` mapped to the sorted paths its strings name."""
     by_base: dict[str, list[str]] = {}
-    for path in files:
+    for path in trees:
         by_base.setdefault(path.rpartition("/")[2], []).append(path)
     found: dict[str, list[str]] = {}
-    for path in files:
-        tree = ast.parse((root / path).read_text(encoding="utf-8"))
+    for path, tree in trees.items():
         bases = {text.rpartition("/")[2] for text in _strings(tree)}
         found[path] = sorted(
             other for base in bases for other in by_base.get(base, []) if other != path
@@ -189,6 +233,90 @@ def check_cycles(root: Path, listed: frozenset[str] = CYCLE_FILES) -> list[str]:
     found = edges(root)
     cyclic = {path.rpartition("/")[2] for path in found if path in _reach(found, path)}
     return _against(cyclic, set(listed), "in a cycle", "CYCLE_FILES")
+
+
+def _top_names(tree: ast.Module) -> set[str]:
+    """Return the names `tree` defines by `def`, `class` or assignment at its top."""
+    found: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            found.add(node.name)
+        elif isinstance(node, ast.Assign | ast.AnnAssign):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            found.update(
+                name.id
+                for target in targets
+                for name in ast.walk(target)
+                if isinstance(name, ast.Name)
+            )
+    return found
+
+
+def _text(node: ast.expr) -> str:
+    """Return the text of a string constant, or `""` for any other node."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return ""
+
+
+def _taken(tree: ast.Module) -> set[str]:
+    """Return each private name `tree` reads by key, `getattr`, attribute or import.
+
+    e.g. `ns["_rows"]`, `ns.get("_rows")`, `mod._STYLE`, `from y import _z`
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript):
+            found.add(_text(node.slice))
+        elif isinstance(node, ast.Call) and node.args:
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr == "get":
+                found.add(_text(node.args[0]))
+            elif isinstance(func, ast.Name) and func.id == "getattr":
+                found.add(_text(node.args[1]) if len(node.args) > 1 else "")
+        elif (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id not in _PLAIN
+        ):
+            found.add(node.attr)
+        elif isinstance(node, ast.ImportFrom):
+            found.update(alias.name for alias in node.names)
+    return {name for name in found if name[:1] == "_" and name[:2] != "__"}
+
+
+def check_names(
+    root: Path, listed: frozenset[tuple[str, str]] = PRIVATE_REACH
+) -> list[str]:
+    """Return a breach line for each private name taken from a named file — rule 2.
+
+    e.g. `["viewer.py takes _claim: a private name of a file it names, …"]`
+    """
+    trees = _parse(root)
+    defined = {path: _top_names(tree) for path, tree in trees.items()}
+    found = {
+        f"{path.rpartition('/')[2]} takes {name}"
+        for path, named in _edges(trees).items()
+        for name in _taken(trees[path])
+        if any(name in defined[other] for other in named)
+    }
+    shown = {f"{file} takes {name}" for file, name in listed}
+    return _against(found, shown, "a private name of a file it names", "PRIVATE_REACH")
+
+
+def check_os(root: Path, listed: frozenset[tuple[str, str]] = OS_NAMES) -> list[str]:
+    """Return a breach line for each OS command named outside its files — rule 4.
+
+    e.g. `["awake.py names caffeinate: an OS command, not listed in OS_NAMES"]`
+    """
+    found = {
+        f"{path.rpartition('/')[2]} names {word}"
+        for path, tree in _parse(root).items()
+        for text in _strings(tree)
+        for word in _OS_WORDS.findall(text)
+    }
+    shown = {f"{file} names {word}" for file, word in listed}
+    return _against(found, shown, "an OS command", "OS_NAMES")
 
 
 def _plant(root: Path, files: dict[str, str]) -> Path:
@@ -389,4 +517,106 @@ def test_check_cycles_fails_on_a_listed_file_in_no_cycle(tmp_path: Path) -> None
     assert check_cycles(root, listed=frozenset({"x.py", "y.py"})) == [
         "x.py: listed in CYCLE_FILES, not found",
         "y.py: listed in CYCLE_FILES, not found",
+    ]
+
+
+_Y = 'z = 1\n_z: int = 1\n__all__ = ["z"]\n'
+_REACH = 'Y = "y.py"\nns["_z"]\n'
+
+
+def _named(root: Path, source: str) -> Path:
+    """Plant `scripts/x.py` holding `source` beside `scripts/y.py`; return `root`."""
+    return _plant(root, {"scripts/x.py": source, "scripts/y.py": _Y})
+
+
+def test_check_names_holds_on_the_tree() -> None:
+    assert check_names(_REPO) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        _REACH,
+        'Y = "y.py"\nns.get("_z")\n',
+        'Y = "y.py"\ngetattr(ns, "_z")\n',
+        'Y = "y.py"\nns._z\n',
+        'Y = "y.py"\nfrom y import _z\n',
+    ],
+    ids=["subscript", "get", "getattr", "attribute", "from-import"],
+)
+def test_check_names_fails_on_a_private_reach(tmp_path: Path, source: str) -> None:
+    root = _named(tmp_path, source)
+    assert check_names(root, listed=frozenset()) == [
+        "x.py takes _z: a private name of a file it names, not listed in PRIVATE_REACH"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'Y = "y.py"\nns["z"]\n',
+        'Y = "y.py"\nself._z\ncls._z\n',
+        'Y = "y.py"\nns["__all__"]\n',
+        'Y = "y.py"\nns["_w"]\ngetattr(ns)\n',
+        'ns["_z"]\n',
+    ],
+    ids=["public", "self-and-cls", "dunder", "undefined", "unnamed-file"],
+)
+def test_check_names_passes_a_name_that_is_no_reach(
+    tmp_path: Path, source: str
+) -> None:
+    assert check_names(_named(tmp_path, source), listed=frozenset()) == []
+
+
+def test_check_names_passes_a_listed_pair(tmp_path: Path) -> None:
+    root = _named(tmp_path, _REACH)
+    assert check_names(root, listed=frozenset({("x.py", "_z")})) == []
+
+
+def test_check_names_fails_on_a_listed_pair_the_tree_no_longer_holds(
+    tmp_path: Path,
+) -> None:
+    root = _named(tmp_path, 'Y = "y.py"\n')
+    assert check_names(root, listed=frozenset({("x.py", "_z")})) == [
+        "x.py takes _z: listed in PRIVATE_REACH, not found"
+    ]
+
+
+_AWAKE = 'RUN = ["caffeinate", "-i"]\n'
+
+
+def test_check_os_holds_on_the_tree() -> None:
+    assert check_os(_REPO) == []
+
+
+def test_check_os_fails_on_caffeinate_in_an_unlisted_file(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": _AWAKE})
+    assert check_os(root, listed=frozenset()) == [
+        "x.py names caffeinate: an OS command, not listed in OS_NAMES"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    ['"""Keep awake with caffeinate."""\n', 'U = "https://x"\nW = "caffeinated"\n'],
+    ids=["docstring", "longer-word"],
+)
+def test_check_os_passes_a_word_that_names_no_command(
+    tmp_path: Path, source: str
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": source})
+    assert check_os(root, listed=frozenset()) == []
+
+
+def test_check_os_passes_a_listed_pair(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": _AWAKE})
+    assert check_os(root, listed=frozenset({("x.py", "caffeinate")})) == []
+
+
+def test_check_os_fails_on_a_listed_pair_the_tree_no_longer_holds(
+    tmp_path: Path,
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": ""})
+    assert check_os(root, listed=frozenset({("x.py", "caffeinate")})) == [
+        "x.py names caffeinate: listed in OS_NAMES, not found"
     ]

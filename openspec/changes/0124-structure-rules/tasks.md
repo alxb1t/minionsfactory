@@ -7,7 +7,7 @@ The record, the module map with its rule, loads and cycles, names and OS command
 - [x] 1 — The record · moderate
 - [x] 2 — The module map and its rule · hard
 - [x] 3 — Loads and cycles · hard
-- [ ] 4 — Names and OS commands · hard
+- [x] 4 — Names and OS commands · hard
 - [ ] 5 — The recipes · moderate
 
 ## 1 — The record
@@ -47,10 +47,10 @@ The record, the module map with its rule, loads and cycles, names and OS command
 
 ## 4 — Names and OS commands
 
-- [ ] 4.1 In `tests/test_structure.py`, add `check_names(root, listed=PRIVATE_REACH)` — rule 2 — and the literal `PRIVATE_REACH`, written from the rule's output ([D5](design.md#d5)).
+- [x] 4.1 In `tests/test_structure.py`, add `check_names(root, listed=PRIVATE_REACH)` — rule 2 — and the literal `PRIVATE_REACH`, written from the rule's output ([D5](design.md#d5)).
   Its tests are named `test_check_names_…`; twins: a subscript, a `.get` and a `from … import` of a private name each fail; a public name passes; a listed pair the tree no longer holds fails.
   Verify: `uv run pytest tests/test_structure.py -q -k check_names` passes.
-- [ ] 4.2 In `tests/test_structure.py`, add `check_os(root, listed=OS_NAMES)` — rule 4 — and the literal `OS_NAMES`, written from the rule's output ([D5](design.md#d5)).
+- [x] 4.2 In `tests/test_structure.py`, add `check_os(root, listed=OS_NAMES)` — rule 4 — and the literal `OS_NAMES`, written from the rule's output ([D5](design.md#d5)).
   Its tests are named `test_check_os_…`; twins: `caffeinate` in an unlisted file fails; the same word in a docstring passes; a listed pair the tree no longer holds fails.
   Verify: `uv run pytest tests/test_structure.py -q -k check_os` passes.
 

@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_structure.py` holds loads and cycles: a script names only its own folder, the home or, from the
   conductor, a station, and no names make a cycle. Today's breaches sit in `LOADS_OUTSIDE` and `CYCLE_FILES`, which
   only shrink: a listed entry the tree no longer holds fails (0124-structure-rules, phase 3).
+- `tests/test_structure.py` holds private names and OS commands: no script takes a `_name` from a file it names, and
+  `sandbox-exec`, `caffeinate`, `sysctl` and `ps` appear only in listed files. Today's sites sit in `PRIVATE_REACH`
+  and `OS_NAMES`, which only shrink (0124-structure-rules, phase 4).
 
 ## [0.100.0] - 2026-11-12
 
