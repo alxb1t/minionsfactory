@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (0123-linux-ci-green, phase 1).
 - `gate_run.py`'s and `cut_pre.py`'s dry runs drop `MAKEFLAGS`, `MFLAGS` and `MAKELEVEL`, so a caller's make no
   longer changes the dry run's hash or hides an empty recipe (0123-linux-ci-green, phase 2).
+- `test_stop_ends_a_live_run` and `test_a_stale_claim_is_cleared` start a plain `sleep` and register the `comm` of a
+  fake `claude`, so they need no link to the machine's `sleep` (0123-linux-ci-green, phase 3).
 
 ## [0.100.0] - 2026-11-12
 
