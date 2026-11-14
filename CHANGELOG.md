@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_structure.py` holds private names and OS commands: no script takes a `_name` from a file it names, and
   `sandbox-exec`, `caffeinate`, `sysctl` and `ps` appear only in listed files. Today's sites sit in `PRIVATE_REACH`
   and `OS_NAMES`, which only shrink (0124-structure-rules, phase 4).
+- `docs/recipes.md` says what a new station, state file, OS or executor edits today, the row it adds to
+  `docs/modules.md` and the structure rule that holds it; `docs/README.md` and `AGENTS.md` name both pages
+  (0124-structure-rules, phase 5).
 
 ## [0.100.0] - 2026-11-12
 

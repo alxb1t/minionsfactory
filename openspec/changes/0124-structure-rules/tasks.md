@@ -8,7 +8,7 @@ The record, the module map with its rule, loads and cycles, names and OS command
 - [x] 2 — The module map and its rule · hard
 - [x] 3 — Loads and cycles · hard
 - [x] 4 — Names and OS commands · hard
-- [ ] 5 — The recipes · moderate
+- [x] 5 — The recipes · moderate
 
 ## 1 — The record
 
@@ -56,10 +56,10 @@ The record, the module map with its rule, loads and cycles, names and OS command
 
 ## 5 — The recipes
 
-- [ ] 5.1 Write `docs/recipes.md` per [D8](design.md#d8): the sections `## A station`, `## A state file`, `## An OS` and `## An executor`, each listing the files an extension edits today, its row in `docs/modules.md` and the rule that holds it.
+- [x] 5.1 Write `docs/recipes.md` per [D8](design.md#d8): the sections `## A station`, `## A state file`, `## An OS` and `## An executor`, each listing the files an extension edits today, its row in `docs/modules.md` and the rule that holds it.
   The station section adds that a script's base name must be held by one file.
   Verify: `grep -n "^## " docs/recipes.md` prints the station, state file, OS and executor headings.
-- [ ] 5.2 In `docs/README.md`, add a row for `recipes.md` to *The pages* table.
+- [x] 5.2 In `docs/README.md`, add a row for `recipes.md` to *The pages* table.
   Verify: `git grep -n "recipes.md" docs/README.md` prints the row.
-- [ ] 5.3 In `AGENTS.md`, extend the `docs/` bullet of *Layout* to name the module map and the recipes.
+- [x] 5.3 In `AGENTS.md`, extend the `docs/` bullet of *Layout* to name the module map and the recipes.
   Verify: `git grep -n "recipes" AGENTS.md` prints the bullet.
