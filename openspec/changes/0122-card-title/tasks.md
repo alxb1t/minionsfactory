@@ -5,7 +5,7 @@ The card title in every reader of cards, then the tick read in the build skill.
 ## Progress
 
 - [x] 1 — Card title · moderate
-- [ ] 2 — Tick read · moderate
+- [x] 2 — Tick read · moderate
 
 ## 1 — Card title
 
@@ -26,7 +26,7 @@ The card title in every reader of cards, then the tick read in the build skill.
 
 ## 2 — Tick read
 
-- [ ] 2.1 In `skills/mf-build/SKILL.md` Step 2, add an item 7 `**Read the tick back.**` after the commit item, and renumber `Hand over to the next phase` to 8, per [D4](design.md#d4). It runs `git grep -n -e '^- \[.\] <N> — ' HEAD -- openspec/changes/<change-id>/tasks.md` and prints the output; a `[ ]` in it is ticked, staged by name and committed `docs(<change-id>): tick phase <N>` with the trailer block of item 6, and the command runs again. Change "then items 3–6," in the HUMAN paragraph to "then items 3–7,". Keep `Read the tick back` and `items 3–7` each on one line.
+- [x] 2.1 In `skills/mf-build/SKILL.md` Step 2, add an item 7 `**Read the tick back.**` after the commit item, and renumber `Hand over to the next phase` to 8, per [D4](design.md#d4). It runs `git grep -n -e '^- \[.\] <N> — ' HEAD -- openspec/changes/<change-id>/tasks.md` and prints the output; a `[ ]` in it is ticked, staged by name and committed `docs(<change-id>): tick phase <N>` with the trailer block of item 6, and the command runs again. Change "then items 3–6," in the HUMAN paragraph to "then items 3–7,". Keep `Read the tick back` and `items 3–7` each on one line.
   Verify: `git grep -c -F -e 'Read the tick back' -e 'items 3–7' -- skills/mf-build/SKILL.md` prints `skills/mf-build/SKILL.md:2`.
-- [ ] 2.2 In `skills/mf-build/SKILL.md` Step 4, add to "Your sentences" that the close-out quotes the `## Progress` line of each phase built, as item 7 printed it, the words `as item 7 printed it` on one line of the file.
+- [x] 2.2 In `skills/mf-build/SKILL.md` Step 4, add to "Your sentences" that the close-out quotes the `## Progress` line of each phase built, as item 7 printed it, the words `as item 7 printed it` on one line of the file.
   Verify: `git grep -c -F -e 'as item 7 printed it' -- skills/mf-build/SKILL.md` prints `skills/mf-build/SKILL.md:1`.

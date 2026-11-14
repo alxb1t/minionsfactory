@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `debt_match.py`, `overlap.py`, `conduct.py` and `cut_context.py`. A pass bullet such as `- **stale-claim** — ran.` is no
   card, so converge no longer rewrites a file whose cards were fine. `worker.md` says no line outside a card starts with
   `- **` (0122-card-title, phase 1).
+- `mf-build` reads a phase's `## Progress` line back at `HEAD` after its commit, ticks and commits a box found unticked,
+  and quotes the line in the close-out, so a tick the worker claims is a tick `HEAD` holds (0122-card-title, phase 2).
 
 ## [0.100.0] - 2026-11-12
 
