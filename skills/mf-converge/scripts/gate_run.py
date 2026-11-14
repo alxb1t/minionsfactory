@@ -20,6 +20,7 @@ from pathlib import Path
 
 TIMEOUT_SECONDS = 600
 GATE_SECONDS = 3600
+CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 
 
 class Stop(Exception):
@@ -46,6 +47,11 @@ def _run(
 def _make_env() -> dict[str, str]:
     """Return this environment without `VIRTUAL_ENV`, which `uv run --script` sets."""
     return {key: value for key, value in os.environ.items() if key != "VIRTUAL_ENV"}
+
+
+def _dry_env() -> dict[str, str]:
+    """Return `_make_env()` without the make variables a caller's make passes down."""
+    return {k: v for k, v in _make_env().items() if k not in CLEARED}
 
 
 def _git(*args: str) -> str:
@@ -75,7 +81,7 @@ def settled_tree() -> str | None:
 
 def dry_run() -> str:
     """Return the sha256 of `make -n gate`'s output; a failure stops with its code."""
-    done = _run(["make", "-n", "gate"], _make_env())
+    done = _run(["make", "-n", "gate"], _dry_env())
     if done.returncode != 0:
         sys.stderr.write(done.stderr)
         raise Stop(done.returncode, "gate: cannot run — `make -n gate` failed")

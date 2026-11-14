@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `integrate.py`'s replay merges under `SCRATCH_IDENTITY`, so a machine with no git identity runs it; the tests'
   `isolated_home` sets `user.useConfigOnly`, so the macOS gate fails on a missing identity as Linux does
   (0123-linux-ci-green, phase 1).
+- `gate_run.py`'s and `cut_pre.py`'s dry runs drop `MAKEFLAGS`, `MFLAGS` and `MAKELEVEL`, so a caller's make no
+  longer changes the dry run's hash or hides an empty recipe (0123-linux-ci-green, phase 2).
 
 ## [0.100.0] - 2026-11-12
 

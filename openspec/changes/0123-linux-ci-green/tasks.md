@@ -5,7 +5,7 @@ A phase for each cause: the replay's identity, make's inherited variables, and t
 ## Progress
 
 - [x] 1 — The replay's identity · moderate
-- [ ] 2 — Make's variables · moderate
+- [x] 2 — Make's variables · moderate
 - [ ] 3 — The sleep tests · moderate
 
 ## 1 — The replay's identity
@@ -19,13 +19,13 @@ A phase for each cause: the replay's identity, make's inherited variables, and t
 
 ## 2 — Make's variables
 
-- [ ] 2.1 In `skills/mf-converge/scripts/gate_run.py`, add `CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")` and `_dry_env()`, which returns `_make_env()` without those keys. `dry_run` runs `make -n gate` under `_dry_env()`; the gate run in `gate` keeps `_make_env()` ([D2](design.md#d2)).
+- [x] 2.1 In `skills/mf-converge/scripts/gate_run.py`, add `CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")` and `_dry_env()`, which returns `_make_env()` without those keys. `dry_run` runs `make -n gate` under `_dry_env()`; the gate run in `gate` keeps `_make_env()` ([D2](design.md#d2)).
   Verify: `git grep -n "_dry_env" -- skills/mf-converge/scripts/gate_run.py` prints the definition and its use in `dry_run`.
-- [ ] 2.2 In `tests/test_gate_run.py`, add `test_a_record_holds_under_inherited_make_flags`: it sets `MAKEFLAGS` to `w`, runs `_gate` on a green repo made by `_repo`, removes `MAKEFLAGS`, runs `_gate` again, and asserts the second output starts with `gate: reused — `.
+- [x] 2.2 In `tests/test_gate_run.py`, add `test_a_record_holds_under_inherited_make_flags`: it sets `MAKEFLAGS` to `w`, runs `_gate` on a green repo made by `_repo`, removes `MAKEFLAGS`, runs `_gate` again, and asserts the second output starts with `gate: reused — `.
   Verify: `uv run pytest tests/test_gate_run.py -q -k test_a_record_holds_under_inherited_make_flags` exits 0.
-- [ ] 2.3 In `skills/mf-cut-change/scripts/cut_pre.py`, add `CLEARED` as in 2.1, give `_tool` an optional `env` that it passes to `subprocess.run`, and have `check_gate` pass the environment without those keys ([D2](design.md#d2)).
+- [x] 2.3 In `skills/mf-cut-change/scripts/cut_pre.py`, add `CLEARED` as in 2.1, give `_tool` an optional `env` that it passes to `subprocess.run`, and have `check_gate` pass the environment without those keys ([D2](design.md#d2)).
   Verify: `git grep -n "CLEARED" -- skills/mf-cut-change/scripts/cut_pre.py` prints the tuple and its use in `check_gate`.
-- [ ] 2.4 In `tests/test_cut_pre.py`, add `test_an_empty_gate_halts_under_inherited_make_flags`: it sets `MAKEFLAGS` to `w`, builds `_repo(tmp_path, gate="gate:\n")`, and asserts `_run` prints `cut_pre: halt — gate: ` with the line `` `make -n gate` prints no command: the recipe is empty ``.
+- [x] 2.4 In `tests/test_cut_pre.py`, add `test_an_empty_gate_halts_under_inherited_make_flags`: it sets `MAKEFLAGS` to `w`, builds `_repo(tmp_path, gate="gate:\n")`, and asserts `_run` prints `cut_pre: halt — gate: ` with the line `` `make -n gate` prints no command: the recipe is empty ``.
   Verify: `uv run pytest tests/test_cut_pre.py -q -k test_an_empty_gate_halts_under_inherited_make_flags` exits 0.
 
 ## 3 — The sleep tests
