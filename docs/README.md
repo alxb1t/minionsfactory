@@ -23,6 +23,8 @@ What holds, and what was chosen.
 |---|---|
 | [principles.md](principles.md) | the rules every station follows, each with why and what holds it |
 | [decisions.md](decisions.md) | the choices in force, each with its reason |
+| [modules.md](modules.md) | the module map: each script's layer and the files it names, which `tests/test_structure.py` holds |
+| [recipes.md](recipes.md) | what an extension edits today — a station, a state file, an OS, an executor — and the rule that holds it |
 
 ## Where the rest lives
 

@@ -46,7 +46,8 @@ The secret scan is Betterleaks, operator tooling per D52: `betterleaks 1.9.0`, r
   halt, `mf-supervise`, which `mf-ship` runs under a version's switch when its rescue diagnosed or was spent, and
   `mf-simplify`, which the build runs to close a change, and `mf-ui`, the operator's live page of the line. Tracked here;
   `make install-skills` pins one exported release per machine, both hosts linked to it, per D55.
-- **`docs/`** — the map, the principles, the decisions.
+- **`docs/`** — the map, the principles, the decisions, the module map `docs/modules.md` and the recipes
+  `docs/recipes.md`, what an extension edits.
 - **`openspec/`** — the living specs and the changes. The OpenSpec CLI is operator tooling, recorded and not
   pinned: `@fission-ai/openspec@1.11.0`, installed globally and resolved on `PATH`, and out of the gate, per D8.
 - **`.minions/`** — run artefacts, **gitignored**; nothing in it is tracked. It holds `debt.md`, where

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.101.0] - 2026-11-14
+
+Gate: local 7m38s · CI not read under mf-ship · 0.100.2: local 8m5s · CI not read under mf-ship
+
+- `docs/decisions.md` gains `D83`: the code is layered, a call goes down only, the conductor alone loads a station,
+  and the gate holds the shape. `D2` and `D57` allow one shared home, `skills/mflib/`; `D79` adds that a rule's list
+  of the sites a change cannot clean only shrinks (0124-structure-rules, phase 1).
+- `docs/modules.md` maps each Python file under `skills/` and `scripts/` to its layer and the files it names, and
+  `tests/test_structure.py` holds the map to the tree: a file with no row, a row with no file, a path with two rows,
+  a `names` cell that differs, an unknown layer, a `conductor` or `home` row outside its folder or a shared base name
+  fails the gate. A file names another by a string constant ending in its base name or by an import of its module
+  (0124-structure-rules, phase 2).
+- `tests/test_structure.py` holds loads and cycles: a script names only its own folder, the home or, from the
+  conductor, a station, and no names make a cycle. Today's breaches sit in `LOADS_OUTSIDE` and `CYCLE_FILES`, which
+  only shrink: a listed entry the tree no longer holds fails (0124-structure-rules, phase 3).
+- `tests/test_structure.py` holds private names and OS commands: no script takes a `_name` from a file it names, and
+  `sandbox-exec`, `caffeinate`, `sysctl` and `ps` appear only in listed files. Today's sites sit in `PRIVATE_REACH`
+  and `OS_NAMES`, which only shrink (0124-structure-rules, phase 4).
+- `docs/recipes.md` says what a new station, state file, OS or executor edits today, the row it adds to
+  `docs/modules.md` and the structure rule that holds it; `docs/README.md` and `AGENTS.md` name both pages
+  (0124-structure-rules, phase 5).
+
 ## [0.100.2] - 2026-11-14
 
 Gate: local 8m5s · CI not read under mf-ship · 0.100.1: local 10m26s · CI not read under mf-ship
