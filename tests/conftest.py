@@ -31,6 +31,8 @@ def isolated_home(
     monkeypatch.setenv("TMPDIR", str(tmp_path_factory.mktemp("tmp")))
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(home / ".gitconfig"))
+    # Why: 0123-linux-ci-green design D3 — a missing identity fails here as on Linux.
+    (home / ".gitconfig").write_text("[user]\n\tuseConfigOnly = true\n")
     for name, folder in ISOLATED.items():
         monkeypatch.setenv(name, str(home / folder))
     # Why: 0100-worker-diet design D2 — `_plugins_off` reads the operator's otherwise.

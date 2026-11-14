@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `integrate.py`'s replay merges under `SCRATCH_IDENTITY`, so a machine with no git identity runs it; the tests'
+  `isolated_home` sets `user.useConfigOnly`, so the macOS gate fails on a missing identity as Linux does
+  (0123-linux-ci-green, phase 1).
+
 ## [0.100.0] - 2026-11-12
 
 Gate: local 8m37s · CI not read under mf-ship · 0.99.0: local 17m27s · CI not read under mf-ship

@@ -4,17 +4,17 @@ A phase for each cause: the replay's identity, make's inherited variables, and t
 
 ## Progress
 
-- [ ] 1 — The replay's identity · moderate
+- [x] 1 — The replay's identity · moderate
 - [ ] 2 — Make's variables · moderate
 - [ ] 3 — The sleep tests · moderate
 
 ## 1 — The replay's identity
 
-- [ ] 1.1 In `tests/conftest.py`, have `isolated_home` write `[user]` and `useConfigOnly = true` into `home / ".gitconfig"` ([D3](design.md#d3)). In `tests/test_guardrails.py`, have `test_the_isolation_fixture_holds_home_under_tmp_path` assert that `git config --global --get user.useConfigOnly` prints `true`.
+- [x] 1.1 In `tests/conftest.py`, have `isolated_home` write `[user]` and `useConfigOnly = true` into `home / ".gitconfig"` ([D3](design.md#d3)). In `tests/test_guardrails.py`, have `test_the_isolation_fixture_holds_home_under_tmp_path` assert that `git config --global --get user.useConfigOnly` prints `true`.
   Verify: `uv run pytest tests/test_guardrails.py -q` exits 0.
-- [ ] 1.2 **HALT CHECK** With the fixture set and `integrate.py` unchanged, the replay tests fail on git's identity error. A pass means the identity is not the cause: stop.
+- [x] 1.2 **HALT CHECK** With the fixture set and `integrate.py` unchanged, the replay tests fail on git's identity error. A pass means the identity is not the cause: stop.
   Verify: `uv run pytest tests/test_integrate.py -q -k replay` exits 1.
-- [ ] 1.3 In `skills/mf-integrate/scripts/integrate.py`, add `SCRATCH_IDENTITY` after `NO_HOOKS`, as `conduct.py` holds it, with `user.name=mf-integrate`, `user.email=mf-integrate@example.invalid` and `commit.gpgsign=false` ([D1](design.md#d1)). In `replay`, put `*SCRATCH_IDENTITY` before `"-c", "rerere.enabled=false"`.
+- [x] 1.3 In `skills/mf-integrate/scripts/integrate.py`, add `SCRATCH_IDENTITY` after `NO_HOOKS`, as `conduct.py` holds it, with `user.name=mf-integrate`, `user.email=mf-integrate@example.invalid` and `commit.gpgsign=false` ([D1](design.md#d1)). In `replay`, put `*SCRATCH_IDENTITY` before `"-c", "rerere.enabled=false"`.
   Verify: `uv run pytest tests/test_integrate.py -q` exits 0.
 
 ## 2 — Make's variables
