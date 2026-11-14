@@ -777,6 +777,27 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
         converge["held"](context, read | {"conformance": small}, frozen)
 
 
+def test_a_bold_bullet_is_no_card(host: Host) -> None:
+    converge = _converge()
+    head = _git(host.tree, "rev-parse", "HEAD")
+    frozen = converge["Freeze"]("b" * 40, head, 2, 3)
+    folder = host.folder()
+    folder.mkdir(parents=True)
+    body = (
+        "## Passes\n\n- **stale-claim** — ran.\n\n"
+        "## Summary\n\n- **Spec** — none.\n\n" + _card("R1 drift")
+    )
+    (folder / "conformance.md").write_text(
+        findings("conformance", head, files=3, commits=2, body=body)
+    )
+
+    read = converge["read_findings"](folder / "conformance.md", "conformance", frozen)
+
+    assert read.malformed is None
+    assert [card.id for card in read.cards] == ["R1"]
+    assert converge["DEBT_TITLE"].findall(body) == ["R1"]
+
+
 def _verdicts(
     role: str, round_: int = 1, verdict: str = "clean", blocking: int = 0
 ) -> str:
