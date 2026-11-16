@@ -8,7 +8,7 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 - [x] 2 — Verify:'s shell refusals · moderate
 - [x] 3 — The cut's contract · moderate
 - [x] 4 — Converge's cards, cap and verdict · moderate
-- [ ] 5 — Integrate's merge and git failure · moderate
+- [x] 5 — Integrate's merge and git failure · moderate
 - [ ] 6 — The viewer's bind · moderate
 
 ## 1 — The gate's guards
@@ -57,11 +57,11 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 ## 5 — Integrate's merge and git failure
 
-- [ ] 5.1 Add the new `test_merge3_resolves_by_its_table` to `tests/test_integrate.py`: a table of `merge3(base, ours, theirs)` rows, among them row G21's, run through `runpy` as the file's other tests do.
+- [x] 5.1 Add the new `test_merge3_resolves_by_its_table` to `tests/test_integrate.py`: a table of `merge3(base, ours, theirs)` rows, among them row G21's, run through `runpy` as the file's other tests do.
   Verify: `uv run pytest tests/test_integrate.py::test_merge3_resolves_by_its_table -q` exits 0.
-- [ ] 5.2 Add the new `test_a_git_failure_after_the_tree_names_its_command` to `tests/test_integrate.py`, built to row G22 beside `test_a_git_failure_names_its_line`.
+- [x] 5.2 Add the new `test_a_git_failure_after_the_tree_names_its_command` to `tests/test_integrate.py`, built to row G22 beside `test_a_git_failure_names_its_line`.
   Verify: `uv run pytest tests/test_integrate.py::test_a_git_failure_after_the_tree_names_its_command -q` exits 0.
-- [ ] 5.3 Leave every line broken for a red run as it was.
+- [x] 5.3 Leave every line broken for a red run as it was.
   Verify: `git diff --quiet HEAD -- skills` exits 0.
 
 ## 6 — The viewer's bind

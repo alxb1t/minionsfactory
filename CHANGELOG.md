@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_converge.py` holds converge's guards: a second card under a cleared card's heading, round three as the
   cap of a pickup and of a counted catch-up, an own-count catch-up that fixes at round four, an `accepted` blocking
   card, and a `critical` adversarial card. Each was removed and the suite stayed green (0126-station-guards, phase 4).
+- `tests/test_integrate.py` holds integrate's guards: a table of `merge3` merges, among them an insert and a delete at
+  one line, and a git that fails after the worktree is read. Each was removed and the suite stayed green
+  (0126-station-guards, phase 5).
 
 ## [0.101.1] - 2026-11-14
 
