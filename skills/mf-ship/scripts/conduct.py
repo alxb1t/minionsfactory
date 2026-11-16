@@ -4441,6 +4441,11 @@ class Run:
         self.queue = _queue(primary)
         # The queued cuts the run read; None until `ship` reads the queue.
         self.seen: set[str] | None = None
+        # The most versions at a station a queued cut waits for; None for no cap.
+        # Why: 0129-queue-cap design D1.
+        self.cap: int | None = None
+        # Each queued cut that waits for room, with its reason.
+        self.waiting: dict[str, str] = {}
         self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
@@ -5533,6 +5538,34 @@ class Run:
         thread = threads.get(change)
         return thread is not None and thread.is_alive() and change not in self.ended
 
+    def in_flight(self, threads: dict[str, threading.Thread]) -> int:
+        """Return how many of `threads` are versions at a station.
+
+        A queued cut's `after` ids are its entry's. Why: 0129-queue-cap design D2.
+        """
+        default = default_branch(self.primary)
+        cuts = _cuts(self.primary)
+        count = 0
+        for change in threads:
+            with self.built:
+                live = self.live(change, threads)
+            if not live or self.stopped(change):
+                continue
+            after = (
+                cuts[change].get("after", [])
+                if change in cuts
+                else _dependencies(self.primary, change)
+            )
+            count += all(_shipped(self.primary, default, name) for name in after)
+        return count
+
+    def room(self, threads: dict[str, threading.Thread]) -> bool:
+        """Return whether the line has room for a queued cut under its cap.
+
+        Why: 0129-queue-cap design D3.
+        """
+        return self.cap is None or self.in_flight(threads) < self.cap
+
     def stackable(self, version: Version, unreleased: list[str]) -> str | None:
         """Return the built head a version may stack on, else None.
 
@@ -6056,6 +6089,9 @@ class Run:
             seen = change in (self.seen or set()) and change not in names
             if entry.get("halt") is not None or seen or (thread and thread.is_alive()):
                 continue
+            if change not in names and not self.room(threads):
+                self.wait_cut(change, threads)
+                continue
             try:
                 started = self.take_cut(change, entry, threads) or started
             # why: one cut's failure halts it and leaves the other versions running.
@@ -6088,10 +6124,51 @@ class Run:
         self._unblock(threads)
         return started
 
+    def handled(self) -> set[str] | None:
+        """Return the queued cuts the run read or holds waiting, None before it reads.
+
+        Why: 0129-queue-cap design D4.
+        """
+        return None if self.seen is None else self.seen | set(self.waiting)
+
+    def wait_cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
+        """Hold a queued cut for room under the cap, writing its reason into its entry.
+
+        The first wait is logged; an entry gone or halted is left as it is.
+        Why: 0129-queue-cap design D5.
+        """
+        reason = f"{self.in_flight(threads)} in flight, cap {self.cap}"
+        previous = self.waiting.get(change)
+        self.waiting[change] = reason
+        if previous is None:
+            self.log.event("run", "wait", f"{change}: {reason}")
+        if reason == previous:
+            return
+        with _queue_lock(self.primary):
+            current = _cuts(self.primary).get(change)
+            if current is not None and current["halt"] is None:
+                _write_cut(self.primary, change, {**current, "waits": reason})
+
+    def unwait(self, change: str, entry: dict[str, Any]) -> None:
+        """Drop a cut from the waiting ones, and its reason from its entry.
+
+        An entry that holds no reason, or has gone, is not written.
+        Why: 0129-queue-cap design D5.
+        """
+        self.waiting.pop(change, None)
+        if "waits" not in entry:
+            return
+        with _queue_lock(self.primary):
+            current = _cuts(self.primary).get(change)
+            if current is not None and "waits" in current:
+                kept = {key: value for key, value in current.items() if key != "waits"}
+                _write_cut(self.primary, change, kept)
+
     def take_cut(
         self, change: str, entry: dict[str, Any], threads: dict[str, threading.Thread]
     ) -> bool:
         """Start a queued cut's thread once its executor is probed; True if so."""
+        self.unwait(change, entry)
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
         if self.seen is not None:
@@ -6721,12 +6798,18 @@ class Run:
                 threads[version.change] = threading.Thread(
                     target=self.take, args=(version, threads), name=version.change
                 )
-            for change in sorted(takeable - cut_held):
-                threads[change] = threading.Thread(
-                    target=self.cut, args=(change, threads)
-                )
             for thread in threads.values():
                 thread.start()
+            for change in sorted(takeable - cut_held):
+                if self.room(threads):
+                    self.unwait(change, cuts[change])
+                    threads[change] = threading.Thread(
+                        target=self.cut, args=(change, threads)
+                    )
+                    threads[change].start()
+                else:
+                    self.wait_cut(change, threads)
+            self.seen -= set(self.waiting)
             self.cut_halts(cuts)
             self.join(threads)
         else:
@@ -6755,6 +6838,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     mark = _mark_live(pin, primary_of(cwd))
     try:
         primary = preconditions(cwd, executor)
+        cap = _cap()
         if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
         runs = primary / ".minions" / "runs"
@@ -6781,13 +6865,14 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         (active / "pid").write_text(str(os.getpid()))
         _record_repo(primary)
         conductor = Run(primary, executor)
+        conductor.cap = cap
         try:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
         except Exception as error:  # noqa: BLE001
             conductor.log.event("run", "halt", f"conduct.py failed: {error}")
             code = 1
-        seen = conductor.seen
+        seen = conductor.handled()
         ended = "done" if code == 0 else "halt"
         print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
         return code
@@ -6908,6 +6993,29 @@ def _queue(primary: Path) -> Path:
     e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
     """
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
+
+
+def _cap() -> int | None:
+    """Return the `in_flight` cap of the operator's `ship.toml`, None when none is set.
+
+    e.g. `[queue]` holding `in_flight = 2` gives 2. Why: 0129-queue-cap design D1.
+    """
+    base = os.environ.get("XDG_CONFIG_HOME")
+    config = Path(base) if base else Path.home() / ".config"
+    path = config / "minionsfactory" / "ship.toml"
+    try:
+        data = tomllib.loads(path.read_text())
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise Stop(2, f"{path}: {error}") from None
+    table = data.get("queue")
+    if not isinstance(table, dict) or "in_flight" not in table:
+        return None
+    value = table["in_flight"]
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise Stop(2, f"{path}: `in_flight` is not a whole number above 0")
+    return value
 
 
 def _brief_of(primary: Path, change: str) -> str | None:
@@ -7493,8 +7601,8 @@ def cut(
 ) -> str:
     """Queue a settled brief under the next free number; return the line.
 
-    Why: 0082-cut-station design D1; 0091-cut-halts
-    design D3; 0098-beside design D3; 0106-cut-scripts design D7.
+    Why: 0082-cut-station design D1; 0091-cut-halts design D3; 0098-beside design D3;
+    0106-cut-scripts design D7; 0129-queue-cap design D1, D5.
     """
     if not SLUG.fullmatch(slug):
         raise Stop(2, f"cut: cannot run — not a slug: {slug}")
@@ -7521,6 +7629,7 @@ def cut(
     models = _models_text(path.resolve(), slug)
     ids = linked.get("after", [])
     primary = primary_of(cwd)
+    cap = f" · cap {limit}" if (limit := _cap()) else ""
     for line in _prefetch(primary, approved):
         print(line)
     with _queue_lock(primary):
@@ -7559,12 +7668,12 @@ def cut(
             entry["beside"] = linked["beside"]
         _write_cut(primary, change, entry)
         if live:
-            return f"cut: queued {change} · the live run takes it"
+            return f"cut: queued {change} · the live run takes it{cap}"
         try:
             pid = _start_run(primary, executor)
         except Stop as stop:
             raise Stop(2, f"cut: queued {change} · {stop}") from None
-    return f"cut: queued {change} · run started · pid {pid}"
+    return f"cut: queued {change} · run started · pid {pid}{cap}"
 
 
 def _requests(queue: Path) -> set[str]:
@@ -7895,13 +8004,20 @@ def status(cwd: Path) -> str:
         if version.change not in cuts
     ]
     # A queued cut's line stands for its version's. Why: 0082-cut-station design D6.
-    lines += [
-        f"{change} · cut"
-        if entry["halt"] is None
-        else f"{change} · cut-halted — {entry['halt']}"
-        for change, entry in cuts.items()
-    ]
+    lines += [_cut_line(change, entry) for change, entry in cuts.items()]
     return "\n".join(lines) or "status: none — no open version"
+
+
+def _cut_line(change: str, entry: dict[str, Any]) -> str:
+    """Return a queued cut's status line: its halt, else why it waits, else `cut`.
+
+    e.g. "0003-a · cut — waits: 1 in flight, cap 1". Why: 0129-queue-cap design D5.
+    """
+    if entry["halt"] is not None:
+        return f"{change} · cut-halted — {entry['halt']}"
+    if "waits" in entry:
+        return f"{change} · cut — waits: {entry['waits']}"
+    return f"{change} · cut"
 
 
 def _merge_commit(primary: Path, version: Version) -> str | None:
