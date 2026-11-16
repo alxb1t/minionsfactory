@@ -3754,6 +3754,24 @@ def test_a_later_version_halts_and_the_earlier_ships(
     report = capsys.readouterr().out.splitlines()
     assert report[-3:] == [*halts, lines[-1]]
 
+    # The other direction: the earlier version's build check fails, the later ships.
+    again = tmp_path / "again"
+    again.mkdir()
+    calls.unlink()
+    calls = fake("liar-0001-todo")
+    root = _primary(again)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert "release 0002-marks" in _calls(calls)
+    assert _log(root)[-1].endswith(
+        " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
+        " · needs 0001-todo a fix"
+    )
+
 
 @pytest.mark.slow
 def test_a_fixed_version_rejoins_a_live_run(
