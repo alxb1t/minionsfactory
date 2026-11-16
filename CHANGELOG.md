@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.101.2] - 2026-11-16
+
+Gate: local 10m38s · CI not read under mf-ship · 0.101.1: local 6m19s · CI not read under mf-ship
+
 - `tests/test_gate_check.py`, `tests/test_gate_run.py` and `tests/test_plan_check.py` hold the gate's guards: a second
   task after a non-makefile one, a makefile outside the tree beside many inside, a gate that rewrites the tree or
   its own dry run, and a failing command under `prints nothing`. Each was removed and the suite stayed green
