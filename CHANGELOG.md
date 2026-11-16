@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.104.0] - 2026-11-16
+
+Gate: local 5m43s · CI not read under mf-ship · 0.103.1: local 5m30s · CI not read under mf-ship
+
 - The port reads the host's OS once into `platform.OS`, `linux` or `macos`; every test runs the macOS side but the
   real-sandbox tests, which run the host's. CI's switch is `MF_REQUIRE_SANDBOX`, named for any OS (0131-linux-runner,
   phase 1).
