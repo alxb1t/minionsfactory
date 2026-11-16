@@ -4,7 +4,7 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The setting · moderate
 - [ ] 3 — The tags · hard
 - [ ] 4 — The fetch · hard
@@ -13,11 +13,11 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 
 ## 1 — The pin
 
-- [ ] 1.1 In `tests/test_conduct.py` add `test_a_refused_tag_push_halts_the_run`, marked `slow`, shaped on `test_a_tag_alone_starts_one_run`: `_with_origin`, an executable `hooks/update` in the bare `origin` that exits 1 for a ref under `refs/tags/`, `_released(root, "v0.1.0")`, then `_run_claude` ends 1, the log's line before the close is `run · halt — git push origin v0.1.0 failed, exit 1`, and `origin`'s `main` is the local one ([D1](design.md#d1)).
+- [x] 1.1 In `tests/test_conduct.py` add `test_a_refused_tag_push_halts_the_run`, marked `slow`, shaped on `test_a_tag_alone_starts_one_run`: `_with_origin`, an executable `hooks/update` in the bare `origin` that exits 1 for a ref under `refs/tags/`, `_released(root, "v0.1.0")`, then `_run_claude` ends 1, the log's line before the close is `run · halt — git push origin v0.1.0 failed, exit 1`, and `origin`'s `main` is the local one ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_conduct.py::test_a_refused_tag_push_halts_the_run -q` passes.
-- [ ] 1.2 In `tests/test_conduct.py` add `test_a_local_default_behind_origin_passes`, marked `slow`: `_with_origin`, a clone that pushes a commit to `origin`, `git fetch -q origin` in the primary, then `status` prints `status: none — no open version`, `_run_claude` ends 0, and the primary's `main` is where it was ([D3](design.md#d3)).
+- [x] 1.2 In `tests/test_conduct.py` add `test_a_local_default_behind_origin_passes`, marked `slow`: `_with_origin`, a clone that pushes a commit to `origin`, `git fetch -q origin` in the primary, then `status` prints `status: none — no open version`, `_run_claude` ends 0, and the primary's `main` is where it was ([D3](design.md#d3)).
   Verify: `uv run pytest tests/test_conduct.py::test_a_local_default_behind_origin_passes -q` passes.
-- [ ] 1.3 In `tests/test_conduct.py` add `test_the_config_guard_refuses_a_gc_key`, shaped on `test_a_planted_remote_key_refuses_status_and_run`: `git config gc.auto 0` in the primary makes `_status` exit 1 with `gc.auto` in its line ([D4](design.md#d4)).
+- [x] 1.3 In `tests/test_conduct.py` add `test_the_config_guard_refuses_a_gc_key`, shaped on `test_a_planted_remote_key_refuses_status_and_run`: `git config gc.auto 0` in the primary makes `_status` exit 1 with `gc.auto` in its line ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_conduct.py::test_the_config_guard_refuses_a_gc_key -q` passes.
 
 ## 2 — The setting

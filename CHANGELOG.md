@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Linux a confined command gets a `/run` and a `/tmp` of its own, read-only outside its roots, so a host socket
   there, such as the user's systemd bus, is out of reach; with the network open the resolver file is bound back. D51
   and the threat model accept a host socket elsewhere and a credential created mid-command (0131-linux-runner, phase 7).
+- Pin tests hold what a cloud session meets today: a refused tag push halts the run after the default branch lands; a
+  local default branch behind `origin` stays where it is; `gc.auto` in the repo's config makes `status` refuse it
+  (0132-cloud-run, phase 1).
 
 ## [0.103.1] - 2026-11-16
 

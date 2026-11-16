@@ -7883,6 +7883,19 @@ def test_a_planted_remote_key_refuses_status_and_run(
     assert "hook.probe.event" in log.read_text()
 
 
+def test_the_config_guard_refuses_a_gc_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, _ = _with_origin(tmp_path)
+    _git(root, "config", "gc.auto", "0")
+    assert "gc.auto" in _status(conduct, root, capsys, monkeypatch, 1)
+
+
 @pytest.mark.slow
 def test_a_key_set_after_the_refusal_reaches_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -8007,6 +8020,52 @@ def test_a_tag_alone_starts_one_run(
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert "refs/tags/v0.3.0" in _git(root, "ls-remote", "--tags", "origin")
     assert status() == "status: none — no open version"
+
+
+@pytest.mark.slow
+def test_a_refused_tag_push_halts_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+    # A proxy that refuses a tag push: `origin` takes the branch and no tag.
+    hook = origin / "hooks" / "update"
+    hook.write_text('#!/bin/sh\ncase "$1" in refs/tags/*) exit 1 ;; esac\nexit 0\n')
+    hook.chmod(0o755)
+    _released(root, "v0.1.0")
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _log(root)[-2].endswith(
+        " · run · halt — git push origin v0.1.0 failed, exit 1"
+    )
+    assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
+
+
+@pytest.mark.slow
+def test_a_local_default_behind_origin_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _commit(other, {"theirs.txt": "x\n"}, "origin moves")
+    _git(other, "push", "-q", "origin", "main")
+    _git(root, "fetch", "-q", "origin")
+    held = _git(root, "rev-parse", "main")
+
+    assert _status(conduct, root, capsys, monkeypatch) == (
+        "status: none — no open version"
+    )
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert _git(root, "rev-parse", "main") == held
 
 
 def _origin_judged(
