@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin tests hold what a cloud session meets today: a refused tag push halts the run after the default branch lands; a
   local default branch behind `origin` stays where it is; `gc.auto` in the repo's config makes `status` refuse it
   (0132-cloud-run, phase 1).
+- `tags = false` under `[push]` in `ship.toml` makes a run on that machine push no tag and halt on none: a release
+  passes with its tag on no remote, and `status` says `run · tags — this machine pushes none`. A value that is not
+  true or false stops `run` and `status` with exit 2 (0132-cloud-run, phase 2).
 
 ## [0.103.1] - 2026-11-16
 

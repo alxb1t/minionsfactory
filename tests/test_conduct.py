@@ -8022,6 +8022,25 @@ def test_a_tag_alone_starts_one_run(
     assert status() == "status: none — no open version"
 
 
+def test_status_says_a_machine_pushes_no_tag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, _ = _with_origin(tmp_path)
+    conduct["_keep_origin"](root)
+    _released(root, "v0.1.0")
+
+    assert _status(conduct, root, capsys, monkeypatch) == "run · unpushed main v0.1.0"
+    _ship_toml("[push]\ntags = false\n")
+    assert _status(conduct, root, capsys, monkeypatch) == (
+        "run · unpushed main\nrun · tags — this machine pushes none"
+    )
+
+
 @pytest.mark.slow
 def test_a_refused_tag_push_halts_the_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -8041,6 +8060,11 @@ def test_a_refused_tag_push_halts_the_run(
         " · run · halt — git push origin v0.1.0 failed, exit 1"
     )
     assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
+    # tags = false: no tag, no halt
+    _ship_toml("[push]\ntags = false\n")
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert _git(origin, "tag") == ""
+    assert not any(" · halt — " in line for line in _log(root))
 
 
 @pytest.mark.slow
@@ -8590,6 +8614,28 @@ def test_cap_reads_ship_toml() -> None:
         assert stopped.value.code == 2
 
 
+def test_ship_toml_reads_tags() -> None:
+    conduct = _conduct()
+    assert conduct["_pushes_tags"]() is True
+    for text in ("", "[queue]\nin_flight = 2\n", "[push]\n", "[push]\ntags = true\n"):
+        _ship_toml(text)
+        assert conduct["_pushes_tags"]() is True
+    path = _ship_toml("[push]\ntags = false\n")
+    assert conduct["_pushes_tags"]() is False
+    for value in ('"false"', "0"):
+        _ship_toml(f"[push]\ntags = {value}\n")
+        with pytest.raises(
+            conduct["Stop"],
+            match=re.escape(f"{path}: `tags` is not true or false"),
+        ) as stopped:
+            conduct["_pushes_tags"]()
+        assert stopped.value.code == 2
+    path.write_bytes(b"\xff\xfe")
+    with pytest.raises(conduct["Stop"], match=re.escape(str(path))) as stopped:
+        conduct["_pushes_tags"]()
+    assert stopped.value.code == 2
+
+
 def test_cap_file_that_is_bad_stops_the_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8601,6 +8647,11 @@ def test_cap_file_that_is_bad_stops_the_run(
     root = _primary(tmp_path)
     _ship_toml("[queue]\nin_flight = 0\n")
 
+    assert _run_claude(conduct, root, monkeypatch) == 2
+    assert "ship.toml" in capsys.readouterr().out
+    assert not (root / ".minions" / "runs" / "active").exists()
+    assert _calls(calls) == []
+    _ship_toml('[push]\ntags = "yes"\n')
     assert _run_claude(conduct, root, monkeypatch) == 2
     assert "ship.toml" in capsys.readouterr().out
     assert not (root / ".minions" / "runs" / "active").exists()
@@ -9704,6 +9755,23 @@ def test_a_push_that_lands_before_origin_flaps_passes(
     assert "run · push — waiting: v0.2.0 released locally" in lines
     assert lines[-1] == "run · done — released v0.2.0"
     assert "refs/tags/v0.2.0" in _git(away, "ls-remote", "--tags", str(away))
+
+
+@pytest.mark.slow
+def test_a_release_with_tags_false_lands_without_its_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, origin, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _ship_toml("[push]\ntags = false\n")
+
+    assert "0001-todo · check — release · pass" in run(0)
+    assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
+    assert _git(origin, "tag") == ""
+    assert _git(root, "tag", "--list", "v0.1.0").strip() == "v0.1.0"
+    assert not (root.parent / "0001-todo").exists()
 
 
 def test_the_remote_calls_carry_the_ssh_options(

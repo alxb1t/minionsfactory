@@ -2304,19 +2304,26 @@ def _foreign_commit(
     return commits
 
 
-def _local_releases(primary: Path, base: str, default: str) -> list[str]:
-    """Return `default` and the tags of its release merges past raw `base`, or none."""
+def _local_releases(
+    primary: Path, base: str, default: str, push_tags: bool = True
+) -> list[str]:
+    """Return `default` and the tags of its release merges past raw `base`, or none.
+
+    `push_tags` false names no tag. Why: 0132-cloud-run design D1.
+    """
     tags = _release_tags(primary)
     commits = _foreign_commit(primary, base, default, tags=tags)
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
     named = [tag for tag, (_, commit) in tags.items() if commit in released]
-    return [default, *named] if commits else []
+    return [default, *(named if push_tags else [])] if commits else []
 
 
-def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
-    """Return each `(ref, sha)` to push.
+def _unpushed(
+    primary: Path, first_read: bool = False, push_tags: bool = True
+) -> list[tuple[str, str]]:
+    """Return each `(ref, sha)` to push; `push_tags` false names no tag.
 
-    Why: 0053-sandbox-patch design D2.
+    Why: 0053-sandbox-patch design D2; 0132-cloud-run design D1.
     """
     url = _read_url(primary, first_read)
     if not _has_origin(primary):
@@ -2360,6 +2367,8 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
     commits = _foreign_commit(primary, base, default, tip, tags)
     found = [(f"refs/heads/{default}", tip)] if commits else []
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
+    if not push_tags:
+        return found
     for tag, (sha, commit) in tags.items():
         ref = f"refs/tags/{tag}"
         if ref in held or not _history_ancestor(primary, commit, tip):
@@ -4479,6 +4488,8 @@ class Run:
         # The most versions at a station a queued cut waits for; None for no cap.
         # Why: 0129-queue-cap design D1.
         self.cap: int | None = None
+        # Whether this machine pushes tags. Why: 0132-cloud-run design D1.
+        self.tags: bool = True
         # Each queued cut that waits for room, with its reason.
         self.waiting: dict[str, str] = {}
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -4708,9 +4719,15 @@ class Run:
         """
         try:
             if self.offline and (base := _offline_base(self.primary)):
-                names = _local_releases(self.primary, base, _kept_default(self.primary))
+                names = _local_releases(
+                    self.primary,
+                    base,
+                    _kept_default(self.primary),
+                    push_tags=self.tags,
+                )
             else:
-                names = [ref.split("/", 2)[2] for ref, _ in _unpushed(self.primary)]
+                unpushed = _unpushed(self.primary, push_tags=self.tags)
+                names = [ref.split("/", 2)[2] for ref, _ in unpushed]
         except Stop:
             return ""
         return f" · unpushed {' '.join(names)}" if names else ""
@@ -5468,7 +5485,8 @@ class Run:
                     check, self.primary, stage, version, phase=phase, notes=restamped
                 )
                 try:
-                    reason = ask(True, self.offline)
+                    # `offline` skips the check that the tag is on `origin`.
+                    reason = ask(True, self.offline or not self.tags)
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
@@ -6529,7 +6547,7 @@ class Run:
                     changed := _config_changed(self.primary, self.git_state)
                 ):
                     raise changed
-                unpushed = _unpushed(self.primary, first_read=True)
+                unpushed = _unpushed(self.primary, first_read=True, push_tags=self.tags)
             except Unreachable as down:
                 self.waited(str(down))
                 continue
@@ -6874,6 +6892,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     try:
         primary = preconditions(cwd, executor)
         cap = _cap()
+        tags = _pushes_tags()
         if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
         runs = primary / ".minions" / "runs"
@@ -6901,6 +6920,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         _record_repo(primary)
         conductor = Run(primary, executor)
         conductor.cap = cap
+        conductor.tags = tags
         try:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
@@ -7030,26 +7050,49 @@ def _queue(primary: Path) -> Path:
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
 
 
-def _cap() -> int | None:
-    """Return the `in_flight` cap of the operator's `ship.toml`, None when none is set.
+def _ship_file() -> tuple[Path, dict[str, Any]]:
+    """Return the operator's `ship.toml` path and its data, empty for no file.
 
-    e.g. `[queue]` holding `in_flight = 2` gives 2. Why: 0129-queue-cap design D1.
+    e.g. `~/.config/minionsfactory/ship.toml`. Why: 0132-cloud-run design D1.
     """
     base = os.environ.get("XDG_CONFIG_HOME")
     config = Path(base) if base else Path.home() / ".config"
     path = config / "minionsfactory" / "ship.toml"
     try:
-        data = tomllib.loads(path.read_text())
+        return path, tomllib.loads(path.read_text())
     except FileNotFoundError:
-        return None
+        return path, {}
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise Stop(2, f"{path}: {error}") from None
+
+
+def _cap() -> int | None:
+    """Return the `in_flight` cap of the operator's `ship.toml`, None when none is set.
+
+    e.g. `[queue]` holding `in_flight = 2` gives 2. Why: 0129-queue-cap design D1.
+    """
+    path, data = _ship_file()
     table = data.get("queue")
     if not isinstance(table, dict) or "in_flight" not in table:
         return None
     value = table["in_flight"]
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise Stop(2, f"{path}: `in_flight` is not a whole number above 0")
+    return value
+
+
+def _pushes_tags() -> bool:
+    """Return whether this machine pushes tags: `tags` under `[push]` in `ship.toml`.
+
+    No table and no key give True. Why: 0132-cloud-run design D1
+    """
+    path, data = _ship_file()
+    table = data.get("push")
+    if not isinstance(table, dict) or "tags" not in table:
+        return True
+    value = table["tags"]
+    if not isinstance(value, bool):
+        raise Stop(2, f"{path}: `tags` is not true or false")
     return value
 
 
@@ -8014,7 +8057,7 @@ def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) ->
 
 
 def status(cwd: Path) -> str:
-    """Return the claim and unpushed lines, then `<change-id> · <stage>` per version."""
+    """Return the claim, unpushed and tags lines, then `<change-id> · <stage>` each."""
     primary = primary_of(cwd)
     claim = _claim(primary / ".minions" / "runs" / "active")
     lines = {
@@ -8022,10 +8065,13 @@ def status(cwd: Path) -> str:
         "live": ["run · live"],
         "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
-    unpushed = _unpushed(primary)
+    tags = _pushes_tags()
+    unpushed = _unpushed(primary, push_tags=tags)
     if unpushed:
         names = (ref.split("/", 2)[2] for ref, _ in unpushed)
         lines.append(f"run · unpushed {' '.join(names)}")
+    if not tags:
+        lines.append("run · tags — this machine pushes none")
     if _unread(primary):
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
     # why: 0080-minions-layout design D4

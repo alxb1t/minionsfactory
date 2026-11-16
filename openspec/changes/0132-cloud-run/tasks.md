@@ -5,7 +5,7 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The setting · moderate
+- [x] 2 — The setting · moderate
 - [ ] 3 — The tags · hard
 - [ ] 4 — The fetch · hard
 - [ ] 5 — The guard and Codex · moderate
@@ -22,29 +22,29 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 
 ## 2 — The setting
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py` add `_ship_file() -> tuple[Path, dict[str, Any]]` before `_cap`, holding the read `_cap` makes today and returning an empty dict for no file; make `_cap` call it and keep its checks and its messages ([D1](design.md#d1)).
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py` add `_ship_file() -> tuple[Path, dict[str, Any]]` before `_cap`, holding the read `_cap` makes today and returning an empty dict for no file; make `_cap` call it and keep its checks and its messages ([D1](design.md#d1)).
   Verify: `git grep -n "^def _ship_file" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 2.2 In `skills/mf-ship/scripts/conduct.py` add `_pushes_tags() -> bool` after `_cap`: `True` for no table, no key or `True`, `False` for `False`, else a `Stop` with code 2 naming the file and saying `tags` is not true or false. Its docstring ends `Why: 0132-cloud-run design D1` ([D1](design.md#d1)).
+- [x] 2.2 In `skills/mf-ship/scripts/conduct.py` add `_pushes_tags() -> bool` after `_cap`: `True` for no table, no key or `True`, `False` for `False`, else a `Stop` with code 2 naming the file and saying `tags` is not true or false. Its docstring ends `Why: 0132-cloud-run design D1` ([D1](design.md#d1)).
   Verify: `git grep -n "^def _pushes_tags" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 2.3 In `tests/test_conduct.py` add `test_ship_toml_reads_tags`, shaped on `test_cap_reads_ship_toml` and its `_ship_toml`: no file, no `[push]`, no key and `true` give `True`; `false` gives `False`; a string, a number and an unreadable file raise `Stop` with code 2 matching the file's path ([D1](design.md#d1)).
+- [x] 2.3 In `tests/test_conduct.py` add `test_ship_toml_reads_tags`, shaped on `test_cap_reads_ship_toml` and its `_ship_toml`: no file, no `[push]`, no key and `true` give `True`; `false` gives `False`; a string, a number and an unreadable file raise `Stop` with code 2 matching the file's path ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_conduct.py -q -k ship_toml_reads_tags` passes.
-- [ ] 2.4 In `skills/mf-ship/scripts/conduct.py` add `self.tags: bool = True` after `self.cap` in `Run.__init__`, `tags = _pushes_tags()` after `cap = _cap()` in `run`, and `conductor.tags = tags` after `conductor.cap = cap` ([D1](design.md#d1)).
+- [x] 2.4 In `skills/mf-ship/scripts/conduct.py` add `self.tags: bool = True` after `self.cap` in `Run.__init__`, `tags = _pushes_tags()` after `cap = _cap()` in `run`, and `conductor.tags = tags` after `conductor.cap = cap` ([D1](design.md#d1)).
   Verify: `git grep -n -e "self.tags: bool = True" -e "tags = _pushes_tags()" -e "conductor.tags = tags" -- skills/mf-ship/scripts/conduct.py` prints a line holding each.
-- [ ] 2.5 In `tests/test_conduct.py`, in `test_cap_file_that_is_bad_stops_the_run`, add a step after its last assert: `_ship_toml('[push]\ntags = "yes"\n')`, then `_run_claude` ends 2, the output holds `ship.toml`, `.minions/runs/active` is absent and `_calls(calls)` is empty ([D1](design.md#d1)).
+- [x] 2.5 In `tests/test_conduct.py`, in `test_cap_file_that_is_bad_stops_the_run`, add a step after its last assert: `_ship_toml('[push]\ntags = "yes"\n')`, then `_run_claude` ends 2, the output holds `ship.toml`, `.minions/runs/active` is absent and `_calls(calls)` is empty ([D1](design.md#d1)).
   Verify: `git grep -n -F 'tags = "yes"' -- tests/test_conduct.py` prints the line.
-- [ ] 2.6 In `skills/mf-ship/scripts/conduct.py` add `push_tags: bool = True` to `_unpushed` after `first_read` and to `_local_releases` after `default`. False makes `_unpushed` skip its loop over the tags, so `found` holds the default branch alone, and `_local_releases` name no tag ([D1](design.md#d1)).
+- [x] 2.6 In `skills/mf-ship/scripts/conduct.py` add `push_tags: bool = True` to `_unpushed` after `first_read` and to `_local_releases` after `default`. False makes `_unpushed` skip its loop over the tags, so `found` holds the default branch alone, and `_local_releases` name no tag ([D1](design.md#d1)).
   Verify: `git grep -n "push_tags: bool = True" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.7 In `skills/mf-ship/scripts/conduct.py` pass `push_tags=self.tags` to `_unpushed` in `Run.push_left` and in `Run.unpushed`, and to `_local_releases` in `Run.unpushed` ([D1](design.md#d1)).
+- [x] 2.7 In `skills/mf-ship/scripts/conduct.py` pass `push_tags=self.tags` to `_unpushed` in `Run.push_left` and in `Run.unpushed`, and to `_local_releases` in `Run.unpushed` ([D1](design.md#d1)).
   Verify: `git grep -n "push_tags=self.tags" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.8 In `skills/mf-ship/scripts/conduct.py`, in `Run.advance`, change `reason = ask(True, self.offline)` to `reason = ask(True, self.offline or not self.tags)`, with a comment that `offline` skips the check that the tag is on `origin` ([D1](design.md#d1)).
+- [x] 2.8 In `skills/mf-ship/scripts/conduct.py`, in `Run.advance`, change `reason = ask(True, self.offline)` to `reason = ask(True, self.offline or not self.tags)`, with a comment that `offline` skips the check that the tag is on `origin` ([D1](design.md#d1)).
   Verify: `git grep -n -F "ask(True, self.offline or not self.tags)" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 2.9 In `skills/mf-ship/scripts/conduct.py`, in `status`, call `_unpushed(primary, push_tags=tags)` with `tags = _pushes_tags()` read first, and append `run · tags — this machine pushes none` after the unpushed line when `tags` is false ([D1](design.md#d1)).
+- [x] 2.9 In `skills/mf-ship/scripts/conduct.py`, in `status`, call `_unpushed(primary, push_tags=tags)` with `tags = _pushes_tags()` read first, and append `run · tags — this machine pushes none` after the unpushed line when `tags` is false ([D1](design.md#d1)).
   Verify: `git grep -n -F "run · tags — this machine pushes none" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 2.10 In `tests/test_conduct.py` add `test_status_says_a_machine_pushes_no_tag`, shaped on `test_a_tag_alone_starts_one_run` with `conduct["_keep_origin"](root)` called first: with no setting `status` names `main v0.1.0` and no `tags` line; with `[push] tags = false` it names `main` and prints the line ([D1](design.md#d1)).
+- [x] 2.10 In `tests/test_conduct.py` add `test_status_says_a_machine_pushes_no_tag`, shaped on `test_a_tag_alone_starts_one_run` with `conduct["_keep_origin"](root)` called first: with no setting `status` names `main v0.1.0` and no `tags` line; with `[push] tags = false` it names `main` and prints the line ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_conduct.py -q -k status_says_a_machine` passes.
-- [ ] 2.11 In `tests/test_conduct.py`, in `test_a_refused_tag_push_halts_the_run`, add a step after the halt: the comment `# tags = false: no tag, no halt`, `_ship_toml("[push]\ntags = false\n")`, then `_run_claude` ends 0, `origin` lists no tag and the log holds no halt line ([D1](design.md#d1)).
+- [x] 2.11 In `tests/test_conduct.py`, in `test_a_refused_tag_push_halts_the_run`, add a step after the halt: the comment `# tags = false: no tag, no halt`, `_ship_toml("[push]\ntags = false\n")`, then `_run_claude` ends 0, `origin` lists no tag and the log holds no halt line ([D1](design.md#d1)).
   Verify: `git grep -n -F "# tags = false: no tag, no halt" -- tests/test_conduct.py` prints the line.
-- [ ] 2.12 In `tests/test_conduct.py` add `test_a_release_with_tags_false_lands_without_its_tag`, marked `slow`, shaped on `test_a_push_that_lands_before_origin_flaps_passes` with no flap and `_ship_toml("[push]\ntags = false\n")`: `run(0)` holds `0001-todo · check — release · pass`, `origin`'s `main` is the local one, `origin` lists no tag, the local `v0.1.0` stands and the version's worktree is gone. Its commit body says why no existing test fits ([D1](design.md#d1)).
+- [x] 2.12 In `tests/test_conduct.py` add `test_a_release_with_tags_false_lands_without_its_tag`, marked `slow`, shaped on `test_a_push_that_lands_before_origin_flaps_passes` with no flap and `_ship_toml("[push]\ntags = false\n")`: `run(0)` holds `0001-todo · check — release · pass`, `origin`'s `main` is the local one, `origin` lists no tag, the local `v0.1.0` stands and the version's worktree is gone. Its commit body says why no existing test fits ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_conduct.py -q -k a_release_with_tags_false` passes.
 
 ## 3 — The tags
