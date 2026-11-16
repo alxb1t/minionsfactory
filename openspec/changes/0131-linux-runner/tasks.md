@@ -7,7 +7,7 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 - [x] 1 — The side · moderate
 - [x] 2 — The Linux side · hard
 - [x] 3 — The callers · moderate
-- [ ] 4 — The names · hard
+- [x] 4 — The names · hard
 - [ ] 5 — The real proof · moderate
 - [ ] 6 — The record · moderate
 
@@ -66,15 +66,15 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 ## 4 — The names
 
-- [ ] 4.1 **HALT CHECK** The run's first clean-tree check is the one in `preconditions` of `skills/mf-ship/scripts/conduct.py`, `if not _config_held(primary) and _dirty(primary):`, which `_hide_marks` will precede ([D2](design.md#d2)).
+- [x] 4.1 **HALT CHECK** The run's first clean-tree check is the one in `preconditions` of `skills/mf-ship/scripts/conduct.py`, `if not _config_held(primary) and _dirty(primary):`, which `_hide_marks` will precede ([D2](design.md#d2)).
   Verify: `git grep -n -F "if not _config_held(primary) and _dirty(primary):" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 4.2 In `skills/mflib/platform.py` add `MARKS` holding `.bash_profile`, `.bashrc`, `.claude`, `.gitconfig`, `.gitmodules`, `.idea`, `.mcp.json`, `.profile`, `.ripgreprc`, `.vscode`, `.zprofile` and `.zshrc`, and `marks() -> tuple[str, ...]` returning `MARKS` on `linux` and `()` on `macos` ([D2](design.md#d2)).
+- [x] 4.2 In `skills/mflib/platform.py` add `MARKS` holding `.bash_profile`, `.bashrc`, `.claude`, `.gitconfig`, `.gitmodules`, `.idea`, `.mcp.json`, `.profile`, `.ripgreprc`, `.vscode`, `.zprofile` and `.zshrc`, and `marks() -> tuple[str, ...]` returning `MARKS` on `linux` and `()` on `macos` ([D2](design.md#d2)).
   Verify: `git grep -n -e "^MARKS" -e "^def marks" -- skills/mflib/platform.py` prints both lines.
-- [ ] 4.3 In `tests/test_platform.py` add `test_the_marks_are_the_linux_sandboxs`: on `linux` `marks()` equals the names of 4.2 in that order, on `macos` it is empty ([D2](design.md#d2)).
+- [x] 4.3 In `tests/test_platform.py` add `test_the_marks_are_the_linux_sandboxs`: on `linux` `marks()` equals the names of 4.2 in that order, on `macos` it is empty ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_platform.py -q -k marks_are` passes.
-- [ ] 4.4 In `skills/mf-ship/scripts/conduct.py` add `_hide_marks(common: Path)` as [D2](design.md#d2) describes, raising `Stop(2, f"run: cannot run — .git/info/exclude: {error}")` on an `OSError`, and call `_hide_marks(common)` in `preconditions` immediately before the `_config_held` and `_dirty` check. With no marks it returns before it opens anything ([D2](design.md#d2)).
+- [x] 4.4 In `skills/mf-ship/scripts/conduct.py` add `_hide_marks(common: Path)` as [D2](design.md#d2) describes, raising `Stop(2, f"run: cannot run — .git/info/exclude: {error}")` on an `OSError`, and call `_hide_marks(common)` in `preconditions` immediately before the `_config_held` and `_dirty` check. With no marks it returns before it opens anything ([D2](design.md#d2)).
   Verify: `git grep -n -e "^def _hide_marks" -e "_hide_marks(common)" -- skills/mf-ship/scripts/conduct.py` prints both lines.
-- [ ] 4.5 In `tests/test_conduct.py` add `test_a_start_on_linux_writes_the_marks_into_the_exclude` and its cases, shaped on `test_a_run_without_betterleaks_stops_at_start` with `SCANNER` absent so the run stops after the tree check: `.git/info/exclude` absent, holding one mark, holding all, ending without a newline, a link at `exclude`, a link at `info`; the stop holds `is not on PATH` and not `tree is not clean` beside an untracked `.bashrc` on `linux`, and holds `the primary's tree is not clean` on `macos`, where the file is not written ([D2](design.md#d2)).
+- [x] 4.5 In `tests/test_conduct.py` add `test_a_start_on_linux_writes_the_marks_into_the_exclude` and its cases, shaped on `test_a_run_without_betterleaks_stops_at_start` with `SCANNER` absent so the run stops after the tree check: `.git/info/exclude` absent, holding one mark, holding all, ending without a newline, a link at `exclude`, a link at `info`; the stop holds `is not on PATH` and not `tree is not clean` beside an untracked `.bashrc` on `linux`, and holds `the primary's tree is not clean` on `macos`, where the file is not written ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_conduct.py -q -k writes_the_marks` passes.
 
 ## 5 — The real proof

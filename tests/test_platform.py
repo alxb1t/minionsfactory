@@ -174,6 +174,18 @@ def test_the_reasons_are_the_ports(
     assert not platform.has_hold()
 
 
+def test_the_marks_are_the_linux_sandboxs(monkeypatch: pytest.MonkeyPatch) -> None:
+    names = (
+        *(".bash_profile", ".bashrc", ".claude", ".gitconfig", ".gitmodules"),
+        *(".idea", ".mcp.json", ".profile", ".ripgreprc", ".vscode"),
+        *(".zprofile", ".zshrc"),
+    )
+
+    assert platform.marks() == ()
+    monkeypatch.setattr(platform, "OS", "linux")
+    assert platform.marks() == names
+
+
 def test_the_native_architecture_reads_sysctl_past_a_translated_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

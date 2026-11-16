@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The port words why there is no sandbox and no hold; the conductor and the cut's hold name no OS tool. Linux has no
   awake hold and says `awake: not held — no hold on Linux`; `bwrap` joins the OS commands only the port names
   (0131-linux-runner, phase 3).
+- On Linux a run's start appends the names Claude Code's sandbox mounts into a worktree to `.git/info/exclude`, before
+  its first clean-tree check, so they no longer halt it; a link at `info` or `exclude` stops the run with 2
+  (0131-linux-runner, phase 4).
 
 ## [0.103.0] - 2026-11-16
 

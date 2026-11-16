@@ -20,6 +20,11 @@ DEVICES = (
     *("/dev/null", "/dev/tty", "/dev/dtracehelper", "/dev/autofs_nowait"),
     *("/dev/stdout", "/dev/stderr"),
 )
+MARKS = (
+    *(".bash_profile", ".bashrc", ".claude", ".gitconfig", ".gitmodules"),
+    *(".idea", ".mcp.json", ".profile", ".ripgreprc", ".vscode"),
+    *(".zprofile", ".zshrc"),
+)
 
 
 def side(system: str) -> str:
@@ -224,3 +229,12 @@ def hold_awake(pid: int, seconds: int | None = None) -> subprocess.Popen[bytes]:
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
+
+
+def marks() -> tuple[str, ...]:
+    """Return the names Claude Code's sandbox mounts into a worktree on this side.
+
+    e.g. on macOS → ()
+    Why: 0131-linux-runner design D2.
+    """
+    return MARKS if OS == "linux" else ()

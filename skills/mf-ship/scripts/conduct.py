@@ -4372,6 +4372,33 @@ def _unlinked(executor: str) -> None:
         )
 
 
+def _hide_marks(common: Path) -> None:
+    """Append to `info/exclude` each of the port's marks no line of it equals.
+
+    A link at `info` or `exclude` stops the run with 2.
+    Why: 0131-linux-runner design D2.
+    """
+    marks = mflib.platform.marks()
+    if not marks:
+        return
+    flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
+    try:
+        fd = _folder_fd(common, "info")
+        try:
+            file = os.open("exclude", flags, 0o644, dir_fd=fd)
+        finally:
+            os.close(fd)
+        with os.fdopen(file, "r+", encoding="utf-8", errors="replace") as exclude:
+            text = exclude.read()
+            lines = text.splitlines()
+            missing = "".join(f"{mark}\n" for mark in marks if mark not in lines)
+            lead = "\n" if text and not text.endswith("\n") else ""
+            if missing:
+                exclude.write(lead + missing)
+    except OSError as error:
+        raise Stop(2, f"run: cannot run — .git/info/exclude: {error}") from None
+
+
 def preconditions(cwd: Path, executor: str) -> Path:
     """Return the primary checkout once every run precondition holds; else exit 2."""
     top = _maybe(cwd, "rev-parse", "--show-toplevel")
@@ -4388,6 +4415,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
     default = default_branch(primary)
     if (branch := _git(primary, "branch", "--show-current").strip()) != default:
         raise Stop(2, f"run: cannot run — on {branch or 'no branch'}, not {default}")
+    _hide_marks(common)
     # A held key halts at `push_left`, in the run's log, before any `git status`.
     if not _config_held(primary) and _dirty(primary):
         raise Stop(2, "run: cannot run — the primary's tree is not clean")
