@@ -91,14 +91,8 @@ def _bwrap(policy: Policy, tool: str) -> list[str]:
         elif path.exists():
             command += ["--ro-bind", "/dev/null", str(path)]
     shut = [] if policy.network else ["--unshare-net"]
-    return [
-        *command,
-        "--unshare-pid",
-        *shut,
-        "--die-with-parent",
-        "--new-session",
-        "--",
-    ]
+    command += ["--unshare-pid", *shut, "--die-with-parent", "--new-session", "--"]
+    return command
 
 
 @functools.cache
