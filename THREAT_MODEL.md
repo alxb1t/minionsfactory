@@ -198,7 +198,8 @@ Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts 
 - A plugin enabled outside the user settings file, managed settings among them, still starts in a Claude worker (`0100·S6`).
 
 - A Codex worker can read `~`.
-- A gate that serves on loopback cannot run under a worker; a Linux container, where loopback is private, is the way out.
+- A gate that serves on loopback cannot run in a Mac's sandbox, which refuses loopback; under bubblewrap the command has a
+  loopback of its own, so it runs.
 - A person running `conduct.py` inside a tampered worktree: D47 says to run in the primary (`0052`'s `S15`).
 - A worker that swaps a writable root for a link after the check that precedes a Codex spawn, and back, widens
   that worker's roots: whether Codex resolves a root once or per command is unproven (`0050·S7`, `0050·R11`). A Claude
@@ -231,7 +232,8 @@ Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts 
   `/mf-ship stop` or a stale clear to kill, or make a live run read stale. A pid at or below 1 is refused, and a group's
   leader must name an executor.
 - The LFS route: no hook runs in a run, so a run cannot upload LFS objects, and `lfs.*` keys still halt it.
-- Linux and WSL2 are unproven: the fail-closed start and the probe are measured on macOS alone.
+- WSL2 is unproven. On Linux the sandbox is bubblewrap, proved by CI's real-sandbox tests; a denied secret reads as empty
+  or missing, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks.
 - A worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands
   keeps its entry until a person removes it.
 - An outage holds that window open: while `origin` cannot be read, a run releases locally, and each head authorizes a

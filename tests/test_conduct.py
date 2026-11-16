@@ -8337,9 +8337,9 @@ def test_a_run_without_betterleaks_stops_at_start(
         == 2
     )
 
-    assert capsys.readouterr().out.strip() == (
-        "run: cannot run — betterleaks-absent is not on PATH:"
-        " brew install betterleaks-absent"
+    assert (
+        capsys.readouterr().out.strip()
+        == "run: cannot run — betterleaks-absent is not on PATH"
     )
     assert _calls(calls) == []
     assert not (root / ".minions" / "runs").exists()

@@ -9,7 +9,7 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 - [x] 3 — The callers · moderate
 - [x] 4 — The names · hard
 - [x] 5 — The real proof · moderate
-- [ ] 6 — The record · moderate
+- [x] 6 — The record · moderate
 
 ## 1 — The side
 
@@ -92,21 +92,21 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 ## 6 — The record
 
-- [ ] 6.1 In `docs/decisions.md`, D51: write "macOS Seatbelt or Linux bubblewrap" where the first paragraph says "macOS Seatbelt", and, for the last Accepts clause "Linux has no runner until a run starts there", write "on Linux a denied secret reads as empty or missing, not as an error, with the network off loopback is private to the command, not refused, a signal to a process outside fails as no such process, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks" ([D2](design.md#d2), [D3](design.md#d3)).
+- [x] 6.1 In `docs/decisions.md`, D51: write "macOS Seatbelt or Linux bubblewrap" where the first paragraph says "macOS Seatbelt", and, for the last Accepts clause "Linux has no runner until a run starts there", write "on Linux a denied secret reads as empty or missing, not as an error, with the network off loopback is private to the command, not refused, a signal to a process outside fails as no such process, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks" ([D2](design.md#d2), [D3](design.md#d3)).
   Verify: `git grep -n -i bubblewrap -- docs/decisions.md` prints a line.
-- [ ] 6.2 In `docs/decisions.md`, D78: delete " · a macOS-only converge until Linux has a runner" from its Accepts, so the line ends "moot." ([D3](design.md#d3)).
+- [x] 6.2 In `docs/decisions.md`, D78: delete " · a macOS-only converge until Linux has a runner" from its Accepts, so the line ends "moot." ([D3](design.md#d3)).
   Verify: `git grep -n "macOS-only converge" -- docs/decisions.md` prints nothing.
-- [ ] 6.3 In `THREAT_MODEL.md` Known gaps, write "A gate that serves on loopback cannot run in a Mac's sandbox, which refuses loopback; under bubblewrap the command has a loopback of its own, so it runs." for the line on a gate that serves on loopback, and "WSL2 is unproven. On Linux the sandbox is bubblewrap, proved by CI's real-sandbox tests; a denied secret reads as empty or missing, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks." for the line "Linux and WSL2 are unproven" ([D3](design.md#d3)).
+- [x] 6.3 In `THREAT_MODEL.md` Known gaps, write "A gate that serves on loopback cannot run in a Mac's sandbox, which refuses loopback; under bubblewrap the command has a loopback of its own, so it runs." for the line on a gate that serves on loopback, and "WSL2 is unproven. On Linux the sandbox is bubblewrap, proved by CI's real-sandbox tests; a denied secret reads as empty or missing, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks." for the line "Linux and WSL2 are unproven" ([D3](design.md#d3)).
   Verify: `git grep -n -i bubblewrap -- THREAT_MODEL.md` prints a line.
-- [ ] 6.4 In `docs/recipes.md`, the `An OS` recipe: write "A platform other than macOS or Linux." for "A platform other than macOS.", add `bwrap` to its list of OS commands, and add to the port's row `OS` and `side`, the Linux `confine` and `has_sandbox`, `no_sandbox`, `refused` per `OS`, `no_hold`, and `marks`, the worker sandbox's names ([D7](design.md#d7)).
+- [x] 6.4 In `docs/recipes.md`, the `An OS` recipe: write "A platform other than macOS or Linux." for "A platform other than macOS.", add `bwrap` to its list of OS commands, and add to the port's row `OS` and `side`, the Linux `confine` and `has_sandbox`, `no_sandbox`, `refused` per `OS`, `no_hold`, and `marks`, the worker sandbox's names ([D7](design.md#d7)).
   Verify: `git grep -n bwrap -- docs/recipes.md` prints a line.
-- [ ] 6.5 In `skills/mf-ship/SKILL.md`, the `sandboxed -- <cmd>` row: write ``under the host's OS sandbox, macOS Seatbelt or Linux bubblewrap,`` for ``under macOS Seatbelt``, and ``when the OS sandbox does not stand (no `sandbox-exec` or `bwrap` on `PATH`, or a `bwrap` that cannot apply one)`` for ``when `sandbox-exec` is not on `PATH` `` ([D3](design.md#d3), [D8](design.md#d8)).
+- [x] 6.5 In `skills/mf-ship/SKILL.md`, the `sandboxed -- <cmd>` row: write ``under the host's OS sandbox, macOS Seatbelt or Linux bubblewrap,`` for ``under macOS Seatbelt``, and ``when the OS sandbox does not stand (no `sandbox-exec` or `bwrap` on `PATH`, or a `bwrap` that cannot apply one)`` for ``when `sandbox-exec` is not on `PATH` `` ([D3](design.md#d3), [D8](design.md#d8)).
   Verify: `git grep -n -F "Linux bubblewrap" -- skills/mf-ship/SKILL.md` prints the line.
-- [ ] 6.6 In `skills/mf-ship/SKILL.md` Step 1, after item 2's clause on `git status --porcelain` add "On Linux the run first writes the names Claude Code's sandbox mounts into a worktree to .git/info/exclude." ([D2](design.md#d2)).
+- [x] 6.6 In `skills/mf-ship/SKILL.md` Step 1, after item 2's clause on `git status --porcelain` add "On Linux the run first writes the names Claude Code's sandbox mounts into a worktree to .git/info/exclude." ([D2](design.md#d2)).
   Verify: `git grep -n -F ".git/info/exclude" -- skills/mf-ship/SKILL.md` prints the line.
-- [ ] 6.7 In `skills/mf-ship/SKILL.md` and `skills/mf-cut-change/SKILL.md`, after "unless it is in clamshell mode." add " Linux has no hold." ([D4](design.md#d4)).
+- [x] 6.7 In `skills/mf-ship/SKILL.md` and `skills/mf-cut-change/SKILL.md`, after "unless it is in clamshell mode." add " Linux has no hold." ([D4](design.md#d4)).
   Verify: `git grep -n -F "Linux has no hold" -- skills/mf-ship/SKILL.md skills/mf-cut-change/SKILL.md` prints a line of each file.
-- [ ] 6.8 In `skills/mf-ship/scripts/conduct.py` reword these docstrings: "under macOS Seatbelt" of `sandboxed` to "under the host's OS sandbox"; "under Seatbelt with the network open" of the npm runner to "under the OS sandbox with the network open"; "No `sandbox-exec` on `PATH` stops with 2." to "No OS sandbox stops with 2." ([D8](design.md#d8)).
+- [x] 6.8 In `skills/mf-ship/scripts/conduct.py` reword these docstrings: "under macOS Seatbelt" of `sandboxed` to "under the host's OS sandbox"; "under Seatbelt with the network open" of the npm runner to "under the OS sandbox with the network open"; "No `sandbox-exec` on `PATH` stops with 2." to "No OS sandbox stops with 2." ([D8](design.md#d8)).
   Verify: `git grep -n -e Seatbelt -e sandbox-exec -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 6.9 In `preconditions` of `skills/mf-ship/scripts/conduct.py` make the scanner's halt `run: cannot run — {SCANNER} is not on PATH`, without the `: brew install {SCANNER}` it ends with today, in `tests/test_conduct.py`, in `test_a_run_without_betterleaks_stops_at_start`, expect `run: cannot run — betterleaks-absent is not on PATH`, and in `skills/mf-ship/SKILL.md` Step 1 item 4 write `betterleaks` for the span `brew install betterleaks` ([D12](design.md#d12)).
+- [x] 6.9 In `preconditions` of `skills/mf-ship/scripts/conduct.py` make the scanner's halt `run: cannot run — {SCANNER} is not on PATH`, without the `: brew install {SCANNER}` it ends with today, in `tests/test_conduct.py`, in `test_a_run_without_betterleaks_stops_at_start`, expect `run: cannot run — betterleaks-absent is not on PATH`, and in `skills/mf-ship/SKILL.md` Step 1 item 4 write `betterleaks` for the span `brew install betterleaks` ([D12](design.md#d12)).
   Verify: `git grep -n brew -- skills/mf-ship/SKILL.md skills/mf-ship/scripts/conduct.py tests/test_conduct.py` prints nothing.

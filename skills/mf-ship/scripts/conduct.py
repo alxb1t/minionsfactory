@@ -3346,7 +3346,7 @@ def sandboxed(
     timeout: float | None = None,
     grace: float = 5.0,
 ) -> int:
-    """Run `argv` in `cwd` under macOS Seatbelt and return its exit code.
+    """Run `argv` in `cwd` under the host's OS sandbox and return its exit code.
 
     A `timeout` ends the command's group and gives 124. Why: 0107-sandbox-runner
     design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
@@ -4424,9 +4424,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
     if _executor_missing(executor):
         raise Stop(2, f"run: cannot run — {executor} is not on PATH")
     if shutil.which(SCANNER) is None:
-        raise Stop(
-            2, f"run: cannot run — {SCANNER} is not on PATH: brew install {SCANNER}"
-        )
+        raise Stop(2, f"run: cannot run — {SCANNER} is not on PATH")
     _unlinked(executor)
     if _claim(primary / ".minions" / "runs" / "active") == "live":
         raise Stop(2, "run: cannot run — a run is live: .minions/runs/active exists")
@@ -7340,9 +7338,9 @@ def _fetch_run(
     env: dict[str, str],
     timeout: float,
 ) -> subprocess.CompletedProcess[str]:
-    """Run `argv` under Seatbelt with the network open, writing in `writes` alone.
+    """Run `argv` under the OS sandbox with the network open, writing in `writes` alone.
 
-    No `sandbox-exec` on `PATH` stops with 2. Why: 0121-ui-prepare design D3.
+    No OS sandbox stops with 2. Why: 0121-ui-prepare design D3.
     """
     policy = _policy(writes, Path.home(), network=True)
     if not mflib.platform.has_sandbox():

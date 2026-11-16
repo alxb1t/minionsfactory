@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI's Linux job installs `bubblewrap`, opens user namespaces and runs the gate under `MF_REQUIRE_SANDBOX`, so the
   real-sandbox tests prove `bwrap` there. Those tests read each side's own text: a signal outside fails as `No such
   process` on Linux, and a masked secret file reads as empty, never its content (0131-linux-runner, phase 5).
+- D51 names Linux bubblewrap beside Seatbelt and accepts its differences; D78 drops its macOS-only converge. The threat
+  model, the OS recipe and `mf-ship` say what Linux does; the scanner's halt names `betterleaks`, no `brew`
+  (0131-linux-runner, phase 6).
 
 ## [0.103.0] - 2026-11-16
 
