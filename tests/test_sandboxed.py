@@ -1,6 +1,7 @@
-"""`sandboxed()` under Seatbelt: a fake `sandbox-exec`, and the real one where it nests.
+"""`sandboxed()` under a fake `sandbox-exec` or `bwrap`, and the real OS sandbox.
 
-Why: 0107-sandbox-runner design D5.
+The real one runs where it nests.
+Why: 0107-sandbox-runner design D5, 0131-linux-runner design D7.
 """
 
 import contextlib
@@ -12,8 +13,10 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -339,6 +342,85 @@ def test_a_denial_in_the_output_gets_a_line(
     assert (_DENIAL in seen.err) is denied
 
 
+def test_a_command_runs_under_bwrap_on_linux(
+    tmp_path: Path,
+    fake_bwrap: Path,
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(platform, "OS", "linux")
+    trees = _trees(tmp_path)
+    private = tmp_path / "private"
+    private.mkdir()
+    monkeypatch.setattr(platform, "PRIVATE", (str(private),))
+    keys = isolated_home / ".ssh"
+    keys.mkdir()
+    command = _python("import os; print(os.environ['TMPDIR'])")
+
+    code = _conduct()["sandboxed"](command, trees[0], trees)
+
+    temp = str(Path(capsys.readouterr().out.strip()).resolve())
+    assert code == 0
+    assert fake_bwrap.read_text().splitlines() == [
+        *("--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"),
+        *("--tmpfs", str(private.resolve())),
+        *("--bind", str(trees[0]), str(trees[0])),
+        *("--bind", str(trees[1]), str(trees[1])),
+        *("--bind", temp, temp),
+        *("--tmpfs", str(keys.resolve())),
+        *("--remount-ro", str(private.resolve())),
+        *("--unshare-pid", "--unshare-net", "--die-with-parent", "--new-session"),
+        "--",
+        *command,
+    ]
+
+
+def test_a_linux_denial_gets_the_line(
+    tmp_path: Path,
+    fake_bwrap: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(platform, "OS", "linux")
+    trees = _trees(tmp_path)
+    sandboxed = _conduct()["sandboxed"]
+
+    for text, denied in (
+        ("touch: x: Read-only file system", True),
+        ("touch: x: Operation not permitted", False),
+    ):
+        command = _python(f"import sys; print({text!r}, file=sys.stderr); sys.exit(1)")
+        assert sandboxed(command, trees[0], trees) == 1
+        seen = capsys.readouterr()
+        assert text in seen.out
+        assert (_DENIAL in seen.err) is denied
+
+
+def test_no_bwrap_stops_with_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(platform, "OS", "linux")
+    conduct = _conduct()
+    trees = _trees(tmp_path)
+    marker = tmp_path / "ran.txt"
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    failing = tmp_path / "failing-bin"
+    failing.mkdir()
+    (failing / "bwrap").write_text("#!/bin/sh\nexit 1\n")
+    (failing / "bwrap").chmod(0o755)
+
+    for folder, why in ((empty, "is not on PATH"), (failing, "cannot apply")):
+        monkeypatch.setenv("PATH", str(folder))
+        with pytest.raises(conduct["Stop"]) as stop:
+            conduct["sandboxed"](
+                _python(f"open({str(marker)!r}, 'w').close()"), trees[0], trees
+            )
+        assert stop.value.code == 2
+        assert "no OS sandbox: bwrap" in str(stop.value)
+        assert why in str(stop.value)
+        assert not marker.exists()
+
+
 def test_the_output_goes_to_the_file_given(
     tmp_path: Path, fake_sandbox_exec: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -588,41 +670,87 @@ def _seatbelt() -> bool:
     return subprocess.run(probe, capture_output=True).returncode == 0
 
 
-def _require_seatbelt() -> None:
-    """Pass where the real `sandbox-exec` applies a profile; else fail or skip.
+def _require_sandbox(host: str, tmp_path: Path) -> None:
+    """Pass where the host's real OS sandbox applies; else fail or skip.
 
-    `MF_REQUIRE_SEATBELT` set fails it: CI's macOS job. Why: 0128-platform-port D12.
+    `MF_REQUIRE_SANDBOX` set fails it: CI's macOS and Linux jobs.
+    Why: 0128-platform-port D12, 0131-linux-runner design D5 and D21.
     """
-    if _seatbelt():
+    if host == "linux":
+        stands, reason = platform.has_sandbox(), "bwrap cannot apply a sandbox here"
+        folders = [Path(name).resolve() for name in platform.PRIVATE]
+        if stands and any(map(tmp_path.resolve().is_relative_to, folders)):
+            stands = False
+            reason = "the test folder is in a private folder: set TMPDIR outside /tmp"
+    else:
+        stands, reason = _seatbelt(), "sandbox-exec cannot apply a profile here"
+    if stands:
         return
-    reason = "sandbox-exec cannot apply a profile here"
-    if os.environ.get("MF_REQUIRE_SEATBELT"):
+    if os.environ.get("MF_REQUIRE_SANDBOX"):
         pytest.fail(reason)
     pytest.skip(reason)
 
 
 @pytest.fixture
-def real_sandbox() -> None:
-    """Skip the test, or fail it as `_require_seatbelt` says, without Seatbelt."""
-    _require_seatbelt()
+def real_sandbox(
+    host: str, tmp_path: Path, macos_side: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run the test on the host's side; skip or fail it as `_require_sandbox` says.
+
+    Why: 0131-linux-runner design D7.
+    """
+    monkeypatch.setattr(platform, "OS", host)
+    _require_sandbox(host, tmp_path)
 
 
-def test_a_required_seatbelt_that_cannot_apply_fails_and_else_skips(
+def test_a_required_sandbox_that_cannot_apply_fails_and_else_skips(
     tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("MF_REQUIRE_SEATBELT", "1")
-    _require_seatbelt()
+    monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
+    _require_sandbox("macos", tmp_path)
 
     empty = tmp_path / "empty-bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
     outcomes = (pytest.fail.Exception, pytest.skip.Exception)
     with pytest.raises(outcomes, match="cannot apply a profile") as required:
-        _require_seatbelt()
+        _require_sandbox("macos", tmp_path)
     assert required.type is pytest.fail.Exception
-    monkeypatch.delenv("MF_REQUIRE_SEATBELT")
+    monkeypatch.delenv("MF_REQUIRE_SANDBOX")
     with pytest.raises(outcomes, match="cannot apply a profile") as optional:
-        _require_seatbelt()
+        _require_sandbox("macos", tmp_path)
+    assert optional.type is pytest.skip.Exception
+
+    for name, code in (("failing", 1), ("passing", 0)):
+        (tmp_path / f"{name}-bin").mkdir()
+        (tmp_path / f"{name}-bin" / "bwrap").write_text(f"#!/bin/sh\nexit {code}\n")
+        (tmp_path / f"{name}-bin" / "bwrap").chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path / "failing-bin"))
+    monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
+    monkeypatch.setattr(platform, "OS", "linux")
+    monkeypatch.setattr(platform, "PRIVATE", ())
+    with pytest.raises(outcomes, match="bwrap cannot apply a sandbox") as required:
+        _require_sandbox("linux", tmp_path)
+    assert required.type is pytest.fail.Exception
+    monkeypatch.delenv("MF_REQUIRE_SANDBOX")
+    monkeypatch.setattr(platform, "OS", "linux")
+    monkeypatch.setattr(platform, "PRIVATE", ())
+    with pytest.raises(outcomes, match="bwrap cannot apply a sandbox") as optional:
+        _require_sandbox("linux", tmp_path)
+    assert optional.type is pytest.skip.Exception
+    monkeypatch.setenv("PATH", str(tmp_path / "passing-bin"))
+    monkeypatch.setattr(platform, "OS", "linux")
+    monkeypatch.setattr(platform, "PRIVATE", ())
+    _require_sandbox("linux", tmp_path)
+
+    monkeypatch.setattr(platform, "PRIVATE", (str(tmp_path.parent),))
+    monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
+    with pytest.raises(outcomes, match="in a private folder") as required:
+        _require_sandbox("linux", tmp_path)
+    assert required.type is pytest.fail.Exception
+    monkeypatch.delenv("MF_REQUIRE_SANDBOX")
+    with pytest.raises(outcomes, match="in a private folder") as optional:
+        _require_sandbox("linux", tmp_path)
     assert optional.type is pytest.skip.Exception
 
 
@@ -664,15 +792,22 @@ def test_a_secret_read_is_denied(
     secret = isolated_home / ".ssh" / "id_test"
     secret.parent.mkdir()
     secret.write_text("key")
+    netrc = isolated_home / ".netrc"
+    netrc.write_text("machine x")
     plain = isolated_home / "notes.txt"
     plain.write_text("note")
 
-    def read(path: Path) -> int:
+    def read(path: Path) -> tuple[int, str]:
+        out = io.StringIO()
         command = _python(f"print(open({str(path.resolve())!r}).read())")
-        return _conduct()["sandboxed"](command, trees[0], trees)
+        return _conduct()["sandboxed"](command, trees[0], trees, out), out.getvalue()
 
-    assert read(plain) == 0
-    assert read(secret) != 0
+    assert read(plain) == (0, "note\n")
+    code, seen = read(secret)
+    assert code != 0
+    for text in (seen, read(netrc)[1]):
+        assert "key" not in text
+        assert "machine" not in text
 
 
 def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None:
@@ -692,6 +827,74 @@ def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None
         )
 
         assert code != 0
+        with pytest.raises(TimeoutError):
+            listener.accept()
+
+
+_UNIX_CONNECT = (
+    "import socket, sys;"
+    " client = socket.socket(socket.AF_UNIX); client.settimeout(2);"
+    " client.connect(sys.argv[1])"
+)
+
+
+@contextlib.contextmanager
+def _host_socket() -> Iterator[tuple[socket.socket, str]]:
+    """Yield a Unix listener the host holds under `/tmp`, and its path."""
+    folder = tempfile.mkdtemp(dir="/tmp")
+    path = os.path.join(folder, "host.sock")
+    try:
+        with socket.socket(socket.AF_UNIX) as listener:
+            listener.bind(path)
+            listener.listen()
+            listener.settimeout(1)
+            yield listener, path
+    finally:
+        shutil.rmtree(folder)
+
+
+def test_a_host_socket_is_out_of_reach(tmp_path: Path, real_sandbox: None) -> None:
+    trees = _trees(tmp_path)
+    out = io.StringIO()
+    with _host_socket() as (listener, path):
+        code = _conduct()["sandboxed"](
+            [*_python(_UNIX_CONNECT), path], trees[0], trees, out
+        )
+
+        assert code != 0
+        with pytest.raises(TimeoutError):
+            listener.accept()
+
+
+def test_the_private_folders_are_the_commands_own(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    if platform.OS == "macos":
+        pytest.skip("the private folders are bubblewrap's")
+    trees = _trees(tmp_path)
+    sandboxed = _conduct()["sandboxed"]
+
+    out = io.StringIO()
+    listing = _python("import os; print(os.listdir('/run'))")
+    assert sandboxed(listing, trees[0], trees, out) == 0
+    assert out.getvalue() == "[]\n"
+    out = io.StringIO()
+    write = f"open('/tmp/mf-{tmp_path.name}', 'w').close()"
+    assert sandboxed(_python(write), trees[0], trees, out) != 0
+    assert "Read-only file system" in out.getvalue()
+
+    prefix = platform.confine(platform.Policy((trees[0],), (), network=True))
+    read = "print(open('/etc/resolv.conf').read(), end='')"
+    shown = subprocess.run(
+        [*prefix, *_python(read)], capture_output=True, text=True, timeout=60
+    )
+    assert shown.returncode == 0
+    assert shown.stdout == Path("/etc/resolv.conf").read_text()
+    with _host_socket() as (listener, path):
+        reached = subprocess.run(
+            [*prefix, *_python(_UNIX_CONNECT), path], capture_output=True, timeout=60
+        )
+        assert reached.returncode != 0
         with pytest.raises(TimeoutError):
             listener.accept()
 
@@ -719,7 +922,21 @@ _STARTER = (
     " stdin=quiet, stdout=quiet, stderr=quiet);"
     " print(sleeper.pid, flush=True)"
 )
-_SIGNALLER = "import os, signal, sys; os.kill(int(sys.argv[1]), signal.SIGTERM)"
+# The PID is the sandbox's own; on Linux the host's numbers differ, so it is read here.
+_SIGNALLER = (
+    "import os, signal, sys, time\n"
+    "pid = int(sys.argv[1])\n"
+    "try:\n"
+    "    os.kill(pid, signal.SIGTERM)\n"
+    "    for _ in range(200):\n"
+    "        os.kill(pid, 0)\n"
+    "        time.sleep(0.05)\n"
+    "except ProcessLookupError:\n"
+    "    print('gone', flush=True)\n"
+    "else:\n"
+    "    os.kill(pid, signal.SIGKILL)\n"
+    "    sys.exit('alive')\n"
+)
 _SIBLINGS = (
     "import subprocess, sys;"
     " first = subprocess.run([sys.executable, '-c', sys.argv[1]],"
@@ -736,6 +953,7 @@ def test_a_signal_to_a_process_outside_is_denied(
     trees = _trees(tmp_path)
     outside = subprocess.Popen(["sleep", "60"])
     out = io.StringIO()
+    error = {"macos": "Operation not permitted", "linux": "No such process"}
     try:
         code = _conduct()["sandboxed"](
             [*_python(_SIGNAL_OUT), str(outside.pid)], trees[0], trees, out
@@ -743,8 +961,8 @@ def test_a_signal_to_a_process_outside_is_denied(
 
         assert code == 0
         assert out.getvalue().splitlines() == [
-            f"{int(signal.SIGTERM)} Operation not permitted",
-            "0 Operation not permitted",
+            f"{int(signal.SIGTERM)} {error[platform.OS]}",
+            f"0 {error[platform.OS]}",
         ]
         assert outside.poll() is None
     finally:
@@ -770,13 +988,8 @@ def test_a_signal_between_siblings_is_delivered(
         [*_python(_SIBLINGS), _STARTER, _SIGNALLER], trees[0], trees, out
     )
 
-    sleeper = int(out.getvalue().split()[0])
-    try:
-        assert code == 0
-        assert _gone(sleeper, 10)
-    finally:
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(sleeper, signal.SIGKILL)
+    assert code == 0
+    assert out.getvalue().splitlines()[1:] == ["gone"]
 
 
 @pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])

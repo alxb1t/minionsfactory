@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.104.0] - 2026-11-16
+
+Gate: local 5m43s · CI not read under mf-ship · 0.103.1: local 5m30s · CI not read under mf-ship
+
+- The port reads the host's OS once into `platform.OS`, `linux` or `macos`; every test runs the macOS side but the
+  real-sandbox tests, which run the host's. CI's switch is `MF_REQUIRE_SANDBOX`, named for any OS (0131-linux-runner,
+  phase 1).
+- On Linux the port confines a command with `bwrap`: a read-only disk, the writable roots bound, the secrets masked,
+  its own PID and network namespaces. The sandbox stands only when `bwrap` applies an empty one, probed once a path,
+  and `Read-only file system` is Linux's refusal (0131-linux-runner, phase 2).
+- The port words why there is no sandbox and no hold; the conductor and the cut's hold name no OS tool. Linux has no
+  awake hold and says `awake: not held — no hold on Linux`; `bwrap` joins the OS commands only the port names
+  (0131-linux-runner, phase 3).
+- On Linux a run's start appends the names Claude Code's sandbox mounts into a worktree to `.git/info/exclude`, before
+  its first clean-tree check, so they no longer halt it; a link at `info` or `exclude` stops the run with 2
+  (0131-linux-runner, phase 4).
+- CI's Linux job installs `bubblewrap`, opens user namespaces and runs the gate under `MF_REQUIRE_SANDBOX`, so the
+  real-sandbox tests prove `bwrap` there. Those tests read each side's own text: a signal outside fails as `No such
+  process` on Linux, and a masked secret file reads as empty, never its content (0131-linux-runner, phase 5).
+- D51 names Linux bubblewrap beside Seatbelt and accepts its differences; D78 drops its macOS-only converge. The threat
+  model, the OS recipe and `mf-ship` say what Linux does; the scanner's halt names `betterleaks`, no `brew`
+  (0131-linux-runner, phase 6).
+- On Linux a confined command gets a `/run` and a `/tmp` of its own, read-only outside its roots, so a host socket
+  there, such as the user's systemd bus, is out of reach; with the network open the resolver file is bound back. D51
+  and the threat model accept a host socket elsewhere and a credential created mid-command (0131-linux-runner, phase 7).
+
 ## [0.103.1] - 2026-11-16
 
 Gate: local 5m30s · CI not read under mf-ship · 0.103.0: local 5m21s · CI not read under mf-ship
