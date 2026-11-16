@@ -52,7 +52,7 @@ What a security review weighs MF's changes against. Read by the cut, build and c
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a
   scratch repo in the home folder and read no repo's config, and its local git fetches no missing object,
   save a run's start, which fetches `origin`'s default branch through that scratch repo into the primary's objects and
-  fast-forwards the local branch, merging nothing. A run keeps `origin`'s URLs in the home folder before its first worker: while
+  fast-forwards the local branch, overwriting no ignored file and merging nothing. A run keeps `origin`'s URLs in the home folder before its first worker: while
   `origin` differs from them, no remote call of `conduct.py` runs, in that run or a later one, until a person repoints it
   or removes the file. A changed config halts a run before its next push. A worker can redirect git with `commondir`
   or a swapped `.git`, so `conduct.py` halts when git

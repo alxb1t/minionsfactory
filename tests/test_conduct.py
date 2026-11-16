@@ -6398,6 +6398,19 @@ def test_a_checker_on_codex_runs_where_codex_is_missing(
     monkeypatch.setattr(run, "probe_for", lambda *given: probes.append(given))
     assert run.codex_ready("0001-checker", time.monotonic() + 600) is False
     assert probes == []
+    # The shadow on Codex runs on Claude, on converge's model and effort.
+    ran: list[tuple[str, str | None, str | None]] = []
+    out = tmp_path / "shadow.log"
+    out.write_text("")
+    monkeypatch.setattr(
+        run, "worker", lambda *given, **_: ran.append(given[4]) or (1, False, out, [])
+    )
+    shadow = run.checker(
+        "0002-shadow", "s", "shadow-conformance", root, "p", time.monotonic() + 600
+    )
+    assert ran == [run.plan["0002-shadow", "converge"]]
+    assert ran[0][0] == "claude"
+    assert shadow.fallback is True
 
     monkeypatch.setitem(found, "_executor_missing", lambda _: False)
     assert run.named("0001-checker") == ["claude", "codex"]
@@ -8149,6 +8162,7 @@ def test_a_start_makes_a_missing_tag_and_pushes_it_where_tags_go(
     assert _git(origin, "tag") == "v0.1.0"
 
 
+@pytest.mark.slow
 def test_status_says_a_machine_pushes_no_tag(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -9408,6 +9422,7 @@ def test_the_tags_origin_holds_are_made_locally(tmp_path: Path) -> None:
     assert not _git(root, "tag", "-l", "v0.4.0", "v0.5.0")
 
 
+@pytest.mark.slow
 def test_a_start_fetches_and_fast_forwards_the_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -9440,6 +9455,9 @@ def test_a_start_fetches_and_fast_forwards_the_default(
     assert main() == tip
     assert (root / "theirs.txt").read_text() == "x\n"
     assert _git(root, "status", "--porcelain") == ""
+    # The tracking ref follows, so integration's guard takes what origin holds.
+    assert _git(root, "rev-parse", "refs/remotes/origin/main") == tip
+    assert conduct["_foreign_commit"](root, "origin/main", "main") == []
 
     # Behind, the objects held: fast-forwarded alone.
     tip = moved("held.txt")
@@ -9449,6 +9467,18 @@ def test_a_start_fetches_and_fast_forwards_the_default(
 
     # Equal: nothing.
     assert start() == []
+    assert main() == tip
+
+    # An ignored file the incoming tree tracks: kept, the branch stays, the start stops.
+    (root / ".git" / "info" / "exclude").write_text("local.cfg\n")
+    (root / "local.cfg").write_text("mine\n")
+    tip, before = moved("local.cfg"), main()
+    with pytest.raises(conduct["Stop"], match="git merge failed"):
+        start()
+    assert (root / "local.cfg").read_text() == "mine\n"
+    assert main() == before
+    (root / "local.cfg").unlink()
+    assert start() == [f"fast-forwarded main to {tip[:7]}"]
     assert main() == tip
 
     # A fetch that fails is a wait, and moves nothing.

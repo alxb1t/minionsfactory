@@ -72,6 +72,8 @@ equal, ahead, diverged ──▶ nothing
 `notes` collects `fetched <default> <sha7>` and `fast-forwarded <default> to <sha7>`, which `push_left` logs as `run · sync — …`. A diverged branch is left: its push is refused and halts the run as it does today. The `merge --ff-only` runs in the conductor with `NO_HOOKS`, as the conductor's other merges do, and only after `preconditions` found the primary on the default branch with a clean tree.
 
 `push_left` takes no new parameter: `Run.fresh` is `False` until `ship()` sets it around its first `push_left(RETRIES)`, and `push_left` passes `start=self.fresh`. The stand-in of `push_left` in `test_a_push_that_lands_before_origin_flaps_passes` keeps its signature.
+Fix note (2026-11-16, S1): the `merge --ff-only` carries `--no-overwrite-ignore`, so an ignored file the incoming tree tracks stays and the start stops.
+Fix note (2026-11-16, S2): `_fetch_default` sets `refs/remotes/origin/<default>` to `base`, so integration's guard judges against what `origin` holds.
 
 ### D4
 
@@ -80,6 +82,7 @@ equal, ahead, diverged ──▶ nothing
 ### D5
 
 `CHECKERS` is the checker tables of `WORKERS` without `FIXER`. `Run.named` leaves `codex` out when `_executor_missing("codex")` and only a station of `CHECKERS`, or the shadow of one, names it, so the start does not probe it and halt. `Run.codex_ready` returns `False` first when `_executor_missing("codex")`, so `checker` falls back to Claude on converge's model and effort, as for a limit. `read_plan` logs `run · codex — not on PATH: a checker a plan gives Codex runs on Claude` the first time it reads a checker table on Codex while Codex is missing; `Run.codex_said` holds that it said so. A station on Codex — a build, a cut, a rescue, the converge conductor, the fixer — still names `codex` and halts at the probe.
+Fix note (2026-11-16, R1): `checker` stops a shadow on Codex only for a limit; with Codex missing the shadow falls back to Claude as a checker does.
 
 ### D6
 

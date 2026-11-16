@@ -20,9 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and fast-forwards the local one, never merging, logging `run · sync — fetched` and `fast-forwarded`; a failed
   fetch is a wait, and a diverged branch still halts at its push (0132-cloud-run, phase 4).
 - The config guard allows `gc.auto`, which the cloud writes into every clone; `gc.autodetach` and every other `gc.`
-  key still halt. Where Codex is not on `PATH`, a converge checker a plan gives Codex runs on Claude, a shadow on Codex
-  stops as at a usage limit, and the run says so once; a station on Codex still halts at its probe (0132-cloud-run,
-  phase 5).
+  key still halt. Where Codex is not on `PATH`, a converge checker a plan gives Codex, a shadow on Codex included, runs
+  on Claude, and the run says so once; a station on Codex still halts at its probe (0132-cloud-run, phase 5).
+- A run's start that fast-forwards the default branch leaves an ignored file the incoming tree tracks and stops, and
+  moves `origin`'s tracking ref with what it read, so integration takes the commits it brought in (0132-cloud-run,
+  converge).
 - D17, D47, D76 and D84 record the `tags` setting, the start's fetch, fast-forward and tags, `gc.auto` and a missing
   Codex; the threat model and `mf-ship` say what a cloud machine pushes and fetches (0132-cloud-run, phase 6).
 

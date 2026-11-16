@@ -2381,8 +2381,10 @@ def _fetch_default(
         if done.returncode != 0:
             raise Unreachable(1, _why(done))
         notes.append(f"fetched {default} {base[:7]}")
+    # Integration's guard reads the tracking ref; an ignored file stops the merge.
+    _git(primary, "update-ref", f"refs/remotes/origin/{default}", base)
     if local != base and _history_ancestor(primary, local, base):
-        _git(primary, "merge", "-q", "--ff-only", base)
+        _git(primary, "merge", "-q", "--ff-only", "--no-overwrite-ignore", base)
         notes.append(f"fast-forwarded {default} to {base[:7]}")
 
 
@@ -4893,7 +4895,7 @@ class Run:
             if models[0] == "codex" and (
                 codex_runs == 2 or not self.codex_ready(change, deadline)
             ):
-                if shadow:
+                if shadow and not _executor_missing("codex"):
                     stopped = " · stopped by a usage limit"
                     return Checked(1, False, models, stopped, False, None)
                 models, fallback = given(_shadow(converge, models)), True
