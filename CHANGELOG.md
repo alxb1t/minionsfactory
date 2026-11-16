@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_integrate.py` holds integrate's guards: a table of `merge3` merges, among them an insert and a delete at
   one line, and a git that fails after the worktree is read. Each was removed and the suite stayed green
   (0126-station-guards, phase 5).
+- `skills/mf-ui/scripts/viewer.py` reads its bind address from `HOST` in a `server(port)` factory, and
+  `tests/test_viewer.py` holds it loopback with no socket opened. Behaviour is the same (0126-station-guards, phase 6).
 
 ## [0.101.1] - 2026-11-14
 

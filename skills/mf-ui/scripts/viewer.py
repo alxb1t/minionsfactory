@@ -42,6 +42,7 @@ LIVENESS = 5
 KEEPALIVE = 15
 START_WAIT = 2
 PORT = 8737
+HOST = "127.0.0.1"
 SECURITY = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -848,6 +849,11 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush()
 
 
+def server(port: int) -> ThreadingHTTPServer:
+    """Return the server bound to `HOST` on `port`, not yet serving."""
+    return ThreadingHTTPServer((HOST, port), Handler)
+
+
 def serve(config: Path) -> int:  # pragma: no cover
     """Run the server on `127.0.0.1` in the foreground, polling the projects."""
     port, rows = read_config(config)
@@ -862,7 +868,7 @@ def serve(config: Path) -> int:  # pragma: no cover
 
     Handler.state, Handler.port = state, port
     threading.Thread(target=poll, daemon=True).start()
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    server(port).serve_forever()
     return 0
 
 

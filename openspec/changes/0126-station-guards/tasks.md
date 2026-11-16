@@ -9,7 +9,7 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 - [x] 3 — The cut's contract · moderate
 - [x] 4 — Converge's cards, cap and verdict · moderate
 - [x] 5 — Integrate's merge and git failure · moderate
-- [ ] 6 — The viewer's bind · moderate
+- [x] 6 — The viewer's bind · moderate
 
 ## 1 — The gate's guards
 
@@ -68,9 +68,9 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 - [x] 6.1 Add `HOST` and `server(port)` to `skills/mf-ui/scripts/viewer.py` per [D6](design.md#d6), and have `serve` call `server(port).serve_forever()`.
   Verify: `git grep -n 'ThreadingHTTPServer((HOST, port), Handler)' -- skills/mf-ui/scripts/viewer.py` prints a line.
-- [ ] 6.2 Add the new `test_the_viewer_binds_loopback_alone` to `tests/test_viewer.py`, built to row G23 and [D6](design.md#d6): a recorder in `server.__globals__`, no socket opened. Leave the module docstring's `no socket is opened` as it is at the base.
+- [x] 6.2 Add the new `test_the_viewer_binds_loopback_alone` to `tests/test_viewer.py`, built to row G23 and [D6](design.md#d6): a recorder in `server.__globals__`, no socket opened. Leave the module docstring's `no socket is opened` as it is at the base.
   Verify: `uv run pytest tests/test_viewer.py::test_the_viewer_binds_loopback_alone -q` exits 0, then `git grep -n 'no socket is opened' -- tests/test_viewer.py` prints a line.
-- [ ] 6.3 **HALT CHECK** Confirm [D5](design.md#d5): each test of debt card `0120·R3` carries `pytest.mark.slow`. Edit nothing.
+- [x] 6.3 **HALT CHECK** Confirm [D5](design.md#d5): each test of debt card `0120·R3` carries `pytest.mark.slow`. Edit nothing.
   Verify: `git grep -c 'pytest.mark.slow' -- tests/test_viewer.py` prints `4`.
-- [ ] 6.4 Leave every line broken for a red run as it was, and `viewer.py` the only source edited.
+- [x] 6.4 Leave every line broken for a red run as it was, and `viewer.py` the only source edited.
   Verify: `git diff --quiet HEAD -- skills/mf-converge skills/mf-cut-change skills/mf-integrate skills/mf-ship` exits 0.
