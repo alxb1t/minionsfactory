@@ -9,7 +9,9 @@ own fresh temporary folder, and to `/dev/null` and the terminal devices; SHALL r
 `~/.config/git/credentials`, `~/.npmrc`, `~/.pypirc`, `~/.codex/auth.json` and `~/.claude/.credentials.json`) and write none; and
 SHALL reach no network outside itself. On a Mac it SHALL have no network of any kind, loopback included; on Linux it SHALL have a
 network of its own, where loopback is private to the command and a listener outside is not reached. On Linux a denied credential path
-SHALL read as an empty folder or a missing file, not as an error. It SHALL send no signal to a process outside its sandbox, and SHALL
+SHALL read as an empty folder or a missing file, not as an error. On Linux it SHALL have a `/run` and a `/tmp` of its own —
+empty but for its trees and its temporary folder, and read-only outside them — so a Unix socket the host holds there is not
+reached, with the network shut or open. It SHALL send no signal to a process outside its sandbox, and SHALL
 signal the children it started: on a Mac a call to a process outside fails with `Operation not permitted`, signal 0 included; on Linux
 the process is not seen and the call fails with `No such process`. It SHALL start with the credential variables of a Claude worker unset, with
 `VIRTUAL_ENV` unset, with git's hooks off, with `UV_OFFLINE=1`, with `uv`'s cache in the run directory, with npm offline, its
@@ -41,6 +43,11 @@ Converge SHALL give each command it runs the seconds left to its own deadline.
 #### Scenario: A command calls the network
 - **WHEN** a command run through `conduct.py sandboxed` connects to a loopback port that a listener outside holds open
 - **THEN** the connect fails, and the listener sees none
+
+#### Scenario: A command connects to a host socket
+- **WHEN** a command run through `conduct.py sandboxed` connects to a Unix socket that a listener outside holds in a folder under `/tmp`
+- **THEN** the connect fails, and the listener sees none
+- **AND** on Linux the command lists `/run` as empty, and a write in `/tmp` outside its trees fails with `Read-only file system`
 
 #### Scenario: A command signals a process outside its sandbox
 - **WHEN** a command run through `conduct.py sandboxed` sends SIGTERM, or signal 0, to a process the sandbox did not start
@@ -89,8 +96,9 @@ A script SHALL reach the operating system through `skills/mflib/platform.py`, th
 
 #### Scenario: A policy renders a bwrap command
 - **WHEN** the OS is `linux` and a policy holds writable roots, denied paths, a closed network and a temporary folder
-- **THEN** the port returns a `bwrap` command that binds the disk read-only, binds each root and the folder writable in the order given, masks each denied path that exists — a folder by an empty one, a file by `/dev/null` —, unshares the process ids and the network, and ends the command with its parent in a session of its own
-- **AND** a policy with the network open leaves the network shared, and a root or a denied path that is absent is left out
+- **THEN** the port returns a `bwrap` command that binds the disk read-only, gives `/run` and `/tmp` each an empty folder of the command's own, binds each root and the folder writable in the order given, masks each denied path that exists — a folder by an empty one, a file by `/dev/null` —, makes the two folders read-only, unshares the process ids and the network, and ends the command with its parent in a session of its own
+- **AND** a policy with the network open leaves the network shared and binds the host's resolver file back read-only when it lies in one of the two folders, and a root or a denied path that is absent is left out
+- **AND** a folder of the two that is absent, or that a root of the policy equals, is left as the host's
 
 #### Scenario: The sandbox's check on Linux
 - **WHEN** the OS is `linux` and `bwrap` is absent, or exits non-zero on a trivial sandbox

@@ -24,7 +24,7 @@ conduct.py / awake.py            skills/mflib/platform.py
 
 ## Decisions
 
-`D<n>` here is the brief's `Q<n>`. `D12` is the cut's, for a hint the brief names and does not word. The brief's `C` rows are the cut's plan-review fixes of tasks; they add no design decision.
+`D<n>` here is the brief's `Q<n>`. `D21` and `D22` are the person's, 2026-11-16, on converge round 1's cards S1 and S2. `D12` is the cut's, for a hint the brief names and does not word. The brief's `C` rows are the cut's plan-review fixes of tasks; they add no design decision.
 
 | id | decision | because | rejected |
 |---|---|---|---|
@@ -40,6 +40,8 @@ conduct.py / awake.py            skills/mflib/platform.py
 | [D10](#d10) | Out: a stale claim whose leader's name is `node`, and a cut by hand on Linux outside a run | the cloud's `claude` reads as `claude`; a queued cut passes through a run's start | — |
 | [D11](#d11) | The table is confirmed, and this version is queued chained after `0130-small-fixes` | the person, 2026-11-16 | — |
 | [D12](#d12) | The scanner's halt at a run's start names the tool and no package manager | `brew` is a Mac's; the pinned version is `AGENTS.md`'s | a hint per OS |
+| [D21](#d21) | On Linux the command has a `/run` and a `/tmp` of its own: empty but for the policy's roots, read-only outside them, with the network shut or open. A Unix socket the host holds there is out of reach. With the network open the host's resolver file is bound back. Accepted: a file the host holds under `/run` or `/tmp` outside the roots is unseen, and a host socket elsewhere on disk stays reachable | the read-only bind of the disk left the user's systemd bus, an ssh agent, a tmux or X11 socket and Docker's socket reachable with the network off, which Seatbelt's `(deny network*)` refuses on a Mac: a way out of the write boundary | accepting the route in the threat model; a filter on socket paths: `bwrap` has none |
+| [D22](#d22) | Accepted: on Linux a denied path absent when a command starts gets no mask, so a credential created there while the command runs is readable by it until it ends. D51 and the threat model record it | `bwrap` mounts a mask only on a name the disk holds; the operator creates no credential mid-run on the machines this version is for, a Mac and a cloud session | a view of the parent folder with each entry bound back: built blind on a Mac, proved only in CI, and it hides what the home folder gains after the start |
 
 ### D1
 
@@ -55,12 +57,15 @@ A link at `info` or at `exclude` stops the run with exit 2: the conductor runs o
 
 ### D3
 
-On Linux `confine` returns this prefix; the caller appends the command. Each path is resolved as the profile resolves it, a root or a denied path that does not exist is left out, and a denied path that is a folder is masked by `--tmpfs`, any other by `--ro-bind /dev/null`.
+On Linux `confine` returns this prefix; the caller appends the command. Each path is resolved as the profile resolves it, a root or a denied path that does not exist is left out ([D22](#d22)), and a denied path that is a folder is masked by `--tmpfs`, any other by `--ro-bind /dev/null`. The private folders and the resolver's line are [D21](#d21)'s.
 
 ```
 <bwrap> --ro-bind / / --dev /dev --proc /proc
+        --tmpfs <private> …                 each private folder, in order
+        [--ro-bind <resolver> <resolver>]   the network open, and the file inside a private folder
         --bind <root> <root> …              each writable root, then the temp folder, in order
-        --tmpfs <dir> | --ro-bind /dev/null <file>   …   each denied path, last
+        --tmpfs <dir> | --ro-bind /dev/null <file>   …   each denied path
+        --remount-ro <private> …            each private folder, in order, last of the mounts
         --unshare-pid  [--unshare-net]  --die-with-parent  --new-session  --
 ```
 
@@ -119,6 +124,26 @@ A statement of the plan's close, with no task.
 
 `preconditions` halts `run: cannot run — betterleaks is not on PATH`, and `skills/mf-ship/SKILL.md` says to halt naming `betterleaks`. The pinned version is in `AGENTS.md`.
 
+### D21
+
+`platform.py` gains `PRIVATE = ("/run", "/tmp")` and `RESOLVER = "/etc/resolv.conf"`; `_bwrap` reads both names each time it is called, so a test sets them.
+
+A private folder is a name of `PRIVATE`, resolved, that is a folder on the host and that no root of the policy equals — a root is a writable root or the temp folder. A policy that makes `/tmp` itself writable keeps the host's `/tmp`.
+
+Each private folder gets a `--tmpfs` right after `--proc /proc`: the command sees an empty folder of its own in place of the host's, so a Unix socket the host holds there has no name inside. A root or a mask under one is mounted into it by the lines that follow, `bwrap` making the folders on the way. A `--remount-ro` of each private folder comes after the last mask, so a write there outside the roots fails with `Read-only file system`, as it does on the rest of the disk; the roots mounted inside stay writable.
+
+With the network open, `RESOLVER` resolved, when it is a file inside a private folder, is bound onto itself read-only right after the `--tmpfs` lines: on a host whose `/etc/resolv.conf` links to systemd's stub under `/run`, a name still resolves. With the network shut nothing is bound back. An absent `RESOLVER`, or one outside every private folder, adds no line.
+
+The private folders stand with the network open too: the npm fetch reaches no host socket under them.
+
+The real-sandbox tests keep their files under pytest's `tmp_path`, which lies under `/tmp` on Linux unless `TMPDIR` says otherwise, where the command would no longer see them. `_require_sandbox` therefore fails or skips on Linux when `tmp_path` lies inside a private folder, and CI's Linux `Gate` step sets `TMPDIR` to the runner's temp folder, outside `/tmp`.
+
+Accepted: a file the host holds under `/run` or `/tmp` outside the roots is unseen by the command. A host socket anywhere else on disk stays reachable, and so does an abstract one when the network is open.
+
+### D22
+
+`_bwrap` leaves out a denied path that does not exist, as [D3](#d3) says, and nothing denies the name later: a credential the operator creates at such a path while a command runs is readable by that command until it ends. A Mac's profile denies by name, present or not; this is a fourth difference of the Linux side, accepted and recorded in D51's Accepts and the threat model's Known gaps. `test_the_bwrap_command_follows_the_policy` holds the absent path left out.
+
 ## Tests
 
 Each test sits at the lowest layer that can fail. The Linux lines of the port run on any host under a fake `bwrap`; the real ones run in CI's macOS and Linux jobs. No test boots a browser, and no end-to-end test is added.
@@ -127,15 +152,17 @@ Each test sits at the lowest layer that can fail. The Linux lines of the port ru
 |---|---|---|---|
 | the fixtures `host`, `macos_side` and `fake_bwrap` | `tests/conftest.py` | fixture | the host's name once, the macOS side under every test, a `bwrap` that records its arguments and runs the command |
 | `test_the_side_names_linux_and_else_macos` | `tests/test_platform.py` | unit | `side` of `linux` and `linux2` is `linux`; of `darwin` and `freebsd`, `macos` |
-| `test_the_bwrap_command_follows_the_policy` | `tests/test_platform.py` | unit | the order of [D3](#d3): roots then the folder, a denied folder, file and absent path, the network open and shut, no folder, an absent root |
+| `test_the_bwrap_command_follows_the_policy` | `tests/test_platform.py` | unit | the order of [D3](#d3): roots then the folder, a denied folder, file and absent path, the network open and shut, no folder, an absent root; and [D21](#d21): each private folder's `--tmpfs` first and `--remount-ro` last, an absent one left out, one that is a root kept the host's, a root inside one, the resolver bound back only with the network open and only from inside one |
 | `test_the_sandbox_stands_on_linux_when_bwrap_applies_one` | `tests/test_platform.py` | unit | no `bwrap`, one exiting non-zero, one passing, and a probe run once however often it is asked |
 | `test_a_refusal_is_read_on_its_own_side` | `tests/test_platform.py` | unit | each text on its OS and not on the other |
 | `test_the_reasons_are_the_ports` | `tests/test_platform.py` | unit | `no_sandbox` on both sides and both Linux causes, `no_hold`, and `has_hold` false on Linux with a `caffeinate` present |
 | `test_the_marks_are_the_linux_sandboxs` | `tests/test_platform.py` | unit | the names of [D2](#d2) on Linux, none on macOS |
-| `test_a_command_runs_under_bwrap_on_linux` | `tests/test_sandboxed.py` | integration | `sandboxed` puts the prefix of [D3](#d3) before the command, which runs |
+| `test_a_command_runs_under_bwrap_on_linux` | `tests/test_sandboxed.py` | integration | `sandboxed` puts the prefix of [D3](#d3) before the command, a private folder's two lines included, and the command runs |
 | `test_no_bwrap_stops_with_2` | `tests/test_sandboxed.py` | integration | exit 2, `no OS sandbox` and `bwrap`, nothing run |
 | `test_a_linux_denial_gets_the_line` | `tests/test_sandboxed.py` | integration | `Read-only file system` with a failing exit prints the denied line; the macOS text does not |
-| `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips` | `tests/test_sandboxed.py` | integration | the switch on both sides |
+| `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips` | `tests/test_sandboxed.py` | integration | the switch on both sides, and on Linux a `tmp_path` inside a private folder ([D21](#d21)) |
+| `test_a_host_socket_is_out_of_reach` | `tests/test_sandboxed.py` | integration | under the real sandbox of either side, a connect to a Unix listener the host holds under `/tmp` fails and the listener accepts nothing ([D21](#d21)) |
+| `test_the_private_folders_are_the_commands_own` | `tests/test_sandboxed.py` | integration | under real `bwrap`: `/run` lists empty, a write in `/tmp` is refused; with the network open the resolver's file reads as the host's and the host's listener is still out of reach ([D21](#d21)) |
 | the real-sandbox tests | `tests/test_sandboxed.py` | integration | made OS-aware: the refusal text, the signal text and the secret's content per side |
 | `test_a_cut_on_linux_says_it_holds_nothing` | `tests/test_awake.py` | integration | `awake: not held — no hold on Linux`, nothing recorded, exit 0 |
 | `test_a_run_on_linux_holds_nothing_and_says_so` | `tests/test_conduct.py` | integration | `_hold_awake` and the run's `start` line |
@@ -161,10 +188,13 @@ None.
 - The kill of a command past its deadline rests on `--die-with-parent`; no CI case runs it under real `bwrap`. Probe 4 reads it.
 - A worker's own gate skips the real-sandbox tests where its sandbox refuses a nested one, so the proof is CI after the push. A red job is a follow-up patch, and the pin stays at its tag until it is green.
 - The probe is cached for a process: a `bwrap` that breaks mid-run reads as a red command, not as "no sandbox".
-- The disk is readable under `--ro-bind / /`, as Seatbelt's `(allow default)` leaves it; the denied paths are masked, and nothing else is hidden.
+- The disk is readable under `--ro-bind / /`, as Seatbelt's `(allow default)` leaves it; the denied paths that exist are masked, and `/run` and `/tmp` are the command's own ([D21](#d21)). A host socket elsewhere on disk stays reachable.
+- A credential created at a denied path after a command starts is readable by it until it ends ([D22](#d22)).
+- The private folders' lines are built on a Mac under a fake `bwrap`: that `--remount-ro` leaves the roots inside writable, and that the resolver's file binds back, is proved by CI's Linux job after the push, as the rest of the real proof is.
+- A gate that reads a file the host holds under `/tmp` or `/run` outside its trees fails on Linux; none of the recorded repos' gates does.
 - The npm fetch runs with the network open, so it unshares no network on Linux, as the profile omits the denial on a Mac.
 - On Linux an untracked file named as one of [D2](#d2)'s marks is unseen by the clean-tree checks; D51 records it.
 
 ## Verdict
 
-Ready to build, in the phases of [tasks](tasks.md): the side, the Linux side, the callers, the names, the real proof, the record.
+Ready to build, in the phases of [tasks](tasks.md): the side, the Linux side, the callers, the names, the real proof, the record, the private folders.
