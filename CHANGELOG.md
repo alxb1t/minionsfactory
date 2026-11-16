@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   task after a non-makefile one, a makefile outside the tree beside many inside, a gate that rewrites the tree or
   its own dry run, and a failing command under `prints nothing`. Each was removed and the suite stayed green
   (0126-station-guards, phase 1).
+- `tests/test_verify_check.py` holds `Verify:`'s shell refusals: a short option off the list, `-f`, a file operand
+  after `-e`, and a command after `;` or `then`, beside a passing `grep -n cd`. Each was removed and the suite stayed
+  green (0126-station-guards, phase 2).
 
 ## [0.101.1] - 2026-11-14
 

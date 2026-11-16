@@ -5,7 +5,7 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 ## Progress
 
 - [x] 1 — The gate's guards · moderate
-- [ ] 2 — Verify:'s shell refusals · moderate
+- [x] 2 — Verify:'s shell refusals · moderate
 - [ ] 3 — The cut's contract · moderate
 - [ ] 4 — Converge's cards, cap and verdict · moderate
 - [ ] 5 — Integrate's merge and git failure · moderate
@@ -26,11 +26,11 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 ## 2 — Verify:'s shell refusals
 
-- [ ] 2.1 Add rows G6 to G10 as refusals, starting `grep -eo`, `grep -n -f`, `grep -n -e x`, `grep -n x a.md; cd /` and `if grep`, to the table of `tests/test_verify_check.py`'s `test_a_check_out_of_shape_breaks_and_is_not_run`, each expecting the line the script prints for it.
+- [x] 2.1 Add rows G6 to G10 as refusals, starting `grep -eo`, `grep -n -f`, `grep -n -e x`, `grep -n x a.md; cd /` and `if grep`, to the table of `tests/test_verify_check.py`'s `test_a_check_out_of_shape_breaks_and_is_not_run`, each expecting the line the script prints for it.
   Verify: `git grep -n -F -e 'grep -eo' -- tests/test_verify_check.py` prints a line, then `uv run pytest tests/test_verify_check.py::test_a_check_out_of_shape_breaks_and_is_not_run -q` exits 0.
-- [ ] 2.2 Add row G11's passing check, `grep -n cd app/states.py`, to the `fits` list of `tests/test_verify_check.py`'s `test_a_search_prints_the_lines_it_matches_at_head`.
+- [x] 2.2 Add row G11's passing check, `grep -n cd app/states.py`, to the `fits` list of `tests/test_verify_check.py`'s `test_a_search_prints_the_lines_it_matches_at_head`.
   Verify: `git grep -n -F -e 'grep -n cd app/states.py' -- tests/test_verify_check.py` prints a line, then `uv run pytest tests/test_verify_check.py::test_a_search_prints_the_lines_it_matches_at_head -q` exits 0.
-- [ ] 2.3 Leave every line broken for a red run as it was.
+- [x] 2.3 Leave every line broken for a red run as it was.
   Verify: `git diff --quiet HEAD -- skills` exits 0.
 
 ## 3 — The cut's contract

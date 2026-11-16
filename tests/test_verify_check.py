@@ -121,6 +121,8 @@ def test_a_search_prints_the_lines_it_matches_at_head(
         "1.7 x\n  Verify: `git grep -c 'stock_wait' HEAD` prints `1`.",
         # An escaped `$` is the pattern's too.
         "1.8 x\n  Verify: `grep -nF \\$schema app/schema.json` prints a line.",
+        # `cd` as a pattern is no command.
+        "1.9 x\n  Verify: `grep -n cd app/states.py` prints nothing.",
     )
     code, out = _run(root, fits, capsys, monkeypatch)
     assert code == 0, out
@@ -158,6 +160,15 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         "-e x -- a.md` prints a line.",
         f"1.8 x\n  Verify: `grep -n x {secret}` prints a line.",
         f"1.9 x\n  Verify: `grep -rn x {climb}` prints a line.",
+        # A short option off the list, `e` not last in its word, and `f`, which reads
+        # a file of patterns.
+        f"1.10 x\n  Verify: `grep -eo x {secret}` prints a line.",
+        f"1.11 x\n  Verify: `grep -n -f {secret} a.md` prints a line.",
+        # The first file operand is a file when the pattern came with `-e`.
+        f"1.12 x\n  Verify: `grep -n -e x {secret} a.md` prints a line.",
+        # A command after an operator, or after `then`, is a command.
+        "1.13 x\n  Verify: `grep -n x a.md; cd /` prints a line.",
+        "1.14 x\n  Verify: `if grep -n x a.md; then cd /; fi` prints a line.",
     )
     code, out = _run(root, tasks, capsys, monkeypatch)
     assert code == 1, out
@@ -174,7 +185,15 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         "'--open-files-in-pager=touch pwned' -e x -- a.md`",
         f"1.8: I19 — a path outside the repository: {secret}: `grep -n x {secret}`",
         f"1.9: I19 — a path outside the repository: {climb}: `grep -rn x {climb}`",
-        "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9",
+        f"1.10: I19 — an option the search does not run: -eo: `grep -eo x {secret}`",
+        "1.11: I19 — an option the search does not run: -f: "
+        f"`grep -n -f {secret} a.md`",
+        f"1.12: I19 — a path outside the repository: {secret}: "
+        f"`grep -n -e x {secret} a.md`",
+        "1.13: I19 — `cd`: `grep -n x a.md; cd /`",
+        "1.14: I19 — `cd`: `if grep -n x a.md; then cd /; fi`",
+        "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, "
+        "1.11, 1.12, 1.13, 1.14",
     ]
     assert not (root / "pwned").exists()
 
