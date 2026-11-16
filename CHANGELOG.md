@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   script its module-map row loads; a test holds each (0130-small-fixes, phase 3).
 - A test holds that a resumed catch-up counted from round 2 halts `cap reached` at round 3; `cap_of`'s `and` as `or`
   turns it red (0130-small-fixes, phase 4).
+- The real-sandbox case of the cut's hold goes, as it ran `ps`, which Seatbelt refuses; a case of a signal between
+  siblings under the real sandbox replaces it (0130-small-fixes, phase 5).
 
 ## [0.102.0] - 2026-11-16
 

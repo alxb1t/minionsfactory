@@ -8,7 +8,7 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 - [x] 2 — The lock and the card · moderate
 - [x] 3 — The prose · moderate
 - [x] 4 — The cap's case · moderate
-- [ ] 5 — The port's case · hard
+- [x] 5 — The port's case · hard
 
 ## 1 — A phase and an id
 
@@ -50,9 +50,9 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 
 ## 5 — The port's case
 
-- [ ] 5.1 **HALT CHECK** The profile holds the signal rule the card asks for: the port's text names `(deny signal)` and `(allow signal (target same-sandbox))` ([D9](design.md#d9)).
+- [x] 5.1 **HALT CHECK** The profile holds the signal rule the card asks for: the port's text names `(deny signal)` and `(allow signal (target same-sandbox))` ([D9](design.md#d9)).
   Verify: `git grep -n -e "(deny signal)" -e "(allow signal (target same-sandbox))" -- skills/mflib/platform.py` prints both lines.
-- [ ] 5.2 In `tests/test_sandboxed.py` delete `test_the_cuts_hold_is_released_under_the_rule`, `_AWAKE`, and the `shlex` import its command alone used ([D8](design.md#d8)).
+- [x] 5.2 In `tests/test_sandboxed.py` delete `test_the_cuts_hold_is_released_under_the_rule`, `_AWAKE`, and the `shlex` import its command alone used ([D8](design.md#d8)).
   Verify: `git grep -n -e test_the_cuts_hold_is_released_under_the_rule -e _AWAKE -- tests/test_sandboxed.py` prints nothing.
-- [ ] 5.3 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_a_signal_between_siblings_is_delivered`: one sandboxed Python command runs two children in turn. The first starts `sleep 60` with `start_new_session=True` and prints its pid to the command's output; the second signals that pid with `SIGTERM`. The command exits 0; the test reads the pid from the output, sees the sleep gone within 10 s, and kills it in a `finally` ([D8](design.md#d8)).
+- [x] 5.3 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_a_signal_between_siblings_is_delivered`: one sandboxed Python command runs two children in turn. The first starts `sleep 60` with `start_new_session=True` and prints its pid to the command's output; the second signals that pid with `SIGTERM`. The command exits 0; the test reads the pid from the output, sees the sleep gone within 10 s, and kills it in a `finally` ([D8](design.md#d8)).
   Verify: `uv run pytest tests/test_sandboxed.py -q -k signal_between_siblings` exits 0, passing under Seatbelt and skipping without it.
