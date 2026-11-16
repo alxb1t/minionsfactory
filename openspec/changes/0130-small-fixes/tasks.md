@@ -5,7 +5,7 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 ## Progress
 
 - [x] 1 — A phase and an id · moderate
-- [ ] 2 — The lock and the card · moderate
+- [x] 2 — The lock and the card · moderate
 - [ ] 3 — The prose · moderate
 - [ ] 4 — The cap's case · moderate
 - [ ] 5 — The port's case · hard
@@ -23,11 +23,11 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 
 ## 2 — The lock and the card
 
-- [ ] 2.1 **HALT CHECK** Converge's wait and its card rule are what the text will follow: `LOCK_WAIT` is 600 and `blockers` passes `accepted` ([D3](design.md#d3), [D4](design.md#d4)).
+- [x] 2.1 **HALT CHECK** Converge's wait and its card rule are what the text will follow: `LOCK_WAIT` is 600 and `blockers` passes `accepted` ([D3](design.md#d3), [D4](design.md#d4)).
   Verify: `git grep -n -e "^LOCK_WAIT = 600" -e "\"verified\", \"accepted\"" -- skills/mf-converge/scripts/converge.py` prints both lines.
-- [ ] 2.2 In `skills/mf-release/SKILL.md`, Step 4's clearing of cards, change `for 2 minutes, then halt` to `for 10 minutes, then halt` ([D3](design.md#d3)).
+- [x] 2.2 In `skills/mf-release/SKILL.md`, Step 4's clearing of cards, change `for 2 minutes, then halt` to `for 10 minutes, then halt` ([D3](design.md#d3)).
   Verify: `git grep -n "for 10 minutes, then halt" -- skills/mf-release/SKILL.md` prints the line.
-- [ ] 2.3 In `skills/mf-release/SKILL.md`, preconditions 2 and 3, change `` `verified`, not merely `fixed` `` to `` `verified` or `accepted`, not merely `fixed` `` and `` `verified`. Else → halt `` to `` `verified` or `accepted`. Else → halt `` ([D4](design.md#d4)).
+- [x] 2.3 In `skills/mf-release/SKILL.md`, preconditions 2 and 3, change `` `verified`, not merely `fixed` `` to `` `verified` or `accepted`, not merely `fixed` `` and `` `verified`. Else → halt `` to `` `verified` or `accepted`. Else → halt `` ([D4](design.md#d4)).
   Verify: `git grep -c "verified. or .accepted" -- skills/mf-release/SKILL.md` prints `skills/mf-release/SKILL.md:2`.
 
 ## 3 — The prose
