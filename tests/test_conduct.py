@@ -8022,6 +8022,32 @@ def test_a_tag_alone_starts_one_run(
     assert status() == "status: none — no open version"
 
 
+@pytest.mark.slow
+def test_a_start_makes_a_missing_tag_and_pushes_it_where_tags_go(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+
+    def started(tag: str) -> None:
+        _released(root, tag)
+        _git(root, "push", "-q", "origin", "main")
+        _git(root, "tag", "-d", tag)
+        assert _run_claude(conduct, root, monkeypatch) == 0
+        assert f" · run · sync — made {tag}" in "\n".join(_log(root))
+        assert _git(root, "cat-file", "-t", tag) == "tag"
+
+    # A clone that holds a release `origin` took, and not its tag: the start makes it.
+    started("v0.1.0")
+    assert _git(origin, "tag") == "v0.1.0"
+    # tags = false: the start makes it, and it stays local.
+    _ship_toml("[push]\ntags = false\n")
+    started("v0.2.0")
+    assert _git(origin, "tag") == "v0.1.0"
+
+
 def test_status_says_a_machine_pushes_no_tag(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -9201,6 +9227,61 @@ def test_a_forged_release_on_an_older_default_is_not_pushed(
     assert "refs/tags/v0.31.0" in _git(root, "ls-remote", "--tags", "origin")
     assert named.read_text() == "main"
     assert _calls(calls) == []
+
+
+def test_the_tags_origin_holds_are_made_locally(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root, origin = _with_origin(tmp_path)
+
+    def make() -> list[str]:
+        return conduct["_make_tags"](root, _git(origin, "rev-parse", "main"))
+
+    def release(tag: str) -> str:
+        return _git(root, "rev-parse", f"release-{tag}")
+
+    _released(root, "v0.1.0")
+    _released(root, "v0.2.0")
+    _git(root, "push", "-q", "origin", "main")
+    _git(root, "tag", "-d", "v0.1.0")
+    assert make() == ["v0.1.0"]
+    assert _git(root, "cat-file", "-t", "v0.1.0") == "tag"
+    assert _git(root, "tag", "-l", "--format=%(contents)", "v0.1.0") == "v0.1.0"
+    assert _git(root, "rev-parse", "v0.1.0^{commit}") == release("v0.1.0")
+
+    # Several missing tags are each made.
+    _git(root, "tag", "-d", "v0.1.0", "v0.2.0")
+    assert sorted(make()) == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "rev-parse", "v0.2.0^{commit}") == release("v0.2.0")
+
+    # A tag that points elsewhere is left.
+    _git(root, "tag", "-d", "v0.1.0")
+    _git(root, "tag", "v0.1.0", "main~2")
+    assert make() == []
+    assert _git(root, "rev-parse", "v0.1.0") == _git(root, "rev-parse", "main~2")
+
+    # A release commit only local gets none.
+    _released(root, "v0.3.0")
+    _git(root, "tag", "-d", "v0.3.0")
+    assert make() == []
+    _git(root, "push", "-q", "origin", "main")
+
+    # A subject that is not a release's, and a merge with another tree, get none.
+    for subject in ("chore(release): v0.4.0-rc", "v0.4.0"):
+        _git(root, "switch", "-q", "-c", "odd")
+        _git(root, "commit", "-q", "--allow-empty", "-m", subject)
+        _git(root, "switch", "-q", "main")
+        _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'odd'", "odd")
+        _git(root, "branch", "-q", "-D", "odd")
+    _git(root, "switch", "-q", "-c", "release-v0.5.0")
+    _git(root, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.5.0")
+    _git(root, "switch", "-q", "main")
+    _commit(root, {"other.txt": "x\n"}, "other tree")
+    _git(
+        root, "merge", "-q", "--no-ff", "-m", "Merge 'release-v0.5.0'", "release-v0.5.0"
+    )
+    _git(root, "push", "-q", "origin", "main")
+    assert make() == ["v0.3.0"]
+    assert not _git(root, "tag", "-l", "v0.4.0", "v0.5.0")
 
 
 @pytest.mark.slow

@@ -6,7 +6,7 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The setting · moderate
-- [ ] 3 — The tags · hard
+- [x] 3 — The tags · hard
 - [ ] 4 — The fetch · hard
 - [ ] 5 — The guard and Codex · moderate
 - [ ] 6 — The record · moderate
@@ -49,19 +49,19 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 
 ## 3 — The tags
 
-- [ ] 3.1 In `skills/mf-ship/scripts/conduct.py` add `_release_commits(primary: Path, base: str) -> dict[str, str]` after `_merges_a_release`, as [D2](design.md#d2) says, reading `base`'s first-parent merges and their second parents through `_history`. Its docstring ends `Why: 0132-cloud-run design D2`.
+- [x] 3.1 In `skills/mf-ship/scripts/conduct.py` add `_release_commits(primary: Path, base: str) -> dict[str, str]` after `_merges_a_release`, as [D2](design.md#d2) says, reading `base`'s first-parent merges and their second parents through `_history`. Its docstring ends `Why: 0132-cloud-run design D2`.
   Verify: `git grep -n "^def _release_commits" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` add `_make_tags(primary: Path, base: str) -> list[str]` after `_release_commits`: `git tag -a -m <tag> <tag> <commit>` through `_git` for each entry whose `refs/tags/<tag>` does not exist, returning the tags made ([D2](design.md#d2)).
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` add `_make_tags(primary: Path, base: str) -> list[str]` after `_release_commits`: `git tag -a -m <tag> <tag> <commit>` through `_git` for each entry whose `refs/tags/<tag>` does not exist, returning the tags made ([D2](design.md#d2)).
   Verify: `git grep -n "^def _make_tags" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 3.3 In `skills/mf-ship/scripts/conduct.py` add `start: bool = False` and `notes: list[str] | None = None` to `_unpushed` after `push_tags`, and `notes = [] if notes is None else notes` at its head. Under `first_read and start`, after `_close_releases(primary, base)`, call `_make_tags(primary, base)` and append `made <tag>` to `notes` for each tag it returns ([D2](design.md#d2)).
+- [x] 3.3 In `skills/mf-ship/scripts/conduct.py` add `start: bool = False` and `notes: list[str] | None = None` to `_unpushed` after `push_tags`, and `notes = [] if notes is None else notes` at its head. Under `first_read and start`, after `_close_releases(primary, base)`, call `_make_tags(primary, base)` and append `made <tag>` to `notes` for each tag it returns ([D2](design.md#d2)).
   Verify: `git grep -n -F "_make_tags(primary, base)" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` add `self.fresh: bool = False` after `self.tags` in `Run.__init__`, and in `Run.ship` set `self.fresh = True` before `self.push_left(RETRIES)` and `self.fresh = False` after it ([D3](design.md#d3)).
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` add `self.fresh: bool = False` after `self.tags` in `Run.__init__`, and in `Run.ship` set `self.fresh = True` before `self.push_left(RETRIES)` and `self.fresh = False` after it ([D3](design.md#d3)).
   Verify: `git grep -n -e "self.fresh = True" -e "self.fresh = False" -- skills/mf-ship/scripts/conduct.py` prints a line holding each.
-- [ ] 3.5 In `skills/mf-ship/scripts/conduct.py`, in `Run.push_left`, make `notes: list[str] = []` before each read, pass `start=self.fresh, notes=notes` to `_unpushed`, and log each note as `self.log.event("run", "sync", note)` before `self.push(unpushed)` ([D3](design.md#d3)).
+- [x] 3.5 In `skills/mf-ship/scripts/conduct.py`, in `Run.push_left`, make `notes: list[str] = []` before each read, pass `start=self.fresh, notes=notes` to `_unpushed`, and log each note as `self.log.event("run", "sync", note)` before `self.push(unpushed)` ([D3](design.md#d3)).
   Verify: `git grep -n -F 'self.log.event("run", "sync", note)' -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 3.6 In `tests/test_conduct.py` add `test_the_tags_origin_holds_are_made_locally`, shaped on `test_a_forged_release_on_an_older_default_is_not_pushed` and its `_released` and `_with_origin`, calling `conduct["_make_tags"](root, base)` with `base` the tip `origin` holds: a deleted local tag is made, annotated, with the tag as its message, on the release commit; several are each made; a tag that points elsewhere is left; a release commit only local, a wrong subject and a merge with another tree get none ([D2](design.md#d2)).
+- [x] 3.6 In `tests/test_conduct.py` add `test_the_tags_origin_holds_are_made_locally`, shaped on `test_a_forged_release_on_an_older_default_is_not_pushed` and its `_released` and `_with_origin`, calling `conduct["_make_tags"](root, base)` with `base` the tip `origin` holds: a deleted local tag is made, annotated, with the tag as its message, on the release commit; several are each made; a tag that points elsewhere is left; a release commit only local, a wrong subject and a merge with another tree get none ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_conduct.py -q -k tags_origin_holds` passes.
-- [ ] 3.7 In `tests/test_conduct.py` add `test_a_start_makes_a_missing_tag_and_pushes_it_where_tags_go`, marked `slow`, shaped on `test_a_tag_alone_starts_one_run`: a release pushed with its tag deleted locally, then `_run_claude` ends 0, the log holds `run · sync — made v0.1.0`, `v0.1.0` is annotated and `origin` lists it; the same for `v0.2.0` under `[push] tags = false`, where `origin` does not ([D2](design.md#d2)).
+- [x] 3.7 In `tests/test_conduct.py` add `test_a_start_makes_a_missing_tag_and_pushes_it_where_tags_go`, marked `slow`, shaped on `test_a_tag_alone_starts_one_run`: a release pushed with its tag deleted locally, then `_run_claude` ends 0, the log holds `run · sync — made v0.1.0`, `v0.1.0` is annotated and `origin` lists it; the same for `v0.2.0` under `[push] tags = false`, where `origin` does not ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_conduct.py -q -k a_start_makes_a_missing_tag` passes.
 
 ## 4 — The fetch

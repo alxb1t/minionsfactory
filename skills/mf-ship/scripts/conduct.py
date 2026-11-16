@@ -2261,6 +2261,44 @@ def _merges_a_release(
     return len(set(trees.split())) == 1
 
 
+def _release_commits(primary: Path, base: str) -> dict[str, str]:
+    """Return `{tag: commit}` for each release `base`'s first-parent merges hold.
+
+    The shape `_merges_a_release` asks, read in scratch, so no ref reaches it.
+    Why: 0132-cloud-run design D2.
+    """
+    merges = _history(
+        primary, "log", "--first-parent", "--merges", "--format=%T %P", base
+    )
+    seconds: dict[str, str] = {}
+    for line in merges.splitlines():
+        tree, *parents = line.split()
+        if len(parents) == 2:
+            seconds[parents[1]] = tree
+    if not seconds:
+        return {}
+    released = _history(
+        primary, "log", "--no-walk=unsorted", "--format=%H %T %s", *seconds
+    )
+    commits: dict[str, str] = {}
+    for line in released.splitlines():
+        commit, tree, subject = line.split(" ", 2)
+        tag = subject.removeprefix("chore(release): ")
+        if tag != subject and TAG.fullmatch(tag) and seconds[commit] == tree:
+            commits.setdefault(tag, commit)
+    return commits
+
+
+def _make_tags(primary: Path, base: str) -> list[str]:
+    """Tag, annotated, each release `base` holds that has none; return the tags."""
+    made = []
+    for tag, commit in _release_commits(primary, base).items():
+        if not _tagged(primary, tag):
+            _git(primary, "tag", "-a", "-m", tag, tag, commit)
+            made.append(tag)
+    return made
+
+
 def _has_origin(primary: Path) -> bool:
     """Return whether the repo has a remote named `origin`."""
     return "origin" in _git(primary, "remote").split()
@@ -2319,12 +2357,18 @@ def _local_releases(
 
 
 def _unpushed(
-    primary: Path, first_read: bool = False, push_tags: bool = True
+    primary: Path,
+    first_read: bool = False,
+    push_tags: bool = True,
+    start: bool = False,
+    notes: list[str] | None = None,
 ) -> list[tuple[str, str]]:
     """Return each `(ref, sha)` to push; `push_tags` false names no tag.
 
-    Why: 0053-sandbox-patch design D2; 0132-cloud-run design D1.
+    A run's start makes the missing tags of `origin`'s releases, noted in `notes`.
+    Why: 0053-sandbox-patch design D2; 0132-cloud-run design D1, D2.
     """
+    notes = [] if notes is None else notes
     url = _read_url(primary, first_read)
     if not _has_origin(primary):
         return []
@@ -2362,6 +2406,8 @@ def _unpushed(
     if first_read:
         _keep_base(primary, base)
         _close_releases(primary, base)
+        if start:
+            notes += [f"made {tag}" for tag in _make_tags(primary, base)]
     tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary)
     commits = _foreign_commit(primary, base, default, tip, tags)
@@ -4490,6 +4536,8 @@ class Run:
         self.cap: int | None = None
         # Whether this machine pushes tags. Why: 0132-cloud-run design D1.
         self.tags: bool = True
+        # Whether `push_left` reads at the run's start. Why: 0132-cloud-run design D3.
+        self.fresh: bool = False
         # Each queued cut that waits for room, with its reason.
         self.waiting: dict[str, str] = {}
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -6547,7 +6595,14 @@ class Run:
                     changed := _config_changed(self.primary, self.git_state)
                 ):
                     raise changed
-                unpushed = _unpushed(self.primary, first_read=True, push_tags=self.tags)
+                notes: list[str] = []
+                unpushed = _unpushed(
+                    self.primary,
+                    first_read=True,
+                    push_tags=self.tags,
+                    start=self.fresh,
+                    notes=notes,
+                )
             except Unreachable as down:
                 self.waited(str(down))
                 continue
@@ -6555,6 +6610,8 @@ class Run:
                 self.halt("run", str(stop))
                 return False
             self.offline = False
+            for note in notes:
+                self.log.event("run", "sync", note)
             pushed = self.push(unpushed)
             if pushed is not None:
                 return pushed
@@ -6749,7 +6806,9 @@ class Run:
         names = " ".join(version.change for version in versions) or "none"
         names += f" · cuts {' '.join(cuts)}" if cuts else ""
         self.log.held = []
+        self.fresh = True
         self.push_left(RETRIES)
+        self.fresh = False
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         # A worker may link the folder elsewhere: a link lists nothing.
