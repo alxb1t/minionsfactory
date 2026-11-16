@@ -33,7 +33,15 @@ jobs:
           sudo install betterleaks-1.9.0/betterleaks /usr/local/bin/betterleaks
           betterleaks version
 
+      - name: Install bubblewrap
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+
+      - name: Allow user namespaces for bwrap
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Gate
+        env:
+          MF_REQUIRE_SANDBOX: "1"
         run: make gate DIFF_BASE=origin/main
 
   macos:

@@ -8,7 +8,7 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 - [x] 2 — The Linux side · hard
 - [x] 3 — The callers · moderate
 - [x] 4 — The names · hard
-- [ ] 5 — The real proof · moderate
+- [x] 5 — The real proof · moderate
 - [ ] 6 — The record · moderate
 
 ## 1 — The side
@@ -79,15 +79,15 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 ## 5 — The real proof
 
-- [ ] 5.1 In `tests/test_sandboxed.py` give `_require_sandbox` a `host` argument, pass it from `real_sandbox` and pass `"macos"` in each call of `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips`, and make it pass on `linux` when `platform.has_sandbox()` is true, with the reason `bwrap cannot apply a sandbox here`; on `macos` it keeps the `_seatbelt()` probe and its reason ([D5](design.md#d5)).
+- [x] 5.1 In `tests/test_sandboxed.py` give `_require_sandbox` a `host` argument, pass it from `real_sandbox` and pass `"macos"` in each call of `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips`, and make it pass on `linux` when `platform.has_sandbox()` is true, with the reason `bwrap cannot apply a sandbox here`; on `macos` it keeps the `_seatbelt()` probe and its reason ([D5](design.md#d5)).
   Verify: `git grep -n -e "def _require_sandbox(host" -e "bwrap cannot apply a sandbox here" -- tests/test_sandboxed.py` prints both lines.
-- [ ] 5.2 In `tests/test_sandboxed.py`, in `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips`, add the `linux` side, setting `platform.OS` to `linux` before each call: a `bwrap` that exits 1 fails it with the switch and skips it without, one that exits 0 passes ([D5](design.md#d5)).
+- [x] 5.2 In `tests/test_sandboxed.py`, in `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips`, add the `linux` side, setting `platform.OS` to `linux` before each call: a `bwrap` that exits 1 fails it with the switch and skips it without, one that exits 0 passes ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_sandboxed.py -q -k required_sandbox` passes.
-- [ ] 5.3 In `tests/test_sandboxed.py`, in `test_a_signal_to_a_process_outside_is_denied`, expect on each line `Operation not permitted` where `platform.OS` is `macos` and `No such process` where it is `linux` ([D3](design.md#d3)).
+- [x] 5.3 In `tests/test_sandboxed.py`, in `test_a_signal_to_a_process_outside_is_denied`, expect on each line `Operation not permitted` where `platform.OS` is `macos` and `No such process` where it is `linux` ([D3](design.md#d3)).
   Verify: `git grep -n "No such process" -- tests/test_sandboxed.py` prints the line.
-- [ ] 5.4 In `tests/test_sandboxed.py`, in `test_a_secret_read_is_denied`, run the reads with an `io.StringIO` as `out`, add a file secret `isolated_home / ".netrc"` holding `machine x`, and assert that the output of reading either secret holds neither `key` nor `machine`; the exit-code assertion stays for the `.ssh` read alone ([D3](design.md#d3)).
+- [x] 5.4 In `tests/test_sandboxed.py`, in `test_a_secret_read_is_denied`, run the reads with an `io.StringIO` as `out`, add a file secret `isolated_home / ".netrc"` holding `machine x`, and assert that the output of reading either secret holds neither `key` nor `machine`; the exit-code assertion stays for the `.ssh` read alone ([D3](design.md#d3)).
   Verify: `git grep -n "machine x" -- tests/test_sandboxed.py` prints the line.
-- [ ] 5.5 In `.github/workflows/ci.yml`, in the `gate` job between its `Install Betterleaks` step and its `Gate` step, add the steps and the `Gate` step's env that [D5](design.md#d5) shows.
+- [x] 5.5 In `.github/workflows/ci.yml`, in the `gate` job between its `Install Betterleaks` step and its `Gate` step, add the steps and the `Gate` step's env that [D5](design.md#d5) shows.
   Verify: `git grep -n -e bubblewrap -e bwrap -e apparmor_restrict_unprivileged_userns -- .github/workflows/ci.yml` prints a line holding each.
 
 ## 6 — The record

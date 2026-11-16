@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Linux a run's start appends the names Claude Code's sandbox mounts into a worktree to `.git/info/exclude`, before
   its first clean-tree check, so they no longer halt it; a link at `info` or `exclude` stops the run with 2
   (0131-linux-runner, phase 4).
+- CI's Linux job installs `bubblewrap`, opens user namespaces and runs the gate under `MF_REQUIRE_SANDBOX`, so the
+  real-sandbox tests prove `bwrap` there. Those tests read each side's own text: a signal outside fails as `No such
+  process` on Linux, and a masked secret file reads as empty, never its content (0131-linux-runner, phase 5).
 
 ## [0.103.0] - 2026-11-16
 

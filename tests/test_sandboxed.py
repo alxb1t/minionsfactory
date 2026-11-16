@@ -663,14 +663,18 @@ def _seatbelt() -> bool:
     return subprocess.run(probe, capture_output=True).returncode == 0
 
 
-def _require_sandbox() -> None:
-    """Pass where the real `sandbox-exec` applies a profile; else fail or skip.
+def _require_sandbox(host: str) -> None:
+    """Pass where the host's real OS sandbox applies; else fail or skip.
 
-    `MF_REQUIRE_SANDBOX` set fails it: CI's macOS job. Why: 0128-platform-port D12.
+    `MF_REQUIRE_SANDBOX` set fails it: CI's macOS and Linux jobs.
+    Why: 0128-platform-port D12, 0131-linux-runner design D5.
     """
-    if _seatbelt():
+    if host == "linux":
+        stands, reason = platform.has_sandbox(), "bwrap cannot apply a sandbox here"
+    else:
+        stands, reason = _seatbelt(), "sandbox-exec cannot apply a profile here"
+    if stands:
         return
-    reason = "sandbox-exec cannot apply a profile here"
     if os.environ.get("MF_REQUIRE_SANDBOX"):
         pytest.fail(reason)
     pytest.skip(reason)
@@ -683,26 +687,45 @@ def real_sandbox(host: str, macos_side: None, monkeypatch: pytest.MonkeyPatch) -
     Why: 0131-linux-runner design D7.
     """
     monkeypatch.setattr(platform, "OS", host)
-    _require_sandbox()
+    _require_sandbox(host)
 
 
 def test_a_required_sandbox_that_cannot_apply_fails_and_else_skips(
     tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
-    _require_sandbox()
+    _require_sandbox("macos")
 
     empty = tmp_path / "empty-bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
     outcomes = (pytest.fail.Exception, pytest.skip.Exception)
     with pytest.raises(outcomes, match="cannot apply a profile") as required:
-        _require_sandbox()
+        _require_sandbox("macos")
     assert required.type is pytest.fail.Exception
     monkeypatch.delenv("MF_REQUIRE_SANDBOX")
     with pytest.raises(outcomes, match="cannot apply a profile") as optional:
-        _require_sandbox()
+        _require_sandbox("macos")
     assert optional.type is pytest.skip.Exception
+
+    for name, code in (("failing", 1), ("passing", 0)):
+        (tmp_path / f"{name}-bin").mkdir()
+        (tmp_path / f"{name}-bin" / "bwrap").write_text(f"#!/bin/sh\nexit {code}\n")
+        (tmp_path / f"{name}-bin" / "bwrap").chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path / "failing-bin"))
+    monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
+    monkeypatch.setattr(platform, "OS", "linux")
+    with pytest.raises(outcomes, match="bwrap cannot apply a sandbox") as required:
+        _require_sandbox("linux")
+    assert required.type is pytest.fail.Exception
+    monkeypatch.delenv("MF_REQUIRE_SANDBOX")
+    monkeypatch.setattr(platform, "OS", "linux")
+    with pytest.raises(outcomes, match="bwrap cannot apply a sandbox") as optional:
+        _require_sandbox("linux")
+    assert optional.type is pytest.skip.Exception
+    monkeypatch.setenv("PATH", str(tmp_path / "passing-bin"))
+    monkeypatch.setattr(platform, "OS", "linux")
+    _require_sandbox("linux")
 
 
 def test_a_write_outside_the_trees_is_denied(
@@ -743,15 +766,22 @@ def test_a_secret_read_is_denied(
     secret = isolated_home / ".ssh" / "id_test"
     secret.parent.mkdir()
     secret.write_text("key")
+    netrc = isolated_home / ".netrc"
+    netrc.write_text("machine x")
     plain = isolated_home / "notes.txt"
     plain.write_text("note")
 
-    def read(path: Path) -> int:
+    def read(path: Path) -> tuple[int, str]:
+        out = io.StringIO()
         command = _python(f"print(open({str(path.resolve())!r}).read())")
-        return _conduct()["sandboxed"](command, trees[0], trees)
+        return _conduct()["sandboxed"](command, trees[0], trees, out), out.getvalue()
 
-    assert read(plain) == 0
-    assert read(secret) != 0
+    assert read(plain) == (0, "note\n")
+    code, seen = read(secret)
+    assert code != 0
+    for text in (seen, read(netrc)[1]):
+        assert "key" not in text
+        assert "machine" not in text
 
 
 def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None:
@@ -815,6 +845,7 @@ def test_a_signal_to_a_process_outside_is_denied(
     trees = _trees(tmp_path)
     outside = subprocess.Popen(["sleep", "60"])
     out = io.StringIO()
+    error = {"macos": "Operation not permitted", "linux": "No such process"}
     try:
         code = _conduct()["sandboxed"](
             [*_python(_SIGNAL_OUT), str(outside.pid)], trees[0], trees, out
@@ -822,8 +853,8 @@ def test_a_signal_to_a_process_outside_is_denied(
 
         assert code == 0
         assert out.getvalue().splitlines() == [
-            f"{int(signal.SIGTERM)} Operation not permitted",
-            "0 Operation not permitted",
+            f"{int(signal.SIGTERM)} {error[platform.OS]}",
+            f"0 {error[platform.OS]}",
         ]
         assert outside.poll() is None
     finally:
