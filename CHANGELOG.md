@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.102.0] - 2026-11-16
+
+Gate: local 5m41s · CI not read under mf-ship · 0.101.3: local 4m47s · CI not read under mf-ship
+
 - Today's OS calls are pinned before they move to `skills/mflib/platform.py`: `sysctl`, `ps`, the awake holds'
   sessions, the fetch's `sandbox-exec -p` and the liveness probe's signal 0, each case seen red first
   (0128-platform-port, phase 1).
