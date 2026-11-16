@@ -3,10 +3,10 @@
 Why: 0107-sandbox-runner design D5.
 """
 
+import contextlib
 import io
 import json
 import os
-import shlex
 import shutil
 import signal
 import socket
@@ -387,8 +387,8 @@ def _alive(pid: int) -> bool:
     return True
 
 
-def _gone(pid: int) -> bool:
-    for _ in range(100):
+def _gone(pid: int, seconds: float = 5) -> bool:
+    for _ in range(int(seconds / 0.05)):
         if not _alive(pid):
             return True
         time.sleep(0.05)
@@ -712,8 +712,21 @@ _SIGNAL_CHILD = (
     " child.send_signal(signal.SIGTERM);"
     " sys.exit(0 if child.wait(timeout=10) == -signal.SIGTERM else 1)"
 )
-_AWAKE = (
-    Path(__file__).resolve().parent.parent / "skills/mf-cut-change/scripts/awake.py"
+_STARTER = (
+    "import subprocess;"
+    " quiet = subprocess.DEVNULL;"
+    " sleeper = subprocess.Popen(['sleep', '60'], start_new_session=True,"
+    " stdin=quiet, stdout=quiet, stderr=quiet);"
+    " print(sleeper.pid, flush=True)"
+)
+_SIGNALLER = "import os, signal, sys; os.kill(int(sys.argv[1]), signal.SIGTERM)"
+_SIBLINGS = (
+    "import subprocess, sys;"
+    " first = subprocess.run([sys.executable, '-c', sys.argv[1]],"
+    " capture_output=True, text=True, check=True);"
+    " print(first.stdout, end='', flush=True);"
+    " subprocess.run([sys.executable, '-c', sys.argv[2], first.stdout.strip()],"
+    " check=True)"
 )
 
 
@@ -747,21 +760,23 @@ def test_a_signal_to_the_commands_own_child_is_delivered(
     assert _conduct()["sandboxed"](_python(_SIGNAL_CHILD), trees[0], trees) == 0
 
 
-def test_the_cuts_hold_is_released_under_the_rule(
+def test_a_signal_between_siblings_is_delivered(
     tmp_path: Path, real_sandbox: None
 ) -> None:
-    repo = _repo(tmp_path)
-    awake = f"{shlex.quote(sys.executable)} {shlex.quote(str(_AWAKE))}"
-    command = f"{awake} start 0001-a && {awake} stop 0001-a"
+    trees = _trees(tmp_path)
     out = io.StringIO()
 
-    code = _conduct()["sandboxed"](["sh", "-c", command], repo, [repo], out)
+    code = _conduct()["sandboxed"](
+        [*_python(_SIBLINGS), _STARTER, _SIGNALLER], trees[0], trees, out
+    )
 
-    assert code == 0
-    assert out.getvalue().splitlines() == [
-        "awake: held (2 h at most)",
-        "awake: released",
-    ]
+    sleeper = int(out.getvalue().split()[0])
+    try:
+        assert code == 0
+        assert _gone(sleeper, 10)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(sleeper, signal.SIGKILL)
 
 
 @pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])
