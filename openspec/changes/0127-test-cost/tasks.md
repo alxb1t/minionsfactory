@@ -5,7 +5,7 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 ## Progress
 
 - [x] 1 — One round · moderate
-- [ ] 2 — One compile · moderate
+- [x] 2 — One compile · moderate
 - [ ] 3 — The slow marks · moderate
 - [ ] 4 — The duplicates · moderate
 - [ ] 5 — Waits that assert · moderate
@@ -21,15 +21,15 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 
 ## 2 — One compile
 
-- [ ] 2.1 Add `tests/conduct_load.py`: a docstring, `_SCRIPT` the path of `skills/mf-ship/scripts/conduct.py`, `_CODE = compile(_SCRIPT.read_text(), str(_SCRIPT), "exec")`, and `def conduct() -> dict[str, Any]` as [D2](design.md#d2) sets out: a `types.ModuleType("<run_path>")` with `__file__`, entered in `sys.modules` for the call and the old entry restored in a `finally`, `exec(_CODE, module.__dict__)` with `# noqa: S102` on its line and `# why: the conductor's compiled source, run as `runpy` runs it` above it, a copy of the dict returned.
+- [x] 2.1 Add `tests/conduct_load.py`: a docstring, `_SCRIPT` the path of `skills/mf-ship/scripts/conduct.py`, `_CODE = compile(_SCRIPT.read_text(), str(_SCRIPT), "exec")`, and `def conduct() -> dict[str, Any]` as [D2](design.md#d2) sets out: a `types.ModuleType("<run_path>")` with `__file__`, entered in `sys.modules` for the call and the old entry restored in a `finally`, `exec(_CODE, module.__dict__)` with `# noqa: S102` on its line and `# why: the conductor's compiled source, run as `runpy` runs it` above it, a copy of the dict returned.
   Verify: `uv run ruff check tests/conduct_load.py` exits 0.
-- [ ] 2.2 In `tests/test_conduct.py`, replace the `_conduct` definition, whose body is `return runpy.run_path(str(_SCRIPT))`, with `from conduct_load import conduct as _conduct` in the import block, before `from fake_worker import (…)`, where ruff sorts it; keep `_SCRIPT` and `runpy`, which other tests read.
+- [x] 2.2 In `tests/test_conduct.py`, replace the `_conduct` definition, whose body is `return runpy.run_path(str(_SCRIPT))`, with `from conduct_load import conduct as _conduct` in the import block, before `from fake_worker import (…)`, where ruff sorts it; keep `_SCRIPT` and `runpy`, which other tests read.
   Verify: `git grep -nF "runpy.run_path(str(_SCRIPT))" -- tests/test_conduct.py` prints no line.
-- [ ] 2.3 In `tests/test_sandboxed.py`, replace its `_conduct`, whose body is `return runpy.run_path(str(_SCRIPT))`, the same way, and drop the `runpy` import, `_SCRIPT` and `from typing import Any` when no other line reads them.
+- [x] 2.3 In `tests/test_sandboxed.py`, replace its `_conduct`, whose body is `return runpy.run_path(str(_SCRIPT))`, the same way, and drop the `runpy` import, `_SCRIPT` and `from typing import Any` when no other line reads them.
   Verify: `git grep -nF "runpy.run_path(str(_SCRIPT))" -- tests/test_sandboxed.py` prints no line.
-- [ ] 2.4 Add `test_each_conduct_load_is_a_fresh_module` to `tests/test_conduct.py`, after `_main`: two `_conduct()` loads hold different `Run` classes, each holds `__file__` equal to `str(_SCRIPT)`, and `"<run_path>"` is not in `sys.modules` after them. Its red run with `conduct()` returning one cached dict goes in the phase's commit body (`T6`).
+- [x] 2.4 Add `test_each_conduct_load_is_a_fresh_module` to `tests/test_conduct.py`, after `_main`: two `_conduct()` loads hold different `Run` classes, each holds `__file__` equal to `str(_SCRIPT)`, and `"<run_path>"` is not in `sys.modules` after them. Its red run with `conduct()` returning one cached dict goes in the phase's commit body (`T6`).
   Verify: `uv run pytest tests/test_conduct.py -q -k fresh_module` exits 0.
-- [ ] 2.5 Run both files whole.
+- [x] 2.5 Run both files whole.
   Verify: `uv run pytest tests/test_conduct.py tests/test_sandboxed.py -q -n auto` exits 0.
 
 ## 3 — The slow marks

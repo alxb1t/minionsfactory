@@ -6,7 +6,6 @@ Why: 0107-sandbox-runner design D5.
 import io
 import json
 import os
-import runpy
 import shutil
 import signal
 import socket
@@ -15,17 +14,10 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
+from conduct_load import conduct as _conduct
 
-_SCRIPT = (
-    Path(__file__).resolve().parent.parent
-    / "skills"
-    / "mf-ship"
-    / "scripts"
-    / "conduct.py"
-)
 _DENIAL = (
     "sandboxed: denied — the OS sandbox refused a call:"
     " writes stay in the trees, no network"
@@ -35,10 +27,6 @@ _DUMP = (
     " print(json.dumps({'env': dict(os.environ), 'cwd': os.getcwd(),"
     " 'stdin': sys.stdin.read()}))"
 )
-
-
-def _conduct() -> dict[str, Any]:
-    return runpy.run_path(str(_SCRIPT))
 
 
 def _python(code: str) -> list[str]:

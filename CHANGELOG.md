@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test_three_versions_cut_built_converged_and_closed_at_once` runs one round: the autouse `_uv_sync` fixture fakes
   every `uv sync --script`, so a second round repeated the first; the archived `0112-uv-race` design says so
   (0127-test-cost, phase 1).
+- `tests/conduct_load.py` compiles `conduct.py` once and runs it into a fresh module per call; `tests/test_conduct.py`
+  and `tests/test_sandboxed.py` load it through that, so no call compiles the script again (0127-test-cost, phase 2).
 
 ## [0.101.1] - 2026-11-14
 

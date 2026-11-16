@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from conduct_load import conduct as _conduct
 from fake_worker import (
     _IDENTITY,
     _amend_needed,
@@ -247,15 +248,19 @@ def _no_ps(tmp_path: Path) -> str:
     return str(folder)
 
 
-def _conduct() -> dict[str, Any]:
-    return runpy.run_path(str(_SCRIPT))
-
-
 def _main(
     conduct: dict[str, Any], cwd: Path, *args: str, monkeypatch: pytest.MonkeyPatch
 ) -> int:
     monkeypatch.chdir(cwd)
     return conduct["main"](list(args))
+
+
+def test_each_conduct_load_is_a_fresh_module() -> None:
+    first, second = _conduct(), _conduct()
+
+    assert first["Run"] is not second["Run"]
+    assert first["__file__"] == second["__file__"] == str(_SCRIPT)
+    assert "<run_path>" not in sys.modules
 
 
 @pytest.fixture
