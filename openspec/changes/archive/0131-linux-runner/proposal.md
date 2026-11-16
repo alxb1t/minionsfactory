@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.104
 after: [0130-small-fixes]
 ---
 

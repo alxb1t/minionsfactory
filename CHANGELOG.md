@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin tests hold what a cloud session meets today: a refused tag push halts the run after the default branch lands; a
+  local default branch behind `origin` stays where it is; `gc.auto` in the repo's config makes `status` refuse it
+  (0132-cloud-run, phase 1).
+- `tags = false` under `[push]` in `ship.toml` makes a run on that machine push no tag and halt on none: a release
+  passes with its tag on no remote, and `status` says `run · tags — this machine pushes none`. A value that is not
+  true or false stops `run` and `status` with exit 2 (0132-cloud-run, phase 2).
+- A run's start makes the annotated local tag of each release commit `origin`'s default branch holds that has none,
+  logs `run · sync — made <tag>`, and pushes it where the machine pushes tags, so a fresh clone numbers its next
+  version right (0132-cloud-run, phase 3).
+- A run's start fetches `origin`'s default branch through the conductor's scratch repo into the primary's objects
+  and fast-forwards the local one, never merging, logging `run · sync — fetched` and `fast-forwarded`; a failed
+  fetch is a wait, and a diverged branch still halts at its push (0132-cloud-run, phase 4).
+- The config guard allows `gc.auto`, which the cloud writes into every clone; `gc.autodetach` and every other `gc.`
+  key still halt. Where Codex is not on `PATH`, a converge checker a plan gives Codex runs on Claude, a shadow on Codex
+  stops as at a usage limit, and the run says so once; a station on Codex still halts at its probe (0132-cloud-run,
+  phase 5).
+- D17, D47, D76 and D84 record the `tags` setting, the start's fetch, fast-forward and tags, `gc.auto` and a missing
+  Codex; the threat model and `mf-ship` say what a cloud machine pushes and fetches (0132-cloud-run, phase 6).
+
+## [0.104.0] - 2026-11-16
+
+Gate: local 5m43s · CI not read under mf-ship · 0.103.1: local 5m30s · CI not read under mf-ship
+
 - The port reads the host's OS once into `platform.OS`, `linux` or `macos`; every test runs the macOS side but the
   real-sandbox tests, which run the host's. CI's switch is `MF_REQUIRE_SANDBOX`, named for any OS (0131-linux-runner,
   phase 1).
@@ -28,24 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Linux a confined command gets a `/run` and a `/tmp` of its own, read-only outside its roots, so a host socket
   there, such as the user's systemd bus, is out of reach; with the network open the resolver file is bound back. D51
   and the threat model accept a host socket elsewhere and a credential created mid-command (0131-linux-runner, phase 7).
-- Pin tests hold what a cloud session meets today: a refused tag push halts the run after the default branch lands; a
-  local default branch behind `origin` stays where it is; `gc.auto` in the repo's config makes `status` refuse it
-  (0132-cloud-run, phase 1).
-- `tags = false` under `[push]` in `ship.toml` makes a run on that machine push no tag and halt on none: a release
-  passes with its tag on no remote, and `status` says `run · tags — this machine pushes none`. A value that is not
-  true or false stops `run` and `status` with exit 2 (0132-cloud-run, phase 2).
-- A run's start makes the annotated local tag of each release commit `origin`'s default branch holds that has none,
-  logs `run · sync — made <tag>`, and pushes it where the machine pushes tags, so a fresh clone numbers its next
-  version right (0132-cloud-run, phase 3).
-- A run's start fetches `origin`'s default branch through the conductor's scratch repo into the primary's objects
-  and fast-forwards the local one, never merging, logging `run · sync — fetched` and `fast-forwarded`; a failed
-  fetch is a wait, and a diverged branch still halts at its push (0132-cloud-run, phase 4).
-- The config guard allows `gc.auto`, which the cloud writes into every clone; `gc.autodetach` and every other `gc.`
-  key still halt. Where Codex is not on `PATH`, a converge checker a plan gives Codex runs on Claude, a shadow on Codex
-  stops as at a usage limit, and the run says so once; a station on Codex still halts at its probe (0132-cloud-run,
-  phase 5).
-- D17, D47, D76 and D84 record the `tags` setting, the start's fetch, fast-forward and tags, `gc.auto` and a missing
-  Codex; the threat model and `mf-ship` say what a cloud machine pushes and fetches (0132-cloud-run, phase 6).
 
 ## [0.103.1] - 2026-11-16
 
