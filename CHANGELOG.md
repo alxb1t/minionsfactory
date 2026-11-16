@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (0129-queue-cap, phase 1).
 - A run takes a queued cut only while the versions at a station are under the cap: the rest wait, logged once as
   `run · wait`, and the run's close starts no next run for a cut that only waits (0129-queue-cap, phase 2).
+- A waiting cut's queue entry holds its reason: `conduct.py status` prints `<id> · cut — waits: <reason>`, `conduct.py
+  cut` names the cap in its line, and the viewer shows the cut as `queued` (0129-queue-cap, phase 3).
 
 ## [0.102.0] - 2026-11-16
 

@@ -8613,6 +8613,119 @@ def test_cap_close_starts_no_run_for_a_waiting_cut(
     assert starts == [(root, "claude")]
 
 
+def test_cap_writes_the_reason_into_the_entry(tmp_path: Path) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0003-a", brief)
+    _queued(conduct, root, "0004-b", brief, halt="a halt")
+    conductor = conduct["Run"](root, "claude")
+    conductor.cap = 1
+    gate = threading.Event()
+    threads = {"0002-v": _held(gate)}
+    written: list[str] = []
+    write = names["_write_cut"]
+
+    def record(primary: Path, change: str, entry: dict[str, Any]) -> None:
+        written.append(change)
+        write(primary, change, entry)
+
+    names["_write_cut"] = record
+
+    def waits(change: str) -> str | None:
+        return conduct["_cuts"](root)[change].get("waits")
+
+    # The reason is written once, and again when the count changes.
+    conductor.wait_cut("0003-a", threads)
+    conductor.wait_cut("0003-a", threads)
+    assert waits("0003-a") == "1 in flight, cap 1"
+    assert written == ["0003-a"]
+    threads["0002-w"] = _held(gate)
+    conductor.wait_cut("0003-a", threads)
+    assert waits("0003-a") == "2 in flight, cap 1"
+    assert written == ["0003-a"] * 2
+
+    # A halted entry and a vanished one are left as they are.
+    conductor.wait_cut("0004-b", threads)
+    assert waits("0004-b") is None
+    assert conduct["_cuts"](root)["0004-b"]["halt"] == "a halt"
+    conductor.wait_cut("0005-gone", threads)
+    assert "0005-gone" not in conduct["_cuts"](root)
+    assert written == ["0003-a"] * 2
+
+    # An entry that holds no reason takes no lock and writes nothing.
+    def locked(primary: Path) -> None:
+        raise AssertionError("locked")
+
+    lock = names["_queue_lock"]
+    names["_queue_lock"] = locked
+    conductor.unwait("0004-b", conduct["_cuts"](root)["0004-b"])
+    assert "0004-b" not in conductor.waiting
+    names["_queue_lock"] = lock
+
+    # Taking the cut clears the reason; an entry that has gone stays gone.
+    held = conduct["_cuts"](root)["0003-a"]
+    conductor.unwait("0003-a", held)
+    assert "0003-a" not in conductor.waiting
+    kept = {key: value for key, value in held.items() if key != "waits"}
+    assert conduct["_cuts"](root)["0003-a"] == kept
+    assert written == ["0003-a"] * 3
+    (conduct["_queue"](root) / "cuts" / "0003-a").unlink()
+    conductor.unwait("0003-a", held)
+    assert "0003-a" not in conduct["_cuts"](root)
+    assert written == ["0003-a"] * 3
+    gate.set()
+
+
+def test_cap_status_and_cut_line(tmp_path: Path, fake: Callable[..., Path]) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    for change, halt in (("0001-a", None), ("0002-b", None), ("0003-c", "a halt")):
+        _queued(conduct, root, change, brief, halt=halt)
+    for change in ("0001-a", "0003-c"):
+        entry = conduct["_cuts"](root)[change]
+        conduct["_write_cut"](root, change, {**entry, "waits": "1 in flight, cap 1"})
+
+    # A halt shows before a reason.
+    assert conduct["status"](root).splitlines() == [
+        "0001-a · cut — waits: 1 in flight, cap 1",
+        "0002-b · cut",
+        "0003-c · cut-halted — a halt",
+    ]
+
+    # A cap shows in the line of a cut queued for a live run and for a started one.
+    _swap_runner(conduct)
+    names["_start_run"] = lambda primary, executor: 4242
+    real = tmp_path / "real.md"
+    real.write_text(f"# brief\n\n{_items('d', 'e', 'f')}")
+
+    def cut(slug: str) -> str:
+        return conduct["cut"](
+            root, slug, "minor", f"brief={real}", [], "claude", None, None
+        )
+
+    _ship_toml("[queue]\nin_flight = 2\n")
+    _claimed(conduct, root)
+    assert cut("d") == "cut: queued 0004-d · the live run takes it · cap 2"
+    shutil.rmtree(root / ".minions" / "runs" / "active")
+    assert cut("e") == "cut: queued 0005-e · run started · pid 4242 · cap 2"
+    _ship_toml("")
+    assert cut("f") == "cut: queued 0006-f · run started · pid 4242"
+
+    # A bad file refuses the cut before it reserves a number.
+    reserved = sorted(os.listdir(root / ".minions" / "cuts"))
+    _ship_toml("[queue]\nin_flight = 0\n")
+    with pytest.raises(conduct["Stop"], match=r"ship\.toml") as refused:
+        cut("f")
+    assert refused.value.code == 2
+    assert sorted(os.listdir(root / ".minions" / "cuts")) == reserved
+
+
 def _halts_on_main(
     conduct: dict[str, Any], root: Path, calls: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

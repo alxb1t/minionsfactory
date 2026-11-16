@@ -6,7 +6,7 @@ The phases follow [design](design.md): the setting, the gate, what is shown, the
 
 - [x] 1 — The setting · moderate
 - [x] 2 — The gate · hard
-- [ ] 3 — What is shown · moderate
+- [x] 3 — What is shown · moderate
 - [ ] 4 — The record · moderate
 
 ## 1 — The setting
@@ -45,17 +45,17 @@ The phases follow [design](design.md): the setting, the gate, what is shown, the
 
 ## 3 — What is shown
 
-- [ ] 3.1 In `tests/test_conduct.py` add `test_cap_writes_the_reason_into_the_entry`: a waiting cut's entry holds `waits` as `1 in flight, cap 1`, rewritten when the count changes, none for a halted entry and none for a vanished one; `unwait` with an entry that holds `waits` clears it, and writes nothing for an entry that holds none or has gone ([D5](design.md#d5)).
+- [x] 3.1 In `tests/test_conduct.py` add `test_cap_writes_the_reason_into_the_entry`: a waiting cut's entry holds `waits` as `1 in flight, cap 1`, rewritten when the count changes, none for a halted entry and none for a vanished one; `unwait` with an entry that holds `waits` clears it, and writes nothing for an entry that holds none or has gone ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_writes"` lists `test_cap_writes_the_reason_into_the_entry`.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` make `Run.wait_cut` and `Run.unwait` write and clear the entry's `waits` under `_queue_lock`, with `_write_cut`, as [D5](design.md#d5) says; a run with no cap takes no lock.
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` make `Run.wait_cut` and `Run.unwait` write and clear the entry's `waits` under `_queue_lock`, with `_write_cut`, as [D5](design.md#d5) says; a run with no cap takes no lock.
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_writes"` passes.
-- [ ] 3.3 In `tests/test_conduct.py` add `test_cap_status_and_cut_line`: `status` prints `<id> · cut — waits: 1 in flight, cap 1` for an entry holding `waits`, `<id> · cut` for one without; `cut()` appends ` · cap 2` to its line under `in_flight = 2`, and exits 2 under a bad file with nothing reserved.
+- [x] 3.3 In `tests/test_conduct.py` add `test_cap_status_and_cut_line`: `status` prints `<id> · cut — waits: 1 in flight, cap 1` for an entry holding `waits`, `<id> · cut` for one without; `cut()` appends ` · cap 2` to its line under `in_flight = 2`, and exits 2 under a bad file with nothing reserved.
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_status"` lists `test_cap_status_and_cut_line`.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` make `status` print the waiting line, and `cut()` call `_cap()` before it takes the queue lock and append ` · cap <N>` to the line it prints for a live run and for a started run, when a cap is set ([D5](design.md#d5)).
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` make `status` print the waiting line, and `cut()` call `_cap()` before it takes the queue lock and append ` · cap <N>` to the line it prints for a live run and for a started run, when a cap is set ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_reads or cap_file or cap_counts or cap_gates or cap_of_one or cap_close or cap_writes or cap_status or three_versions"` passes.
-- [ ] 3.5 In `tests/test_viewer.py` give the `_queue` helper a `waits` mapping, add `test_the_queue_shows_a_waiting_cut_as_queued` for the state `queued` with its reason, and change the queue rows `test_for_you_holds_what_needs_a_person` expects to carry `"waits": None`.
+- [x] 3.5 In `tests/test_viewer.py` give the `_queue` helper a `waits` mapping, add `test_the_queue_shows_a_waiting_cut_as_queued` for the state `queued` with its reason, and change the queue rows `test_for_you_holds_what_needs_a_person` expects to carry `"waits": None`.
   Verify: `uv run pytest tests/test_viewer.py --collect-only -q -k "queue_shows"` lists `test_the_queue_shows_a_waiting_cut_as_queued`.
-- [ ] 3.6 In `skills/mf-ui/scripts/viewer.py` give each queue row a `waits` field and the state `queued` when the entry holds `waits` and no halt; in `skills/mf-ui/page/index.html` print `cut.waits` after the halt and add a style for the state.
+- [x] 3.6 In `skills/mf-ui/scripts/viewer.py` give each queue row a `waits` field and the state `queued` when the entry holds `waits` and no halt; in `skills/mf-ui/page/index.html` print `cut.waits` after the halt and add a style for the state.
   Verify: `uv run pytest tests/test_viewer.py -q -k "queue_shows or for_you"` passes.
 
 ## 4 — The record

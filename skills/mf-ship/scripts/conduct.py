@@ -6132,21 +6132,37 @@ class Run:
         return None if self.seen is None else self.seen | set(self.waiting)
 
     def wait_cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
-        """Hold a queued cut for room under the cap, logging its first wait.
+        """Hold a queued cut for room under the cap, writing its reason into its entry.
 
+        The first wait is logged; an entry gone or halted is left as it is.
         Why: 0129-queue-cap design D5.
         """
         reason = f"{self.in_flight(threads)} in flight, cap {self.cap}"
-        if change not in self.waiting:
-            self.log.event("run", "wait", f"{change}: {reason}")
+        previous = self.waiting.get(change)
         self.waiting[change] = reason
+        if previous is None:
+            self.log.event("run", "wait", f"{change}: {reason}")
+        if reason == previous:
+            return
+        with _queue_lock(self.primary):
+            current = _cuts(self.primary).get(change)
+            if current is not None and current["halt"] is None:
+                _write_cut(self.primary, change, {**current, "waits": reason})
 
     def unwait(self, change: str, entry: dict[str, Any]) -> None:
-        """Drop a cut from the waiting ones.
+        """Drop a cut from the waiting ones, and its reason from its entry.
 
+        An entry that holds no reason, or has gone, is not written.
         Why: 0129-queue-cap design D5.
         """
         self.waiting.pop(change, None)
+        if "waits" not in entry:
+            return
+        with _queue_lock(self.primary):
+            current = _cuts(self.primary).get(change)
+            if current is not None and "waits" in current:
+                kept = {key: value for key, value in current.items() if key != "waits"}
+                _write_cut(self.primary, change, kept)
 
     def take_cut(
         self, change: str, entry: dict[str, Any], threads: dict[str, threading.Thread]
@@ -7585,8 +7601,8 @@ def cut(
 ) -> str:
     """Queue a settled brief under the next free number; return the line.
 
-    Why: 0082-cut-station design D1; 0091-cut-halts
-    design D3; 0098-beside design D3; 0106-cut-scripts design D7.
+    Why: 0082-cut-station design D1; 0091-cut-halts design D3; 0098-beside design D3;
+    0106-cut-scripts design D7; 0129-queue-cap design D1, D5.
     """
     if not SLUG.fullmatch(slug):
         raise Stop(2, f"cut: cannot run — not a slug: {slug}")
@@ -7613,6 +7629,7 @@ def cut(
     models = _models_text(path.resolve(), slug)
     ids = linked.get("after", [])
     primary = primary_of(cwd)
+    cap = f" · cap {limit}" if (limit := _cap()) else ""
     for line in _prefetch(primary, approved):
         print(line)
     with _queue_lock(primary):
@@ -7651,12 +7668,12 @@ def cut(
             entry["beside"] = linked["beside"]
         _write_cut(primary, change, entry)
         if live:
-            return f"cut: queued {change} · the live run takes it"
+            return f"cut: queued {change} · the live run takes it{cap}"
         try:
             pid = _start_run(primary, executor)
         except Stop as stop:
             raise Stop(2, f"cut: queued {change} · {stop}") from None
-    return f"cut: queued {change} · run started · pid {pid}"
+    return f"cut: queued {change} · run started · pid {pid}{cap}"
 
 
 def _requests(queue: Path) -> set[str]:
@@ -7987,13 +8004,20 @@ def status(cwd: Path) -> str:
         if version.change not in cuts
     ]
     # A queued cut's line stands for its version's. Why: 0082-cut-station design D6.
-    lines += [
-        f"{change} · cut"
-        if entry["halt"] is None
-        else f"{change} · cut-halted — {entry['halt']}"
-        for change, entry in cuts.items()
-    ]
+    lines += [_cut_line(change, entry) for change, entry in cuts.items()]
     return "\n".join(lines) or "status: none — no open version"
+
+
+def _cut_line(change: str, entry: dict[str, Any]) -> str:
+    """Return a queued cut's status line: its halt, else why it waits, else `cut`.
+
+    e.g. "0003-a · cut — waits: 1 in flight, cap 1". Why: 0129-queue-cap design D5.
+    """
+    if entry["halt"] is not None:
+        return f"{change} · cut-halted — {entry['halt']}"
+    if "waits" in entry:
+        return f"{change} · cut — waits: {entry['waits']}"
+    return f"{change} · cut"
 
 
 def _merge_commit(primary: Path, version: Version) -> str | None:
