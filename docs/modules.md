@@ -9,7 +9,7 @@ The layers:
 - **`station`** — a station's own scripts.
 - **`reader`** — the operator's readers of run data, and the metric scripts.
 - **`gate`** — the scripts `make gate` and `make corpus` run.
-- **`home`** — the shared home, `skills/mflib/`; no row until it exists.
+- **`home`** — the shared home, `skills/mflib/`.
 
 A row gives a path once, and `check_map` fails on a `conductor` or `home` row outside its folder.
 
@@ -53,6 +53,8 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-plan/scripts/brief_check.py` | station | conduct.py, verify_check.py |
 | `skills/mf-release/scripts/next_tag.py` | station | — |
 | `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, metrics.py, overlap.py |
-| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, converge.py, integrate.py, pin.py, stamp.py |
+| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, converge.py, integrate.py, pin.py, platform.py, stamp.py |
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py |
 | `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py |
+| `skills/mflib/__init__.py` | home | — |
+| `skills/mflib/platform.py` | home | — |

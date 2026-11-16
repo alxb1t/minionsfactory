@@ -39,6 +39,9 @@ if TYPE_CHECKING:
     from markdown_it import MarkdownIt
     from markdown_it.token import Token
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.platform
+
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
@@ -2388,25 +2391,6 @@ def _unread(primary: Path) -> bool:
     )
 
 
-def _native() -> str:
-    """Return the host's native architecture, read past a translated process.
-
-    e.g. an `x86_64` Python under Rosetta on Apple silicon → "arm64"
-    Why: 0057-run-fixes design D1.
-    """
-    try:
-        done = subprocess.run(
-            ["sysctl", "-n", "hw.optional.arm64"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return os.uname().machine
-    return "arm64" if done.stdout.strip() == "1" else os.uname().machine
-
-
 def probe_gate(mark: Path, native: str) -> str:
     """Return the scratch `Makefile`: its gate passes when `mark` refuses a write.
 
@@ -2447,7 +2431,7 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
         return f"{executor} wrote outside its reach: it runs unsandboxed"
     arch = scratch / ".arch"
     if arch.is_symlink() or arch.is_file():
-        native = _native()
+        native = mflib.platform.arch()
         shell, links = _read_arch(arch) or ("", 0)
         if shell != native:
             if links == 1 and re.fullmatch(r"[A-Za-z0-9_]{1,16}", shell):
@@ -6384,7 +6368,7 @@ class Run:
                 )
                 return
             _git(scratch, "init", "-q", "-b", "main")
-            (scratch / "Makefile").write_text(probe_gate(mark, _native()))
+            (scratch / "Makefile").write_text(probe_gate(mark, mflib.platform.arch()))
             codex = executor == "codex"
             ignored = ".gated\n.arch\n" + ("tree/\n" if codex else "")
             (scratch / ".gitignore").write_text(ignored)

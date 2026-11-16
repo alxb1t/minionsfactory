@@ -37,6 +37,7 @@ from fake_worker import (
     _findings,
     _git,
 )
+from mflib import platform
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
@@ -859,7 +860,7 @@ def test_each_check_passes_only_on_disk_evidence(
     mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
     mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
-    gate_file = conduct["probe_gate"](mark, conduct["_native"]())
+    gate_file = conduct["probe_gate"](mark, platform.arch())
     _commit(scratch, {"Makefile": gate_file}, "init")
     assert check("probe", str(scratch)) == (
         1,
@@ -11655,7 +11656,7 @@ def test_a_probe_halts_on_a_write_out(
     fake("translated")
     assert run() == 1
     assert _calls(calls) == ["probe"]
-    native = conduct["_native"]()
+    native = platform.arch()
     log = conduct["last_log"](root / ".minions" / "runs").read_text()
     assert (
         " · run · halt — probe check fail — claude's shell runs as i386 on a"

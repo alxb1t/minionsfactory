@@ -5,7 +5,7 @@ The pin on today's code, the home with its first tenant, the move of the rest, a
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The home · hard
+- [x] 2 — The home · hard
 - [ ] 3 — The move · hard
 - [ ] 4 — The fix · hard
 
@@ -52,29 +52,29 @@ Cases on today's code, per [D7](design.md#d7). Each is applied red first: make t
 
 `skills/mflib/` is born with the native-architecture read, per [D1](design.md#d1) and [D2](design.md#d2); the rules and the record that hold it land with it.
 
-- [ ] 2.1 In `pyproject.toml` add `[tool.ty.environment]` with `extra-paths = ["skills"]`, and `pythonpath = ["skills"]` under pytest's settings, each with a comment naming `mflib`.
+- [x] 2.1 In `pyproject.toml` add `[tool.ty.environment]` with `extra-paths = ["skills"]`, and `pythonpath = ["skills"]` under pytest's settings, each with a comment naming `mflib`.
   Verify: `git grep -n -F 'extra-paths = ["skills"]' -- pyproject.toml` prints the line.
-- [ ] 2.2 Create `skills/mflib/__init__.py` (a docstring only) and `skills/mflib/platform.py` holding `arch()`, `_native`'s body and docstring, with the `sysctl` call's timeout as `TIMEOUT = 60`, per [D4](design.md#d4).
+- [x] 2.2 Create `skills/mflib/__init__.py` (a docstring only) and `skills/mflib/platform.py` holding `arch()`, `_native`'s body and docstring, with the `sysctl` call's timeout as `TIMEOUT = 60`, per [D4](design.md#d4).
   Verify: `grep -n -E "^def arch\(" skills/mflib/platform.py` prints the line.
-- [ ] 2.3 In `skills/mf-ship/scripts/conduct.py` add the seed and `import mflib.platform` after the imports, delete `_native`, and make its readers, `check_probe` and the line that writes the probe's gate file, call `mflib.platform.arch()`.
+- [x] 2.3 In `skills/mf-ship/scripts/conduct.py` add the seed and `import mflib.platform` after the imports, delete `_native`, and make its readers, `check_probe` and the line that writes the probe's gate file, call `mflib.platform.arch()`.
   Verify: `grep -c -F "mflib.platform.arch()" skills/mf-ship/scripts/conduct.py` prints `2`.
-- [ ] 2.4 In `tests/conduct_load.py` restore `sys.path` after each run of the conductor, per [D2](design.md#d2).
+- [x] 2.4 In `tests/conduct_load.py` restore `sys.path` after each run of the conductor, per [D2](design.md#d2).
   Verify: `git grep -n "sys.path" -- tests/conduct_load.py` prints the restore.
-- [ ] 2.5 In `tests/test_platform.py` and in `tests/test_conduct.py` replace each `_conduct()["_native"]()` and `conduct["_native"]()` by `platform.arch()`, `platform` imported `from mflib import platform`.
+- [x] 2.5 In `tests/test_platform.py` and in `tests/test_conduct.py` replace each `_conduct()["_native"]()` and `conduct["_native"]()` by `platform.arch()`, `platform` imported `from mflib import platform`.
   Verify: `grep -c -F "platform.arch()" tests/test_conduct.py` prints `2`.
-- [ ] 2.6 In `THREAT_MODEL.md` add to `## Surfaces` the line ``- `skills/mflib/*` — the shared home: the port to the OS, loaded by the scripts that run on the operator's machine.``
+- [x] 2.6 In `THREAT_MODEL.md` add to `## Surfaces` the line ``- `skills/mflib/*` — the shared home: the port to the OS, loaded by the scripts that run on the operator's machine.``
   Verify: `git grep -n -F "skills/mflib/*" -- THREAT_MODEL.md` prints the line.
-- [ ] 2.7 In `tests/test_structure.py` add `check_surfaces(root)`: it reads the globs of `## Surfaces` in `THREAT_MODEL.md` and fails `f"{path}: matches no surface of THREAT_MODEL.md"` for each Python file under `skills/` that `fnmatch` leaves unmatched. Add `test_check_surfaces_holds_on_the_tree` and planted-breach twins that fail and pass.
+- [x] 2.7 In `tests/test_structure.py` add `check_surfaces(root)`: it reads the globs of `## Surfaces` in `THREAT_MODEL.md` and fails `f"{path}: matches no surface of THREAT_MODEL.md"` for each Python file under `skills/` that `fnmatch` leaves unmatched. Add `test_check_surfaces_holds_on_the_tree` and planted-breach twins that fail and pass.
   Verify: `uv run pytest tests/test_structure.py -q -k check_surfaces` exits 0.
-- [ ] 2.8 In `tests/test_structure.py` add `SEED` and `check_seed(root)`: a script under `skills/`, outside `skills/mflib/`, whose first top-level `mflib` import has no statement before it that `ast.unparse` gives as `SEED` fails `f"{path}: imports mflib with no seed line before it"`. Add the tree test and twins: no seed, a wrong seed, the seed, a file of `skills/mflib/`.
+- [x] 2.8 In `tests/test_structure.py` add `SEED` and `check_seed(root)`: a script under `skills/`, outside `skills/mflib/`, whose first top-level `mflib` import has no statement before it that `ast.unparse` gives as `SEED` fails `f"{path}: imports mflib with no seed line before it"`. Add the tree test and twins: no seed, a wrong seed, the seed, a file of `skills/mflib/`.
   Verify: `uv run pytest tests/test_structure.py -q -k check_seed` exits 0.
-- [ ] 2.9 In `tests/test_structure.py` make `check_os` skip `skills/mflib/platform.py`, drop `("conduct.py", "sysctl")` from `OS_NAMES`, and write `test_check_os_passes_the_port_file` and `test_check_os_fails_on_a_file_that_is_no_port`: the port naming `caffeinate` passes, another file naming it fails.
+- [x] 2.9 In `tests/test_structure.py` make `check_os` skip `skills/mflib/platform.py`, drop `("conduct.py", "sysctl")` from `OS_NAMES`, and write `test_check_os_passes_the_port_file` and `test_check_os_fails_on_a_file_that_is_no_port`: the port naming `caffeinate` passes, another file naming it fails.
   Verify: `uv run pytest tests/test_structure.py -q -k check_os_passes_the_port_file` exits 0.
-- [ ] 2.10 In `docs/modules.md` add the `home` rows for `skills/mflib/__init__.py` and `skills/mflib/platform.py`, add `platform.py` to the names cell of `conduct.py`, and drop `no row until it exists` from the `home` bullet.
+- [x] 2.10 In `docs/modules.md` add the `home` rows for `skills/mflib/__init__.py` and `skills/mflib/platform.py`, add `platform.py` to the names cell of `conduct.py`, and drop `no row until it exists` from the `home` bullet.
   Verify: `uv run pytest tests/test_structure.py -q -k check_map` exits 0.
-- [ ] 2.11 In `docs/recipes.md` `## An OS` add the row `skills/mflib/platform.py`, `arch`, and take `_native` out of the conductor's row.
+- [x] 2.11 In `docs/recipes.md` `## An OS` add the row `skills/mflib/platform.py`, `arch`, and take `_native` out of the conductor's row.
   Verify: `git grep -n -F "skills/mflib/platform.py" -- docs/recipes.md` prints the row.
-- [ ] 2.12 In `docs/decisions.md` D83 name `skills/mflib/platform.py` as the platform seam's file and say the gate also holds the seed and the surfaces, per [D10](design.md#d10).
+- [x] 2.12 In `docs/decisions.md` D83 name `skills/mflib/platform.py` as the platform seam's file and say the gate also holds the seed and the surfaces, per [D10](design.md#d10).
   Verify: `git grep -n -F "skills/mflib/platform.py" -- docs/decisions.md` prints the line.
 
 ## 3 — The move

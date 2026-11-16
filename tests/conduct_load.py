@@ -19,10 +19,13 @@ def conduct() -> dict[str, Any]:
     module.__file__ = str(_SCRIPT)
     old = sys.modules.get("<run_path>")
     sys.modules["<run_path>"] = module
+    path = list(sys.path)
     try:
         # why: the conductor's compiled source, run as `runpy` runs it
         exec(_CODE, module.__dict__)  # noqa: S102
     finally:
+        # why: the conductor's seed adds an entry each run; 0128-platform-port design D2
+        sys.path[:] = path
         if old is None:
             del sys.modules["<run_path>"]
         else:

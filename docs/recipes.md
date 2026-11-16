@@ -57,7 +57,8 @@ A platform other than macOS. Today's OS commands are `sandbox-exec`, `caffeinate
 
 | file | edit |
 |---|---|
-| `skills/mf-ship/scripts/conduct.py` | `_profile` and `_sandbox_exec`, the worker's sandbox; `_native`, the host's architecture; `_hold_awake` and `_ps`, the awake hold |
+| `skills/mflib/platform.py` | `arch`, the host's architecture |
+| `skills/mf-ship/scripts/conduct.py` | `_profile` and `_sandbox_exec`, the worker's sandbox; `_hold_awake` and `_ps`, the awake hold |
 | `skills/mf-cut-change/scripts/awake.py` | `_ps`, `_name` and `_start`, the cut's awake hold |
 | `skills/mf-ui/scripts/viewer.py` | `run_ps`, a worker's command line |
 

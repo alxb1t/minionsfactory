@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (0128-platform-port, phase 1).
 - CI gains a `macos` job that runs `tests/test_sandboxed.py` with `MF_REQUIRE_SEATBELT`, so a real-sandbox test that
   cannot apply fails there, not skips (0128-platform-port, phase 1).
+- The shared home `skills/mflib/` is born with the platform port's first member, `arch()`, which the conductor loads
+  after one seed line; `ty` and `pytest` get `skills/` on their path (0128-platform-port, phase 2).
+- The structure test holds the seed, a threat-model surface for each Python file under `skills/`, and the port's
+  exemption from the OS-command rule (0128-platform-port, phase 2).
 
 ## [0.101.3] - 2026-11-16
 

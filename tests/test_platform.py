@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from conduct_load import conduct as _conduct
+from mflib import platform
 
 
 def _tool(tmp_path: Path, name: str, text: str) -> Path:
@@ -36,31 +37,29 @@ def _timeout(*args: object, **kwargs: object) -> None:
 def test_the_native_architecture_reads_sysctl_past_a_translated_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    native = _conduct()["_native"]
     _uname(monkeypatch, "x86_64")
 
     for printed, expected in (("1", "arm64"), ("0", "x86_64")):
         folder = _tool(tmp_path, "sysctl", f"#!/bin/sh\necho {printed}\n")
         monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
-        assert native() == expected
+        assert platform.arch() == expected
 
 
 def test_the_native_architecture_falls_back_to_uname(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    native = _conduct()["_native"]
     _uname(monkeypatch, "x86_64")
     empty = tmp_path / "empty-bin"
     empty.mkdir()
 
     with monkeypatch.context() as bare:
         bare.setenv("PATH", str(empty))
-        assert native() == "x86_64"
+        assert platform.arch() == "x86_64"
 
     folder = _tool(tmp_path, "sysctl", "#!/bin/sh\necho 1\n")
     monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
     monkeypatch.setattr(subprocess, "run", _timeout)
-    assert native() == "x86_64"
+    assert platform.arch() == "x86_64"
 
 
 def test_ps_reads_nothing_when_it_cannot_run(
