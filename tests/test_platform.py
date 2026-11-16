@@ -65,16 +65,15 @@ def test_the_native_architecture_falls_back_to_uname(
 def test_ps_reads_nothing_when_it_cannot_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ps = _conduct()["_ps"]
     empty = tmp_path / "empty-bin"
     empty.mkdir()
 
     with monkeypatch.context() as bare:
         bare.setenv("PATH", str(empty))
-        assert ps(os.getpid(), "lstart=") == ""
+        assert platform.process(os.getpid(), "lstart") == ""
 
     monkeypatch.setattr(subprocess, "run", _timeout)
-    assert ps(os.getpid(), "lstart=") == ""
+    assert platform.process(os.getpid(), "lstart") == ""
 
 
 _RECORD_SESSION = """

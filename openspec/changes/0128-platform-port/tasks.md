@@ -6,7 +6,7 @@ The pin on today's code, the home with its first tenant, the move of the rest, a
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The home · hard
-- [ ] 3 — The move · hard
+- [x] 3 — The move · hard
 - [ ] 4 — The fix · hard
 
 ## 1 — The pin
@@ -81,27 +81,27 @@ Cases on today's code, per [D7](design.md#d7). Each is applied red first: make t
 
 The rest of the port follows into `skills/mflib/platform.py`, per [D3](design.md#d3), [D4](design.md#d4), [D6](design.md#d6) and [D8](design.md#d8). No assert of a test changes, only the line by which a test reaches a name.
 
-- [ ] 3.1 **HALT CHECK** Among the scripts only `skills/mf-ship/scripts/conduct.py` names `_profile`, `_sandbox_exec` and `CODEX_DENIAL`.
+- [x] 3.1 **HALT CHECK** Among the scripts only `skills/mf-ship/scripts/conduct.py` names `_profile`, `_sandbox_exec` and `CODEX_DENIAL`.
   Verify: `git grep -l -w -e "_profile" -e "_sandbox_exec" -e "CODEX_DENIAL" -- skills` prints `skills/mf-ship/scripts/conduct.py`.
-- [ ] 3.2 In `skills/mflib/platform.py` add `Policy`, `profile`, `has_sandbox`, `confine`, `refused`, `process`, `has_hold`, `hold_awake` and `CAFFEINATE`, as [D3](design.md#d3), [D4](design.md#d4) and [D5](design.md#d5) say. `profile` renders `_profile`'s text unchanged.
+- [x] 3.2 In `skills/mflib/platform.py` add `Policy`, `profile`, `has_sandbox`, `confine`, `refused`, `process`, `has_hold`, `hold_awake` and `CAFFEINATE`, as [D3](design.md#d3), [D4](design.md#d4) and [D5](design.md#d5) say. `profile` renders `_profile`'s text unchanged.
   Verify: `grep -c -E "^def (profile|has_sandbox|confine|refused|process|has_hold|hold_awake)\(" skills/mflib/platform.py` prints `7`.
-- [ ] 3.3 In `skills/mf-ship/scripts/conduct.py` add `_policy(trees, home, network=False, tmp=None)` and delete `_profile` and `_sandbox_exec`. `sandboxed` asks `mflib.platform.has_sandbox()` where `_sandbox_exec()` was, and `_fetch_run` asks it after its policy is built; each stops with 2 and the same line. Each runs `[*mflib.platform.confine(policy), *argv]`.
+- [x] 3.3 In `skills/mf-ship/scripts/conduct.py` add `_policy(trees, home, network=False, tmp=None)` and delete `_profile` and `_sandbox_exec`. `sandboxed` asks `mflib.platform.has_sandbox()` where `_sandbox_exec()` was, and `_fetch_run` asks it after its policy is built; each stops with 2 and the same line. Each runs `[*mflib.platform.confine(policy), *argv]`.
   Verify: `grep -c -F "mflib.platform.confine(" skills/mf-ship/scripts/conduct.py` prints `2`.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `CODEX_DENIAL`; `sandboxed`, `_codex_denied` and `denials` call `mflib.platform.refused(`, `denials` reading `refused(line) or any(key in line for key in ('"tool_use"', '"is_error"'))`.
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `CODEX_DENIAL`; `sandboxed`, `_codex_denied` and `denials` call `mflib.platform.refused(`, `denials` reading `refused(line) or any(key in line for key in ('"tool_use"', '"is_error"'))`.
   Verify: `grep -c -F "mflib.platform.refused(" skills/mf-ship/scripts/conduct.py` prints `3`.
-- [ ] 3.5 In `skills/mf-ship/scripts/conduct.py` delete `_ps` and `CAFFEINATE`; its readers call `mflib.platform.process(` with `"lstart"` in `work`, `_started` and `run`, and with `"comm"` in `_clear`; `_hold_awake` asks `has_hold()` and calls `hold_awake(pid)`.
+- [x] 3.5 In `skills/mf-ship/scripts/conduct.py` delete `_ps` and `CAFFEINATE`; its readers call `mflib.platform.process(` with `"lstart"` in `work`, `_started` and `run`, and with `"comm"` in `_clear`; `_hold_awake` asks `has_hold()` and calls `hold_awake(pid)`.
   Verify: `grep -c -F "mflib.platform.process(" skills/mf-ship/scripts/conduct.py` prints `4`.
-- [ ] 3.6 In `skills/mf-cut-change/scripts/awake.py` add the seed and `import mflib.platform`; delete `_ps` and `CAFFEINATE`; `_name` and `_host` call `process`; `_release` compares with `mflib.platform.CAFFEINATE`; `_start` asks `mflib.platform.has_hold()` before `_host()`, then calls `hold_awake(host, HOLD_SECONDS)`.
+- [x] 3.6 In `skills/mf-cut-change/scripts/awake.py` add the seed and `import mflib.platform`; delete `_ps` and `CAFFEINATE`; `_name` and `_host` call `process`; `_release` compares with `mflib.platform.CAFFEINATE`; `_start` asks `mflib.platform.has_hold()` before `_host()`, then calls `hold_awake(host, HOLD_SECONDS)`.
   Verify: `grep -c -F "mflib.platform.has_hold()" skills/mf-cut-change/scripts/awake.py` prints `1`.
-- [ ] 3.7 In `skills/mf-ui/scripts/viewer.py` add the seed and `import mflib.platform`; `run_ps` returns `mflib.platform.process(pid, "command")`, and no `"ps"` string remains.
+- [x] 3.7 In `skills/mf-ui/scripts/viewer.py` add the seed and `import mflib.platform`; `run_ps` returns `mflib.platform.process(pid, "command")`, and no `"ps"` string remains.
   Verify: `git grep -n -F '"ps"' -- skills/mf-ui/scripts/viewer.py` prints nothing.
-- [ ] 3.8 Re-point the tests: `conduct["_profile"](a, b)` is replaced by `platform.profile(conduct["_policy"](a, b))` in `tests/test_sandboxed.py` and `tests/test_conduct.py`; `conduct["_ps"](pid, "lstart=")` by `platform.process(pid, "lstart")` in `tests/test_conduct.py` and `tests/test_platform.py`; each `CAFFEINATE` set through `__globals__` or `vars(awake)` by `monkeypatch.setattr(platform, "CAFFEINATE", …)` in `tests/test_conduct.py` and `tests/test_awake.py`.
+- [x] 3.8 Re-point the tests: `conduct["_profile"](a, b)` is replaced by `platform.profile(conduct["_policy"](a, b))` in `tests/test_sandboxed.py` and `tests/test_conduct.py`; `conduct["_ps"](pid, "lstart=")` by `platform.process(pid, "lstart")` in `tests/test_conduct.py` and `tests/test_platform.py`; each `CAFFEINATE` set through `__globals__` or `vars(awake)` by `monkeypatch.setattr(platform, "CAFFEINATE", …)` in `tests/test_conduct.py` and `tests/test_awake.py`.
   Verify: `git grep -n -E 'conduct(\(\))?\["(_profile|_ps)"\]|__globals__\["CAFFEINATE"\]|vars\(awake\)' -- tests` prints nothing.
-- [ ] 3.9 In `tests/test_structure.py` drop `("awake.py", "ps")` and `("viewer.py", "ps")` from `OS_NAMES`.
+- [x] 3.9 In `tests/test_structure.py` drop `("awake.py", "ps")` and `("viewer.py", "ps")` from `OS_NAMES`.
   Verify: `git grep -n -F '("awake.py", "ps")' -- tests/test_structure.py` prints nothing.
-- [ ] 3.10 In `docs/modules.md` set the names cells: `conduct.py` gains `platform.py`, `awake.py` is `platform.py`, `viewer.py` is `conduct.py, converge.py, platform.py`.
+- [x] 3.10 In `docs/modules.md` set the names cells: `conduct.py` gains `platform.py`, `awake.py` is `platform.py`, `viewer.py` is `conduct.py, converge.py, platform.py`.
   Verify: `uv run pytest tests/test_structure.py -q -k check_map` exits 0.
-- [ ] 3.11 In `docs/recipes.md` `## An OS` list the port's members under `skills/mflib/platform.py`, drop the rows of `conduct.py`, `awake.py` and `viewer.py` and the paragraph that opens `Until the home holds the platform port`.
+- [x] 3.11 In `docs/recipes.md` `## An OS` list the port's members under `skills/mflib/platform.py`, drop the rows of `conduct.py`, `awake.py` and `viewer.py` and the paragraph that opens `Until the home holds the platform port`.
   Verify: `git grep -n -F "Until the home holds the platform port" -- docs/recipes.md` prints nothing.
 
 ## 4 — The fix

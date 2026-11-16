@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 from conduct_load import conduct as _conduct
+from mflib import platform
 
 _DENIAL = (
     "sandboxed: denied — the OS sandbox refused a call:"
@@ -50,7 +51,7 @@ def test_the_profile_confines_writes_reads_and_network(tmp_path: Path) -> None:
     quoted = tmp_path / 'a"b\\c'
     home = tmp_path / "home"
 
-    profile = conduct["_profile"]([link, quoted], home)
+    profile = platform.profile(conduct["_policy"]([link, quoted], home))
 
     lines = profile.splitlines()
     assert lines[:3] == ["(version 1)", "(allow default)", "(deny file-write*)"]
@@ -75,15 +76,15 @@ def test_the_profile_confines_writes_reads_and_network(tmp_path: Path) -> None:
 
 
 def test_a_profile_may_open_the_network(tmp_path: Path) -> None:
-    profile = _conduct()["_profile"]
+    policy = _conduct()["_policy"]
     home = tmp_path / "home"
     trees = [tmp_path]
 
-    closed = profile(trees, home)
-    assert profile(trees, home, network=False) == closed
+    closed = platform.profile(policy(trees, home))
+    assert platform.profile(policy(trees, home, network=False)) == closed
     assert "(deny network*)" in closed.splitlines()
 
-    opened = profile(trees, home, network=True)
+    opened = platform.profile(policy(trees, home, network=True))
     assert "network" not in opened
     assert opened.splitlines() == closed.splitlines()[:-1]
     assert opened.splitlines()[-1].startswith("(deny file-read* file-write* ")
@@ -125,13 +126,15 @@ _OPEN_PROFILE = (
 
 
 def test_the_profile_text_is_held_byte_for_byte(tmp_path: Path) -> None:
-    profile = _conduct()["_profile"]
+    policy = _conduct()["_policy"]
     a, b = _trees(tmp_path)
     home = tmp_path / "home"
     paths = {"a": a, "b": b, "home": home.resolve()}
 
-    assert profile([a, b], home) == _CLOSED_PROFILE.format(**paths)
-    assert profile([a, b], home, network=True) == _OPEN_PROFILE.format(**paths)
+    assert platform.profile(policy([a, b], home)) == _CLOSED_PROFILE.format(**paths)
+    assert platform.profile(policy([a, b], home, network=True)) == (
+        _OPEN_PROFILE.format(**paths)
+    )
 
 
 def test_the_deny_lists_are_literals() -> None:
@@ -210,8 +213,8 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     for pair in conduct["HOOKS_OFF"]:
         key, value = pair.split("=", 1)
         assert env[key] == value
-    assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        [*trees, Path(env["TMPDIR"])], Path.home()
+    assert fake_sandbox_exec.read_text() == platform.profile(
+        conduct["_policy"]([*trees, Path(env["TMPDIR"])], Path.home())
     )
 
     outside = tmp_path / "outside"
@@ -473,8 +476,8 @@ def test_the_command_runs_a_command_in_the_cwd(
     cwd, temp = seen.out.splitlines()
     assert shown == 0
     assert Path(cwd).resolve() == repo
-    assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        [repo, Path(temp)], Path.home()
+    assert fake_sandbox_exec.read_text() == platform.profile(
+        conduct["_policy"]([repo, Path(temp)], Path.home())
     )
     assert conduct["main"](["sandboxed", "--", *_python("raise SystemExit(3)")]) == 3
     for argv in (["sandboxed"], ["sandboxed", "--"]):

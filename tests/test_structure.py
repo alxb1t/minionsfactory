@@ -54,11 +54,9 @@ PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
 OS_NAMES: frozenset[tuple[str, str]] = frozenset(
     {
         ("awake.py", "caffeinate"),
-        ("awake.py", "ps"),
         ("conduct.py", "caffeinate"),
         ("conduct.py", "ps"),
         ("conduct.py", "sandbox-exec"),
-        ("viewer.py", "ps"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|caffeinate|sysctl|ps)\b")

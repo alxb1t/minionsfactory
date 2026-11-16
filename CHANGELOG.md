@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   after one seed line; `ty` and `pytest` get `skills/` on their path (0128-platform-port, phase 2).
 - The structure test holds the seed, a threat-model surface for each Python file under `skills/`, and the port's
   exemption from the OS-command rule (0128-platform-port, phase 2).
+- The rest of the platform port moves into `skills/mflib/platform.py`: the sandbox as `confine(policy)`, the refusal
+  text, `process` for every `ps` reader, and the awake hold; the conductor, `awake.py` and the viewer call it. The
+  profile's text is unchanged, and `OS_NAMES` loses the `ps` pairs of `awake.py` and `viewer.py`
+  (0128-platform-port, phase 3).
 
 ## [0.101.3] - 2026-11-16
 

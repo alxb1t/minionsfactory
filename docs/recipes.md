@@ -57,13 +57,7 @@ A platform other than macOS. Today's OS commands are `sandbox-exec`, `caffeinate
 
 | file | edit |
 |---|---|
-| `skills/mflib/platform.py` | `arch`, the host's architecture |
-| `skills/mf-ship/scripts/conduct.py` | `_profile` and `_sandbox_exec`, the worker's sandbox; `_hold_awake` and `_ps`, the awake hold |
-| `skills/mf-cut-change/scripts/awake.py` | `_ps`, `_name` and `_start`, the cut's awake hold |
-| `skills/mf-ui/scripts/viewer.py` | `run_ps`, a worker's command line |
-
-Until the home holds the platform port, an OS's commands go in these functions. When the home holds the port, they move
-there, and `OS_NAMES` loses their lines.
+| `skills/mflib/platform.py` | `Policy`, `profile`, `confine` and `has_sandbox`, the sandbox; `refused`, its refusal; `arch`, the host's architecture; `process`, a process's `ps` field; `has_hold`, `hold_awake` and `CAFFEINATE`, the awake hold |
 
 - **Row:** none, unless the extension adds a script; then a row as for a station.
 - **Rules:** `check_os` fails on an OS command a file names unless `OS_NAMES` lists the pair. A new command joins

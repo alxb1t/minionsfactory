@@ -43,7 +43,7 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-converge/scripts/plan_check.py` | station | gate_run.py |
 | `skills/mf-converge/scripts/skip_stub.py` | station | — |
 | `skills/mf-converge/scripts/stamp.py` | station | — |
-| `skills/mf-cut-change/scripts/awake.py` | station | — |
+| `skills/mf-cut-change/scripts/awake.py` | station | platform.py |
 | `skills/mf-cut-change/scripts/cut_check.py` | station | cut_pre.py, gate_check.py, plan_check.py, verify_check.py |
 | `skills/mf-cut-change/scripts/cut_context.py` | station | brief_check.py, bundle.py, debt_match.py, facts.py |
 | `skills/mf-cut-change/scripts/cut_pre.py` | station | — |
@@ -55,6 +55,6 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, metrics.py, overlap.py |
 | `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, converge.py, integrate.py, pin.py, platform.py, stamp.py |
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py |
-| `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py |
+| `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, platform.py |
 | `skills/mflib/__init__.py` | home | — |
 | `skills/mflib/platform.py` | home | — |

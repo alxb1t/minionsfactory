@@ -16,6 +16,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from mflib import platform
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-cut-change" / "scripts" / "awake.py"
@@ -167,7 +168,7 @@ def test_no_hold_starts_without_caffeinate_or_a_host(
     _ancestors(monkeypatch, [(9001, "zsh"), (9002, "claude")], None)
 
     with monkeypatch.context() as absent:
-        absent.setitem(vars(awake), "CAFFEINATE", "caffeinate-absent")
+        absent.setattr(platform, "CAFFEINATE", "caffeinate-absent")
         assert awake.main(["start", "0001-a"]) == 0
     assert capsys.readouterr().out == "awake: not held — caffeinate not on PATH\n"
 
@@ -236,7 +237,7 @@ def test_both_tools_missing_prints_the_caffeinate_line_first(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _repo(tmp_path, monkeypatch)
-    monkeypatch.setitem(vars(awake), "CAFFEINATE", "caffeinate-absent")
+    monkeypatch.setattr(platform, "CAFFEINATE", "caffeinate-absent")
     _ancestors(monkeypatch, [(9021, "zsh")], None)
 
     assert awake.main(["start", "0001-a"]) == 0

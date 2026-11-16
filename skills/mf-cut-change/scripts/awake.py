@@ -10,14 +10,15 @@ Why: 0081-cut-awake design D1.
 import argparse
 import os
 import re
-import shutil
 import signal
 import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.platform
+
 TIMEOUT_SECONDS = 600
-CAFFEINATE = "caffeinate"
 HOLD_SECONDS = 7200
 LAUNCHERS = {"sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "uv"}
 CHANGE_ID = re.compile(r"\d+-[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -53,20 +54,9 @@ def _record(change_id: str) -> Path:
     return Path(done.stdout.strip()).parent / ".minions" / "awake" / change_id
 
 
-def _ps(field: str, pid: int) -> str:
-    """Return `ps`'s `field` for `pid`, or "" when it names nothing."""
-    done = subprocess.run(
-        ["ps", "-o", f"{field}=", "-p", str(pid)],
-        capture_output=True,
-        text=True,
-        timeout=TIMEOUT_SECONDS,
-    )
-    return done.stdout.strip()
-
-
 def _name(pid: int) -> str:
     """Return the process name of `pid`, e.g. `-zsh` → `zsh`, or "" when unknown."""
-    return Path(_ps("comm", pid)).name.removeprefix("-")
+    return Path(mflib.platform.process(pid, "comm")).name.removeprefix("-")
 
 
 def _host() -> int | None:
@@ -81,7 +71,7 @@ def _host() -> int | None:
             return None
         if name not in LAUNCHERS:
             return pid
-        parent = _ps("ppid", pid)
+        parent = mflib.platform.process(pid, "ppid")
         if not parent.isdigit():
             return None
         pid = int(parent)
@@ -94,7 +84,11 @@ def _release(record: Path) -> str:
         return "awake: none held"
     text = record.read_text().strip()
     record.unlink()
-    if text.isdigit() and int(text) > 1 and _name(int(text)) == CAFFEINATE:
+    if (
+        text.isdigit()
+        and int(text) > 1
+        and _name(int(text)) == mflib.platform.CAFFEINATE
+    ):
         os.kill(int(text), signal.SIGTERM)
         return "awake: released"
     return "awake: none held"
@@ -103,19 +97,12 @@ def _release(record: Path) -> str:
 def _start(record: Path) -> str:
     """Hold the machine awake and record the hold; return the line to print."""
     _release(record)
-    found = shutil.which(CAFFEINATE)
-    if found is None:
+    if not mflib.platform.has_hold():
         return "awake: not held — caffeinate not on PATH"
     host = _host()
     if host is None:
         return "awake: not held — no host process"
-    hold = subprocess.Popen(
-        [found, "-is", "-t", str(HOLD_SECONDS), "-w", str(host)],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    hold = mflib.platform.hold_awake(host, HOLD_SECONDS)
     record.parent.mkdir(parents=True, exist_ok=True)
     record.write_text(f"{hold.pid}\n")
     return "awake: held (2 h at most)"
