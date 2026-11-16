@@ -168,6 +168,24 @@ def test_reuse_is_refused_on_a_dirty_tree(tmp_path: Path) -> None:
     assert _runs(log) == 3
 
 
+def test_a_gate_that_changes_what_it_ran_on_records_nothing(tmp_path: Path) -> None:
+    mode = "$(shell cat .minions/mode 2>/dev/null)"
+    cases = {
+        # The tree moves under the gate; the dry run stays the same.
+        "tree": "echo changed > README.md",
+        # The tree stays settled; the dry run reads an ignored file the gate writes.
+        "dry": f"echo {mode} > /dev/null; mkdir -p .minions; echo on > .minions/mode",
+    }
+    for name, recipe in cases.items():
+        root, log = tmp_path / name, tmp_path / f"{name}.log"
+        _repo(root, log, recipe)
+        result = _gate(root)
+        assert result.returncode == 0, result.stdout
+        unsettled = "gate: green — unrecorded, the worktree is not settled"
+        assert unsettled in result.stdout, (name, result.stdout)
+        assert not _record(root).exists(), name
+
+
 def test_reuse_is_refused_on_another_tree(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log)

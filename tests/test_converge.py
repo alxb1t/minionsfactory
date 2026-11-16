@@ -1094,6 +1094,30 @@ def test_the_cap_halts_with_the_open_blockers(host: Host) -> None:
     assert events(host)[-1] == written[-1]
 
 
+def test_an_accepted_blocker_converges_and_a_critical_one_blocks(host: Host) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking", status="accepted")
+    )
+
+    assert run(host) == 0
+
+    assert host.fixed == []
+    assert events(host)[-1].startswith("round 1 · done — converged in 1 round")
+
+    host.answers = {
+        "converge-adversarial-r1": answer(
+            host, "adversarial", _card("S1 critical"), blocking=1
+        )
+    }
+
+    assert run(host) == 0
+
+    assert "by id: S1\n" in host.fixed[0][2]
+    assert (
+        events(host)[-1] == "round 2 · done — converged in 2 rounds · 0 cards to debt"
+    )
+
+
 @pytest.mark.slow
 def test_plan_check_left_halts_amend_needed(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
@@ -1343,6 +1367,29 @@ def test_a_granted_round_goes_one_past_the_cap(host: Host) -> None:
 
     assert events(host)[-1].endswith(
         f" · halt — a granted round needs a blocking card open · head {_head(host)}"
+    )
+
+
+def test_round_three_is_the_cap_of_a_pickup_and_a_catch_up(host: Host) -> None:
+    head = _head(host)
+    answer(host, "conformance", _card("R2 nit"), round=3)(head)
+    answer(host, "adversarial", round=3)(head)
+    _plant(host, _verdicts("conformance", 3))
+
+    assert run(host) == 0
+
+    written = events(host)
+    assert not any(" · pickup — " in line for line in written)
+    assert host.fixed == []
+    assert written[-1] == "round 3 · done — converged in 3 rounds · 1 card to debt"
+
+    _commit(host.tree, {"src/late.py": "L = 1\n"}, "feat(0001-a): late")
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == (
+        "round 3 · halt — the files judged round 3, the cap: revert the late commits,"
+        f" or re-converge from round 1 · head {_head(host)}"
     )
 
 
@@ -1725,6 +1772,20 @@ def _resumed(host: Host, case: str) -> list[str]:
         answer(host, "adversarial", round=3)(head)
         _plant(host, "round 3 · fix — sent R1 · grant", mark="grant")
         return ["round 3 · fix — sent R1 · grant"]
+    if case == "catch-up at round three":
+        amended = _amend(host)
+        answer(host, "conformance", blocker, blocking=1, round=4)(amended)
+        answer(host, "adversarial", round=4)(amended)
+        span = f"{head[:7]}..{amended[:7]}"
+        lines = [
+            f"round 3 · catch-up — judged head {head[:7]} · HEAD {amended[:7]}"
+            " · its own count",
+            f"round 3 · start — base {base[:7]} · head {amended[:7]} · 2 commits",
+            f"round 3 · freeze — {span} · 1 commit · 1 file",
+            _verdicts("conformance", 4, "changes-requested", 1),
+        ]
+        _plant(host, *lines, mark="catch-up")
+        return lines
     if case in ("catch-up", "by rule"):
         moved = _merge_main(host, "moved")
         lines = [
@@ -1793,6 +1854,13 @@ _RESUMED: dict[str, tuple[list[str], list[str]]] = {
         [],
     ),
     "by rule": (["debt", "done"], []),
+    "catch-up at round three": (
+        [
+            *("fix", "fix", "freeze", "verify", "fan-out", "verdicts"),
+            *("verdicts", "debt", "done"),
+        ],
+        ["verify-conformance-r5", "verify-adversarial-r5"],
+    ),
     "grant": (
         ["freeze", "verify", "fan-out", "verdicts", "verdicts", "debt", "done"],
         ["verify-conformance-r4", "verify-adversarial-r4"],
@@ -2025,9 +2093,10 @@ def test_a_fixed_repeats_old_card_is_cleared(
 ) -> None:
     gone = _filed(_card("R1 nit", still="`true`"), "0000")
     kept = _filed(_card("R2 nit", still="`false`"), "0000")
+    sibling = _filed(_card("R6 nit", still="`false`"), "0000")
     debt = _debt(host)
     debt.write_text(
-        f"# Debt\n\n*Deferred.*\n\n## 0000-y\n\n{gone}\n## 0000-z\n\n{kept}"
+        f"# Debt\n\n*Deferred.*\n\n## 0000-y\n\n{gone}{sibling}\n## 0000-z\n\n{kept}"
     )
     host.exits.update({"true": 1, "false": 0})
     host.answers["converge-conformance-r1"] = answer(
@@ -2040,7 +2109,9 @@ def test_a_fixed_repeats_old_card_is_cleared(
 
     assert run(host) == 0
 
-    assert debt.read_text() == f"# Debt\n\n*Deferred.*\n\n## 0000-z\n\n{kept}"
+    assert debt.read_text() == (
+        f"# Debt\n\n*Deferred.*\n\n## 0000-y\n\n{sibling}\n## 0000-z\n\n{kept}"
+    )
     assert events(host)[-2] == "round 1 · debt — cleared 0000·R1"
     assert "; cleared 0000·R1 (`true` exited 1); " in capsys.readouterr().out
 
