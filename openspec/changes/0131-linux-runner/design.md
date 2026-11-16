@@ -6,7 +6,7 @@ The port gets a Linux side beside Seatbelt, its callers word no OS tool, a run o
 
 `skills/mflib/platform.py` is the one file that names an OS tool, since `0128-platform-port`. Its sandbox side is Seatbelt alone, so `sandboxed()` and the npm fetch stop with exit 2 on Linux, and converge's first command cannot run. A probe in the cloud ran the line to the tag push under a stand-in `bwrap`; this change makes that stand-in the port's own side and proves it in CI.
 
-**after** [0130-small-fixes](../0130-small-fixes/design.md): it replaces the real-sandbox case of the cut's hold with `test_a_signal_between_siblings_is_delivered`, which phase 5 here runs under `bwrap`. The real-sandbox tests of `tests/test_sandboxed.py` are, after it, the write, the secret, the network, the signal outside, the signal to the command's own child and the signal between siblings.
+**after** [0130-small-fixes](../archive/0130-small-fixes/design.md): it replaces the real-sandbox case of the cut's hold with `test_a_signal_between_siblings_is_delivered`, which phase 5 here runs under `bwrap`. The real-sandbox tests of `tests/test_sandboxed.py` are, after it, the write, the secret, the network, the signal outside, the signal to the command's own child and the signal between siblings.
 
 ```
 conduct.py / awake.py            skills/mflib/platform.py

@@ -4,7 +4,6 @@ The real one runs where it nests.
 Why: 0107-sandbox-runner design D5, 0131-linux-runner design D7.
 """
 
-import contextlib
 import io
 import json
 import os
@@ -828,7 +827,21 @@ _STARTER = (
     " stdin=quiet, stdout=quiet, stderr=quiet);"
     " print(sleeper.pid, flush=True)"
 )
-_SIGNALLER = "import os, signal, sys; os.kill(int(sys.argv[1]), signal.SIGTERM)"
+# The PID is the sandbox's own; on Linux the host's numbers differ, so it is read here.
+_SIGNALLER = (
+    "import os, signal, sys, time\n"
+    "pid = int(sys.argv[1])\n"
+    "try:\n"
+    "    os.kill(pid, signal.SIGTERM)\n"
+    "    for _ in range(200):\n"
+    "        os.kill(pid, 0)\n"
+    "        time.sleep(0.05)\n"
+    "except ProcessLookupError:\n"
+    "    print('gone', flush=True)\n"
+    "else:\n"
+    "    os.kill(pid, signal.SIGKILL)\n"
+    "    sys.exit('alive')\n"
+)
 _SIBLINGS = (
     "import subprocess, sys;"
     " first = subprocess.run([sys.executable, '-c', sys.argv[1]],"
@@ -880,13 +893,8 @@ def test_a_signal_between_siblings_is_delivered(
         [*_python(_SIBLINGS), _STARTER, _SIGNALLER], trees[0], trees, out
     )
 
-    sleeper = int(out.getvalue().split()[0])
-    try:
-        assert code == 0
-        assert _gone(sleeper, 10)
-    finally:
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(sleeper, signal.SIGKILL)
+    assert code == 0
+    assert out.getvalue().splitlines()[1:] == ["gone"]
 
 
 @pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])
