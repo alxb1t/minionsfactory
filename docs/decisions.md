@@ -369,8 +369,8 @@ deletes them.**
 **It re-runs the gate, folds the spec delta into `openspec/specs/`, archives the change, cuts the changelog with
 one `Gate:` line of the gate's times, and tags. Then it asks once; on yes — or `merge=yes`, the yes the person
 gave by starting `mf-ship` — it merges into the default branch with `--no-ff` and pushes the default branch and the
-tag; under `merge=yes`, `conduct.py` pushes. It never forces, never pushes the version branch, never edits feature
-code. Fold and archive land in one commit.**
+tag, save where the machine's `ship.toml` sets `tags = false`; under `merge=yes`, `conduct.py` pushes. It never forces,
+never pushes the version branch, never edits feature code. Fold and archive land in one commit.**
 
 - **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
   leaves the spec tree and the change disagreeing.
@@ -854,6 +854,10 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
   a push `origin` refuses halts. Past `RETRIES` at the start, the run builds, converges and releases locally, judged against
   the **offline base**, and each release and the close push what is pending. The first offline base needs the person:
   `conduct.py anchor`, in their session.
+- **A start brings origin in:** a run's start fetches `origin`'s default branch through the conductor's scratch repo and
+  fast-forwards the local one, never merging; a failed fetch waits, as a failed read does. It makes the local tag of each
+  release commit `origin`'s default branch holds that has none, and pushes it where the machine pushes tags
+  ([D84](#d84--a-queued-cut-waits-while-the-line-is-at-its-cap)). `gc.auto` joins the keys the config guard allows.
 - **Accepts:** what a command `Ship tools:` names runs, inside the sandbox.
 - **Rejected:** an LLM conductor waiting on the workers — the supervisor is a station a halt starts
   ([D61](#d61--a-supervisor-answers-what-rescue-diagnoses)), and converge's conductor is a script `conduct.py` calls, whose
@@ -897,6 +901,9 @@ key mean no cap; a file that cannot be read, or a value that is no whole number 
 - **Rejected:** a switch in `AGENTS.md` or a parameter in `.minions/` ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)
   rejects both) · an environment variable · a count across the machine's lines, or a read of the CPU load · pausing a
   version in flight · a new meaning for `after:`.
+- **Also read:** `tags` under `[push]` of the same file is read by the same reader, at a run's start and by `status`;
+  `false` makes the machine push no tag, a value that is not `true` or `false` stops the run with exit 2, and the tag
+  pushed or not is [D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)'s.
 - **Accepts:** a count that passes the cap after a rejoin or a grant, until it falls · a version stacked on its dependency
   builds with the CPU and uses no slot · the cap read once, so a change of the file takes effect at the next run · a stale
   reason in the entry of a cut a killed run left waiting, until the next run's start.
@@ -977,6 +984,8 @@ comes from the rollout the log's `thread_id` names, else the `try again at` text
   drives nothing · a Codex station still halts its version · a Codex fixer halts its version at a limit, with no
   fallback · a forged `thread_id` reads another rollout, misstating a reset
   or a share.
+- **Not installed:** a Codex not on `PATH` is a third cause: a checker a plan gives Codex runs on Claude on converge's
+  model and effort, the run says so once, and a station on Codex still halts at its probe.
 - **Rejected:** a wait until any reset · dollar prices for Codex · the conductor telling a limit from a failure — `conduct.py`
   falls back inside the run's checker call.
 

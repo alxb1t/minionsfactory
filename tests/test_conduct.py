@@ -21,6 +21,7 @@ import sys
 import threading
 import time
 import tomllib
+import traceback
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -3901,11 +3902,13 @@ def test_a_new_executor_is_probed_mid_run(
         calls = fake("hold-0001-todo")
         calls.unlink(missing_ok=True)
         asked: list[str] = []
-        conduct["main"].__globals__["_executor_missing"] = (
-            lambda name, missing=missing, asked=asked: (
-                asked.append(name) or (missing and name == "codex")
-            )
-        )
+
+        def asks(name: str, missing: bool = missing, asked: list[str] = asked) -> bool:
+            # The probe's asks alone: the roster asks too. Why: 0132-cloud-run D5.
+            asked.append(f"{name} · {traceback.extract_stack(limit=2)[0].name}")
+            return missing and name == "codex"
+
+        conduct["main"].__globals__["_executor_missing"] = asks
         root = _primary(scratch)
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
         # A failed probe is kept: a second version on codex halts on it, unprobed.
@@ -3941,7 +3944,7 @@ def test_a_new_executor_is_probed_mid_run(
         if missing:
             assert "build 0002-marks" not in made
             assert made.count("probe") == 1
-            assert asked.count("codex") == 1
+            assert asked.count("codex · probe") == 1
             for change in joining:
                 assert not any(f" · rejoin — {change}" in line for line in lines)
                 assert any(
@@ -6359,6 +6362,61 @@ def test_a_codex_checker_runs_through_run_checker(
     )
 
 
+def test_a_checker_on_codex_runs_where_codex_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_executor_missing", lambda name: name == "codex")
+    root = _primary(tmp_path)
+    tables = {
+        "0001-checker": '[converge.conformance]\nexecutor = "codex"\n',
+        "0002-shadow": "[converge]\nshadow = true\n",
+        "0003-build": '[build]\nexecutor = "codex"\n',
+        "0004-fixer": '[converge.fix]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n',
+        "0005-other": '[converge.conformance]\nexecutor = "codex"\n',
+    }
+    for change, table in tables.items():
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True)
+        (folder / "models.toml").write_text(table)
+    version = conduct["Version"]
+    run = conduct["Run"](root, "claude")
+    run.claim = None
+    run.read_plan([version(change, root) for change in tables])
+    run.read_plan([version("0005-other", root)])
+
+    said = [line for line in _log(root) if " · run · codex — " in line]
+    assert len(said) == 1
+    assert said[0].endswith("not on PATH: a checker a plan gives Codex runs on Claude")
+    # A checker on Codex, and a shadow on Codex, fall back; a build and a fixer do not.
+    assert run.named("0001-checker") == ["claude"]
+    assert run.named("0002-shadow") == ["claude"]
+    assert run.named("0003-build") == ["codex", "claude"]
+    assert run.named("0004-fixer") == ["claude", "codex"]
+    probes: list[object] = []
+    monkeypatch.setattr(run, "probe_for", lambda *given: probes.append(given))
+    assert run.codex_ready("0001-checker", time.monotonic() + 600) is False
+    assert probes == []
+    # The shadow on Codex runs on Claude, on converge's model and effort.
+    ran: list[tuple[str, str | None, str | None]] = []
+    out = tmp_path / "shadow.log"
+    out.write_text("")
+    monkeypatch.setattr(
+        run, "worker", lambda *given, **_: ran.append(given[4]) or (1, False, out, [])
+    )
+    shadow = run.checker(
+        "0002-shadow", "s", "shadow-conformance", root, "p", time.monotonic() + 600
+    )
+    assert ran == [run.plan["0002-shadow", "converge"]]
+    assert ran[0][0] == "claude"
+    assert shadow.fallback is True
+
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    assert run.named("0001-checker") == ["claude", "codex"]
+    assert run.named("0002-shadow") == ["claude", "codex"]
+
+
 def test_the_run_passes_a_deadline_to_the_sandbox(
     tmp_path: Path, fake_sandbox_exec: Path
 ) -> None:
@@ -6795,6 +6853,60 @@ def test_a_station_runs_on_its_executor(
     (second / ".minions" / "changes" / "0001-todo").mkdir(parents=True)
     (second / ".minions" / "changes" / "0001-todo" / "models.toml").write_text(table)
     conduct["main"].__globals__["_executor_missing"] = lambda name: name == "codex"
+    calls.unlink()
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(" · run · halt — probe-codex — codex is not on PATH")
+        for line in _log(second)
+    )
+
+
+@pytest.mark.slow
+def test_a_codex_checker_falls_back_where_codex_is_not_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_executor_missing", lambda name: name == "codex")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text('[converge.conformance]\nexecutor = "codex"\n')
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "build 0001-todo with phase=close",
+        *_judged(),
+        "release 0001-todo",
+    ]
+    spawned = [
+        line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
+    ]
+    assert not any("executor codex" in line for line in spawned)
+    assert any(line.startswith("converge-conformance-r1 · ") for line in spawned)
+    said = [line for line in _log(root) if " · run · codex — " in line]
+    assert len(said) == 1
+    assert said[0].endswith("not on PATH: a checker a plan gives Codex runs on Claude")
+
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    _version(second, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = second / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text('[build]\nexecutor = "codex"\n')
     calls.unlink()
     assert (
         _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -7883,6 +7995,21 @@ def test_a_planted_remote_key_refuses_status_and_run(
     assert "hook.probe.event" in log.read_text()
 
 
+def test_the_config_guard_allows_gc_auto(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, _ = _with_origin(tmp_path)
+    _git(root, "config", "gc.auto", "0")
+    _status(conduct, root, capsys, monkeypatch, 0)
+    _git(root, "config", "gc.autodetach", "false")
+    assert "gc.autodetach" in _status(conduct, root, capsys, monkeypatch, 1)
+
+
 @pytest.mark.slow
 def test_a_key_set_after_the_refusal_reaches_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -8007,6 +8134,125 @@ def test_a_tag_alone_starts_one_run(
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert "refs/tags/v0.3.0" in _git(root, "ls-remote", "--tags", "origin")
     assert status() == "status: none — no open version"
+
+
+@pytest.mark.slow
+def test_a_start_makes_a_missing_tag_and_pushes_it_where_tags_go(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+
+    def started(tag: str) -> None:
+        _released(root, tag)
+        _git(root, "push", "-q", "origin", "main")
+        _git(root, "tag", "-d", tag)
+        assert _run_claude(conduct, root, monkeypatch) == 0
+        assert f" · run · sync — made {tag}" in "\n".join(_log(root))
+        assert _git(root, "cat-file", "-t", tag) == "tag"
+
+    # A clone that holds a release `origin` took, and not its tag: the start makes it.
+    started("v0.1.0")
+    assert _git(origin, "tag") == "v0.1.0"
+    # tags = false: the start makes it, and it stays local.
+    _ship_toml("[push]\ntags = false\n")
+    started("v0.2.0")
+    assert _git(origin, "tag") == "v0.1.0"
+
+
+@pytest.mark.slow
+def test_status_says_a_machine_pushes_no_tag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, _ = _with_origin(tmp_path)
+    conduct["_keep_origin"](root)
+    _released(root, "v0.1.0")
+
+    assert _status(conduct, root, capsys, monkeypatch) == "run · unpushed main v0.1.0"
+    _ship_toml("[push]\ntags = false\n")
+    assert _status(conduct, root, capsys, monkeypatch) == (
+        "run · unpushed main\nrun · tags — this machine pushes none"
+    )
+
+
+@pytest.mark.slow
+def test_a_refused_tag_push_halts_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+    # A proxy that refuses a tag push: `origin` takes the branch and no tag.
+    hook = origin / "hooks" / "update"
+    hook.write_text('#!/bin/sh\ncase "$1" in refs/tags/*) exit 1 ;; esac\nexit 0\n')
+    hook.chmod(0o755)
+    _released(root, "v0.1.0")
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _log(root)[-2].endswith(
+        " · run · halt — git push origin v0.1.0 failed, exit 1"
+    )
+    assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
+    # tags = false: no tag, no halt
+    _ship_toml("[push]\ntags = false\n")
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert _git(origin, "tag") == ""
+    assert not any(" · halt — " in line for line in _log(root))
+
+
+@pytest.mark.slow
+def test_a_diverged_default_halts_at_the_push(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _released(root, "v0.1.0")
+    _commit(other, {"theirs.txt": "x\n"}, "origin moves")
+    _git(other, "push", "-q", "origin", "main")
+    held = _git(root, "rev-parse", "main")
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _log(root)[-2].endswith(
+        " · run · halt — git push origin main failed, exit 1"
+    )
+    assert _git(root, "rev-parse", "main") == held
+
+
+@pytest.mark.slow
+def test_a_local_default_behind_origin_is_brought_up(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _commit(other, {"theirs.txt": "x\n"}, "origin moves")
+    _git(other, "push", "-q", "origin", "main")
+
+    assert _status(conduct, root, capsys, monkeypatch) == (
+        "status: none — no open version"
+    )
+    assert _run_claude(conduct, root, monkeypatch) == 0
+    assert _git(root, "rev-parse", "main") == _git(origin, "rev-parse", "main")
+    assert (root / "theirs.txt").read_text() == "x\n"
+    assert " · run · sync — fast-forwarded main to " in "\n".join(_log(root))
 
 
 def _origin_judged(
@@ -8531,6 +8777,28 @@ def test_cap_reads_ship_toml() -> None:
         assert stopped.value.code == 2
 
 
+def test_ship_toml_reads_tags() -> None:
+    conduct = _conduct()
+    assert conduct["_pushes_tags"]() is True
+    for text in ("", "[queue]\nin_flight = 2\n", "[push]\n", "[push]\ntags = true\n"):
+        _ship_toml(text)
+        assert conduct["_pushes_tags"]() is True
+    path = _ship_toml("[push]\ntags = false\n")
+    assert conduct["_pushes_tags"]() is False
+    for value in ('"false"', "0"):
+        _ship_toml(f"[push]\ntags = {value}\n")
+        with pytest.raises(
+            conduct["Stop"],
+            match=re.escape(f"{path}: `tags` is not true or false"),
+        ) as stopped:
+            conduct["_pushes_tags"]()
+        assert stopped.value.code == 2
+    path.write_bytes(b"\xff\xfe")
+    with pytest.raises(conduct["Stop"], match=re.escape(str(path))) as stopped:
+        conduct["_pushes_tags"]()
+    assert stopped.value.code == 2
+
+
 def test_cap_file_that_is_bad_stops_the_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8542,6 +8810,11 @@ def test_cap_file_that_is_bad_stops_the_run(
     root = _primary(tmp_path)
     _ship_toml("[queue]\nin_flight = 0\n")
 
+    assert _run_claude(conduct, root, monkeypatch) == 2
+    assert "ship.toml" in capsys.readouterr().out
+    assert not (root / ".minions" / "runs" / "active").exists()
+    assert _calls(calls) == []
+    _ship_toml('[push]\ntags = "yes"\n')
     assert _run_claude(conduct, root, monkeypatch) == 2
     assert "ship.toml" in capsys.readouterr().out
     assert not (root / ".minions" / "runs" / "active").exists()
@@ -8878,6 +9151,7 @@ def _push_then_forge(
             cwd: Path,
             *args: str,
             timeout: int = conduct["GIT_TIMEOUT"],
+            keep: bool = False,
             mutation: tuple[str, ...] = mutation,
             tag: str = tag,
             branch: str = branch,
@@ -8889,7 +9163,7 @@ def _push_then_forge(
                 and args[-1].endswith(":refs/heads/main")
             ):
                 return subprocess.CompletedProcess(args, 1, "", "rejected")
-            done = outside(cwd, *args, timeout=timeout)
+            done = outside(cwd, *args, timeout=timeout, keep=keep)
             if (
                 args[0] == "push"
                 and args[-1].endswith(f":refs/tags/{tag}")
@@ -9093,6 +9367,158 @@ def test_a_forged_release_on_an_older_default_is_not_pushed(
     assert _calls(calls) == []
 
 
+def test_the_tags_origin_holds_are_made_locally(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root, origin = _with_origin(tmp_path)
+
+    def make() -> list[str]:
+        return conduct["_make_tags"](root, _git(origin, "rev-parse", "main"))
+
+    def release(tag: str) -> str:
+        return _git(root, "rev-parse", f"release-{tag}")
+
+    _released(root, "v0.1.0")
+    _released(root, "v0.2.0")
+    _git(root, "push", "-q", "origin", "main")
+    _git(root, "tag", "-d", "v0.1.0")
+    assert make() == ["v0.1.0"]
+    assert _git(root, "cat-file", "-t", "v0.1.0") == "tag"
+    assert _git(root, "tag", "-l", "--format=%(contents)", "v0.1.0") == "v0.1.0"
+    assert _git(root, "rev-parse", "v0.1.0^{commit}") == release("v0.1.0")
+
+    # Several missing tags are each made.
+    _git(root, "tag", "-d", "v0.1.0", "v0.2.0")
+    assert sorted(make()) == ["v0.1.0", "v0.2.0"]
+    assert _git(root, "rev-parse", "v0.2.0^{commit}") == release("v0.2.0")
+
+    # A tag that points elsewhere is left.
+    _git(root, "tag", "-d", "v0.1.0")
+    _git(root, "tag", "v0.1.0", "main~2")
+    assert make() == []
+    assert _git(root, "rev-parse", "v0.1.0") == _git(root, "rev-parse", "main~2")
+
+    # A release commit only local gets none.
+    _released(root, "v0.3.0")
+    _git(root, "tag", "-d", "v0.3.0")
+    assert make() == []
+    _git(root, "push", "-q", "origin", "main")
+
+    # A subject that is not a release's, and a merge with another tree, get none.
+    for subject in ("chore(release): v0.4.0-rc", "v0.4.0"):
+        _git(root, "switch", "-q", "-c", "odd")
+        _git(root, "commit", "-q", "--allow-empty", "-m", subject)
+        _git(root, "switch", "-q", "main")
+        _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch 'odd'", "odd")
+        _git(root, "branch", "-q", "-D", "odd")
+    _git(root, "switch", "-q", "-c", "release-v0.5.0")
+    _git(root, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.5.0")
+    _git(root, "switch", "-q", "main")
+    _commit(root, {"other.txt": "x\n"}, "other tree")
+    _git(
+        root, "merge", "-q", "--no-ff", "-m", "Merge 'release-v0.5.0'", "release-v0.5.0"
+    )
+    _git(root, "push", "-q", "origin", "main")
+    assert make() == ["v0.3.0"]
+    assert not _git(root, "tag", "-l", "v0.4.0", "v0.5.0")
+
+
+@pytest.mark.slow
+def test_a_start_fetches_and_fast_forwards_the_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    module = conduct["main"].__globals__
+    root, origin = _with_origin(tmp_path)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+
+    def start() -> list[str]:
+        notes: list[str] = []
+        conduct["_unpushed"](root, first_read=True, start=True, notes=notes)
+        return notes
+
+    def moved(name: str) -> str:
+        _commit(other, {name: "x\n"}, f"origin takes {name}")
+        _git(other, "push", "-q", "origin", "main")
+        return _git(other, "rev-parse", "main")
+
+    def held(sha: str) -> bool:
+        return conduct["_maybe"](root, "cat-file", "-e", sha) is not None
+
+    def main() -> str:
+        return _git(root, "rev-parse", "main")
+
+    # Behind, the objects absent: fetched into the primary, then fast-forwarded.
+    tip = moved("theirs.txt")
+    assert not held(tip)
+    assert start() == [f"fetched main {tip[:7]}", f"fast-forwarded main to {tip[:7]}"]
+    assert main() == tip
+    assert (root / "theirs.txt").read_text() == "x\n"
+    assert _git(root, "status", "--porcelain") == ""
+    # The tracking ref follows, so integration's guard takes what origin holds.
+    assert _git(root, "rev-parse", "refs/remotes/origin/main") == tip
+    assert conduct["_foreign_commit"](root, "origin/main", "main") == []
+
+    # Behind, the objects held: fast-forwarded alone.
+    tip = moved("held.txt")
+    _git(root, "fetch", "-q", "origin")
+    assert start() == [f"fast-forwarded main to {tip[:7]}"]
+    assert main() == tip
+
+    # Equal: nothing.
+    assert start() == []
+    assert main() == tip
+
+    # An ignored file the incoming tree tracks: kept, the branch stays, the start stops.
+    (root / ".git" / "info" / "exclude").write_text("local.cfg\n")
+    (root / "local.cfg").write_text("mine\n")
+    tip, before = moved("local.cfg"), main()
+    with pytest.raises(conduct["Stop"], match="git merge failed"):
+        start()
+    assert (root / "local.cfg").read_text() == "mine\n"
+    assert main() == before
+    (root / "local.cfg").unlink()
+    assert start() == [f"fast-forwarded main to {tip[:7]}"]
+    assert main() == tip
+
+    # A fetch that fails is a wait, and moves nothing.
+    remote = module["_remote"]
+
+    def refused(
+        primary: Path,
+        *args: str,
+        keep: bool = False,
+        timeout: int = conduct["GIT_TIMEOUT"],
+    ) -> subprocess.CompletedProcess[str]:
+        if args[0] == "fetch":
+            return subprocess.CompletedProcess(args, 128, "", "fatal: origin is down\n")
+        return remote(primary, *args, keep=keep, timeout=timeout)
+
+    down = moved("down.txt")
+    monkeypatch.setitem(module, "_remote", refused)
+    with pytest.raises(conduct["Unreachable"], match="fatal: origin is down"):
+        start()
+    assert main() == tip
+    assert not held(down)
+    monkeypatch.setitem(module, "_remote", remote)
+    assert start() == [f"fetched main {down[:7]}", f"fast-forwarded main to {down[:7]}"]
+
+    # Ahead: a release merged here and not pushed. The branch stays.
+    _released(root, "v0.1.0")
+    ahead = main()
+    assert start() == []
+    assert main() == ahead
+
+    # Diverged: fetched, and the local branch never moves; no merge is made.
+    merges = _git(root, "rev-list", "--merges", "main")
+    tip = moved("diverged.txt")
+    assert start() == [f"fetched main {tip[:7]}"]
+    assert held(tip)
+    assert main() == ahead
+    assert _git(root, "rev-list", "--merges", "main") == merges
+    assert not (root / "diverged.txt").exists()
+
+
 @pytest.mark.slow
 def test_no_worker_pushes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -9131,10 +9557,10 @@ def _spied(
     reached: list[tuple[str, ...]] = []
 
     def spy(
-        primary: Path, *args: str, timeout: int = 60
+        primary: Path, *args: str, timeout: int = 60, keep: bool = False
     ) -> subprocess.CompletedProcess[str]:
         reached.append(args)
-        return outside(primary, *args, timeout=timeout)
+        return outside(primary, *args, timeout=timeout, keep=keep)
 
     monkeypatch.setitem(module, "_outside", spy)
     return reached
@@ -9645,6 +10071,23 @@ def test_a_push_that_lands_before_origin_flaps_passes(
     assert "run · push — waiting: v0.2.0 released locally" in lines
     assert lines[-1] == "run · done — released v0.2.0"
     assert "refs/tags/v0.2.0" in _git(away, "ls-remote", "--tags", str(away))
+
+
+@pytest.mark.slow
+def test_a_release_with_tags_false_lands_without_its_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, origin, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    _ship_toml("[push]\ntags = false\n")
+
+    assert "0001-todo · check — release · pass" in run(0)
+    assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
+    assert _git(origin, "tag") == ""
+    assert _git(root, "tag", "--list", "v0.1.0").strip() == "v0.1.0"
+    assert not (root.parent / "0001-todo").exists()
 
 
 def test_the_remote_calls_carry_the_ssh_options(

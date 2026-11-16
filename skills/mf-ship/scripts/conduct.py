@@ -130,6 +130,8 @@ NOTES = 40
 STATIONS = ("build", "converge", "integrate", "release")
 FIXER = "converge.fix"
 WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
+# The stations a missing Codex does not halt. Why: 0132-cloud-run design D5.
+CHECKERS = tuple(name for name in WORKERS if name != FIXER)
 # A cut's worker table under its old name. Why: 0095-converge-roles design D2.
 OLD_WORKERS = {
     "converge.conformance": "converge.review",
@@ -343,7 +345,7 @@ CONFIG_PLAIN = re.compile(
     r"core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase"
     r"|precomposeunicode|symlinks|hookspath)"
     r"|(user|author|committer)\.(name|email)|user\.signingkey|commit\.gpgsign"
-    r"|protocol\.version|pull\.(rebase|ff)"
+    r"|protocol\.version|pull\.(rebase|ff)|gc\.auto"
     r"|remote\..+\.(url|fetch|gh-resolved)"
     r"|branch\..+\.(remote|merge|rebase|description)"
 )
@@ -2066,21 +2068,24 @@ def _scratch() -> tempfile.TemporaryDirectory[str]:
 
 
 def _outside(
-    primary: Path, *args: str, timeout: int = GIT_TIMEOUT
+    primary: Path, *args: str, timeout: int = GIT_TIMEOUT, keep: bool = False
 ) -> subprocess.CompletedProcess[str]:
     """Return a remote git call finished from a scratch repo with `primary`'s objects.
 
-    Why: 0052-security-hardening design D9; 0062-offline-origin design D3.
+    `keep` stores what it downloads there. Why: 0052-security-hardening design D9;
+    0062-offline-origin design D3; 0132-cloud-run design D3.
     """
     with _scratch() as scratch:
         root = Path(scratch)
         _git(root, "init", "-q", "--bare", "--template=")
-        alternates = root / "objects" / "info" / "alternates"
         objects = _git(
             primary, "rev-parse", "--path-format=absolute", "--git-path", "objects"
         )
-        alternates.write_text(objects)
         env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_REPLACE_OBJECTS": "1"}
+        if keep:
+            env["GIT_OBJECT_DIRECTORY"] = objects.strip()
+        else:
+            (root / "objects" / "info" / "alternates").write_text(objects)
         operator = ("GIT_SSH_COMMAND", "GIT_SSH")
         named = _maybe(root, "config", "--get", "core.sshCommand")
         if not any(env.get(name) for name in operator) and not (named or "").strip():
@@ -2152,11 +2157,11 @@ def _scan(primary: Path, base: str | None, sha: str) -> None:
 
 
 def _remote(
-    primary: Path, *args: str, timeout: int = GIT_TIMEOUT
+    primary: Path, *args: str, timeout: int = GIT_TIMEOUT, keep: bool = False
 ) -> subprocess.CompletedProcess[str]:
     """Return `_outside`'s call; one that stopped, a timeout, exits 1 naming why."""
     try:
-        return _outside(primary, *args, timeout=timeout)
+        return _outside(primary, *args, timeout=timeout, keep=keep)
     except Stop as stop:
         return subprocess.CompletedProcess(args, 1, "", str(stop))
 
@@ -2261,6 +2266,44 @@ def _merges_a_release(
     return len(set(trees.split())) == 1
 
 
+def _release_commits(primary: Path, base: str) -> dict[str, str]:
+    """Return `{tag: commit}` for each release `base`'s first-parent merges hold.
+
+    The shape `_merges_a_release` asks, read in scratch, so no ref reaches it.
+    Why: 0132-cloud-run design D2.
+    """
+    merges = _history(
+        primary, "log", "--first-parent", "--merges", "--format=%T %P", base
+    )
+    seconds: dict[str, str] = {}
+    for line in merges.splitlines():
+        tree, *parents = line.split()
+        if len(parents) == 2:
+            seconds[parents[1]] = tree
+    if not seconds:
+        return {}
+    released = _history(
+        primary, "log", "--no-walk=unsorted", "--format=%H %T %s", *seconds
+    )
+    commits: dict[str, str] = {}
+    for line in released.splitlines():
+        commit, tree, subject = line.split(" ", 2)
+        tag = subject.removeprefix("chore(release): ")
+        if tag != subject and TAG.fullmatch(tag) and seconds[commit] == tree:
+            commits.setdefault(tag, commit)
+    return commits
+
+
+def _make_tags(primary: Path, base: str) -> list[str]:
+    """Tag, annotated, each release `base` holds that has none; return the tags."""
+    made = []
+    for tag, commit in _release_commits(primary, base).items():
+        if not _tagged(primary, tag):
+            _git(primary, "tag", "-a", "-m", tag, tag, commit)
+            made.append(tag)
+    return made
+
+
 def _has_origin(primary: Path) -> bool:
     """Return whether the repo has a remote named `origin`."""
     return "origin" in _git(primary, "remote").split()
@@ -2304,20 +2347,60 @@ def _foreign_commit(
     return commits
 
 
-def _local_releases(primary: Path, base: str, default: str) -> list[str]:
-    """Return `default` and the tags of its release merges past raw `base`, or none."""
+def _local_releases(
+    primary: Path, base: str, default: str, push_tags: bool = True
+) -> list[str]:
+    """Return `default` and the tags of its release merges past raw `base`, or none.
+
+    `push_tags` false names no tag. Why: 0132-cloud-run design D1.
+    """
     tags = _release_tags(primary)
     commits = _foreign_commit(primary, base, default, tags=tags)
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
     named = [tag for tag, (_, commit) in tags.items() if commit in released]
-    return [default, *named] if commits else []
+    return [default, *(named if push_tags else [])] if commits else []
 
 
-def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
-    """Return each `(ref, sha)` to push.
+def _fetch_default(
+    primary: Path, url: str, default: str, base: str, notes: list[str]
+) -> None:
+    """Fetch `base`, origin's `default` tip, and fast-forward the local `default` to it.
 
-    Why: 0053-sandbox-patch design D2.
+    A diverged or ahead branch stays; a failed fetch is `Unreachable`.
+    Why: 0132-cloud-run design D3.
     """
+    local = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    if _outside(primary, "cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
+        done = _remote(
+            primary,
+            *("fetch", "--no-tags", "--no-write-fetch-head"),
+            *(f"--negotiation-tip={local}", "--", url, f"refs/heads/{default}"),
+            timeout=PUSH_TIMEOUT,
+            keep=True,
+        )
+        if done.returncode != 0:
+            raise Unreachable(1, _why(done))
+        notes.append(f"fetched {default} {base[:7]}")
+    # Integration's guard reads the tracking ref; an ignored file stops the merge.
+    _git(primary, "update-ref", f"refs/remotes/origin/{default}", base)
+    if local != base and _history_ancestor(primary, local, base):
+        _git(primary, "merge", "-q", "--ff-only", "--no-overwrite-ignore", base)
+        notes.append(f"fast-forwarded {default} to {base[:7]}")
+
+
+def _unpushed(
+    primary: Path,
+    first_read: bool = False,
+    push_tags: bool = True,
+    start: bool = False,
+    notes: list[str] | None = None,
+) -> list[tuple[str, str]]:
+    """Return each `(ref, sha)` to push; `push_tags` false names no tag.
+
+    A run's start brings in origin's default and its releases' tags, noted in `notes`.
+    Why: 0053-sandbox-patch design D2; 0132-cloud-run design D1, D2, D3.
+    """
+    notes = [] if notes is None else notes
     url = _read_url(primary, first_read)
     if not _has_origin(primary):
         return []
@@ -2346,6 +2429,8 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
         raise Stop(
             1, f"conduct: halt — origin has no {default}: a person pushes it first"
         )
+    if first_read and start and url:
+        _fetch_default(primary, url, default, base, notes)
     if _outside(primary, "cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
         raise Stop(
             1,
@@ -2355,11 +2440,15 @@ def _unpushed(primary: Path, first_read: bool = False) -> list[tuple[str, str]]:
     if first_read:
         _keep_base(primary, base)
         _close_releases(primary, base)
+        if start:
+            notes += [f"made {tag}" for tag in _make_tags(primary, base)]
     tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary)
     commits = _foreign_commit(primary, base, default, tip, tags)
     found = [(f"refs/heads/{default}", tip)] if commits else []
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
+    if not push_tags:
+        return found
     for tag, (sha, commit) in tags.items():
         ref = f"refs/tags/{tag}"
         if ref in held or not _history_ancestor(primary, commit, tip):
@@ -4479,6 +4568,13 @@ class Run:
         # The most versions at a station a queued cut waits for; None for no cap.
         # Why: 0129-queue-cap design D1.
         self.cap: int | None = None
+        # Whether this machine pushes tags. Why: 0132-cloud-run design D1.
+        self.tags: bool = True
+        # Whether `push_left` reads at the run's start. Why: 0132-cloud-run design D3.
+        self.fresh: bool = False
+        # Whether the log said a checker on a missing Codex runs on Claude.
+        # Why: 0132-cloud-run design D5.
+        self.codex_said: bool = False
         # Each queued cut that waits for room, with its reason.
         self.waiting: dict[str, str] = {}
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -4708,9 +4804,15 @@ class Run:
         """
         try:
             if self.offline and (base := _offline_base(self.primary)):
-                names = _local_releases(self.primary, base, _kept_default(self.primary))
+                names = _local_releases(
+                    self.primary,
+                    base,
+                    _kept_default(self.primary),
+                    push_tags=self.tags,
+                )
             else:
-                names = [ref.split("/", 2)[2] for ref, _ in _unpushed(self.primary)]
+                unpushed = _unpushed(self.primary, push_tags=self.tags)
+                names = [ref.split("/", 2)[2] for ref, _ in unpushed]
         except Stop:
             return ""
         return f" · unpushed {' '.join(names)}" if names else ""
@@ -4793,7 +4895,7 @@ class Run:
             if models[0] == "codex" and (
                 codex_runs == 2 or not self.codex_ready(change, deadline)
             ):
-                if shadow:
+                if shadow and not _executor_missing("codex"):
                     stopped = " · stopped by a usage limit"
                     return Checked(1, False, models, stopped, False, None)
                 models, fallback = given(_shadow(converge, models)), True
@@ -4880,6 +4982,9 @@ class Run:
 
         Why: 0104-codex-limits design D3; 0117-codex-converge design D4.
         """
+        # Not installed: the third cause of a fallback.
+        if _executor_missing("codex"):
+            return False
         held = _headroom(time.time())
         resets = [self.limited_until("codex"), held[0] if held else None]
         if reset := max((at for at in resets if at is not None), default=None):
@@ -5468,7 +5573,8 @@ class Run:
                     check, self.primary, stage, version, phase=phase, notes=restamped
                 )
                 try:
-                    reason = ask(True, self.offline)
+                    # `offline` skips the check that the tag is on `origin`.
+                    reason = ask(True, self.offline or not self.tags)
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
@@ -6034,7 +6140,7 @@ class Run:
     def read_plan(self, versions: list[Version]) -> None:
         """Read each station's models, once per version: at the start, or as it joins.
 
-        Why: 0052 D4; 0067 D5; 0070 D4; 0085 D3; 0094 D1; 0097 D3; 0105 D2.
+        Why: 0052 D4; 0067 D5; 0070 D4; 0085 D3; 0094 D1; 0097 D3; 0105 D2; 0132 D5.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -6059,6 +6165,19 @@ class Run:
                     self.decides.add(version.change)
                 if shadows:
                     self.shadowed.add(version.change)
+        with self.guard:
+            checkers = (
+                self.plan.get((version.change, name))
+                for version, name in itertools.product(versions, CHECKERS)
+            )
+            on_codex = any(models and models[0] == "codex" for models in checkers)
+            if not self.codex_said and on_codex and _executor_missing("codex"):
+                self.codex_said = True
+                self.log.event(
+                    "run",
+                    "codex",
+                    "not on PATH: a checker a plan gives Codex runs on Claude",
+                )
 
     def models(
         self, change: str, station: str
@@ -6072,24 +6191,31 @@ class Run:
     def named(self, change: str) -> list[str]:
         """Return each executor a version's plan names, a shadow's among them.
 
-        A skipped station and a skipped checker's shadow name none.
-        Why: 0097-cross-model design D3; 0105-converge-switches design D2.
+        A skipped station or shadow, and a checker on a missing Codex, names none.
+        Why: 0097 design D3; 0105 design D2; 0132-cloud-run design D5
         """
         skipped = self.skipped.get(change, frozenset())
+        missing = _executor_missing("codex")
+
+        def kept(station: str, executor: str) -> bool:
+            return not (missing and executor == "codex" and station in CHECKERS)
+
         planned = [
-            self.plan.get((change, station))
+            (station, models)
             for station in PLANNED
             if station not in skipped
+            and (models := self.plan.get((change, station))) is not None
         ]
-        named = [models[0] for models in planned if models]
+        named = [models[0] for station, models in planned if kept(station, models[0])]
         converge = self.plan.get((change, "converge"))
         if change in self.shadowed and converge is not None:
-            checkers = (self.plan.get((change, name)) for name in WORKERS)
-            named += [
-                _shadow(converge, models)[0]
-                for name, models in zip(WORKERS, checkers, strict=True)
-                if models and name != FIXER and name not in skipped
+            shadows = [
+                (name, _shadow(converge, models)[0])
+                for name in CHECKERS
+                if name not in skipped
+                and (models := self.plan.get((change, name))) is not None
             ]
+            named += [executor for name, executor in shadows if kept(name, executor)]
         return list(dict.fromkeys(named))
 
     def executors(self, *cutters: str) -> list[str]:
@@ -6529,7 +6655,14 @@ class Run:
                     changed := _config_changed(self.primary, self.git_state)
                 ):
                     raise changed
-                unpushed = _unpushed(self.primary, first_read=True)
+                notes: list[str] = []
+                unpushed = _unpushed(
+                    self.primary,
+                    first_read=True,
+                    push_tags=self.tags,
+                    start=self.fresh,
+                    notes=notes,
+                )
             except Unreachable as down:
                 self.waited(str(down))
                 continue
@@ -6537,6 +6670,8 @@ class Run:
                 self.halt("run", str(stop))
                 return False
             self.offline = False
+            for note in notes:
+                self.log.event("run", "sync", note)
             pushed = self.push(unpushed)
             if pushed is not None:
                 return pushed
@@ -6731,7 +6866,9 @@ class Run:
         names = " ".join(version.change for version in versions) or "none"
         names += f" · cuts {' '.join(cuts)}" if cuts else ""
         self.log.held = []
+        self.fresh = True
         self.push_left(RETRIES)
+        self.fresh = False
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         # A worker may link the folder elsewhere: a link lists nothing.
@@ -6874,6 +7011,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     try:
         primary = preconditions(cwd, executor)
         cap = _cap()
+        tags = _pushes_tags()
         if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
         runs = primary / ".minions" / "runs"
@@ -6901,6 +7039,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         _record_repo(primary)
         conductor = Run(primary, executor)
         conductor.cap = cap
+        conductor.tags = tags
         try:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
@@ -7030,26 +7169,49 @@ def _queue(primary: Path) -> Path:
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
 
 
-def _cap() -> int | None:
-    """Return the `in_flight` cap of the operator's `ship.toml`, None when none is set.
+def _ship_file() -> tuple[Path, dict[str, Any]]:
+    """Return the operator's `ship.toml` path and its data, empty for no file.
 
-    e.g. `[queue]` holding `in_flight = 2` gives 2. Why: 0129-queue-cap design D1.
+    e.g. `~/.config/minionsfactory/ship.toml`. Why: 0132-cloud-run design D1.
     """
     base = os.environ.get("XDG_CONFIG_HOME")
     config = Path(base) if base else Path.home() / ".config"
     path = config / "minionsfactory" / "ship.toml"
     try:
-        data = tomllib.loads(path.read_text())
+        return path, tomllib.loads(path.read_text())
     except FileNotFoundError:
-        return None
+        return path, {}
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise Stop(2, f"{path}: {error}") from None
+
+
+def _cap() -> int | None:
+    """Return the `in_flight` cap of the operator's `ship.toml`, None when none is set.
+
+    e.g. `[queue]` holding `in_flight = 2` gives 2. Why: 0129-queue-cap design D1.
+    """
+    path, data = _ship_file()
     table = data.get("queue")
     if not isinstance(table, dict) or "in_flight" not in table:
         return None
     value = table["in_flight"]
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise Stop(2, f"{path}: `in_flight` is not a whole number above 0")
+    return value
+
+
+def _pushes_tags() -> bool:
+    """Return whether this machine pushes tags: `tags` under `[push]` in `ship.toml`.
+
+    No table and no key give True. Why: 0132-cloud-run design D1
+    """
+    path, data = _ship_file()
+    table = data.get("push")
+    if not isinstance(table, dict) or "tags" not in table:
+        return True
+    value = table["tags"]
+    if not isinstance(value, bool):
+        raise Stop(2, f"{path}: `tags` is not true or false")
     return value
 
 
@@ -8014,7 +8176,7 @@ def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) ->
 
 
 def status(cwd: Path) -> str:
-    """Return the claim and unpushed lines, then `<change-id> · <stage>` per version."""
+    """Return the claim, unpushed and tags lines, then `<change-id> · <stage>` each."""
     primary = primary_of(cwd)
     claim = _claim(primary / ".minions" / "runs" / "active")
     lines = {
@@ -8022,10 +8184,13 @@ def status(cwd: Path) -> str:
         "live": ["run · live"],
         "stale": ["run · stale — a run clears it, or stops naming why"],
     }[claim]
-    unpushed = _unpushed(primary)
+    tags = _pushes_tags()
+    unpushed = _unpushed(primary, push_tags=tags)
     if unpushed:
         names = (ref.split("/", 2)[2] for ref, _ in unpushed)
         lines.append(f"run · unpushed {' '.join(names)}")
+    if not tags:
+        lines.append("run · tags — this machine pushes none")
     if _unread(primary):
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
     # why: 0080-minions-layout design D4

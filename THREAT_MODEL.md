@@ -50,10 +50,12 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `stacked-on`, which narrows the build's gate check and diff coverage: the gate reads it through `git rev-parse` alone, and
   the conductor removes it before converge and the release, which judge against the default branch.
 - **The conductor runs outside the sandbox, and a worker can write the common directory**: its remote calls start from a
-  scratch repo in the home folder and read no repo's config, and its local git fetches no missing object. A run keeps
-  `origin`'s URLs in the home folder before its first worker: while `origin` differs from them, no remote call of
-  `conduct.py` runs, in that run or a later one, until a person repoints it or removes the file. A changed config halts a
-  run before its next push. A worker can redirect git with `commondir` or a swapped `.git`, so `conduct.py` halts when git
+  scratch repo in the home folder and read no repo's config, and its local git fetches no missing object,
+  save a run's start, which fetches `origin`'s default branch through that scratch repo into the primary's objects and
+  fast-forwards the local branch, overwriting no ignored file and merging nothing. A run keeps `origin`'s URLs in the home folder before its first worker: while
+  `origin` differs from them, no remote call of `conduct.py` runs, in that run or a later one, until a person repoints it
+  or removes the file. A changed config halts a run before its next push. A worker can redirect git with `commondir`
+  or a swapped `.git`, so `conduct.py` halts when git
   names a repo outside the folder it runs in and no run kept that repo's URLs, and `status`, `check` and `report` make no
   remote call for a repo no run kept, wherever they run: a first read is a run's alone. It pushes only a release a run took
   to its release: the release ledger in the home folder holds each version's head from its release worker's start, and a head
@@ -62,7 +64,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   each pushed branch's range from the offline base, each two-parent merge by what it adds to the automatic merge, in such a
   scratch repo, with no system config or attributes, so no worker-written filter runs, and with no ignore file or allow
   comment honoured; a hit halts the run, its secret redacted, as does an octopus merge, whose diff git does not show, and a
-  run without Betterleaks does not start.
+  run without Betterleaks does not start. A machine whose `ship.toml` sets `tags = false`
+  pushes no tag; a run's start makes the tag of each release commit `origin`'s default branch holds, and pushes it only
+  where tags are pushed.
 - **The viewer runs outside the sandbox** ([D82](docs/decisions.md#d82--the-viewer-is-an-operator-tool)): it reads files a
   worker wrote, each project in a child it kills past its bound, binds `127.0.0.1`, refuses a foreign `Host` and sets every
   string as text. Any local process of the operator can open its stream, and no worker can bind loopback.
