@@ -87,6 +87,7 @@ def _tasks(root: Path, progress: str, *tasks: str) -> None:
     (root / _FOLDER / "tasks.md").write_text(text)
 
 
+@pytest.mark.slow
 def test_a_plan_check_finds_what_the_plan_left(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -460,25 +461,6 @@ def test_a_script_file_that_reads_git_is_keyed_by_head() -> None:
         assert plan_check.keyed(text, "abc") == f"{text}\nabc"
 
 
-def test_another_branch_moving_ends_the_reuse_of_a_result(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = tmp_path / "repo"
-    base = _repo(root, monkeypatch)
-    command = "git diff --quiet other HEAD"
-    _commit_tasks(root, f"- [x] 1.1 Same.\n  Verify: `{command}`.\n")
-    _git(root, "branch", "other")
-
-    def check() -> tuple[int, list[str]]:
-        code = plan_check.main(["--change", _CHANGE, "--base", base])
-        return code, capsys.readouterr().out.splitlines()
-
-    assert check() == (0, ["plan: clean"])
-    # `other` moves; HEAD and the tree stay: the kept success is not read again.
-    _git(root, "branch", "-f", "other", "HEAD~1")
-    assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
-
-
 def test_a_wrapped_git_command_is_not_reused_once_a_branch_moves(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -486,6 +468,8 @@ def test_a_wrapped_git_command_is_not_reused_once_a_branch_moves(
     base = _repo(root, monkeypatch)
     (root / "check-refs.sh").write_text("git diff --quiet other HEAD\n")
     commands = (
+        "git diff --quiet other HEAD",
+        "git grep -q LEGACY other -- src/legacy.py",
         "sh -c 'git diff --quiet other HEAD'",
         "sh check-refs.sh",
         "sh -c 'sh check-refs.sh'",
@@ -504,30 +488,12 @@ def test_a_wrapped_git_command_is_not_reused_once_a_branch_moves(
         return code, capsys.readouterr().out.splitlines()
 
     assert check() == (0, ["plan: clean"])
-    _git(root, "branch", "-f", "other", "HEAD~1")
+    empty = _git(root, "hash-object", "-t", "tree", "/dev/null")
+    _git(root, "branch", "-f", "other", _git(root, "commit-tree", empty, "-m", "x"))
     assert check() == (
         1,
         [f"plan: 1.{n} — `{c}` exited 1" for n, c in enumerate(commands, 1)],
     )
-
-
-def test_a_git_grep_of_another_branch_is_not_reused_once_it_moves(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    root = tmp_path / "repo"
-    base = _repo(root, monkeypatch)
-    command = "git grep -q LEGACY other -- src/legacy.py"
-    _commit_tasks(root, f"- [x] 1.1 Same.\n  Verify: `{command}`.\n")
-    _git(root, "branch", "other")
-
-    def check() -> tuple[int, list[str]]:
-        code = plan_check.main(["--change", _CHANGE, "--base", base])
-        return code, capsys.readouterr().out.splitlines()
-
-    assert check() == (0, ["plan: clean"])
-    empty = _git(root, "hash-object", "-t", "tree", "/dev/null")
-    _git(root, "branch", "-f", "other", _git(root, "commit-tree", empty, "-m", "x"))
-    assert check() == (1, [f"plan: 1.1 — `{command}` exited 1"])
 
 
 def test_the_gate_vouches_only_for_tests_it_discovers(
@@ -571,6 +537,7 @@ def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
     subprocess.run(["pkill", "-f", "sleep 20"], check=False)
 
 
+@pytest.mark.slow
 def test_a_result_is_kept_by_tree_and_reused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.101.3] - 2026-11-16
+
+Gate: local 4m47s · CI not read under mf-ship · 0.101.2: local 10m38s · CI not read under mf-ship
+
+- `test_three_versions_cut_built_converged_and_closed_at_once` runs one round: the autouse `_uv_sync` fixture fakes
+  every `uv sync --script`, so a second round repeated the first; the archived `0112-uv-race` design says so
+  (0127-test-cost, phase 1).
+- `tests/conduct_load.py` compiles `conduct.py` once and runs it into a fresh module per call; `tests/test_conduct.py`
+  and `tests/test_sandboxed.py` load it through that, so no call compiles the script again (0127-test-cost, phase 2).
+- Each test the build's durations run lists at 5 s or more carries `@pytest.mark.slow`, so `make check` leaves it to
+  the gate, as `T1` says (0127-test-cost, phase 3).
+- Each duplicate test is deleted or merged into the test that holds its proof, as the `## Tests` table of the
+  `0127-test-cost` design names, so no assertion goes (0127-test-cost, phase 4).
+- `_when_logged` of `tests/test_conduct.py` raises `TimeoutError` when its line never comes, and
+  `test_a_dependent_waits_while_its_dependency_works` asserts after its wait loop, so a missed line fails at its own
+  test (0127-test-cost, phase 5).
+
 ## [0.101.2] - 2026-11-16
 
 Gate: local 10m38s · CI not read under mf-ship · 0.101.1: local 6m19s · CI not read under mf-ship

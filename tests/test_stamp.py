@@ -146,16 +146,6 @@ def test_a_log_out_of_shape_is_not_stamped(
     assert log.read_text() == _TITLE + _RUN_1
     staged.rmdir()
 
-    # A link swapped in after any check by name is still refused by the read itself.
-    log.unlink()
-    log.symlink_to(note)
-    with monkeypatch.context() as patch:
-        patch.setattr(Path, "is_symlink", lambda _: False)
-        assert stamp.main([str(log), "--run", "2"]) == 2
-    assert capsys.readouterr().out == f"stamp: cannot stamp — {log} is a link\n"
-    assert note.read_text() == _TITLE
-    log.unlink()
-
     # A log swapped for a folder between the read and the rename: exit 2, no `.tmp`.
     log.write_text(_TITLE + _RUN_1)
     real = stamp.stamp

@@ -925,6 +925,7 @@ def heading(host: Host) -> str:
     return next(line for line in log if line.startswith("## Run"))
 
 
+@pytest.mark.slow
 def test_a_blocker_is_fixed_verified_and_cleared(host: Host) -> None:
     base = _git(host.tree, "merge-base", "main", "HEAD")
     first = _head(host)
@@ -1117,6 +1118,7 @@ def test_an_accepted_blocker_converges_and_a_critical_one_blocks(host: Host) -> 
     )
 
 
+@pytest.mark.slow
 def test_plan_check_left_halts_amend_needed(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", _card("R1 blocking"), blocking=1
@@ -1232,6 +1234,7 @@ def test_round_one_pickup_rides_with_the_fix(host: Host) -> None:
     assert _ran(host)[3:] == ["plan_check.py", "gate_run.py", "grep", "gate_run.py"]
 
 
+@pytest.mark.slow
 def test_a_pickup_check_runs_on_the_needed_role(host: Host) -> None:
     first = _head(host)
     host.answers["converge-conformance-r1"] = answer(
@@ -1408,6 +1411,7 @@ def test_a_sandboxed_command_gets_the_converge_deadline(host: Host) -> None:
     assert host.timeouts[1] == 0
 
 
+@pytest.mark.slow
 def test_a_catch_up_runs_the_changed_verifies_in_one_plan_check(host: Host) -> None:
     assert run(host) == 0
     tasks = (
@@ -1474,6 +1478,7 @@ def _merge_main(host: Host, name: str) -> str:
     return _head(host)
 
 
+@pytest.mark.slow
 def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
     base = _git(host.tree, "merge-base", "main", "HEAD")
     assert run(host) == 0
@@ -1589,6 +1594,7 @@ def test_a_catch_up_judges_the_new_commits(host: Host) -> None:
     )
 
 
+@pytest.mark.slow
 def test_a_merge_only_catch_up_is_by_rule(host: Host) -> None:
     assert run(host) == 0
     judged = _head(host)
@@ -1641,6 +1647,7 @@ def test_a_merge_only_catch_up_is_by_rule(host: Host) -> None:
     ]
 
 
+@pytest.mark.slow
 def test_a_shadow_round_runs_the_other_host_and_drives_nothing(host: Host) -> None:
     shadowed = {**_WORKERS, "shadow": True}
     host.answers["converge-shadow-conformance-r1"] = answer(
@@ -1900,6 +1907,7 @@ def _debt(host: Host) -> Path:
     return path
 
 
+@pytest.mark.slow
 def test_the_debt_is_written_once_under_its_lock(
     host: Host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2037,6 +2045,7 @@ def test_a_still_true_command_runs_sandboxed_and_a_prose_card_goes_unchecked(
     assert "; moot R3 (`true -x 'a b'` exited 1); " in capsys.readouterr().out
 
 
+@pytest.mark.slow
 def test_an_amend_card_halts_the_debt(host: Host) -> None:
     amend = _card(
         "R2 nit", amend="yes", status="wontfix", size=_DESIGN, still="`false`"
@@ -2107,6 +2116,7 @@ def test_a_fixed_repeats_old_card_is_cleared(
     assert "; cleared 0000·R1 (`true` exited 1); " in capsys.readouterr().out
 
 
+@pytest.mark.slow
 def test_a_failed_worker_gets_one_retry(host: Host) -> None:
     models = _WORKERS["conformance"]
     host.results["converge-conformance-r1"] = [
@@ -2204,6 +2214,7 @@ def test_a_failed_worker_gets_one_retry(host: Host) -> None:
     )
 
 
+@pytest.mark.slow
 def test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit(host: Host) -> None:
     codex = ("codex", "gpt-6.1-sol", "medium")
     workers = {**_WORKERS, "fix": codex}
@@ -2217,6 +2228,9 @@ def test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit(host: Host) ->
     assert [(station, models) for station, models, _ in host.codexed] == [
         ("converge-fix-r1", codex)
     ]
+    assert (
+        "Co-Authored-By: Codex gpt-6.1-sol <noreply@openai.com>" in host.codexed[0][2]
+    )
 
     limit = "codex usage limit — the fixer · resets 5:50 PM"
     host.fixes = [Checked(1, False, codex, limit, False, None)]
@@ -2234,23 +2248,15 @@ def test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit(host: Host) ->
     assert host.fixed == []
 
 
-def test_a_codex_fixers_prompt_names_its_attribution(host: Host) -> None:
-    codex = ("codex", "gpt-6.1-sol", "medium")
+def test_a_claude_fixers_prompt_names_its_attribution(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", _card("R1 blocking"), blocking=1
     )
 
-    assert run(host, {**_WORKERS, "fix": codex}) == 0
-
-    assert (
-        "Co-Authored-By: Codex gpt-6.1-sol <noreply@openai.com>" in host.codexed[0][2]
-    )
-    assert host.fixed == []
-
     assert run(host, _WORKERS) == 0
 
     assert "the attribution line your session names" in host.fixed[0][2]
-    assert len(host.codexed) == 1
+    assert host.codexed == []
 
 
 def _twice(

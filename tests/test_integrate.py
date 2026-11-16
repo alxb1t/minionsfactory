@@ -96,6 +96,7 @@ def test_a_hand_run_station_halts_on_an_old_layout(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.slow
 def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
     # `0010` sorts before `009` as text: the queue is the change id's number.
@@ -201,6 +202,7 @@ _HEAD = "# Changelog\n\n## [Unreleased]\n"
 _OLD = "## [0.1.0] - 2026-01-01\n\n- First.\n"
 
 
+@pytest.mark.slow
 def test_changelog_keeps_the_branch_entries_above_the_released_sections(
     tmp_path: Path,
 ) -> None:
@@ -357,6 +359,7 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     assert list(bare.iterdir()) == []
 
 
+@pytest.mark.slow
 def test_decisions_renumbers_a_planned_id_the_default_branch_took(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -448,6 +451,7 @@ def _scratch_gone(root: Path) -> bool:
     return listed == 2 and not (replays.exists() and any(replays.iterdir()))
 
 
+@pytest.mark.slow
 def test_replay_reproduces_a_rule_settled_merge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -507,6 +511,7 @@ def test_replay_reproduces_a_rule_settled_merge(
     assert _scratch_gone(root)
 
 
+@pytest.mark.slow
 def test_replay_refuses_a_judged_merge(tmp_path: Path) -> None:
     # A union: both sides add a line to one file, resolved by hand.
     union = tmp_path / "union"
@@ -699,6 +704,7 @@ def test_a_git_failure_after_the_tree_names_its_command(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.slow
 def test_delta_keeps_a_delta_that_only_inserts(tmp_path: Path) -> None:
     def living(first: str, second: str) -> str:
         return (

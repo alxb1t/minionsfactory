@@ -1,0 +1,241 @@
+{
+  "change": "0127-test-cost",
+  "version": "0.101.3",
+  "base": "4b67e111",
+  "analyzed": "8b0b9f26",
+  "measured_on": "local",
+  "collected_at": "2026-11-16T14:26:47+02:00",
+  "mf_version": "v0.101.1",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 4451
+    },
+    "converge-conformance-reading-set": {
+      "value": 6129
+    },
+    "converge-adversarial-reading-set": {
+      "value": 8537
+    },
+    "shared-context": {
+      "value": 16626
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 702
+    },
+    "gate-seconds": {
+      "value": 287
+    },
+    "largest-module-lines": {
+      "value": 12885
+    },
+    "modules-over-1000-lines": {
+      "value": 8
+    },
+    "complex-functions": {
+      "value": 30
+    },
+    "suppressions": {
+      "value": 23
+    },
+    "test-to-code-lines": {
+      "value": 1.38
+    },
+    "python-lines": {
+      "value": 57356
+    },
+    "dependencies": {
+      "value": 2
+    },
+    "dev-dependencies": {
+      "value": 9
+    },
+    "test-seconds": {
+      "value": 283.31
+    },
+    "slowest-test-seconds": {
+      "value": 113.55
+    },
+    "test-seconds-summed": {
+      "value": 2600.49
+    },
+    "slow-tests": {
+      "value": 120
+    },
+    "total-coverage": {
+      "value": 98.94
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 119
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 1
+    },
+    "open-backlog-cards": {
+      "value": 32
+    },
+    "diff-lines": {
+      "value": 631
+    },
+    "diff-files": {
+      "value": 18
+    },
+    "lead-minutes": {
+      "value": 144.3
+    },
+    "build-minutes": {
+      "status": "unavailable",
+      "why": "a build spawn with no finish"
+    },
+    "converge-minutes": {
+      "value": 27.5
+    },
+    "catch-up-minutes": {
+      "value": 7.5
+    },
+    "integrate-minutes": {
+      "value": 5.5
+    },
+    "wait-minutes": {
+      "value": 0.0
+    },
+    "after-wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 3
+    },
+    "blockers-round-1": {
+      "value": 1
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 0
+    },
+    "halts-build": {
+      "value": 1
+    },
+    "halts-converge": {
+      "value": 0
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 1
+    },
+    "rescues-diagnosed": {
+      "value": 0
+    },
+    "rescues-decided": {
+      "value": 0
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 8
+    },
+    "fix-commits": {
+      "value": 1
+    },
+    "cost-usd": {
+      "status": "unavailable",
+      "why": "no result event in 0127-test-cost/logs/20261116-114736-build-2.log"
+    },
+    "cost-usd-build": {
+      "status": "unavailable",
+      "why": "no result event in 0127-test-cost/logs/20261116-114736-build-2.log"
+    },
+    "cost-usd-converge": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-catch-up": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-integrate": {
+      "value": 0.17
+    },
+    "tokens": {
+      "status": "unavailable",
+      "why": "no result event in 0127-test-cost/logs/20261116-114736-build-2.log"
+    },
+    "tokens-build": {
+      "status": "unavailable",
+      "why": "no result event in 0127-test-cost/logs/20261116-114736-build-2.log"
+    },
+    "tokens-converge": {
+      "value": 3101819
+    },
+    "tokens-catch-up": {
+      "value": 449347
+    },
+    "tokens-integrate": {
+      "value": 534871
+    },
+    "codex-window-5h": {
+      "value": 46.0
+    },
+    "codex-window-week": {
+      "value": 6.0
+    },
+    "cost-per-changed-line": {
+      "status": "unavailable",
+      "why": "no result event in 0127-test-cost/logs/20261116-114736-build-2.log"
+    },
+    "conformance-confirmed": {
+      "value": 1
+    },
+    "adversarial-confirmed": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0127-test-cost/adversarial.md"
+    },
+    "conformance-refuted": {
+      "value": 2
+    },
+    "adversarial-refuted": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0127-test-cost/adversarial.md"
+    },
+    "conformance-tokens-per-confirmed": {
+      "value": 2135290
+    },
+    "adversarial-tokens-per-confirmed": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0127-test-cost/adversarial.md"
+    },
+    "escapes": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0127-test-cost/adversarial.md"
+    },
+    "debt-added": {
+      "value": 0
+    },
+    "debt-paid": {
+      "value": 0
+    }
+  }
+}

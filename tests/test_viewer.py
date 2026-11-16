@@ -537,6 +537,7 @@ def test_liveness_is_active_then_quiet(tmp_path: Path) -> None:
     }
 
 
+@pytest.mark.slow
 def test_for_you_holds_what_needs_a_person(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     _version(root, "0001-a", "- [ ] 1 — Hand **HUMAN**\n")
