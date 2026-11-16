@@ -5,7 +5,7 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 ## Progress
 
 - [x] 1 — The side · moderate
-- [ ] 2 — The Linux side · hard
+- [x] 2 — The Linux side · hard
 - [ ] 3 — The callers · moderate
 - [ ] 4 — The names · hard
 - [ ] 5 — The real proof · moderate
@@ -26,21 +26,21 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 ## 2 — The Linux side
 
-- [ ] 2.1 In `tests/conftest.py` add the fixture `fake_bwrap(tmp_path, monkeypatch) -> Path` beside `fake_sandbox_exec`: a `bwrap` first on `PATH` that writes its arguments one a line to `bwrap-argv.txt` in `tmp_path`, appends a line to `bwrap-calls.txt` there, drops every argument up to the first `--` and runs the rest; it returns the argv file ([D7](design.md#d7)).
+- [x] 2.1 In `tests/conftest.py` add the fixture `fake_bwrap(tmp_path, monkeypatch) -> Path` beside `fake_sandbox_exec`: a `bwrap` first on `PATH` that writes its arguments one a line to `bwrap-argv.txt` in `tmp_path`, appends a line to `bwrap-calls.txt` there, drops every argument up to the first `--` and runs the rest; it returns the argv file ([D7](design.md#d7)).
   Verify: `git grep -n "^def fake_bwrap" -- tests/conftest.py` prints the line.
-- [ ] 2.2 In `skills/mflib/platform.py` replace `REFUSAL` with the new `REFUSALS = {"macos": "Operation not permitted", "linux": "Read-only file system"}` and make `refused(text)` read `REFUSALS[OS]` ([D9](design.md#d9)).
+- [x] 2.2 In `skills/mflib/platform.py` replace `REFUSAL` with the new `REFUSALS = {"macos": "Operation not permitted", "linux": "Read-only file system"}` and make `refused(text)` read `REFUSALS[OS]` ([D9](design.md#d9)).
   Verify: `git grep -n -w REFUSAL -- skills tests` prints nothing.
-- [ ] 2.3 In `tests/test_platform.py` add `test_a_refusal_is_read_on_its_own_side`: each text is a refusal on its own `OS` and none on the other, `OS` set with `monkeypatch.setattr(platform, "OS", …)` ([D9](design.md#d9)).
+- [x] 2.3 In `tests/test_platform.py` add `test_a_refusal_is_read_on_its_own_side`: each text is a refusal on its own `OS` and none on the other, `OS` set with `monkeypatch.setattr(platform, "OS", …)` ([D9](design.md#d9)).
   Verify: `uv run pytest tests/test_platform.py -q -k refusal_is_read` passes.
-- [ ] 2.4 In `skills/mflib/platform.py` add `BWRAP = "bwrap"` and `_bwrap(policy: Policy, tool: str) -> list[str]` returning the prefix of [D3](design.md#d3), each path resolved as `profile` resolves it, a root or a denied path that does not exist left out. Make `confine` return `_bwrap(policy, shutil.which(BWRAP) or BWRAP)` when `OS` is `linux`; its macOS branch and `profile` stay as they are ([D3](design.md#d3), [D7](design.md#d7)).
+- [x] 2.4 In `skills/mflib/platform.py` add `BWRAP = "bwrap"` and `_bwrap(policy: Policy, tool: str) -> list[str]` returning the prefix of [D3](design.md#d3), each path resolved as `profile` resolves it, a root or a denied path that does not exist left out. Make `confine` return `_bwrap(policy, shutil.which(BWRAP) or BWRAP)` when `OS` is `linux`; its macOS branch and `profile` stay as they are ([D3](design.md#d3), [D7](design.md#d7)).
   Verify: `git grep -n -e '^BWRAP = "bwrap"' -e "^def _bwrap" -- skills/mflib/platform.py` prints both lines.
-- [ ] 2.5 In `tests/test_platform.py` add `test_the_bwrap_command_follows_the_policy` on `OS` `linux`: the exact prefix for a policy with roots, a temp folder, a denied folder, a denied file and a denied path that is absent; the network open and shut; no temp folder; a root that is absent ([D3](design.md#d3)).
+- [x] 2.5 In `tests/test_platform.py` add `test_the_bwrap_command_follows_the_policy` on `OS` `linux`: the exact prefix for a policy with roots, a temp folder, a denied folder, a denied file and a denied path that is absent; the network open and shut; no temp folder; a root that is absent ([D3](design.md#d3)).
   Verify: `uv run pytest tests/test_platform.py -q -k bwrap_command` passes.
-- [ ] 2.6 In `skills/mflib/platform.py` add `_applies(tool: str) -> bool`, cached with `functools.cache`, which runs `[*_bwrap(Policy((), ()), tool), "true"]` under `TIMEOUT` and is true on exit 0, false on `OSError`, a timeout or another exit. Make `has_sandbox` on `linux` return whether `shutil.which(BWRAP)` finds a tool and `_applies` of it is true; on `macos` it stays the `PATH` check ([D8](design.md#d8)).
+- [x] 2.6 In `skills/mflib/platform.py` add `_applies(tool: str) -> bool`, cached with `functools.cache`, which runs `[*_bwrap(Policy((), ()), tool), "true"]` under `TIMEOUT` and is true on exit 0, false on `OSError`, a timeout or another exit. Make `has_sandbox` on `linux` return whether `shutil.which(BWRAP)` finds a tool and `_applies` of it is true; on `macos` it stays the `PATH` check ([D8](design.md#d8)).
   Verify: `git grep -n -e "^def _applies" -e "functools.cache" -- skills/mflib/platform.py` prints both lines.
-- [ ] 2.7 In `tests/test_platform.py` add `test_the_sandbox_stands_on_linux_when_bwrap_applies_one`: no `bwrap` on `PATH`, one that exits 1, one that exits 0, and repeated asks of the passing one that run it once, counted in its calls file ([D8](design.md#d8)).
+- [x] 2.7 In `tests/test_platform.py` add `test_the_sandbox_stands_on_linux_when_bwrap_applies_one`: no `bwrap` on `PATH`, one that exits 1, one that exits 0, and repeated asks of the passing one that run it once, counted in its calls file ([D8](design.md#d8)).
   Verify: `uv run pytest tests/test_platform.py -q -k sandbox_stands` passes.
-- [ ] 2.8 In `tests/test_sandboxed.py` add `test_a_command_runs_under_bwrap_on_linux` and `test_a_linux_denial_gets_the_line`, both on `OS` `linux` with `fake_bwrap`: one reads the argv file for the prefix of [D3](design.md#d3) before the command and sees the command run; the other prints `Read-only file system` with exit 1 and sees `_DENIAL`, then the macOS text and sees none ([D3](design.md#d3), [D9](design.md#d9)).
+- [x] 2.8 In `tests/test_sandboxed.py` add `test_a_command_runs_under_bwrap_on_linux` and `test_a_linux_denial_gets_the_line`, both on `OS` `linux` with `fake_bwrap`: one reads the argv file for the prefix of [D3](design.md#d3) before the command and sees the command run; the other prints `Read-only file system` with exit 1 and sees `_DENIAL`, then the macOS text and sees none ([D3](design.md#d3), [D9](design.md#d9)).
   Verify: `uv run pytest tests/test_sandboxed.py -q -k "under_bwrap or linux_denial"` passes.
 
 ## 3 — The callers

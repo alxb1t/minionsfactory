@@ -83,3 +83,30 @@ def fake_sandbox_exec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
     return profile
+
+
+@pytest.fixture
+def fake_bwrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put a fake `bwrap` first on `PATH`; return the file its arguments land in.
+
+    One argument a line; each call adds a line to `bwrap-calls.txt`; it drops every
+    argument up to the first `--`, then runs the rest. Why: 0131-linux-runner D7.
+    """
+    folder = tmp_path / "fake-bwrap-bin"
+    folder.mkdir()
+    argv = tmp_path / "bwrap-argv.txt"
+    calls = tmp_path / "bwrap-calls.txt"
+    fake = folder / "bwrap"
+    fake.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$@\" > {shlex.quote(str(argv))}\n"
+        f"echo call >> {shlex.quote(str(calls))}\n"
+        'while [ "$#" -gt 0 ]; do\n'
+        '  if [ "$1" = "--" ]; then shift; break; fi\n'
+        "  shift\n"
+        "done\n"
+        'exec "$@"\n'
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    return argv

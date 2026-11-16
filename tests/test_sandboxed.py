@@ -1,6 +1,7 @@
-"""`sandboxed()` under Seatbelt: a fake `sandbox-exec`, and the real one where it nests.
+"""`sandboxed()` under a fake `sandbox-exec` or `bwrap`, and the real OS sandbox.
 
-Why: 0107-sandbox-runner design D5.
+The real one runs where it nests.
+Why: 0107-sandbox-runner design D5, 0131-linux-runner design D7.
 """
 
 import contextlib
@@ -337,6 +338,56 @@ def test_a_denial_in_the_output_gets_a_line(
     assert code == exit_code
     assert text in seen.out
     assert (_DENIAL in seen.err) is denied
+
+
+def test_a_command_runs_under_bwrap_on_linux(
+    tmp_path: Path,
+    fake_bwrap: Path,
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(platform, "OS", "linux")
+    trees = _trees(tmp_path)
+    keys = isolated_home / ".ssh"
+    keys.mkdir()
+    command = _python("import os; print(os.environ['TMPDIR'])")
+
+    code = _conduct()["sandboxed"](command, trees[0], trees)
+
+    temp = str(Path(capsys.readouterr().out.strip()).resolve())
+    assert code == 0
+    assert fake_bwrap.read_text().splitlines() == [
+        *("--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"),
+        *("--bind", str(trees[0]), str(trees[0])),
+        *("--bind", str(trees[1]), str(trees[1])),
+        *("--bind", temp, temp),
+        *("--tmpfs", str(keys.resolve())),
+        *("--unshare-pid", "--unshare-net", "--die-with-parent", "--new-session"),
+        "--",
+        *command,
+    ]
+
+
+def test_a_linux_denial_gets_the_line(
+    tmp_path: Path,
+    fake_bwrap: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(platform, "OS", "linux")
+    trees = _trees(tmp_path)
+    sandboxed = _conduct()["sandboxed"]
+
+    for text, denied in (
+        ("touch: x: Read-only file system", True),
+        ("touch: x: Operation not permitted", False),
+    ):
+        command = _python(f"import sys; print({text!r}, file=sys.stderr); sys.exit(1)")
+        assert sandboxed(command, trees[0], trees) == 1
+        seen = capsys.readouterr()
+        assert text in seen.out
+        assert (_DENIAL in seen.err) is denied
 
 
 def test_the_output_goes_to_the_file_given(

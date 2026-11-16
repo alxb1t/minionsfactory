@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The port reads the host's OS once into `platform.OS`, `linux` or `macos`; every test runs the macOS side but the
   real-sandbox tests, which run the host's. CI's switch is `MF_REQUIRE_SANDBOX`, named for any OS (0131-linux-runner,
   phase 1).
+- On Linux the port confines a command with `bwrap`: a read-only disk, the writable roots bound, the secrets masked,
+  its own PID and network namespaces. The sandbox stands only when `bwrap` applies an empty one, probed once a path,
+  and `Read-only file system` is Linux's refusal (0131-linux-runner, phase 2).
 
 ## [0.103.0] - 2026-11-16
 
