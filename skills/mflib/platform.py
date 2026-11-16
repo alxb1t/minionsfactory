@@ -14,6 +14,8 @@ from typing import NamedTuple
 TIMEOUT = 60
 SANDBOX = "sandbox-exec"
 BWRAP = "bwrap"
+PRIVATE = ("/run", "/tmp")  # noqa: S108
+RESOLVER = "/etc/resolv.conf"
 CAFFEINATE = "caffeinate"
 REFUSALS = {"macos": "Operation not permitted", "linux": "Read-only file system"}
 DEVICES = (
@@ -78,11 +80,23 @@ def profile(policy: Policy) -> str:
 def _bwrap(policy: Policy, tool: str) -> list[str]:
     """Return the `bwrap` prefix that renders `policy`; the caller appends the command.
 
-    Why: 0131-linux-runner design D3.
+    Why: 0131-linux-runner design D3 and D21.
     """
-    roots = policy.writes if policy.tmp is None else (*policy.writes, policy.tmp)
+    named = policy.writes if policy.tmp is None else (*policy.writes, policy.tmp)
+    roots = [root.resolve() for root in named]
+    private = [
+        folder
+        for folder in (Path(name).resolve() for name in PRIVATE)
+        if folder.is_dir() and folder not in roots
+    ]
+    resolver = Path(RESOLVER).resolve()
+    hidden = resolver.is_file() and any(map(resolver.is_relative_to, private))
     command = [tool, "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"]
-    for root in (root.resolve() for root in roots):
+    for folder in private:
+        command += ["--tmpfs", str(folder)]
+    if policy.network and hidden:
+        command += ["--ro-bind", str(resolver), str(resolver)]
+    for root in roots:
         if root.exists():
             command += ["--bind", str(root), str(root)]
     for path in (path.resolve() for path in policy.denied):
@@ -90,6 +104,8 @@ def _bwrap(policy: Policy, tool: str) -> list[str]:
             command += ["--tmpfs", str(path)]
         elif path.exists():
             command += ["--ro-bind", "/dev/null", str(path)]
+    for folder in private:
+        command += ["--remount-ro", str(folder)]
     shut = [] if policy.network else ["--unshare-net"]
     command += ["--unshare-pid", *shut, "--die-with-parent", "--new-session", "--"]
     return command

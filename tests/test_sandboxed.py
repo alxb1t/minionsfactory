@@ -4,6 +4,7 @@ The real one runs where it nests.
 Why: 0107-sandbox-runner design D5, 0131-linux-runner design D7.
 """
 
+import contextlib
 import io
 import json
 import os
@@ -12,8 +13,10 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -348,6 +351,9 @@ def test_a_command_runs_under_bwrap_on_linux(
 ) -> None:
     monkeypatch.setattr(platform, "OS", "linux")
     trees = _trees(tmp_path)
+    private = tmp_path / "private"
+    private.mkdir()
+    monkeypatch.setattr(platform, "PRIVATE", (str(private),))
     keys = isolated_home / ".ssh"
     keys.mkdir()
     command = _python("import os; print(os.environ['TMPDIR'])")
@@ -358,10 +364,12 @@ def test_a_command_runs_under_bwrap_on_linux(
     assert code == 0
     assert fake_bwrap.read_text().splitlines() == [
         *("--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"),
+        *("--tmpfs", str(private.resolve())),
         *("--bind", str(trees[0]), str(trees[0])),
         *("--bind", str(trees[1]), str(trees[1])),
         *("--bind", temp, temp),
         *("--tmpfs", str(keys.resolve())),
+        *("--remount-ro", str(private.resolve())),
         *("--unshare-pid", "--unshare-net", "--die-with-parent", "--new-session"),
         "--",
         *command,
@@ -662,14 +670,18 @@ def _seatbelt() -> bool:
     return subprocess.run(probe, capture_output=True).returncode == 0
 
 
-def _require_sandbox(host: str) -> None:
+def _require_sandbox(host: str, tmp_path: Path) -> None:
     """Pass where the host's real OS sandbox applies; else fail or skip.
 
     `MF_REQUIRE_SANDBOX` set fails it: CI's macOS and Linux jobs.
-    Why: 0128-platform-port D12, 0131-linux-runner design D5.
+    Why: 0128-platform-port D12, 0131-linux-runner design D5 and D21.
     """
     if host == "linux":
         stands, reason = platform.has_sandbox(), "bwrap cannot apply a sandbox here"
+        folders = [Path(name).resolve() for name in platform.PRIVATE]
+        if stands and any(map(tmp_path.resolve().is_relative_to, folders)):
+            stands = False
+            reason = "the test folder is in a private folder: set TMPDIR outside /tmp"
     else:
         stands, reason = _seatbelt(), "sandbox-exec cannot apply a profile here"
     if stands:
@@ -680,31 +692,33 @@ def _require_sandbox(host: str) -> None:
 
 
 @pytest.fixture
-def real_sandbox(host: str, macos_side: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def real_sandbox(
+    host: str, tmp_path: Path, macos_side: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Run the test on the host's side; skip or fail it as `_require_sandbox` says.
 
     Why: 0131-linux-runner design D7.
     """
     monkeypatch.setattr(platform, "OS", host)
-    _require_sandbox(host)
+    _require_sandbox(host, tmp_path)
 
 
 def test_a_required_sandbox_that_cannot_apply_fails_and_else_skips(
     tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
-    _require_sandbox("macos")
+    _require_sandbox("macos", tmp_path)
 
     empty = tmp_path / "empty-bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
     outcomes = (pytest.fail.Exception, pytest.skip.Exception)
     with pytest.raises(outcomes, match="cannot apply a profile") as required:
-        _require_sandbox("macos")
+        _require_sandbox("macos", tmp_path)
     assert required.type is pytest.fail.Exception
     monkeypatch.delenv("MF_REQUIRE_SANDBOX")
     with pytest.raises(outcomes, match="cannot apply a profile") as optional:
-        _require_sandbox("macos")
+        _require_sandbox("macos", tmp_path)
     assert optional.type is pytest.skip.Exception
 
     for name, code in (("failing", 1), ("passing", 0)):
@@ -714,17 +728,30 @@ def test_a_required_sandbox_that_cannot_apply_fails_and_else_skips(
     monkeypatch.setenv("PATH", str(tmp_path / "failing-bin"))
     monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
     monkeypatch.setattr(platform, "OS", "linux")
+    monkeypatch.setattr(platform, "PRIVATE", ())
     with pytest.raises(outcomes, match="bwrap cannot apply a sandbox") as required:
-        _require_sandbox("linux")
+        _require_sandbox("linux", tmp_path)
     assert required.type is pytest.fail.Exception
     monkeypatch.delenv("MF_REQUIRE_SANDBOX")
     monkeypatch.setattr(platform, "OS", "linux")
+    monkeypatch.setattr(platform, "PRIVATE", ())
     with pytest.raises(outcomes, match="bwrap cannot apply a sandbox") as optional:
-        _require_sandbox("linux")
+        _require_sandbox("linux", tmp_path)
     assert optional.type is pytest.skip.Exception
     monkeypatch.setenv("PATH", str(tmp_path / "passing-bin"))
     monkeypatch.setattr(platform, "OS", "linux")
-    _require_sandbox("linux")
+    monkeypatch.setattr(platform, "PRIVATE", ())
+    _require_sandbox("linux", tmp_path)
+
+    monkeypatch.setattr(platform, "PRIVATE", (str(tmp_path.parent),))
+    monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
+    with pytest.raises(outcomes, match="in a private folder") as required:
+        _require_sandbox("linux", tmp_path)
+    assert required.type is pytest.fail.Exception
+    monkeypatch.delenv("MF_REQUIRE_SANDBOX")
+    with pytest.raises(outcomes, match="in a private folder") as optional:
+        _require_sandbox("linux", tmp_path)
+    assert optional.type is pytest.skip.Exception
 
 
 def test_a_write_outside_the_trees_is_denied(
@@ -800,6 +827,74 @@ def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None
         )
 
         assert code != 0
+        with pytest.raises(TimeoutError):
+            listener.accept()
+
+
+_UNIX_CONNECT = (
+    "import socket, sys;"
+    " client = socket.socket(socket.AF_UNIX); client.settimeout(2);"
+    " client.connect(sys.argv[1])"
+)
+
+
+@contextlib.contextmanager
+def _host_socket() -> Iterator[tuple[socket.socket, str]]:
+    """Yield a Unix listener the host holds under `/tmp`, and its path."""
+    folder = tempfile.mkdtemp(dir="/tmp")
+    path = os.path.join(folder, "host.sock")
+    try:
+        with socket.socket(socket.AF_UNIX) as listener:
+            listener.bind(path)
+            listener.listen()
+            listener.settimeout(1)
+            yield listener, path
+    finally:
+        shutil.rmtree(folder)
+
+
+def test_a_host_socket_is_out_of_reach(tmp_path: Path, real_sandbox: None) -> None:
+    trees = _trees(tmp_path)
+    out = io.StringIO()
+    with _host_socket() as (listener, path):
+        code = _conduct()["sandboxed"](
+            [*_python(_UNIX_CONNECT), path], trees[0], trees, out
+        )
+
+        assert code != 0
+        with pytest.raises(TimeoutError):
+            listener.accept()
+
+
+def test_the_private_folders_are_the_commands_own(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    if platform.OS == "macos":
+        pytest.skip("the private folders are bubblewrap's")
+    trees = _trees(tmp_path)
+    sandboxed = _conduct()["sandboxed"]
+
+    out = io.StringIO()
+    listing = _python("import os; print(os.listdir('/run'))")
+    assert sandboxed(listing, trees[0], trees, out) == 0
+    assert out.getvalue() == "[]\n"
+    out = io.StringIO()
+    write = f"open('/tmp/mf-{tmp_path.name}', 'w').close()"
+    assert sandboxed(_python(write), trees[0], trees, out) != 0
+    assert "Read-only file system" in out.getvalue()
+
+    prefix = platform.confine(platform.Policy((trees[0],), (), network=True))
+    read = "print(open('/etc/resolv.conf').read(), end='')"
+    shown = subprocess.run(
+        [*prefix, *_python(read)], capture_output=True, text=True, timeout=60
+    )
+    assert shown.returncode == 0
+    assert shown.stdout == Path("/etc/resolv.conf").read_text()
+    with _host_socket() as (listener, path):
+        reached = subprocess.run(
+            [*prefix, *_python(_UNIX_CONNECT), path], capture_output=True, timeout=60
+        )
+        assert reached.returncode != 0
         with pytest.raises(TimeoutError):
             listener.accept()
 

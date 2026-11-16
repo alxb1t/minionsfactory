@@ -927,7 +927,10 @@ hostile repo needs a container.**
   · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin` · a plain command has
   no network, so one that needs a registry fails red · on Linux a denied secret reads as empty or missing, not as an
   error, with the network off loopback is private to the command, not refused, a signal to a process outside fails as
-  no such process, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks.
+  no such process, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks,
+  the command has a `/run` and a `/tmp` of its own, so a file the host holds there outside the trees is unseen while a
+  host socket elsewhere on disk stays reachable, and a credential created at a denied path after a command starts is
+  readable by it until it ends.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
   reaches every local service · a plain command run bare where no OS sandbox stands.
 

@@ -234,6 +234,9 @@ Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts 
 - The LFS route: no hook runs in a run, so a run cannot upload LFS objects, and `lfs.*` keys still halt it.
 - WSL2 is unproven. On Linux the sandbox is bubblewrap, proved by CI's real-sandbox tests; a denied secret reads as empty
   or missing, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks.
+- Under bubblewrap a command has a `/run` and a `/tmp` of its own, so a host socket there is out of reach; one elsewhere
+  on disk is not. A credential created at a denied path after a command starts is readable by that command until it
+  ends: bubblewrap masks only what exists at the start.
 - A worker can forge a release on a head from its ledger entry until that head lands on `origin`; a release that never lands
   keeps its entry until a person removes it.
 - An outage holds that window open: while `origin` cannot be read, a run releases locally, and each head authorizes a

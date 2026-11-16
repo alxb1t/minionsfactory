@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D51 names Linux bubblewrap beside Seatbelt and accepts its differences; D78 drops its macOS-only converge. The threat
   model, the OS recipe and `mf-ship` say what Linux does; the scanner's halt names `betterleaks`, no `brew`
   (0131-linux-runner, phase 6).
+- On Linux a confined command gets a `/run` and a `/tmp` of its own, read-only outside its roots, so a host socket
+  there, such as the user's systemd bus, is out of reach; with the network open the resolver file is bound back. D51
+  and the threat model accept a host socket elsewhere and a credential created mid-command (0131-linux-runner, phase 7).
 
 ## [0.103.1] - 2026-11-16
 

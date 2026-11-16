@@ -63,19 +63,32 @@ def test_the_bwrap_command_follows_the_policy(
     empty = tmp_path / "empty-bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
-    a, b, temp, folder = (tmp_path / name for name in ("a", "b", "temp", "folder"))
-    for made in (a, b, temp, folder):
+    names = ("a", "b", "temp", "folder", "run", "spool")
+    a, b, temp, folder, run, spool = (tmp_path / name for name in names)
+    for made in (a, b, temp, folder, run, spool):
         made.mkdir()
     secret = tmp_path / "secret"
     secret.write_text("key")
     absent = tmp_path / "absent"
     link = tmp_path / "link"
     link.symlink_to(a)
+    stub = run / "stub-resolv.conf"
+    stub.write_text("nameserver 127.0.0.53")
+    resolver = tmp_path / "resolv.conf"
+    resolver.symlink_to(stub)
+    private = (str(run), str(spool), str(tmp_path / "gone"))
+    monkeypatch.setattr(platform, "PRIVATE", private)
+    monkeypatch.setattr(platform, "RESOLVER", str(resolver))
 
     def bind(path: Path) -> list[str]:
         return ["--bind", str(path.resolve()), str(path.resolve())]
 
+    def each(flag: str, *folders: Path) -> list[str]:
+        return [part for path in folders for part in (flag, str(path.resolve()))]
+
     head = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"]
+    hide, seal = each("--tmpfs", run, spool), each("--remount-ro", run, spool)
+    bound = ["--ro-bind", str(stub.resolve()), str(stub.resolve())]
     masks = [
         *("--tmpfs", str(folder.resolve())),
         *("--ro-bind", "/dev/null", str(secret.resolve())),
@@ -87,27 +100,63 @@ def test_the_bwrap_command_follows_the_policy(
 
     assert platform.confine(platform.Policy((link, b), denied, tmp=temp)) == [
         *head,
+        *hide,
         *bind(a),
         *bind(b),
         *bind(temp),
         *masks,
+        *seal,
         *shut,
     ]
     assert platform.confine(
         platform.Policy((a, b), denied, network=True, tmp=temp)
-    ) == [*head, *bind(a), *bind(b), *bind(temp), *masks, *opened]
+    ) == [*head, *hide, *bound, *bind(a), *bind(b), *bind(temp), *masks, *seal, *opened]
     assert platform.confine(platform.Policy((a, b), denied)) == [
         *head,
+        *hide,
         *bind(a),
         *bind(b),
         *masks,
+        *seal,
         *shut,
     ]
     assert platform.confine(platform.Policy((absent, b), ())) == [
         *head,
+        *hide,
         *bind(b),
+        *seal,
         *shut,
     ]
+
+    kept = [*head, *each("--tmpfs", run), *bind(a), *bind(spool)]
+    assert platform.confine(platform.Policy((a, spool), ())) == [
+        *kept,
+        *each("--remount-ro", run),
+        *shut,
+    ]
+    assert platform.confine(platform.Policy((a,), (), tmp=spool)) == [
+        *kept,
+        *each("--remount-ro", run),
+        *shut,
+    ]
+    inner = run / "inner"
+    inner.mkdir()
+    assert platform.confine(platform.Policy((inner,), ())) == [
+        *head,
+        *hide,
+        *bind(inner),
+        *seal,
+        *shut,
+    ]
+    for elsewhere in (secret, absent):
+        monkeypatch.setattr(platform, "RESOLVER", str(elsewhere))
+        assert platform.confine(platform.Policy((a,), (), network=True)) == [
+            *head,
+            *hide,
+            *bind(a),
+            *seal,
+            *opened,
+        ]
 
 
 def test_the_sandbox_stands_on_linux_when_bwrap_applies_one(
