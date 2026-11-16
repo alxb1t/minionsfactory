@@ -78,8 +78,8 @@ MOVED = "delta: changed on the default branch: "
 DECISIONS = "docs/decisions.md"
 # A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
-CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+CHANGE_ID = re.compile(rf"(\d+)-({SLUG.pattern})")
 CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
 DEPENDENCIES = "## Dependencies"
 INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
@@ -245,7 +245,6 @@ FORCED = (
     ("worktree remove", "-f"),
 )
 DENIALS = ("has been denied", "needs approval", "denied by your permission settings")
-NO_SANDBOX = "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
 SECRETS = (
     "~/.ssh",
     "~/.aws",
@@ -3329,6 +3328,16 @@ def _watch(
         os.killpg(group, signal.SIGKILL)
 
 
+def _no_sandbox() -> Stop:
+    """Return the stop for a run whose OS sandbox does not stand, its why the port's.
+
+    Why: 0131-linux-runner design D8.
+    """
+    return Stop(
+        2, f"conduct: cannot run — no OS sandbox: {mflib.platform.no_sandbox()}"
+    )
+
+
 def sandboxed(
     argv: list[str],
     cwd: Path,
@@ -3337,13 +3346,13 @@ def sandboxed(
     timeout: float | None = None,
     grace: float = 5.0,
 ) -> int:
-    """Run `argv` in `cwd` under macOS Seatbelt and return its exit code.
+    """Run `argv` in `cwd` under the host's OS sandbox and return its exit code.
 
     A `timeout` ends the command's group and gives 124. Why: 0107-sandbox-runner
     design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
     """
     if not mflib.platform.has_sandbox():
-        raise Stop(2, NO_SANDBOX)
+        raise _no_sandbox()
     minions = trees[0] / ".minions"
     try:
         os.close(_folder_fd(trees[0], ".minions"))
@@ -4216,7 +4225,7 @@ def _hold_awake(pid: int) -> str:
     e.g. `awake: held`. Why: 0069-caffeinate design D1.
     """
     if not mflib.platform.has_hold():
-        return "awake: not held — caffeinate not on PATH"
+        return f"awake: not held — {mflib.platform.no_hold()}"
     mflib.platform.hold_awake(pid)
     return "awake: held"
 
@@ -4363,6 +4372,33 @@ def _unlinked(executor: str) -> None:
         )
 
 
+def _hide_marks(common: Path) -> None:
+    """Append to `info/exclude` each of the port's marks no line of it equals.
+
+    A link at `info` or `exclude` stops the run with 2.
+    Why: 0131-linux-runner design D2.
+    """
+    marks = mflib.platform.marks()
+    if not marks:
+        return
+    flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
+    try:
+        fd = _folder_fd(common, "info")
+        try:
+            file = os.open("exclude", flags, 0o644, dir_fd=fd)
+        finally:
+            os.close(fd)
+        with os.fdopen(file, "r+", encoding="utf-8", errors="replace") as exclude:
+            text = exclude.read()
+            lines = text.splitlines()
+            missing = "".join(f"{mark}\n" for mark in marks if mark not in lines)
+            lead = "\n" if text and not text.endswith("\n") else ""
+            if missing:
+                exclude.write(lead + missing)
+    except OSError as error:
+        raise Stop(2, f"run: cannot run — .git/info/exclude: {error}") from None
+
+
 def preconditions(cwd: Path, executor: str) -> Path:
     """Return the primary checkout once every run precondition holds; else exit 2."""
     top = _maybe(cwd, "rev-parse", "--show-toplevel")
@@ -4379,6 +4415,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
     default = default_branch(primary)
     if (branch := _git(primary, "branch", "--show-current").strip()) != default:
         raise Stop(2, f"run: cannot run — on {branch or 'no branch'}, not {default}")
+    _hide_marks(common)
     # A held key halts at `push_left`, in the run's log, before any `git status`.
     if not _config_held(primary) and _dirty(primary):
         raise Stop(2, "run: cannot run — the primary's tree is not clean")
@@ -4387,9 +4424,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
     if _executor_missing(executor):
         raise Stop(2, f"run: cannot run — {executor} is not on PATH")
     if shutil.which(SCANNER) is None:
-        raise Stop(
-            2, f"run: cannot run — {SCANNER} is not on PATH: brew install {SCANNER}"
-        )
+        raise Stop(2, f"run: cannot run — {SCANNER} is not on PATH")
     _unlinked(executor)
     if _claim(primary / ".minions" / "runs" / "active") == "live":
         raise Stop(2, "run: cannot run — a run is live: .minions/runs/active exists")
@@ -7303,13 +7338,13 @@ def _fetch_run(
     env: dict[str, str],
     timeout: float,
 ) -> subprocess.CompletedProcess[str]:
-    """Run `argv` under Seatbelt with the network open, writing in `writes` alone.
+    """Run `argv` under the OS sandbox with the network open, writing in `writes` alone.
 
-    No `sandbox-exec` on `PATH` stops with 2. Why: 0121-ui-prepare design D3.
+    No OS sandbox stops with 2. Why: 0121-ui-prepare design D3.
     """
     policy = _policy(writes, Path.home(), network=True)
     if not mflib.platform.has_sandbox():
-        raise Stop(2, NO_SANDBOX)
+        raise _no_sandbox()
     return subprocess.run(
         [*mflib.platform.confine(policy), *argv],
         cwd=cwd,

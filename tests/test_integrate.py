@@ -96,6 +96,15 @@ def test_a_hand_run_station_halts_on_an_old_layout(tmp_path: Path) -> None:
     )
 
 
+def test_next_names_no_version_whose_id_has_an_empty_word(tmp_path: Path) -> None:
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    _version(root, "0001-a-")
+
+    result = _run(root, "next", "0001-a-")
+
+    assert (result.returncode, result.stdout) == (1, "next: 0001-a- · not open\n")
+
+
 @pytest.mark.slow
 def test_next_picks_the_named_or_the_lowest_ready_id(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})

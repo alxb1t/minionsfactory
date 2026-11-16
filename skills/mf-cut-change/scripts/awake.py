@@ -98,7 +98,7 @@ def _start(record: Path) -> str:
     """Hold the machine awake and record the hold; return the line to print."""
     _release(record)
     if not mflib.platform.has_hold():
-        return "awake: not held — caffeinate not on PATH"
+        return f"awake: not held — {mflib.platform.no_hold()}"
     host = _host()
     if host is None:
         return "awake: not held — no host process"

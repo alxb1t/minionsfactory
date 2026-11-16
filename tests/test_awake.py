@@ -185,6 +185,21 @@ def test_no_hold_starts_without_caffeinate_or_a_host(
     assert _lines(argv) == []
 
 
+def test_a_cut_on_linux_says_it_holds_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path, monkeypatch)
+    argv, _ = _fake_caffeinate(tmp_path, monkeypatch)
+    _ancestors(monkeypatch, [(9001, "zsh"), (9002, "claude")], None)
+    monkeypatch.setattr(platform, "OS", "linux")
+
+    assert awake.main(["start", "0001-a"]) == 0
+
+    assert capsys.readouterr().out == "awake: not held — no hold on Linux\n"
+    assert not (root / ".minions" / "awake").exists()
+    assert _lines(argv) == []
+
+
 _RECORD_SESSION = """
 import os
 

@@ -53,11 +53,11 @@ the finder, a reader takes it from there.
 
 ## An OS
 
-A platform other than macOS. Today's OS commands are `sandbox-exec`, `caffeinate`, `sysctl` and `ps`.
+A platform other than macOS or Linux. Today's OS commands are `sandbox-exec`, `bwrap`, `caffeinate`, `sysctl` and `ps`.
 
 | file | edit |
 |---|---|
-| `skills/mflib/platform.py` | `Policy`, `profile`, `confine` and `has_sandbox`, the sandbox; `refused`, its refusal; `arch`, the host's architecture; `process`, a process's `ps` field; `has_hold`, `hold_awake` and `CAFFEINATE`, the awake hold |
+| `skills/mflib/platform.py` | `OS` and `side`, the host's side, read once; `Policy`, `profile`, `confine` and `has_sandbox`, the sandbox, `confine` and `has_sandbox` on Linux through `bwrap`; `no_sandbox`, why no sandbox stands; `refused`, its refusal per `OS`; `arch`, the host's architecture; `process`, a process's `ps` field; `has_hold`, `hold_awake`, `no_hold` and `CAFFEINATE`, the awake hold; `marks`, the worker sandbox's names |
 
 - **Row:** none, unless the extension adds a script; then a row as for a station.
 - **Rules:** `check_os` fails on an OS command a file other than the port, `skills/mflib/platform.py`, names unless

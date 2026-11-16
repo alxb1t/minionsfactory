@@ -583,7 +583,7 @@ pass; only the environment, a loop outcome, a red gate and a security card halt.
 
 - **Why:** the conductor was 17–24% of a converge and judged six things; a script reads fields.
 - **Accepts:** one implementation with two fronts · a card's **Still true?** prose is never checked · a command that exits 1 is
-  moot · a macOS-only converge until Linux has a runner.
+  moot.
 - **Rejected:** a runner that reimplements stations inside `conduct.py` · a python claim leader · a conducting LLM for a hand converge.
 - **Amends:** D3, D40, D47, D51, D53, D64, D68, D70, D71 and D76, each edited where it lives.
 
@@ -907,7 +907,7 @@ key mean no cap; a file that cannot be read, or a value that is no whole number 
 the run directory and its brief alone ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) — a Codex cutter to
 the brief's folder, which then holds the brief alone, and a brief or `.minions` that is a link starts no cutter — and its scripts
 reach no unlisted domain. A plain command a run starts on a builder's code — the gate, a check script, a `Verify:` —
-runs under `sandboxed()`: macOS Seatbelt, writes inside the version's trees alone, no credential read and no network, and
+runs under `sandboxed()`: macOS Seatbelt or Linux bubblewrap, writes inside the version's trees alone, no credential read and no network, and
 no OS sandbox ends it with exit 2. The converge script runs at the conductor's rights and runs each command of a builder's
 code under the sandbox runner. A Claude worker whose sandbox cannot start does not run, and each run's probe proves a write out
 refused, and on Codex one checker. `conduct.py` holds the push: its remote calls read no repo's config, and go only to the URLs a run kept in the home folder.
@@ -925,7 +925,12 @@ hostile repo needs a container.**
   worker · a Claude worker starts no MCP server, the operator's own included ·
   a Codex worker loads no user config ([D67](#d67--a-codex-worker-starts-on-mfs-settings-logs-json-and-is-proved-by-a-checker))
   · a domain `Ship network:` lists · a release forged on a head before that head lands on `origin` · a plain command has
-  no network, so one that needs a registry fails red · Linux has no runner until a run starts there.
+  no network, so one that needs a registry fails red · on Linux a denied secret reads as empty or missing, not as an
+  error, with the network off loopback is private to the command, not refused, a signal to a process outside fails as
+  no such process, and an untracked file named as Claude Code's Linux sandbox marks is unseen by the clean-tree checks,
+  the command has a `/run` and a `/tmp` of its own, so a file the host holds there outside the trees is unseen while a
+  host socket elsewhere on disk stays reachable, and a credential created at a denied path after a command starts is
+  readable by it until it ends.
 - **Rejected:** auto mode · a deny list for Codex · a container, until a repo is hostile · loopback per repo: on macOS it
   reaches every local service · a plain command run bare where no OS sandbox stands.
 

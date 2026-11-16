@@ -264,6 +264,15 @@ def test_each_conduct_load_is_a_fresh_module() -> None:
     assert "<run_path>" not in sys.modules
 
 
+def test_a_change_id_has_no_empty_word() -> None:
+    pattern = _conduct()["CHANGE_ID"]
+
+    assert pattern.fullmatch("0001-a")
+    assert pattern.fullmatch("0001-a-b")
+    for refused in ("0001-a-", "0001--a", "0001-"):
+        assert not pattern.fullmatch(refused), refused
+
+
 @pytest.fixture
 def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]:
     """Point `MF_SHIP_AGENT` at `fake_worker.py`; return a setter of its modes."""
@@ -8328,12 +8337,80 @@ def test_a_run_without_betterleaks_stops_at_start(
         == 2
     )
 
-    assert capsys.readouterr().out.strip() == (
-        "run: cannot run — betterleaks-absent is not on PATH:"
-        " brew install betterleaks-absent"
+    assert (
+        capsys.readouterr().out.strip()
+        == "run: cannot run — betterleaks-absent is not on PATH"
     )
     assert _calls(calls) == []
     assert not (root / ".minions" / "runs").exists()
+
+
+def test_a_start_on_linux_writes_the_marks_into_the_exclude(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    conduct["main"].__globals__["SCANNER"] = "betterleaks-absent"
+    monkeypatch.setattr(platform, "OS", "linux")
+    marks = "".join(f"{mark}\n" for mark in platform.MARKS)
+    rest = "".join(f"{mark}\n" for mark in platform.MARKS if mark != ".bashrc")
+
+    def primary(label: str) -> Path:
+        """Return a primary with an untracked `.bashrc` and no `info/exclude`."""
+        (tmp_path / label).mkdir()
+        root = _primary(tmp_path / label)
+        (root / ".bashrc").write_text("untracked\n")
+        (root / ".git" / "info" / "exclude").unlink()
+        return root
+
+    def run(root: Path) -> tuple[int, str]:
+        code = _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+        return code, capsys.readouterr().out.strip()
+
+    for label, before, after in (
+        ("absent", None, marks),
+        ("one", ".bashrc\n", f".bashrc\n{rest}"),
+        ("all", f"# mine\n{marks}", f"# mine\n{marks}"),
+        ("unended", "# mine", f"# mine\n{marks}"),
+    ):
+        root = primary(label)
+        exclude = root / ".git" / "info" / "exclude"
+        if before is not None:
+            exclude.write_text(before)
+        code, out = run(root)
+        assert code == 2, label
+        assert "betterleaks-absent is not on PATH" in out, label
+        assert "tree is not clean" not in out, label
+        assert exclude.read_text() == after, label
+
+    # A link at `exclude` or at `info` stops the run, and nothing is written through it.
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "exclude").write_text("# theirs\n")
+    for label, link, target in (
+        ("exclude", ".git/info/exclude", outside / "exclude"),
+        ("info", ".git/info", outside),
+    ):
+        root = primary(f"{label}-link")
+        if label == "info":
+            (root / link).rmdir()
+        (root / link).symlink_to(target)
+        code, out = run(root)
+        assert code == 2, label
+        assert out.startswith("run: cannot run — .git/info/exclude: "), label
+        assert (outside / "exclude").read_text() == "# theirs\n", label
+
+    # On macOS nothing is written, and the untracked `.bashrc` stops the run.
+    monkeypatch.setattr(platform, "OS", "macos")
+    root = primary("macos")
+    assert run(root) == (2, "run: cannot run — the primary's tree is not clean")
+    assert not (root / ".git" / "info" / "exclude").exists()
+    assert _calls(calls) == []
 
 
 @pytest.mark.slow
@@ -8377,6 +8454,36 @@ def test_a_run_holds_the_machine_awake(
         assert " · run · start — " in lines[0]
         assert lines[0].endswith(f" · pending v9.9.9 · {field}")
         assert lines[-1].endswith(" · run · done — nothing to ship")
+
+
+@pytest.mark.slow
+def test_a_run_on_linux_holds_nothing_and_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    folder = tmp_path / "caffeinate-bin"
+    folder.mkdir()
+    argv = tmp_path / "caffeinate-argv.txt"
+    tool = folder / "caffeinate"
+    tool.write_text(f'#!/bin/sh\necho "$@" >> {shlex.quote(str(argv))}\n')
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setattr(platform, "OS", "linux")
+    field = "awake: not held — no hold on Linux"
+
+    assert conduct["_hold_awake"](4242) == field
+
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept.mkdir()
+    (kept / "pending").write_text("v9.9.9\n")
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.ship() == 0
+    lines = conductor.log.path.read_text().splitlines()[2:]
+    assert " · run · start — " in lines[0]
+    assert lines[0].endswith(f" · pending v9.9.9 · {field}")
+    assert not argv.exists()
 
 
 def _run_claude(

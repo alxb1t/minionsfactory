@@ -327,6 +327,16 @@ def _unticked(host: Host) -> None:
     _commit(host.tree, {f"openspec/changes/{_CHANGE}/tasks.md": tasks}, "a phase")
 
 
+def _no_progress(host: Host) -> None:
+    tasks = "# Tasks\n\n## 1 — One\n\n- [x] 1.1 One.\n"
+    _commit(host.tree, {f"openspec/changes/{_CHANGE}/tasks.md": tasks}, "no progress")
+
+
+def _upper_tick(host: Host) -> None:
+    tasks = _TASKS.replace("- [x] 1", "- [X] 1")
+    _commit(host.tree, {f"openspec/changes/{_CHANGE}/tasks.md": tasks}, "a capital")
+
+
 def _empty(host: Host) -> None:
     _git(host.tree, "reset", "-q", "--hard", "main")
 
@@ -390,6 +400,8 @@ def _unstamped(host: Host) -> None:
 _REFUSED: dict[str, tuple[Callable[[Host], None], int, str | None]] = {
     "dirty": (_dirty, 1, "the tree is dirty: stray.txt"),
     "unticked": (_unticked, 1, "phase 2 of tasks.md is unticked: mf-build owns it"),
+    "no progress": (_no_progress, 1, "tasks.md has no ## Progress list"),
+    "upper-case tick": (_upper_tick, 1, "tasks.md has no ## Progress list"),
     "unrelated": (_unrelated, 1, "git merge-base failed: "),
     "unreadable": (
         _unreadable,
@@ -1391,6 +1403,23 @@ def test_round_three_is_the_cap_of_a_pickup_and_a_catch_up(host: Host) -> None:
         "round 3 · halt — the files judged round 3, the cap: revert the late commits,"
         f" or re-converge from round 1 · head {_head(host)}"
     )
+
+
+def test_a_resumed_counted_catch_up_halts_at_round_three(host: Host) -> None:
+    head = _head(host)
+    answer(host, "conformance", _card("R1 blocking"), blocking=1, round=3)(head)
+    answer(host, "adversarial", round=3)(head)
+    _plant(
+        host,
+        f"round 2 · catch-up — judged head {head[:7]} · HEAD {head[:7]} · counted",
+        _verdicts("conformance", 3, "changes-requested", 1),
+        mark="catch-up",
+    )
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == f"round 3 · halt — cap reached, R1 open · head {head}"
+    assert host.fixed == []
 
 
 def test_a_sandboxed_command_gets_the_converge_deadline(host: Host) -> None:
