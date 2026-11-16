@@ -6,7 +6,7 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 
 - [x] 1 — A phase and an id · moderate
 - [x] 2 — The lock and the card · moderate
-- [ ] 3 — The prose · moderate
+- [x] 3 — The prose · moderate
 - [ ] 4 — The cap's case · moderate
 - [ ] 5 — The port's case · hard
 
@@ -32,13 +32,13 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 
 ## 3 — The prose
 
-- [ ] 3.1 In the run directory's sentence of `skills/mf-build/SKILL.md`, `skills/mf-plan/SKILL.md`, `skills/mf-cut-change/SKILL.md`, `skills/mf-release/SKILL.md` and `skills/mf-integrate/SKILL.md`, replace `` `$(git rev-parse --path-format=absolute --git-common-dir)/../.minions` `` with `` `git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions` ``; the words after it stay ([D5](design.md#d5)).
+- [x] 3.1 In the run directory's sentence of `skills/mf-build/SKILL.md`, `skills/mf-plan/SKILL.md`, `skills/mf-cut-change/SKILL.md`, `skills/mf-release/SKILL.md` and `skills/mf-integrate/SKILL.md`, replace `` `$(git rev-parse --path-format=absolute --git-common-dir)/../.minions` `` with `` `git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions` ``; the words after it stay ([D5](design.md#d5)).
   Verify: `git grep -n -F "git-common-dir)/" -- skills` prints nothing.
-- [ ] 3.2 In `tests/test_skills.py` add `_SUBSTITUTION = re.compile(r"\$\((?!shell\b)[a-z]")` and `_substitution_problems(base)`, one line `skills/<name>/SKILL.md:<line>: a command substitution` for each line of each `SKILL.md` the pattern finds. Add `test_no_skill_names_a_command_substitution` (the repository: none) and `test_the_substitution_scan_reports_each_line`, which plants `` `$(git rev-parse HEAD)` `` and `` `$(shell …)` `` with `_plant` and expects the first alone ([D5](design.md#d5)).
+- [x] 3.2 In `tests/test_skills.py` add `_SUBSTITUTION = re.compile(r"\$\((?!shell\b)[a-z]")` and `_substitution_problems(base)`, one line `skills/<name>/SKILL.md:<line>: a command substitution` for each line of each `SKILL.md` the pattern finds. Add `test_no_skill_names_a_command_substitution` (the repository: none) and `test_the_substitution_scan_reports_each_line`, which plants `` `$(git rev-parse HEAD)` `` and `` `$(shell …)` `` with `_plant` and expects the first alone ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_skills.py -q -k substitution` passes.
-- [ ] 3.3 In `skills/mf-converge/SKILL.md`, the sentence that begins `It loads` and names `stamp.py`: add `evidence.py` and `gate_integrity.py` to the scripts it loads from its folder, so the list ends `` `plan_check.py`, `evidence.py`, `gate_integrity.py` and `overlap.py` `` ([D6](design.md#d6)).
+- [x] 3.3 In `skills/mf-converge/SKILL.md`, the sentence that begins `It loads` and names `stamp.py`: add `evidence.py` and `gate_integrity.py` to the scripts it loads from its folder, so the list ends `` `plan_check.py`, `evidence.py`, `gate_integrity.py` and `overlap.py` `` ([D6](design.md#d6)).
   Verify: `git grep -n -e evidence.py -e gate_integrity.py -- skills/mf-converge/SKILL.md` prints the line.
-- [ ] 3.4 In `tests/test_skills.py` add `_loads_problems(base)`: read the `names` cell of the `skills/mf-converge/scripts/converge.py` row of `docs/modules.md`, and for each name `skills/mf-converge/SKILL.md` does not hold print `skills/mf-converge/SKILL.md: <name>: not named`. Add `test_mf_converge_names_each_script_the_map_says_it_loads` (the repository: none) and a twin that writes `docs/modules.md` itself, the row `` | `skills/mf-converge/scripts/converge.py` | station | a.py, b.py | ``, plants a text naming `a.py`, and expects `b.py` alone ([D6](design.md#d6)).
+- [x] 3.4 In `tests/test_skills.py` add `_loads_problems(base)`: read the `names` cell of the `skills/mf-converge/scripts/converge.py` row of `docs/modules.md`, and for each name `skills/mf-converge/SKILL.md` does not hold print `skills/mf-converge/SKILL.md: <name>: not named`. Add `test_mf_converge_names_each_script_the_map_says_it_loads` (the repository: none) and a twin that writes `docs/modules.md` itself, the row `` | `skills/mf-converge/scripts/converge.py` | station | a.py, b.py | ``, plants a text naming `a.py`, and expects `b.py` alone ([D6](design.md#d6)).
   Verify: `uv run pytest tests/test_skills.py -q -k "names_each_script"` passes.
 
 ## 4 — The cap's case

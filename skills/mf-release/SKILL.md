@@ -61,7 +61,7 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 `main` when that fails.
 
 The **run directory** is `.minions/` beside the primary checkout:
-`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
 
 A **version file** may be absent — many repos keep none. That is a **stated skip, not a halt**: report it as

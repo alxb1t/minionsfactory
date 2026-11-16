@@ -45,7 +45,7 @@ Every one holds, or **halt** naming the one that failed:
 Every fact below is read at `<ref>` and cited at `<sha>`.
 
 The **run directory** is `.minions/` beside the primary checkout:
-`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
 
 ## Step 2 — Read the target, read-only

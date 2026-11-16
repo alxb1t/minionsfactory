@@ -72,7 +72,7 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 `main` when that fails.
 
 The **run directory** is `.minions/` beside the primary checkout:
-`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
 
 Run `uv run --script scripts/cut_pre.py <change-id>`, `scripts/` resolved from this skill's package, adding
