@@ -50,6 +50,7 @@ section.unread h2 { color: var(--overlay); opacity: 0.7; }
 .s-needs-you { color: var(--peach); }
 .s-unread { color: var(--overlay); opacity: 0.7; }
 .s-cut { color: var(--mauve); }
+.s-queued { color: var(--subtext); }
 .s-cut-halted { color: var(--red); }
 .l-active { color: var(--green); }
 .l-recent { color: var(--subtext); }
@@ -197,7 +198,7 @@ function renderProject(parent, project, now) {
     project.queue.forEach(function (cut) {
       var line = add(section, "div", "row");
       add(line, "span", slug(cut.state), cut.state);
-      add(line, "span", "", "  " + parts([cut.id, cut.halt]));
+      add(line, "span", "", "  " + parts([cut.id, cut.halt, cut.waits]));
     });
   }
 }

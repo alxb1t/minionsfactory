@@ -148,7 +148,7 @@ A hard close then queues the cut:
 **Close-out:** at most three sentences — what was settled, the brief's path, and anything the person must act on
 — then the last lines:
 
-- hard and queued: `Next: the run cuts and ships it; conduct.py status says where it stands.`
+- hard and queued: `Next: the run cuts and ships it when a slot frees under the cap; conduct.py status says where it stands.`
 - hard and not queued: one line per change of `## For the cut`, in order,
   `Next: /mf-cut-change <NNNN>-<slug> <bump> brief=<path>`, `<NNNN>` left for the person: the next free number when
   they cut it

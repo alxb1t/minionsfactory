@@ -506,15 +506,18 @@ class Reader:
             },
             "for_you": self.for_you(built, cuts, claim),
             "versions": built,
-            "queue": [
-                {
-                    "id": name,
-                    "state": "cut" if entry["halt"] is None else "cut halted",
-                    "halt": entry["halt"],
-                }
-                for name, entry in cuts.items()
-            ],
+            "queue": [self.queue_row(name, entry) for name, entry in cuts.items()],
         }
+
+    def queue_row(self, name: str, entry: dict[str, Any]) -> dict[str, Any]:
+        """Return a queued cut's row: `queued` while it waits, `cut halted` on a halt.
+
+        Why: 0129-queue-cap design D5.
+        """
+        halt = entry["halt"]
+        waits = entry.get("waits") if halt is None else None
+        state = "cut halted" if halt is not None else "queued" if waits else "cut"
+        return {"id": name, "state": state, "halt": halt, "waits": waits}
 
     def for_you(
         self, built: list[dict[str, Any]], cuts: dict[str, Any], claim: str
