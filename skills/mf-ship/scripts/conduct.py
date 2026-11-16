@@ -2066,21 +2066,24 @@ def _scratch() -> tempfile.TemporaryDirectory[str]:
 
 
 def _outside(
-    primary: Path, *args: str, timeout: int = GIT_TIMEOUT
+    primary: Path, *args: str, timeout: int = GIT_TIMEOUT, keep: bool = False
 ) -> subprocess.CompletedProcess[str]:
     """Return a remote git call finished from a scratch repo with `primary`'s objects.
 
-    Why: 0052-security-hardening design D9; 0062-offline-origin design D3.
+    `keep` stores what it downloads there. Why: 0052-security-hardening design D9;
+    0062-offline-origin design D3; 0132-cloud-run design D3.
     """
     with _scratch() as scratch:
         root = Path(scratch)
         _git(root, "init", "-q", "--bare", "--template=")
-        alternates = root / "objects" / "info" / "alternates"
         objects = _git(
             primary, "rev-parse", "--path-format=absolute", "--git-path", "objects"
         )
-        alternates.write_text(objects)
         env = {**os.environ, "GIT_DIR": scratch, "GIT_NO_REPLACE_OBJECTS": "1"}
+        if keep:
+            env["GIT_OBJECT_DIRECTORY"] = objects.strip()
+        else:
+            (root / "objects" / "info" / "alternates").write_text(objects)
         operator = ("GIT_SSH_COMMAND", "GIT_SSH")
         named = _maybe(root, "config", "--get", "core.sshCommand")
         if not any(env.get(name) for name in operator) and not (named or "").strip():
@@ -2152,11 +2155,11 @@ def _scan(primary: Path, base: str | None, sha: str) -> None:
 
 
 def _remote(
-    primary: Path, *args: str, timeout: int = GIT_TIMEOUT
+    primary: Path, *args: str, timeout: int = GIT_TIMEOUT, keep: bool = False
 ) -> subprocess.CompletedProcess[str]:
     """Return `_outside`'s call; one that stopped, a timeout, exits 1 naming why."""
     try:
-        return _outside(primary, *args, timeout=timeout)
+        return _outside(primary, *args, timeout=timeout, keep=keep)
     except Stop as stop:
         return subprocess.CompletedProcess(args, 1, "", str(stop))
 
@@ -2356,6 +2359,31 @@ def _local_releases(
     return [default, *(named if push_tags else [])] if commits else []
 
 
+def _fetch_default(
+    primary: Path, url: str, default: str, base: str, notes: list[str]
+) -> None:
+    """Fetch `base`, origin's `default` tip, and fast-forward the local `default` to it.
+
+    A diverged or ahead branch stays; a failed fetch is `Unreachable`.
+    Why: 0132-cloud-run design D3.
+    """
+    local = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
+    if _outside(primary, "cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
+        done = _remote(
+            primary,
+            *("fetch", "--no-tags", "--no-write-fetch-head"),
+            *(f"--negotiation-tip={local}", "--", url, f"refs/heads/{default}"),
+            timeout=PUSH_TIMEOUT,
+            keep=True,
+        )
+        if done.returncode != 0:
+            raise Unreachable(1, _why(done))
+        notes.append(f"fetched {default} {base[:7]}")
+    if local != base and _history_ancestor(primary, local, base):
+        _git(primary, "merge", "-q", "--ff-only", base)
+        notes.append(f"fast-forwarded {default} to {base[:7]}")
+
+
 def _unpushed(
     primary: Path,
     first_read: bool = False,
@@ -2365,8 +2393,8 @@ def _unpushed(
 ) -> list[tuple[str, str]]:
     """Return each `(ref, sha)` to push; `push_tags` false names no tag.
 
-    A run's start makes the missing tags of `origin`'s releases, noted in `notes`.
-    Why: 0053-sandbox-patch design D2; 0132-cloud-run design D1, D2.
+    A run's start brings in origin's default and its releases' tags, noted in `notes`.
+    Why: 0053-sandbox-patch design D2; 0132-cloud-run design D1, D2, D3.
     """
     notes = [] if notes is None else notes
     url = _read_url(primary, first_read)
@@ -2397,6 +2425,8 @@ def _unpushed(
         raise Stop(
             1, f"conduct: halt — origin has no {default}: a person pushes it first"
         )
+    if first_read and start and url:
+        _fetch_default(primary, url, default, base, notes)
     if _outside(primary, "cat-file", "-e", f"{base}^{{commit}}").returncode != 0:
         raise Stop(
             1,

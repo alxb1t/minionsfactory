@@ -8094,7 +8094,29 @@ def test_a_refused_tag_push_halts_the_run(
 
 
 @pytest.mark.slow
-def test_a_local_default_behind_origin_passes(
+def test_a_diverged_default_halts_at_the_push(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "operator.gitconfig"))
+    root, origin = _with_origin(tmp_path)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _released(root, "v0.1.0")
+    _commit(other, {"theirs.txt": "x\n"}, "origin moves")
+    _git(other, "push", "-q", "origin", "main")
+    held = _git(root, "rev-parse", "main")
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _log(root)[-2].endswith(
+        " · run · halt — git push origin main failed, exit 1"
+    )
+    assert _git(root, "rev-parse", "main") == held
+
+
+@pytest.mark.slow
+def test_a_local_default_behind_origin_is_brought_up(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -8108,14 +8130,14 @@ def test_a_local_default_behind_origin_passes(
     _git(tmp_path, "clone", "-q", str(origin), str(other))
     _commit(other, {"theirs.txt": "x\n"}, "origin moves")
     _git(other, "push", "-q", "origin", "main")
-    _git(root, "fetch", "-q", "origin")
-    held = _git(root, "rev-parse", "main")
 
     assert _status(conduct, root, capsys, monkeypatch) == (
         "status: none — no open version"
     )
     assert _run_claude(conduct, root, monkeypatch) == 0
-    assert _git(root, "rev-parse", "main") == held
+    assert _git(root, "rev-parse", "main") == _git(origin, "rev-parse", "main")
+    assert (root / "theirs.txt").read_text() == "x\n"
+    assert " · run · sync — fast-forwarded main to " in "\n".join(_log(root))
 
 
 def _origin_judged(
@@ -9014,6 +9036,7 @@ def _push_then_forge(
             cwd: Path,
             *args: str,
             timeout: int = conduct["GIT_TIMEOUT"],
+            keep: bool = False,
             mutation: tuple[str, ...] = mutation,
             tag: str = tag,
             branch: str = branch,
@@ -9025,7 +9048,7 @@ def _push_then_forge(
                 and args[-1].endswith(":refs/heads/main")
             ):
                 return subprocess.CompletedProcess(args, 1, "", "rejected")
-            done = outside(cwd, *args, timeout=timeout)
+            done = outside(cwd, *args, timeout=timeout, keep=keep)
             if (
                 args[0] == "push"
                 and args[-1].endswith(f":refs/tags/{tag}")
@@ -9284,6 +9307,87 @@ def test_the_tags_origin_holds_are_made_locally(tmp_path: Path) -> None:
     assert not _git(root, "tag", "-l", "v0.4.0", "v0.5.0")
 
 
+def test_a_start_fetches_and_fast_forwards_the_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    module = conduct["main"].__globals__
+    root, origin = _with_origin(tmp_path)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+
+    def start() -> list[str]:
+        notes: list[str] = []
+        conduct["_unpushed"](root, first_read=True, start=True, notes=notes)
+        return notes
+
+    def moved(name: str) -> str:
+        _commit(other, {name: "x\n"}, f"origin takes {name}")
+        _git(other, "push", "-q", "origin", "main")
+        return _git(other, "rev-parse", "main")
+
+    def held(sha: str) -> bool:
+        return conduct["_maybe"](root, "cat-file", "-e", sha) is not None
+
+    def main() -> str:
+        return _git(root, "rev-parse", "main")
+
+    # Behind, the objects absent: fetched into the primary, then fast-forwarded.
+    tip = moved("theirs.txt")
+    assert not held(tip)
+    assert start() == [f"fetched main {tip[:7]}", f"fast-forwarded main to {tip[:7]}"]
+    assert main() == tip
+    assert (root / "theirs.txt").read_text() == "x\n"
+    assert _git(root, "status", "--porcelain") == ""
+
+    # Behind, the objects held: fast-forwarded alone.
+    tip = moved("held.txt")
+    _git(root, "fetch", "-q", "origin")
+    assert start() == [f"fast-forwarded main to {tip[:7]}"]
+    assert main() == tip
+
+    # Equal: nothing.
+    assert start() == []
+    assert main() == tip
+
+    # A fetch that fails is a wait, and moves nothing.
+    remote = module["_remote"]
+
+    def refused(
+        primary: Path,
+        *args: str,
+        keep: bool = False,
+        timeout: int = conduct["GIT_TIMEOUT"],
+    ) -> subprocess.CompletedProcess[str]:
+        if args[0] == "fetch":
+            return subprocess.CompletedProcess(args, 128, "", "fatal: origin is down\n")
+        return remote(primary, *args, keep=keep, timeout=timeout)
+
+    down = moved("down.txt")
+    monkeypatch.setitem(module, "_remote", refused)
+    with pytest.raises(conduct["Unreachable"], match="fatal: origin is down"):
+        start()
+    assert main() == tip
+    assert not held(down)
+    monkeypatch.setitem(module, "_remote", remote)
+    assert start() == [f"fetched main {down[:7]}", f"fast-forwarded main to {down[:7]}"]
+
+    # Ahead: a release merged here and not pushed. The branch stays.
+    _released(root, "v0.1.0")
+    ahead = main()
+    assert start() == []
+    assert main() == ahead
+
+    # Diverged: fetched, and the local branch never moves; no merge is made.
+    merges = _git(root, "rev-list", "--merges", "main")
+    tip = moved("diverged.txt")
+    assert start() == [f"fetched main {tip[:7]}"]
+    assert held(tip)
+    assert main() == ahead
+    assert _git(root, "rev-list", "--merges", "main") == merges
+    assert not (root / "diverged.txt").exists()
+
+
 @pytest.mark.slow
 def test_no_worker_pushes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -9322,10 +9426,10 @@ def _spied(
     reached: list[tuple[str, ...]] = []
 
     def spy(
-        primary: Path, *args: str, timeout: int = 60
+        primary: Path, *args: str, timeout: int = 60, keep: bool = False
     ) -> subprocess.CompletedProcess[str]:
         reached.append(args)
-        return outside(primary, *args, timeout=timeout)
+        return outside(primary, *args, timeout=timeout, keep=keep)
 
     monkeypatch.setitem(module, "_outside", spy)
     return reached

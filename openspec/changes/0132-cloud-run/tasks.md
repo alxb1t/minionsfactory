@@ -7,7 +7,7 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 - [x] 1 — The pin · moderate
 - [x] 2 — The setting · moderate
 - [x] 3 — The tags · hard
-- [ ] 4 — The fetch · hard
+- [x] 4 — The fetch · hard
 - [ ] 5 — The guard and Codex · moderate
 - [ ] 6 — The record · moderate
 
@@ -66,17 +66,17 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 
 ## 4 — The fetch
 
-- [ ] 4.1 In `skills/mf-ship/scripts/conduct.py` add `keep: bool = False` to `_outside` and `_remote`; with it `_outside` adds `GIT_OBJECT_DIRECTORY` to the scratch environment, naming the object folder it already reads for the alternates file, so a fetch stores its objects in the primary, and with it write no alternates file ([D3](design.md#d3)).
+- [x] 4.1 In `skills/mf-ship/scripts/conduct.py` add `keep: bool = False` to `_outside` and `_remote`; with it `_outside` adds `GIT_OBJECT_DIRECTORY` to the scratch environment, naming the object folder it already reads for the alternates file, so a fetch stores its objects in the primary, and with it write no alternates file ([D3](design.md#d3)).
   Verify: `git grep -n "GIT_OBJECT_DIRECTORY" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 4.2 In `skills/mf-ship/scripts/conduct.py` add `_fetch_default(primary: Path, url: str, default: str, base: str, notes: list[str]) -> None` after `_unpushed`'s helpers, as the flow of [D3](design.md#d3): fetch when the primary lacks `base`, `--negotiation-tip` naming the local branch's sha read in the primary, a failure `Unreachable`, `git merge --ff-only` only when the local branch is a strict ancestor of `base`, a note for each act.
+- [x] 4.2 In `skills/mf-ship/scripts/conduct.py` add `_fetch_default(primary: Path, url: str, default: str, base: str, notes: list[str]) -> None` after `_unpushed`'s helpers, as the flow of [D3](design.md#d3): fetch when the primary lacks `base`, `--negotiation-tip` naming the local branch's sha read in the primary, a failure `Unreachable`, `git merge --ff-only` only when the local branch is a strict ancestor of `base`, a note for each act.
   Verify: `git grep -n "^def _fetch_default" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 4.3 In `skills/mf-ship/scripts/conduct.py`, in `_unpushed`, call `_fetch_default(primary, url, default, base, notes)` under `first_read and start`, after `base` is read and before the `cat-file` check that stops with `a person fetches` ([D3](design.md#d3)).
+- [x] 4.3 In `skills/mf-ship/scripts/conduct.py`, in `_unpushed`, call `_fetch_default(primary, url, default, base, notes)` under `first_read and start`, after `base` is read and before the `cat-file` check that stops with `a person fetches` ([D3](design.md#d3)).
   Verify: `git grep -n -F "_fetch_default(primary, url, default, base, notes)" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 4.4 In `tests/test_conduct.py` add `test_a_start_fetches_and_fast_forwards_the_default`, calling `conduct["_unpushed"](root, first_read=True, start=True, notes=notes)` over a bare `origin` and a clone that pushes: behind with the objects absent and with them held, equal, ahead, and diverged, where the local branch never moves and no merge commit is made; the primary's tree follows a fast-forward; a patched `_remote` that fails a `fetch` raises `Unreachable` and moves nothing ([D3](design.md#d3)).
+- [x] 4.4 In `tests/test_conduct.py` add `test_a_start_fetches_and_fast_forwards_the_default`, calling `conduct["_unpushed"](root, first_read=True, start=True, notes=notes)` over a bare `origin` and a clone that pushes: behind with the objects absent and with them held, equal, ahead, and diverged, where the local branch never moves and no merge commit is made; the primary's tree follows a fast-forward; a patched `_remote` that fails a `fetch` raises `Unreachable` and moves nothing ([D3](design.md#d3)).
   Verify: `uv run pytest tests/test_conduct.py -q -k a_start_fetches` passes.
-- [ ] 4.5 In `tests/test_conduct.py` add `test_a_diverged_default_halts_at_the_push`, marked `slow`: a release merged locally and unpushed, a clone pushes a commit to `origin`, the objects absent, then `_run_claude` ends 1, the log's line before the close is `run · halt — git push origin main failed, exit 1`, and the local `main` is unmoved ([D3](design.md#d3)).
+- [x] 4.5 In `tests/test_conduct.py` add `test_a_diverged_default_halts_at_the_push`, marked `slow`: a release merged locally and unpushed, a clone pushes a commit to `origin`, the objects absent, then `_run_claude` ends 1, the log's line before the close is `run · halt — git push origin main failed, exit 1`, and the local `main` is unmoved ([D3](design.md#d3)).
   Verify: `uv run pytest tests/test_conduct.py -q -k a_diverged_default_halts` passes.
-- [ ] 4.6 In `tests/test_conduct.py` rename `test_a_local_default_behind_origin_passes` to `test_a_local_default_behind_origin_is_brought_up`, drop its manual `git fetch`, and assert after the run that the primary's `main` is `origin`'s, the clone's file is in the tree and the log holds `run · sync — fast-forwarded main to` ([D3](design.md#d3)).
+- [x] 4.6 In `tests/test_conduct.py` rename `test_a_local_default_behind_origin_passes` to `test_a_local_default_behind_origin_is_brought_up`, drop its manual `git fetch`, and assert after the run that the primary's `main` is `origin`'s, the clone's file is in the tree and the log holds `run · sync — fast-forwarded main to` ([D3](design.md#d3)).
   Verify: `git grep -n "test_a_local_default_behind_origin_is_brought_up" -- tests/test_conduct.py` prints the line.
 
 ## 5 — The guard and Codex
