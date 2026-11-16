@@ -8,13 +8,8 @@ import types
 from pathlib import Path
 from typing import Any
 
-_SCRIPT = (
-    Path(__file__).resolve().parent.parent
-    / "skills"
-    / "mf-ship"
-    / "scripts"
-    / "conduct.py"
-)
+_REPO = Path(__file__).resolve().parent.parent
+_SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
 _CODE = compile(_SCRIPT.read_text(), str(_SCRIPT), "exec")
 
 
