@@ -370,11 +370,15 @@ def _log(root: Path) -> list[str]:
 
 
 def _when_logged(
-    root: Path, said: tuple[str, ...], act: Callable[[], None], hold: Path
+    root: Path,
+    said: tuple[str, ...],
+    act: Callable[[], None],
+    hold: Path,
+    seconds: float = 60.0,
 ) -> Callable[[], None]:
     """Run `act` beside the run once its log holds each of `said`, then make `hold`.
 
-    Return the join, which raises what `act` raised.
+    Return the join, which raises what `act` raised, or `TimeoutError` on a missed line.
     """
     raised: list[BaseException] = []
 
@@ -391,12 +395,14 @@ def _when_logged(
         return any(t.is_alive() and t.name in halted for t in threading.enumerate())
 
     def wait() -> None:
-        deadline = time.monotonic() + 60
+        deadline = time.monotonic() + seconds
         while not logged() and time.monotonic() < deadline:
             time.sleep(0.05)
         while running() and time.monotonic() < deadline:
             time.sleep(0.05)
         try:
+            if not logged():
+                raise TimeoutError(f"the run log never held {said}")
             act()
         # why: the thread keeps whatever `act` raises, SystemExit included.
         except BaseException as error:  # noqa: BLE001
@@ -413,6 +419,17 @@ def _when_logged(
             raise raised[0]
 
     return join
+
+
+def test_a_log_line_that_never_comes_fails_the_wait(tmp_path: Path) -> None:
+    said = (" · 0001-todo · never said",)
+    calls: list[str] = []
+    hold = tmp_path / "hold"
+    join = _when_logged(tmp_path, said, lambda: calls.append("act"), hold, seconds=0.2)
+    with pytest.raises(TimeoutError, match="never said"):
+        join()
+    assert calls == []
+    assert hold.exists()
 
 
 @pytest.mark.slow
@@ -1994,6 +2011,7 @@ def test_a_dependent_waits_while_its_dependency_works(
         deadline = time.monotonic() + 30
         while not waiting() and time.monotonic() < deadline:
             time.sleep(0.05)
+        assert waiting()
         first = trees["0001-todo"]
         (first / "openspec/changes/archive").mkdir()
         _git(first, "mv", "openspec/changes/0001-todo", "openspec/changes/archive")

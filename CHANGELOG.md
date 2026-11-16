@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate, as `T1` says (0127-test-cost, phase 3).
 - Each duplicate test is deleted or merged into the test that holds its proof, as the `## Tests` table of the
   `0127-test-cost` design names, so no assertion goes (0127-test-cost, phase 4).
+- `_when_logged` of `tests/test_conduct.py` raises `TimeoutError` when its line never comes, and
+  `test_a_dependent_waits_while_its_dependency_works` asserts after its wait loop, so a missed line fails at its own
+  test (0127-test-cost, phase 5).
 
 ## [0.101.1] - 2026-11-14
 

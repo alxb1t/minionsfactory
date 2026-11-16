@@ -8,7 +8,7 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 - [x] 2 — One compile · moderate
 - [x] 3 — The slow marks · moderate
 - [x] 4 — The duplicates · moderate
-- [ ] 5 — Waits that assert · moderate
+- [x] 5 — Waits that assert · moderate
 
 ## 1 — One round
 
@@ -66,13 +66,13 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 
 ## 5 — Waits that assert
 
-- [ ] 5.1 In `_when_logged` of `tests/test_conduct.py`, add the keyword `seconds: float = 60.0`, the deadline's length. When its line is still missing at the deadline, `act` does not run, `hold` is made, and `join()` raises `TimeoutError` naming `said` ([D5](design.md#d5)).
+- [x] 5.1 In `_when_logged` of `tests/test_conduct.py`, add the keyword `seconds: float = 60.0`, the deadline's length. When its line is still missing at the deadline, `act` does not run, `hold` is made, and `join()` raises `TimeoutError` naming `said` ([D5](design.md#d5)).
   Verify: `git grep -n TimeoutError -- tests/test_conduct.py` prints the raise.
-- [ ] 5.2 Add `test_a_log_line_that_never_comes_fails_the_wait` to `tests/test_conduct.py`, after `_when_logged`: `seconds=0.2`, a `said` no log holds, an `act` that records a call; `join()` raises `TimeoutError`, the recorder holds no call, and `hold` exists.
+- [x] 5.2 Add `test_a_log_line_that_never_comes_fails_the_wait` to `tests/test_conduct.py`, after `_when_logged`: `seconds=0.2`, a `said` no log holds, an `act` that records a call; `join()` raises `TimeoutError`, the recorder holds no call, and `hold` exists.
   Verify: `uv run pytest tests/test_conduct.py -q -k line_that_never_comes` exits 0.
-- [ ] 5.3 In `test_a_dependent_waits_while_its_dependency_works`, add `assert waiting()` after the 30 s loop. Its red run with the `wait` log line dropped from `conduct.py`, undone after, goes in the phase's commit body (`T6`).
+- [x] 5.3 In `test_a_dependent_waits_while_its_dependency_works`, add `assert waiting()` after the 30 s loop. Its red run with the `wait` log line dropped from `conduct.py`, undone after, goes in the phase's commit body (`T6`).
   Verify: `git grep -n "assert waiting()" -- tests/test_conduct.py` prints the line.
-- [ ] 5.4 **HALT CHECK** The whole file passes with `_when_logged` raising: a test red here named a line that never came.
+- [x] 5.4 **HALT CHECK** The whole file passes with `_when_logged` raising: a test red here named a line that never came.
   Verify: `uv run pytest tests/test_conduct.py -q -n auto` exits 0.
-- [ ] 5.5 Count the suite.
+- [x] 5.5 Count the suite.
   Verify: `uv run pytest --collect-only -q tests/test_*.py` prints `694 tests collected`.
