@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_cut_check.py` holds the cut's `## Progress` contract: a phase listed twice, no phase listed, and a
   sub-task under another phase's heading. The assert on a message the code never prints is gone (0126-station-guards,
   phase 3).
+- `tests/test_converge.py` holds converge's guards: a second card under a cleared card's heading, round three as the
+  cap of a pickup and of a counted catch-up, an own-count catch-up that fixes at round four, an `accepted` blocking
+  card, and a `critical` adversarial card. Each was removed and the suite stayed green (0126-station-guards, phase 4).
 
 ## [0.101.1] - 2026-11-14
 

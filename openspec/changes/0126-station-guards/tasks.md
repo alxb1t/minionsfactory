@@ -7,7 +7,7 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 - [x] 1 — The gate's guards · moderate
 - [x] 2 — Verify:'s shell refusals · moderate
 - [x] 3 — The cut's contract · moderate
-- [ ] 4 — Converge's cards, cap and verdict · moderate
+- [x] 4 — Converge's cards, cap and verdict · moderate
 - [ ] 5 — Integrate's merge and git failure · moderate
 - [ ] 6 — The viewer's bind · moderate
 
@@ -44,15 +44,15 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 ## 4 — Converge's cards, cap and verdict
 
-- [ ] 4.1 Add row G15's second card, held in a variable `sibling`, to `tests/test_converge.py`'s `test_a_fixed_repeats_old_card_is_cleared`, the debt compared byte for byte.
+- [x] 4.1 Add row G15's second card, held in a variable `sibling`, to `tests/test_converge.py`'s `test_a_fixed_repeats_old_card_is_cleared`, the debt compared byte for byte.
   Verify: `git grep -n sibling -- tests/test_converge.py` prints a line, then `uv run pytest tests/test_converge.py::test_a_fixed_repeats_old_card_is_cleared -q` exits 0.
-- [ ] 4.2 Add the new `test_round_three_is_the_cap_of_a_pickup_and_a_catch_up` to `tests/test_converge.py`: row G16's case, then row G17's.
+- [x] 4.2 Add the new `test_round_three_is_the_cap_of_a_pickup_and_a_catch_up` to `tests/test_converge.py`: row G16's case, then row G17's.
   Verify: `uv run pytest tests/test_converge.py::test_round_three_is_the_cap_of_a_pickup_and_a_catch_up -q` exits 0.
-- [ ] 4.3 Add row G18's case as the `_RESUMED` row `"catch-up at round three"` and a branch of `_resumed` that plants it, in `tests/test_converge.py`.
+- [x] 4.3 Add row G18's case as the `_RESUMED` row `"catch-up at round three"` and a branch of `_resumed` that plants it, in `tests/test_converge.py`.
   Verify: `git grep -n -F -e '"catch-up at round three"' -- tests/test_converge.py` prints a line, then `uv run pytest tests/test_converge.py::test_a_run_resumes_from_its_status_log -q` exits 0.
-- [ ] 4.4 Add the new `test_an_accepted_blocker_converges_and_a_critical_one_blocks` to `tests/test_converge.py`: row G19's case, then row G20's.
+- [x] 4.4 Add the new `test_an_accepted_blocker_converges_and_a_critical_one_blocks` to `tests/test_converge.py`: row G19's case, then row G20's.
   Verify: `uv run pytest tests/test_converge.py::test_an_accepted_blocker_converges_and_a_critical_one_blocks -q` exits 0.
-- [ ] 4.5 Leave every line broken for a red run as it was.
+- [x] 4.5 Leave every line broken for a red run as it was.
   Verify: `git diff --quiet HEAD -- skills` exits 0.
 
 ## 5 — Integrate's merge and git failure
