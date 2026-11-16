@@ -7,16 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Converge reads a ticked phase as `[x]` and halts on a `tasks.md` with no `## Progress` list, as the conductor and
-  integrate do; their change id refuses a trailing or a doubled hyphen, as D20 does (0130-small-fixes, phase 1).
-- `mf-release` waits ten minutes for the debt lock, as converge does, and passes a blocking card `accepted` as well as
-  `verified` (0130-small-fixes, phase 2).
-- Five skills name the run directory without a command substitution, as `mf-rescue` does; `mf-converge` names every
-  script its module-map row loads; a test holds each (0130-small-fixes, phase 3).
-- A test holds that a resumed catch-up counted from round 2 halts `cap reached` at round 3; `cap_of`'s `and` as `or`
-  turns it red (0130-small-fixes, phase 4).
-- The real-sandbox case of the cut's hold goes, as it ran `ps`, which Seatbelt refuses; a case of a signal between
-  siblings under the real sandbox replaces it (0130-small-fixes, phase 5).
 - The port reads the host's OS once into `platform.OS`, `linux` or `macos`; every test runs the macOS side but the
   real-sandbox tests, which run the host's. CI's switch is `MF_REQUIRE_SANDBOX`, named for any OS (0131-linux-runner,
   phase 1).
@@ -35,6 +25,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D51 names Linux bubblewrap beside Seatbelt and accepts its differences; D78 drops its macOS-only converge. The threat
   model, the OS recipe and `mf-ship` say what Linux does; the scanner's halt names `betterleaks`, no `brew`
   (0131-linux-runner, phase 6).
+
+## [0.103.1] - 2026-11-16
+
+Gate: local 5m30s · CI not read under mf-ship · 0.103.0: local 5m21s · CI not read under mf-ship
+
+- Converge reads a ticked phase as `[x]` and halts on a `tasks.md` with no `## Progress` list, as the conductor and
+  integrate do; their change id refuses a trailing or a doubled hyphen, as D20 does (0130-small-fixes, phase 1).
+- `mf-release` waits ten minutes for the debt lock, as converge does, and passes a blocking card `accepted` as well as
+  `verified` (0130-small-fixes, phase 2).
+- `mf-build`, `mf-plan`, `mf-cut-change`, `mf-release` and `mf-integrate` name the run directory without a command
+  substitution, as `mf-rescue` does; `mf-converge` names every script its module-map row loads; a test holds each
+  (0130-small-fixes, phase 3).
+- A test holds that a resumed catch-up counted from round 2 halts `cap reached` at round 3; `cap_of`'s `and` as `or`
+  turns it red (0130-small-fixes, phase 4).
+- The real-sandbox case of the cut's hold goes, as it ran `ps`, which Seatbelt refuses; a case of a signal between
+  siblings under the real sandbox replaces it (0130-small-fixes, phase 5).
 
 ## [0.103.0] - 2026-11-16
 

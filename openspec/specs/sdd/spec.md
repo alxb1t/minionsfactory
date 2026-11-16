@@ -1039,7 +1039,7 @@ Every station and bundled script SHALL resolve the run directory as `.minions/` 
 directory — `git rev-parse --path-format=absolute --git-common-dir`, its parent — from any worktree of the
 repository. `conduct.py` alone SHALL halt on that answer outside the repo it names until a run has kept that repo's URLs: a worker
 can write what steers it. Converge and the release SHALL write `.minions/debt.md` only while holding `.minions/debt.lock`,
-created with `mkdir`, halting after two minutes of waiting and naming the lock. A run holding the claim SHALL remove a
+created with `mkdir`, halting after ten minutes of waiting and naming the lock. A run holding the claim SHALL remove a
 `debt.lock` older than ten minutes before its first worker, and log it. A run SHALL move an old `.minions/backlog.md` to `debt.md`, and remove a stale `backlog.lock`, at its start, under its
 claim, and halt naming them when both files stand, or when beside the old file the old lock is a file or younger than
 ten minutes; with no old file, no old lock halts. An old file that is a link SHALL halt, naming it, and the move SHALL NOT
@@ -1062,6 +1062,10 @@ layouts.
 #### Scenario: Two converges write the backlog
 - **WHEN** a converge reaches Step 9 while another holds `.minions/debt.lock`
 - **THEN** it waits, writes once the lock is free, and removes the lock after its write
+
+#### Scenario: A release waits for the lock
+- **WHEN** the release reaches the debt write while another holds `.minions/debt.lock` for less than ten minutes
+- **THEN** it waits, writes once the lock is free, and halts naming the lock only after ten minutes of waiting
 
 #### Scenario: A dead worker left the lock
 - **WHEN** a run starts and `.minions/debt.lock` is older than ten minutes
@@ -4125,12 +4129,16 @@ turn: the input, cache-read and cache-write tokens of its first assistant event,
 
 `skills/mf-release/SKILL.md` SHALL read, of each findings file, its frontmatter, to the closing `---`, and, by one `grep`,
 its cards' title, **Priority** and **Status** lines and each line naming `inconclusive`; it SHALL read no other part of the
-file. Its preconditions on the findings files — each file's `verdict`, every blocking card `verified`, and `head:` at
+file. Its preconditions on the findings files — each file's `verdict`, every blocking card `verified` or `accepted`, and `head:` at
 `HEAD` — SHALL be judged from those lines alone, and its report's `inconclusive` sections named from them.
 
 #### Scenario: A clean converge
 - **WHEN** both findings files say `verdict: clean` with `head:` at `HEAD`, and each blocking card's Status reads `verified`
 - **THEN** the release passes those preconditions, having read each file's frontmatter and the `grep`'s lines alone
+
+#### Scenario: A blocking card accepted
+- **WHEN** both findings files say `verdict: clean` with `head:` at `HEAD`, and a blocking card's Status reads `accepted`
+- **THEN** the release passes those preconditions, as converge does
 
 #### Scenario: A blocking card not verified
 - **WHEN** the adversarial file says `verdict: clean`, and a card whose Priority reads `high · adversarial · stability` has
