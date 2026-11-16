@@ -7,7 +7,7 @@ The phases follow [design](design.md): the setting, the gate, what is shown, the
 - [x] 1 — The setting · moderate
 - [x] 2 — The gate · hard
 - [x] 3 — What is shown · moderate
-- [ ] 4 — The record · moderate
+- [x] 4 — The record · moderate
 
 ## 1 — The setting
 
@@ -60,11 +60,11 @@ The phases follow [design](design.md): the setting, the gate, what is shown, the
 
 ## 4 — The record
 
-- [ ] 4.1 In `docs/decisions.md` amend D47: where it says a run takes each queued cut at its start and each poll, add that it does so up to the cap of D84 ([D6](design.md#d6)), and that its close starts no run for a cut that only waits.
+- [x] 4.1 In `docs/decisions.md` amend D47: where it says a run takes each queued cut at its start and each poll, add that it does so up to the cap of D84 ([D6](design.md#d6)), and that its close starts no run for a cut that only waits.
   Verify: `git grep -n "D84" -- docs/decisions.md` prints a line of D47's section.
-- [ ] 4.2 In `docs/decisions.md` add `### D84 · A queued cut waits while the line is at its cap` after D72, in the form of its neighbours: the setting `in_flight` in `ship.toml`, what counts as in flight, the exceptions, a *Why*, *Rejected* and *Accepts* list; add `D84` to the *Repo conventions* line of the index at the top.
+- [x] 4.2 In `docs/decisions.md` add `### D84 · A queued cut waits while the line is at its cap` after D72, in the form of its neighbours: the setting `in_flight` in `ship.toml`, what counts as in flight, the exceptions, a *Why*, *Rejected* and *Accepts* list; add `D84` to the *Repo conventions* line of the index at the top.
   Verify: `git grep -n "^### D84 " -- docs/decisions.md` prints a line.
-- [ ] 4.3 In `skills/mf-ship/SKILL.md` edit the flow line of each queued cut to wait for a slot under the cap first, the `status` row to print `<change-id> · cut — waits: <n> in flight, cap <N>`, the `cut` row to name the cap in its lines, and the `run` row to name `in_flight` under `[queue]` in `ship.toml`.
+- [x] 4.3 In `skills/mf-ship/SKILL.md` edit the flow line of each queued cut to wait for a slot under the cap first, the `status` row to print `<change-id> · cut — waits: <n> in flight, cap <N>`, the `cut` row to name the cap in its lines, and the `run` row to name `in_flight` under `[queue]` in `ship.toml`.
   Verify: `git grep -n "in_flight" -- skills/mf-ship/SKILL.md` prints a line of the `run` row.
-- [ ] 4.4 In `skills/mf-plan/SKILL.md` change the close's `Next:` line for a queued hard brief to say the run cuts it when a slot frees under the cap, and `conduct.py status` says where it stands.
+- [x] 4.4 In `skills/mf-plan/SKILL.md` change the close's `Next:` line for a queued hard brief to say the run cuts it when a slot frees under the cap, and `conduct.py status` says where it stands.
   Verify: `git grep -n "slot frees" -- skills/mf-plan/SKILL.md` prints a line.
