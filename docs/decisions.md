@@ -67,9 +67,10 @@ that exact version, checked against the release's checksum. Betterleaks, the gat
 **The code has layers: the skills' prose, their scripts, one shared home, `skills/mflib/`, and the ports a script
 reaches the world through. A call goes down only. The conductor is the one script that loads a station, in process, as
 it loads `converge.py` ([D78](#d78--the-converge-conductor-is-a-script)); no station loads another station or the
-conductor. The world is reached through named seams — the platform, the executor, the host and the tooling.
-`docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds the map, the loads, the private
-names, the cycles and the OS commands in `make gate` and `make check`.**
+conductor. The world is reached through named seams — the platform, whose file is `skills/mflib/platform.py`, the
+executor, the host and the tooling. `docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds
+the map, the loads, the private names, the cycles, the OS commands, the seed line before a script's first `mflib`
+import, and a threat-model surface for each Python file under `skills/`, in `make gate` and `make check`.**
 
 - **Why:** the refactoring series moves code one region at a time, and a shape no gate holds drifts back with the next
   feature: a load of another station, a borrowed private name, a cycle, an OS command in a new file.

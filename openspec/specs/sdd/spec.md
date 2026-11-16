@@ -4567,7 +4567,8 @@ The command SHALL write only to the trees of the repository it runs in — the p
 own fresh temporary folder, and to `/dev/null` and the terminal devices; SHALL read none of the credential paths a worker is denied
 (`~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.netrc`, `~/.gnupg`, `~/.kube`, `~/.docker/config.json`, `~/.git-credentials`,
 `~/.config/git/credentials`, `~/.npmrc`, `~/.pypirc`, `~/.codex/auth.json` and `~/.claude/.credentials.json`) and write none; and
-SHALL have no network of any kind, loopback included. It SHALL start with the credential variables of a Claude worker unset, with
+SHALL have no network of any kind, loopback included. It SHALL send no signal to a process outside its sandbox, signal 0 included,
+and SHALL signal the children it started. It SHALL start with the credential variables of a Claude worker unset, with
 `VIRTUAL_ENV` unset, with git's hooks off, with `UV_OFFLINE=1`, with `uv`'s cache in the run directory, with npm offline, its
 install scripts off and its cache in the run directory, and with `TMPDIR` naming that
 temporary folder: one made for the command alone, outside every repository, under the conductor's own `TMPDIR`, and removed by
@@ -4595,6 +4596,12 @@ Converge SHALL give each command it runs the seconds left to its own deadline.
 #### Scenario: A command calls the network
 - **WHEN** a command run through `conduct.py sandboxed` connects to a loopback port that a listener holds open
 - **THEN** the connect fails, and the listener sees none
+
+#### Scenario: A command signals a process outside its sandbox
+- **WHEN** a command run through `conduct.py sandboxed` sends SIGTERM, or signal 0, to a process the sandbox did not start
+- **THEN** each call fails with `Operation not permitted`, and the process is unharmed
+- **AND WHEN** the command signals a child it started
+- **THEN** the signal is delivered
 
 #### Scenario: The command's exit passes through
 - **WHEN** a command run through `conduct.py sandboxed` exits with 3
@@ -5248,7 +5255,7 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 
 ### Requirement: The gate holds the structure rules
 
-`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. Each rule SHALL carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
+`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists and in the port, `skills/mflib/platform.py`. A script that loads the shared home SHALL load it after the seed line, the same in each script. Every Python file under `skills/` SHALL match a path glob of the threat model's `## Surfaces`. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. The rules for loads, names, cycles and OS commands SHALL each carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
 
 #### Scenario: A load the map does not declare
 - **WHEN** a script names a file of another station that its row in `docs/modules.md` does not list
@@ -5267,8 +5274,18 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 - **THEN** the cycles rule fails naming the files of the cycle
 
 #### Scenario: An OS command outside its files
-- **WHEN** a script outside the listed files names `caffeinate`
+- **WHEN** a script outside the listed files and the port names `caffeinate`
 - **THEN** the OS-command rule fails naming the file and the command
+- **AND WHEN** the port names it
+- **THEN** the rule passes
+
+#### Scenario: A load of the home with no seed
+- **WHEN** a script under `skills/` imports `mflib` and the statement before that import is not the seed line
+- **THEN** the seed rule fails naming the script
+
+#### Scenario: A file on no surface
+- **WHEN** a Python file under `skills/` matches no glob of the threat model's surfaces
+- **THEN** the surfaces rule fails naming the file
 
 #### Scenario: A file with no row
 - **WHEN** a Python file under `skills/` has no row in `docs/modules.md`
@@ -5279,3 +5296,26 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 #### Scenario: A stale exception
 - **WHEN** a listed exception no longer exists in the tree
 - **THEN** the rule that lists it fails naming the exception, so a list only shrinks
+
+### Requirement: The platform is reached through one port
+
+A script SHALL reach the operating system through `skills/mflib/platform.py`, the port, the one file under `skills/` that names `sandbox-exec`, `caffeinate`, `sysctl` or `ps` in a command line. The port SHALL give a command's confinement from a policy — its writable roots, its denied paths, its network as a yes or no and its temporary folder —, the host's native architecture, one field of a process, the awake hold and the OS's refusal text. A script SHALL load the port with a plain import after one seed line that puts `skills/` on the import path, the same line in each script. `ty` and `pytest` SHALL have `skills/` on their path, and `skills/mflib/*` SHALL be a surface of `THREAT_MODEL.md`. A caller SHALL keep its own operator messages and the order of its checks.
+
+#### Scenario: A policy renders its profile
+- **WHEN** a policy holds writable roots, denied paths, a closed network and a temporary folder
+- **THEN** the port renders the Seatbelt profile with a rule for each, in the order the roots, the folder and the denied paths were given
+- **AND** a policy with the network open renders the same profile without the line that denies it
+
+#### Scenario: The native architecture is read past a translated process
+- **WHEN** `sysctl` prints `1` for the host's ARM flag, and `os.uname` names `x86_64`
+- **THEN** the port reports `arm64`
+- **AND WHEN** `sysctl` prints another value, is absent or times out
+- **THEN** the port reports the machine `os.uname` names
+
+#### Scenario: A process field is read, or nothing
+- **WHEN** the conductor, `awake.py` or the viewer asks for a field of a pid and `ps` exits non-zero, is absent or times out
+- **THEN** the port returns an empty string
+
+#### Scenario: The awake hold starts in a session of its own
+- **WHEN** the conductor or `awake.py` holds the machine awake with `caffeinate` on `PATH`
+- **THEN** `caffeinate` starts in a session of its own, and a caller with none on `PATH` prints its own `not held` line and goes on

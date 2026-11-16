@@ -6,6 +6,7 @@ Why: 0107-sandbox-runner design D5.
 import io
 import json
 import os
+import shlex
 import shutil
 import signal
 import socket
@@ -17,6 +18,7 @@ from pathlib import Path
 
 import pytest
 from conduct_load import conduct as _conduct
+from mflib import platform
 
 _DENIAL = (
     "sandboxed: denied — the OS sandbox refused a call:"
@@ -50,7 +52,7 @@ def test_the_profile_confines_writes_reads_and_network(tmp_path: Path) -> None:
     quoted = tmp_path / 'a"b\\c'
     home = tmp_path / "home"
 
-    profile = conduct["_profile"]([link, quoted], home)
+    profile = platform.profile(conduct["_policy"]([link, quoted], home))
 
     lines = profile.splitlines()
     assert lines[:3] == ["(version 1)", "(allow default)", "(deny file-write*)"]
@@ -75,18 +77,87 @@ def test_the_profile_confines_writes_reads_and_network(tmp_path: Path) -> None:
 
 
 def test_a_profile_may_open_the_network(tmp_path: Path) -> None:
-    profile = _conduct()["_profile"]
+    policy = _conduct()["_policy"]
     home = tmp_path / "home"
     trees = [tmp_path]
 
-    closed = profile(trees, home)
-    assert profile(trees, home, network=False) == closed
+    closed = platform.profile(policy(trees, home))
+    assert platform.profile(policy(trees, home, network=False)) == closed
     assert "(deny network*)" in closed.splitlines()
 
-    opened = profile(trees, home, network=True)
+    opened = platform.profile(policy(trees, home, network=True))
     assert "network" not in opened
     assert opened.splitlines() == closed.splitlines()[:-1]
     assert opened.splitlines()[-1].startswith("(deny file-read* file-write* ")
+
+
+_CLOSED_PROFILE = (
+    "(version 1)\n"
+    "(allow default)\n"
+    "(deny file-write*)\n"
+    '(allow file-write* (subpath "{a}") (subpath "{b}")'
+    ' (literal "/dev/null") (literal "/dev/tty") (literal "/dev/dtracehelper")'
+    ' (literal "/dev/autofs_nowait") (literal "/dev/stdout")'
+    ' (literal "/dev/stderr"))\n'
+    "(deny signal)\n"
+    "(allow signal (target same-sandbox))\n"
+    '(deny file-read* file-write* (subpath "{home}/.ssh") (subpath "{home}/.aws")'
+    ' (subpath "{home}/.config/gh") (subpath "{home}/.netrc")'
+    ' (subpath "{home}/.gnupg") (subpath "{home}/.kube")'
+    ' (subpath "{home}/.docker/config.json") (subpath "{home}/.git-credentials")'
+    ' (subpath "{home}/.config/git/credentials") (subpath "{home}/.npmrc")'
+    ' (subpath "{home}/.pypirc") (subpath "{home}/.codex/auth.json")'
+    ' (subpath "{home}/.claude/.credentials.json"))\n'
+    "(deny network*)"
+)
+_OPEN_PROFILE = (
+    "(version 1)\n"
+    "(allow default)\n"
+    "(deny file-write*)\n"
+    '(allow file-write* (subpath "{a}") (subpath "{b}")'
+    ' (literal "/dev/null") (literal "/dev/tty") (literal "/dev/dtracehelper")'
+    ' (literal "/dev/autofs_nowait") (literal "/dev/stdout")'
+    ' (literal "/dev/stderr"))\n'
+    "(deny signal)\n"
+    "(allow signal (target same-sandbox))\n"
+    '(deny file-read* file-write* (subpath "{home}/.ssh") (subpath "{home}/.aws")'
+    ' (subpath "{home}/.config/gh") (subpath "{home}/.netrc")'
+    ' (subpath "{home}/.gnupg") (subpath "{home}/.kube")'
+    ' (subpath "{home}/.docker/config.json") (subpath "{home}/.git-credentials")'
+    ' (subpath "{home}/.config/git/credentials") (subpath "{home}/.npmrc")'
+    ' (subpath "{home}/.pypirc") (subpath "{home}/.codex/auth.json")'
+    ' (subpath "{home}/.claude/.credentials.json"))'
+)
+
+
+def test_the_profile_text_is_held_byte_for_byte(tmp_path: Path) -> None:
+    policy = _conduct()["_policy"]
+    a, b = _trees(tmp_path)
+    home = tmp_path / "home"
+    paths = {"a": a, "b": b, "home": home.resolve()}
+
+    assert platform.profile(policy([a, b], home)) == _CLOSED_PROFILE.format(**paths)
+    assert platform.profile(policy([a, b], home, network=True)) == (
+        _OPEN_PROFILE.format(**paths)
+    )
+
+
+def test_the_profile_denies_a_signal_outside_the_sandbox(tmp_path: Path) -> None:
+    policy = _conduct()["_policy"]
+    home = tmp_path / "home"
+
+    for network in (False, True):
+        lines = platform.profile(policy([tmp_path], home, network=network)).splitlines()
+        allow = next(
+            index
+            for index, line in enumerate(lines)
+            if line.startswith("(allow file-write* ")
+        )
+        assert lines[allow + 1 : allow + 3] == [
+            "(deny signal)",
+            "(allow signal (target same-sandbox))",
+        ]
+        assert lines[allow + 3].startswith("(deny file-read* file-write* ")
 
 
 def test_the_deny_lists_are_literals() -> None:
@@ -165,8 +236,8 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     for pair in conduct["HOOKS_OFF"]:
         key, value = pair.split("=", 1)
         assert env[key] == value
-    assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        [*trees, Path(env["TMPDIR"])], Path.home()
+    assert fake_sandbox_exec.read_text() == platform.profile(
+        conduct["_policy"]([*trees, Path(env["TMPDIR"])], Path.home())
     )
 
     outside = tmp_path / "outside"
@@ -428,8 +499,8 @@ def test_the_command_runs_a_command_in_the_cwd(
     cwd, temp = seen.out.splitlines()
     assert shown == 0
     assert Path(cwd).resolve() == repo
-    assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        [repo, Path(temp)], Path.home()
+    assert fake_sandbox_exec.read_text() == platform.profile(
+        conduct["_policy"]([repo, Path(temp)], Path.home())
     )
     assert conduct["main"](["sandboxed", "--", *_python("raise SystemExit(3)")]) == 3
     for argv in (["sandboxed"], ["sandboxed", "--"]):
@@ -517,11 +588,42 @@ def _seatbelt() -> bool:
     return subprocess.run(probe, capture_output=True).returncode == 0
 
 
+def _require_seatbelt() -> None:
+    """Pass where the real `sandbox-exec` applies a profile; else fail or skip.
+
+    `MF_REQUIRE_SEATBELT` set fails it: CI's macOS job. Why: 0128-platform-port D12.
+    """
+    if _seatbelt():
+        return
+    reason = "sandbox-exec cannot apply a profile here"
+    if os.environ.get("MF_REQUIRE_SEATBELT"):
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
 @pytest.fixture
 def real_sandbox() -> None:
-    """Skip the test where the real `sandbox-exec` cannot apply a profile."""
-    if not _seatbelt():
-        pytest.skip("sandbox-exec cannot apply a profile here")
+    """Skip the test, or fail it as `_require_seatbelt` says, without Seatbelt."""
+    _require_seatbelt()
+
+
+def test_a_required_seatbelt_that_cannot_apply_fails_and_else_skips(
+    tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MF_REQUIRE_SEATBELT", "1")
+    _require_seatbelt()
+
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+    outcomes = (pytest.fail.Exception, pytest.skip.Exception)
+    with pytest.raises(outcomes, match="cannot apply a profile") as required:
+        _require_seatbelt()
+    assert required.type is pytest.fail.Exception
+    monkeypatch.delenv("MF_REQUIRE_SEATBELT")
+    with pytest.raises(outcomes, match="cannot apply a profile") as optional:
+        _require_seatbelt()
+    assert optional.type is pytest.skip.Exception
 
 
 def test_a_write_outside_the_trees_is_denied(
@@ -592,6 +694,74 @@ def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None
         assert code != 0
         with pytest.raises(TimeoutError):
             listener.accept()
+
+
+_SIGNAL_OUT = (
+    "import os, signal, sys\n"
+    "for sig in (signal.SIGTERM, 0):\n"
+    "    try:\n"
+    "        os.kill(int(sys.argv[1]), sig)\n"
+    "    except OSError as error:\n"
+    "        print(int(sig), error.strerror)\n"
+    "    else:\n"
+    "        print(int(sig), 'sent')\n"
+)
+_SIGNAL_CHILD = (
+    "import signal, subprocess, sys;"
+    " child = subprocess.Popen(['sleep', '60']);"
+    " child.send_signal(signal.SIGTERM);"
+    " sys.exit(0 if child.wait(timeout=10) == -signal.SIGTERM else 1)"
+)
+_AWAKE = (
+    Path(__file__).resolve().parent.parent / "skills/mf-cut-change/scripts/awake.py"
+)
+
+
+def test_a_signal_to_a_process_outside_is_denied(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    trees = _trees(tmp_path)
+    outside = subprocess.Popen(["sleep", "60"])
+    out = io.StringIO()
+    try:
+        code = _conduct()["sandboxed"](
+            [*_python(_SIGNAL_OUT), str(outside.pid)], trees[0], trees, out
+        )
+
+        assert code == 0
+        assert out.getvalue().splitlines() == [
+            f"{int(signal.SIGTERM)} Operation not permitted",
+            "0 Operation not permitted",
+        ]
+        assert outside.poll() is None
+    finally:
+        outside.kill()
+        outside.wait()
+
+
+def test_a_signal_to_the_commands_own_child_is_delivered(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    trees = _trees(tmp_path)
+
+    assert _conduct()["sandboxed"](_python(_SIGNAL_CHILD), trees[0], trees) == 0
+
+
+def test_the_cuts_hold_is_released_under_the_rule(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    repo = _repo(tmp_path)
+    awake = f"{shlex.quote(sys.executable)} {shlex.quote(str(_AWAKE))}"
+    command = f"{awake} start 0001-a && {awake} stop 0001-a"
+    out = io.StringIO()
+
+    code = _conduct()["sandboxed"](["sh", "-c", command], repo, [repo], out)
+
+    assert code == 0
+    assert out.getvalue().splitlines() == [
+        "awake: held (2 h at most)",
+        "awake: released",
+    ]
 
 
 @pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])

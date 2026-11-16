@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.102.0] - 2026-11-16
+
+Gate: local 5m41s · CI not read under mf-ship · 0.101.3: local 4m47s · CI not read under mf-ship
+
+- Today's OS calls are pinned before they move to `skills/mflib/platform.py`: `sysctl`, `ps`, the awake holds'
+  sessions, the fetch's `sandbox-exec -p` and the liveness probe's signal 0, each case seen red first
+  (0128-platform-port, phase 1).
+- CI gains a `macos` job that runs `tests/test_sandboxed.py` with `MF_REQUIRE_SEATBELT`, so a real-sandbox test that
+  cannot apply fails there, not skips (0128-platform-port, phase 1).
+- The shared home `skills/mflib/` is born with the platform port's first member, `arch()`, which the conductor loads
+  after one seed line; `ty` and `pytest` get `skills/` on their path (0128-platform-port, phase 2).
+- The structure test holds the seed, a threat-model surface for each Python file under `skills/`, and the port's
+  exemption from the OS-command rule (0128-platform-port, phase 2).
+- The rest of the platform port moves into `skills/mflib/platform.py`: the sandbox as `confine(policy)`, the refusal
+  text, `process` for every `ps` reader, and the awake hold; the conductor, `awake.py` and the viewer call it. The
+  profile's text is unchanged, and `OS_NAMES` loses the `ps` pairs of `awake.py` and `viewer.py`
+  (0128-platform-port, phase 3).
+- A sandboxed command can no longer signal a process outside its sandbox, signal 0 included: the profile gains
+  `(deny signal)` then `(allow signal (target same-sandbox))`, paying `0107·S1` (0128-platform-port, phase 4).
+- `process` reads nothing when `ps` exits non-zero, so a failed query no longer passes its output off as a field
+  (0128-platform-port, converge R1).
+
 ## [0.101.3] - 2026-11-16
 
 Gate: local 4m47s · CI not read under mf-ship · 0.101.2: local 10m38s · CI not read under mf-ship

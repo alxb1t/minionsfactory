@@ -16,6 +16,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from mflib import platform
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-cut-change" / "scripts" / "awake.py"
@@ -167,7 +168,7 @@ def test_no_hold_starts_without_caffeinate_or_a_host(
     _ancestors(monkeypatch, [(9001, "zsh"), (9002, "claude")], None)
 
     with monkeypatch.context() as absent:
-        absent.setitem(vars(awake), "CAFFEINATE", "caffeinate-absent")
+        absent.setattr(platform, "CAFFEINATE", "caffeinate-absent")
         assert awake.main(["start", "0001-a"]) == 0
     assert capsys.readouterr().out == "awake: not held — caffeinate not on PATH\n"
 
@@ -182,6 +183,66 @@ def test_no_hold_starts_without_caffeinate_or_a_host(
 
     assert not (root / ".minions" / "awake").exists()
     assert _lines(argv) == []
+
+
+_RECORD_SESSION = """
+import os
+
+record = os.environ["FAKE_SESSION_RECORD"]
+with open(record + ".tmp", "w") as out:
+    out.write(f"{os.getsid(0)} {os.getpid()}")
+os.replace(record + ".tmp", record)
+"""
+
+
+def test_the_cuts_hold_runs_in_a_session_of_its_own(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path, monkeypatch)
+    folder = tmp_path / "caffeinate-bin"
+    folder.mkdir()
+    tool = folder / "caffeinate"
+    tool.write_text(f"#!{sys.executable} -S{_RECORD_SESSION}")
+    tool.chmod(0o755)
+    record = tmp_path / "session.txt"
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setenv("FAKE_SESSION_RECORD", str(record))
+    _ancestors(monkeypatch, [(9001, "zsh"), (9002, "claude")], None)
+
+    assert awake.main(["start", "0001-a"]) == 0
+    assert capsys.readouterr().out == "awake: held (2 h at most)\n"
+
+    _wait(record.is_file)
+    session, pid = (int(word) for word in record.read_text().split())
+    assert session == pid
+    assert session != os.getsid(0)
+    assert (root / ".minions" / "awake" / "0001-a").read_text() == f"{pid}\n"
+
+
+def test_the_walk_stops_before_pid_1(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _repo(tmp_path, monkeypatch)
+    argv, _ = _fake_caffeinate(tmp_path, monkeypatch)
+    _register(1, "launchd")
+    _ancestors(monkeypatch, [(9011, "zsh")], 1)
+
+    assert awake.main(["start", "0001-a"]) == 0
+
+    assert capsys.readouterr().out == "awake: not held — no host process\n"
+    assert _lines(argv) == []
+
+
+def test_both_tools_missing_prints_the_caffeinate_line_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(platform, "CAFFEINATE", "caffeinate-absent")
+    _ancestors(monkeypatch, [(9021, "zsh")], None)
+
+    assert awake.main(["start", "0001-a"]) == 0
+
+    assert capsys.readouterr().out == "awake: not held — caffeinate not on PATH\n"
 
 
 def test_stop_kills_only_a_recorded_caffeinate(

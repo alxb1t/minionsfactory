@@ -1,6 +1,7 @@
 """The structure rules over the scripts, per 0124 design D1."""
 
 import ast
+import fnmatch
 import re
 from collections import Counter
 from pathlib import Path
@@ -53,15 +54,16 @@ PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
 OS_NAMES: frozenset[tuple[str, str]] = frozenset(
     {
         ("awake.py", "caffeinate"),
-        ("awake.py", "ps"),
         ("conduct.py", "caffeinate"),
         ("conduct.py", "ps"),
         ("conduct.py", "sandbox-exec"),
-        ("conduct.py", "sysctl"),
-        ("viewer.py", "ps"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|caffeinate|sysctl|ps)\b")
+_PORT = "skills/mflib/platform.py"
+_HOME = "skills/mflib/"
+SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
+_THREATS = "THREAT_MODEL.md"
 _PLAIN = ("self", "cls")
 
 
@@ -361,11 +363,70 @@ def check_os(root: Path, listed: frozenset[tuple[str, str]] = OS_NAMES) -> list[
     found = {
         f"{path.rpartition('/')[2]} names {word}"
         for path, tree in _parse(root).items()
+        if path != _PORT
         for text in _strings(tree)
         for word in _OS_WORDS.findall(text)
     }
     shown = {f"{file} names {word}" for file, word in listed}
     return _against(found, shown, "an OS command", "OS_NAMES")
+
+
+def _loads_home(node: ast.stmt) -> bool:
+    """Return whether the statement `node` imports `mflib` or a module of it."""
+    if isinstance(node, ast.Import):
+        return any(alias.name.partition(".")[0] == "mflib" for alias in node.names)
+    return (
+        isinstance(node, ast.ImportFrom)
+        and (node.module or "").partition(".")[0] == "mflib"
+    )
+
+
+def check_seed(root: Path) -> list[str]:
+    """Return a breach line for each script outside the home that loads it unseeded.
+
+    e.g. `["skills/mf-a/scripts/x.py: imports mflib with no seed line before it"]`
+    """
+    breaches: list[str] = []
+    for path, tree in _parse(root).items():
+        if not path.startswith("skills/") or path.startswith(_HOME):
+            continue
+        for index, node in enumerate(tree.body):
+            if _loads_home(node):
+                if SEED not in {ast.unparse(stmt) for stmt in tree.body[:index]}:
+                    breaches.append(
+                        f"{path}: imports mflib with no seed line before it"
+                    )
+                break
+    return breaches
+
+
+def surfaces(root: Path) -> list[str]:
+    """Return the glob of each bullet under the threat model's `## Surfaces`, in order.
+
+    e.g. `["skills/*/scripts/*", "scripts/*"]`
+    """
+    globs: list[str] = []
+    inside = False
+    for line in (root / _THREATS).read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            inside = line == "## Surfaces"
+        elif inside and line.startswith("- `"):
+            globs.append(line[3:].partition("`")[0])
+    return globs
+
+
+def check_surfaces(root: Path) -> list[str]:
+    """Return a breach line for each Python file under `skills/` no surface matches.
+
+    e.g. `["skills/mflib/x.py: matches no surface of THREAT_MODEL.md"]`
+    """
+    globs = surfaces(root)
+    return [
+        f"{path}: matches no surface of THREAT_MODEL.md"
+        for path in python_files(root)
+        if path.startswith("skills/")
+        and not any(fnmatch.fnmatch(path, glob) for glob in globs)
+    ]
 
 
 def _plant(root: Path, files: dict[str, str]) -> Path:
@@ -741,3 +802,86 @@ def test_check_os_fails_on_a_listed_pair_the_tree_no_longer_holds(
     assert check_os(root, listed=frozenset({("x.py", "caffeinate")})) == [
         "x.py names caffeinate: listed in OS_NAMES, not found"
     ]
+
+
+def test_check_os_passes_the_port_file(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {_PORT: _AWAKE})
+    assert check_os(root, listed=frozenset()) == []
+
+
+def test_check_os_fails_on_a_file_that_is_no_port(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {_PORT: _AWAKE, "skills/mf-a/scripts/platform.py": _AWAKE})
+    assert check_os(root, listed=frozenset()) == [
+        "platform.py names caffeinate: an OS command, not listed in OS_NAMES"
+    ]
+
+
+_SEEDED = f"import sys\nfrom pathlib import Path\n\n{SEED}\nimport mflib.platform\n"
+_STATION = "skills/mf-a/scripts/x.py"
+
+
+def test_check_seed_holds_on_the_tree() -> None:
+    assert check_seed(_REPO) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import mflib.platform\n",
+        _SEEDED.replace("parents[2]", "parents[1]"),
+        "from mflib import platform\n",
+        f"import sys\nfrom pathlib import Path\n\nimport mflib.platform\n{SEED}\n",
+    ],
+    ids=["no-seed", "wrong-seed", "from-import", "seed-after"],
+)
+def test_check_seed_fails_on_an_unseeded_import(tmp_path: Path, source: str) -> None:
+    root = _plant(tmp_path, {_STATION: source})
+    assert check_seed(root) == [
+        f"{_STATION}: imports mflib with no seed line before it"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("path", "source"),
+    [
+        (_STATION, _SEEDED),
+        ("skills/mflib/x.py", "import mflib.platform\n"),
+        ("scripts/x.py", "import mflib.platform\n"),
+        (_STATION, "def f() -> None:\n    import mflib.platform\n"),
+    ],
+    ids=["the-seed", "a-home-file", "outside-skills", "not-top-level"],
+)
+def test_check_seed_passes_a_seeded_or_exempt_import(
+    tmp_path: Path, path: str, source: str
+) -> None:
+    assert check_seed(_plant(tmp_path, {path: source})) == []
+
+
+_SURFACES = (
+    "# threats\n\n## Surfaces\n\n- `skills/*/scripts/*` — the scripts.\n"
+    "- `Makefile` — the gate.\n\n## Out of scope\n\n- `skills/mflib/*` — no surface.\n"
+)
+
+
+def test_check_surfaces_holds_on_the_tree() -> None:
+    assert check_surfaces(_REPO) == []
+
+
+def test_check_surfaces_fails_on_a_file_no_surface_matches(tmp_path: Path) -> None:
+    files = {
+        _THREATS: _SURFACES,
+        _STATION: "",
+        "skills/mflib/h.py": "",
+        "scripts/y.py": "",
+    }
+    assert check_surfaces(_plant(tmp_path, files)) == [
+        "skills/mflib/h.py: matches no surface of THREAT_MODEL.md"
+    ]
+
+
+def test_check_surfaces_passes_a_file_a_surface_matches(tmp_path: Path) -> None:
+    threats = _SURFACES.replace(
+        "- `Makefile`", "- `skills/mflib/*` — home.\n- `Makefile`"
+    )
+    files = {_THREATS: threats, _STATION: "", "skills/mflib/h.py": ""}
+    assert check_surfaces(_plant(tmp_path, files)) == []

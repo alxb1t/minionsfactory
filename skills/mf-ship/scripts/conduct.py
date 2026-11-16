@@ -39,6 +39,9 @@ if TYPE_CHECKING:
     from markdown_it import MarkdownIt
     from markdown_it.token import Token
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.platform
+
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
 GIT_TIMEOUT = 60
@@ -211,7 +214,6 @@ CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
 KEPT_ORIGINS = ".mf-ship-origin"
 SCANNER = "betterleaks"
-CAFFEINATE = "caffeinate"
 LEAKED = 3
 SSH_COMMAND = "ssh -o ConnectTimeout=15 -o BatchMode=yes"
 TOOLS = ("Read", "Glob", "Grep", "Agent", "Skill")
@@ -243,8 +245,7 @@ FORCED = (
     ("worktree remove", "-f"),
 )
 DENIALS = ("has been denied", "needs approval", "denied by your permission settings")
-# The macOS sandbox's refusal, in a Codex command's output.
-CODEX_DENIAL = "Operation not permitted"
+NO_SANDBOX = "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
 SECRETS = (
     "~/.ssh",
     "~/.aws",
@@ -2388,25 +2389,6 @@ def _unread(primary: Path) -> bool:
     )
 
 
-def _native() -> str:
-    """Return the host's native architecture, read past a translated process.
-
-    e.g. an `x86_64` Python under Rosetta on Apple silicon → "arm64"
-    Why: 0057-run-fixes design D1.
-    """
-    try:
-        done = subprocess.run(
-            ["sysctl", "-n", "hw.optional.arm64"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=GIT_TIMEOUT,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return os.uname().machine
-    return "arm64" if done.stdout.strip() == "1" else os.uname().machine
-
-
 def probe_gate(mark: Path, native: str) -> str:
     """Return the scratch `Makefile`: its gate passes when `mark` refuses a write.
 
@@ -2447,7 +2429,7 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
         return f"{executor} wrote outside its reach: it runs unsandboxed"
     arch = scratch / ".arch"
     if arch.is_symlink() or arch.is_file():
-        native = _native()
+        native = mflib.platform.arch()
         shell, links = _read_arch(arch) or ("", 0)
         if shell != native:
             if links == 1 and re.fullmatch(r"[A-Za-z0-9_]{1,16}", shell):
@@ -3303,45 +3285,19 @@ def _temp_folder(prefix: str) -> Path:
         raise Stop(2, f"conduct: cannot run — TMPDIR {parent}: {error}") from error
 
 
-def _profile(trees: list[Path], home: Path, network: bool = False) -> str:
-    """Return the Seatbelt profile: writes in `trees`, no secret read, no network.
+def _policy(
+    trees: list[Path], home: Path, network: bool = False, tmp: Path | None = None
+) -> mflib.platform.Policy:
+    """Return the sandbox's policy: writes in `trees`, no secret read, no network.
 
-    `network` leaves it open. Why: 0107-sandbox-runner D1; 0121-ui-prepare D3.
+    `network` leaves it open. Why: 0128-platform-port design D3.
     """
-
-    def quoted(path: Path) -> str:
-        escaped = str(path.resolve()).replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
-
-    writes = " ".join(f"(subpath {quoted(tree)})" for tree in trees)
-    devices = " ".join(
-        f'(literal "{device}")'
-        for device in (
-            *("/dev/null", "/dev/tty", "/dev/dtracehelper", "/dev/autofs_nowait"),
-            *("/dev/stdout", "/dev/stderr"),
-        )
+    return mflib.platform.Policy(
+        writes=tuple(trees),
+        denied=tuple(home / secret.removeprefix("~/") for secret in SECRETS),
+        network=network,
+        tmp=tmp,
     )
-    secrets = " ".join(
-        f"(subpath {quoted(home / secret.removeprefix('~/'))})" for secret in SECRETS
-    )
-    # A later rule beats an earlier one, so the secrets stay denied inside a tree.
-    lines = (
-        "(version 1)",
-        "(allow default)",
-        "(deny file-write*)",
-        f"(allow file-write* {writes} {devices})",
-        f"(deny file-read* file-write* {secrets})",
-    )
-    return "\n".join(lines if network else (*lines, "(deny network*)"))
-
-
-def _sandbox_exec() -> str:
-    """Return the path of `sandbox-exec`; with none on `PATH`, stop with 2."""
-    if (found := shutil.which("sandbox-exec")) is None:
-        raise Stop(
-            2, "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
-        )
-    return found
 
 
 def _watch(
@@ -3386,7 +3342,8 @@ def sandboxed(
     A `timeout` ends the command's group and gives 124. Why: 0107-sandbox-runner
     design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
     """
-    sandbox_exec = _sandbox_exec()
+    if not mflib.platform.has_sandbox():
+        raise Stop(2, NO_SANDBOX)
     minions = trees[0] / ".minions"
     try:
         os.close(_folder_fd(trees[0], ".minions"))
@@ -3413,9 +3370,10 @@ def sandboxed(
     denied = False
     done, expired = threading.Event(), threading.Event()
     watching: threading.Thread | None = None
+    policy = _policy(trees, Path.home(), tmp=tmp)
     try:
         with subprocess.Popen(
-            [sandbox_exec, "-p", _profile([*trees, tmp], Path.home()), *argv],
+            [*mflib.platform.confine(policy), *argv],
             cwd=cwd,
             env=env,
             stdin=subprocess.DEVNULL,
@@ -3431,7 +3389,7 @@ def sandboxed(
                 watching.start()
             for line in process.stdout or ():
                 print(line, end="", file=out or sys.stdout, flush=True)
-                denied = denied or CODEX_DENIAL in line
+                denied = denied or mflib.platform.refused(line)
             code = process.wait()
     finally:
         done.set()
@@ -3757,7 +3715,7 @@ def work(
         group = claim / str(worker.pid) if claim else None
         try:
             if group:
-                group.write_text(_ps(worker.pid, "lstart="))
+                group.write_text(mflib.platform.process(worker.pid, "lstart"))
             return worker.wait(timeout=limit), False
         except subprocess.TimeoutExpired:
             os.killpg(worker.pid, signal.SIGKILL)
@@ -3814,7 +3772,7 @@ def _codex_denied(item: dict[str, object]) -> str | None:
         item.get("type") == "command_execution"
         and isinstance(code, int)
         and code != 0
-        and CODEX_DENIAL in str(item.get("aggregated_output"))
+        and mflib.platform.refused(str(item.get("aggregated_output")))
     ):
         return f"Bash({item.get('command')})"
     return None
@@ -3826,8 +3784,9 @@ def denials(log: Path) -> list[str]:
     found: list[str] = []
     with log.open(errors="replace") as lines:
         for line in lines:
-            if not any(
-                key in line for key in ('"tool_use"', '"is_error"', CODEX_DENIAL)
+            if not (
+                mflib.platform.refused(line)
+                or any(key in line for key in ('"tool_use"', '"is_error"'))
             ):
                 continue
             try:
@@ -4256,34 +4215,10 @@ def _hold_awake(pid: int) -> str:
 
     e.g. `awake: held`. Why: 0069-caffeinate design D1.
     """
-    found = shutil.which(CAFFEINATE)
-    if found is None:
+    if not mflib.platform.has_hold():
         return "awake: not held — caffeinate not on PATH"
-    subprocess.Popen(
-        [found, "-is", "-w", str(pid)],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    mflib.platform.hold_awake(pid)
     return "awake: held"
-
-
-def _ps(pid: int, field: str) -> str:
-    """Return the `ps` field for `pid`, or "" when it cannot."""
-    command = ["ps", "-o", field, "-p", str(pid)]
-    try:
-        done = subprocess.run(
-            command,
-            capture_output=True,
-            encoding="utf-8",
-            env={**os.environ, "LC_ALL": "C", "TZ": "UTC0"},
-            errors="replace",
-            timeout=GIT_TIMEOUT,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return ""
-    return done.stdout.strip()
 
 
 def _started(pid: int) -> str:
@@ -4291,7 +4226,7 @@ def _started(pid: int) -> str:
 
     A failed `ps` is not a dead process: one still running stops with 2.
     """
-    if started := _ps(pid, "lstart="):
+    if started := mflib.platform.process(pid, "lstart"):
         return started
     try:
         os.kill(pid, 0)
@@ -4333,7 +4268,7 @@ def _clear(active: Path) -> None:
             held = entry.read_text(errors="replace").strip()
             if not held or held != _started(group):
                 continue
-            leader = _ps(group, "comm=")
+            leader = mflib.platform.process(group, "comm")
             if not any(executor in leader for executor in EXECUTORS):
                 foreign.append(f"{group} ({leader})")
                 continue
@@ -6384,7 +6319,7 @@ class Run:
                 )
                 return
             _git(scratch, "init", "-q", "-b", "main")
-            (scratch / "Makefile").write_text(probe_gate(mark, _native()))
+            (scratch / "Makefile").write_text(probe_gate(mark, mflib.platform.arch()))
             codex = executor == "codex"
             ignored = ".gated\n.arch\n" + ("tree/\n" if codex else "")
             (scratch / ".gitignore").write_text(ignored)
@@ -6820,7 +6755,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     mark = _mark_live(pin, primary_of(cwd))
     try:
         primary = preconditions(cwd, executor)
-        if not (started := _ps(os.getpid(), "lstart=")):
+        if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
         runs = primary / ".minions" / "runs"
         runs.mkdir(parents=True, exist_ok=True)
@@ -7264,9 +7199,11 @@ def _fetch_run(
 
     No `sandbox-exec` on `PATH` stops with 2. Why: 0121-ui-prepare design D3.
     """
-    profile = _profile(writes, Path.home(), network=True)
+    policy = _policy(writes, Path.home(), network=True)
+    if not mflib.platform.has_sandbox():
+        raise Stop(2, NO_SANDBOX)
     return subprocess.run(
-        [_sandbox_exec(), "-p", profile, *argv],
+        [*mflib.platform.confine(policy), *argv],
         cwd=cwd,
         env=env,
         stdin=subprocess.DEVNULL,

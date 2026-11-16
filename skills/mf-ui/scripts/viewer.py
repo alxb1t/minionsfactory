@@ -29,6 +29,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, NamedTuple, NoReturn, Protocol
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.platform
+
 SELF = Path(__file__).resolve()
 SKILLS = SELF.parents[2]
 CONDUCT = SKILLS / "mf-ship/scripts/conduct.py"
@@ -874,14 +877,7 @@ def serve(config: Path) -> int:  # pragma: no cover
 
 def run_ps(pid: int) -> str:
     """Return the command line `ps` shows for `pid`, empty when it shows none."""
-    done = subprocess.run(
-        ["ps", "-o", "command=", "-p", str(pid)],
-        capture_output=True,
-        text=True,
-        timeout=5,
-        check=False,
-    )
-    return done.stdout.strip()
+    return mflib.platform.process(pid, "command")
 
 
 def serves(pid: int, ps: Callable[[int], str]) -> bool:

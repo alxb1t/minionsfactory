@@ -37,6 +37,7 @@ from fake_worker import (
     _findings,
     _git,
 )
+from mflib import platform
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
@@ -859,7 +860,7 @@ def test_each_check_passes_only_on_disk_evidence(
     mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
     mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
-    gate_file = conduct["probe_gate"](mark, conduct["_native"]())
+    gate_file = conduct["probe_gate"](mark, platform.arch())
     _commit(scratch, {"Makefile": gate_file}, "init")
     assert check("probe", str(scratch)) == (
         1,
@@ -4005,7 +4006,7 @@ def _claimed(conduct: dict[str, Any], root: Path) -> None:
     active = root / ".minions" / "runs" / "active"
     active.mkdir(parents=True)
     (active / "pid").write_text(str(os.getpid()))
-    (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+    (active / "start").write_text(platform.process(os.getpid(), "lstart"))
 
 
 _MODELS = "\n\n".join(
@@ -4669,8 +4670,8 @@ def test_a_cut_fetches_the_npm_rows_it_approves(
         assert run["lock"] is None
     assert os.listdir(scratch) == []
     assert cache.is_dir()
-    assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        [folder, cache], Path.home(), network=True
+    assert fake_sandbox_exec.read_text() == platform.profile(
+        conduct["_policy"]([folder, cache], Path.home(), network=True)
     )
     assert "network" not in fake_sandbox_exec.read_text()
 
@@ -4760,6 +4761,23 @@ def test_a_cut_fetches_the_npm_rows_it_approves(
     assert linked.value.code == 2
     assert _npm_runs(record) == []
     assert os.listdir(elsewhere) == []
+
+
+def test_the_fetch_command_starts_sandbox_exec_with_dash_p(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    writes = tmp_path / "writes"
+    writes.mkdir()
+
+    done = _conduct()["_fetch_run"](
+        ["sh", "-c", "echo fetched"], tmp_path, [writes], dict(os.environ), 10
+    )
+
+    assert done.returncode == 0
+    assert done.stdout == "fetched\n"
+    lines = fake_sandbox_exec.read_text().splitlines()
+    assert lines[0] == "(version 1)"
+    assert "(deny network*)" not in lines
 
 
 def test_a_missing_npm_halts_by_name_only_where_it_is_needed(
@@ -6364,8 +6382,8 @@ def test_the_run_hands_converge_its_trees_and_sandbox(
     assert run.sandboxed(shown, tree, run.trees(), out) == 0
     cwd, temp = out.getvalue().splitlines()
     assert Path(cwd).resolve() == tree
-    assert fake_sandbox_exec.read_text() == conduct["_profile"](
-        [*run.trees(), Path(temp)], Path.home()
+    assert fake_sandbox_exec.read_text() == platform.profile(
+        conduct["_policy"]([*run.trees(), Path(temp)], Path.home())
     )
     assert (
         run.sandboxed([sys.executable, "-c", "raise SystemExit(3)"], tree, [tree]) == 3
@@ -8337,7 +8355,7 @@ def test_a_run_holds_the_machine_awake(
         time.sleep(0.05)
     assert argv.read_text() == "-is -w 4242\n"
 
-    conduct["_hold_awake"].__globals__["CAFFEINATE"] = "caffeinate-absent"
+    monkeypatch.setattr(platform, "CAFFEINATE", "caffeinate-absent")
     assert conduct["_hold_awake"](4242) == "awake: not held — caffeinate not on PATH"
     assert argv.read_text() == "-is -w 4242\n"
 
@@ -8352,7 +8370,7 @@ def test_a_run_holds_the_machine_awake(
         ("caffeinate", "awake: held"),
         ("caffeinate-absent", "awake: not held — caffeinate not on PATH"),
     ):
-        conduct["_hold_awake"].__globals__["CAFFEINATE"] = name
+        monkeypatch.setattr(platform, "CAFFEINATE", name)
         conductor = conduct["Run"](root, "claude")
         assert conductor.ship() == 0
         lines = conductor.log.path.read_text().splitlines()[2:]
@@ -9610,7 +9628,7 @@ def test_stop_ends_a_live_run(
         patch.setattr(subprocess, "run", read_ps)
         patch.setenv("LC_ALL", "POSIX")
         patch.setenv("TZ", "Asia/Tokyo")
-        (active / "start").write_text(conduct["_ps"](conductor.pid, "lstart="))
+        (active / "start").write_text(platform.process(conductor.pid, "lstart"))
         patch.setenv("TZ", "America/New_York")
         assert conduct["_claim"](active) == "live"
         assert ps_environments == [{"LC_ALL": "C", "TZ": "UTC0"}] * 2
@@ -10049,7 +10067,7 @@ def test_a_grant_buys_one_round(
     active = root / ".minions" / "runs" / "active"
     active.mkdir()
     (active / "pid").write_text(str(os.getpid()))
-    (active / "start").write_text(conduct["_ps"](os.getpid(), "lstart="))
+    (active / "start").write_text(platform.process(os.getpid(), "lstart"))
     # While the live run's rescue of the version runs, a grant is refused and writes
     # nothing: one written then is the rescue's. Why: 0067-rescue design D3.
     runs = root / ".minions" / "runs"
@@ -11044,8 +11062,11 @@ def test_a_stale_claim_is_cleared(
 
     with monkeypatch.context() as patch:
         patch.setattr(os, "killpg", refuse)
-        with pytest.raises(conduct["Stop"], match=f"group {refusing.pid} survives"):
+        with pytest.raises(
+            conduct["Stop"], match=f"group {refusing.pid} survives"
+        ) as stopped:
             conduct["_clear"](active)
+    assert stopped.value.code == 2
     assert all(path.exists() for path in held)
     with monkeypatch.context() as patch:
         patch.setenv("PATH", _no_ps(tmp_path), prepend=os.pathsep)
@@ -11055,6 +11076,32 @@ def test_a_stale_claim_is_cleared(
     refusing.kill()
     for process in (recycled, unstamped, refusing):
         process.wait(timeout=10)
+
+
+def test_the_liveness_probe_sends_signal_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setenv("PATH", _no_ps(tmp_path), prepend=os.pathsep)
+    sent: list[tuple[int, int]] = []
+    answer: list[type[OSError] | None] = [None]
+
+    def kill(pid: int, sig: int) -> None:
+        sent.append((pid, sig))
+        if answer[0] is not None:
+            raise answer[0](1, "probe")
+
+    monkeypatch.setattr(os, "kill", kill)
+
+    answer[0] = ProcessLookupError
+    assert conduct["_started"](4242) == ""
+    assert sent == [(4242, 0)]
+    for error in (None, PermissionError):
+        answer[0] = error
+        with pytest.raises(conduct["Stop"], match="ps cannot read pid 4242") as stop:
+            conduct["_started"](4242)
+        assert stop.value.code == 2
+    assert sent == [(4242, 0)] * 3
 
 
 def test_a_claim_naming_a_low_group_signals_nothing(
@@ -11609,7 +11656,7 @@ def test_a_probe_halts_on_a_write_out(
     fake("translated")
     assert run() == 1
     assert _calls(calls) == ["probe"]
-    native = conduct["_native"]()
+    native = platform.arch()
     log = conduct["last_log"](root / ".minions" / "runs").read_text()
     assert (
         " · run · halt — probe check fail — claude's shell runs as i386 on a"

@@ -1,6 +1,6 @@
 [project]
 name = "minions-factory"
-version = "0.101.3"
+version = "0.102.0"
 requires-python = ">=3.12"
 dependencies = []
 
@@ -35,8 +35,14 @@ convention = "pep257"
 [tool.ty.terminal]
 error-on-warning = true
 
+[tool.ty.environment]
+# The shared home `mflib` is imported from `skills/`. Why: 0128-platform-port design D2.
+extra-paths = ["skills"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The tests import the shared home `mflib` from `skills/`. Why: 0128-platform-port design D2.
+pythonpath = ["skills"]
 addopts = ["--strict-markers", "--tb=short"]
 markers = ["slow: over 5 s; `make check` leaves it to the gate"]
 

@@ -931,6 +931,13 @@ def test_start_finds_and_stop_removes_the_pid_file(
     assert ns["run_ps"](os.getpid()) == _START
 
 
+def test_run_ps_reads_a_failing_ps_as_nothing(tmp_path: Path) -> None:
+    fake = tmp_path / "ps-bin" / "ps"
+    fake.write_text("#!/bin/sh\nexit 1\n")
+
+    assert _viewer()["run_ps"](os.getpid()) == ""
+
+
 def test_stop_signals_only_the_servers_pid(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
