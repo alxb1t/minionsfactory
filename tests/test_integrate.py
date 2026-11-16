@@ -7,6 +7,7 @@ Why: 0037-serial-integration design D2.
 import os
 import runpy
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -615,6 +616,26 @@ def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
     assert result.stdout == "delta: changed on the default branch: sdd: First\n"
 
 
+def test_merge3_resolves_by_its_table() -> None:
+    helpers = runpy.run_path(str(_SCRIPT))
+    merge3, stop = helpers["merge3"], helpers["Stop"]
+    merged = [
+        ("a\nb\n", "a\nb\nc\n", "x\na\nb\n", "x\na\nb\nc\n"),
+        ("a\n", "a\n", "b\n", "b\n"),
+        ("a\n", "b\n", "b\n", "b\n"),
+        ("a\n", "b\n", "a\n", "b\n"),
+    ]
+    for base, ours, theirs, expected in merged:
+        assert merge3(base, ours, theirs) == expected, (base, ours, theirs)
+    halted = [
+        ("a\n", "", "b\na\n"),
+        ("a\n", "b\n", "c\n"),
+    ]
+    for base, ours, theirs in halted:
+        with pytest.raises(stop, match="both sides changed"):
+            merge3(base, ours, theirs)
+
+
 def test_a_git_failure_names_its_line(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
     outside = tmp_path / "outside"
@@ -644,6 +665,37 @@ def test_a_git_failure_names_its_line(tmp_path: Path) -> None:
         2,
         f"integrate: cannot run — git rev-parse failed: {arch};"
         f" run it as uv run --script {_SCRIPT}\n",
+    )
+
+
+def test_a_git_failure_after_the_tree_names_its_command(tmp_path: Path) -> None:
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    tree = _version(root, "0005-b")
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main")
+    real = shutil.which("git")
+    folder = tmp_path / "git-bin"
+    folder.mkdir()
+    stub = (
+        "#!/bin/sh\n"
+        f'case " $* " in *" rev-parse "*) exec {shlex.quote(str(real))} "$@";; esac\n'
+        "echo boom >&2\n"
+        "exit 1\n"
+    )
+    (folder / "git").write_text(stub)
+    (folder / "git").chmod(0o755)
+    env = {**os.environ, "PATH": f"{folder}{os.pathsep}{os.environ['PATH']}"}
+
+    done = subprocess.run(
+        [sys.executable, str(_SCRIPT), "delta", str(tree)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert (done.returncode, done.stdout) == (
+        2,
+        "integrate: cannot run — git merge-base failed: boom\n",
     )
 
 

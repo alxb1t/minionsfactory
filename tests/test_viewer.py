@@ -798,6 +798,15 @@ def test_the_routes_answer_and_refuse(tmp_path: Path) -> None:
                 assert name in answer
 
 
+def test_the_viewer_binds_loopback_alone() -> None:
+    ns = _viewer()
+    server = ns["server"]
+    given: list[tuple[Any, ...]] = []
+    server.__globals__["ThreadingHTTPServer"] = lambda *args: given.append(args)
+    server(0)
+    assert given == [(("127.0.0.1", 0), ns["Handler"])]
+
+
 def test_the_stream_sends_each_new_state_once() -> None:
     ns = _viewer()
     state = ns["State"]()

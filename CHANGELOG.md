@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.101.2] - 2026-11-16
+
+Gate: local 10m38s · CI not read under mf-ship · 0.101.1: local 6m19s · CI not read under mf-ship
+
+- `tests/test_gate_check.py`, `tests/test_gate_run.py` and `tests/test_plan_check.py` hold the gate's guards: a second
+  task after a non-makefile one, a makefile outside the tree beside many inside, a gate that rewrites the tree or
+  its own dry run, and a failing command under `prints nothing`. Each was removed and the suite stayed green
+  (0126-station-guards, phase 1).
+- `tests/test_verify_check.py` holds `Verify:`'s shell refusals: a short option off the list, `-f`, a file operand
+  after `-e`, and a command after `;` or `then`, beside a passing `grep -n cd`. Each was removed and the suite stayed
+  green (0126-station-guards, phase 2).
+- `tests/test_cut_check.py` holds the cut's `## Progress` contract: a phase listed twice, no phase listed, and a
+  sub-task under another phase's heading. The assert on a message the code never prints is gone (0126-station-guards,
+  phase 3).
+- `tests/test_converge.py` holds converge's guards: a second card under a cleared card's heading, round three as the
+  cap of a pickup and of a counted catch-up, an own-count catch-up that fixes at round four, an `accepted` blocking
+  card, and a `critical` adversarial card. Each was removed and the suite stayed green (0126-station-guards, phase 4).
+- `tests/test_integrate.py` holds integrate's guards: a table of `merge3` merges, among them an insert and a delete at
+  one line, and a git that fails after the worktree is read. Each was removed and the suite stayed green
+  (0126-station-guards, phase 5).
+- `skills/mf-ui/scripts/viewer.py` reads its bind address from `HOST` in a `server(port)` factory, and
+  `tests/test_viewer.py` holds it loopback with no socket opened. Behaviour is the same (0126-station-guards, phase 6).
+
 ## [0.101.1] - 2026-11-14
 
 Gate: local 6m19s · CI not read under mf-ship · 0.101.0: local 7m38s · CI not read under mf-ship
