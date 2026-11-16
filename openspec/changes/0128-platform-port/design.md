@@ -87,10 +87,10 @@ import mflib.platform
 
 ```python
 class Policy(NamedTuple):
-    writes: tuple[Path, ...]   # writable roots, in order
-    denied: tuple[Path, ...]   # paths neither read nor written
-    network: bool = False      # True leaves the network open
-    tmp: Path | None = None    # the command's temporary folder: writable, after `writes`
+    writes: tuple[Path, ...]  # writable roots, in order
+    denied: tuple[Path, ...]  # paths neither read nor written
+    network: bool = False  # True leaves the network open
+    tmp: Path | None = None  # the command's temporary folder: writable, after `writes`
 ```
 
 `profile(policy)` replaces `_profile` and renders the Seatbelt text exactly as it does today: each root and each denied path resolved and quoted, the devices as literals, a later rule beating an earlier one. `confine(policy)` returns `[<the path `shutil.which` finds for sandbox-exec>, "-p", profile(policy)]`: the full path, since `_fetch_run` runs with an `env` of its own whose `PATH` decides where `subprocess` looks. The conductor builds the policy from `SECRETS` and the home through one function, `_policy(trees, home, network=False, tmp=None)`. `sandboxed` passes the command's temporary folder as `tmp`, so the writable roots read `[*trees, tmp]`, as before.
