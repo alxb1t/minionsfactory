@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.105.0] - 2026-11-16
+
+Gate: local 5m27s · CI not read under mf-ship · 0.104.0: local 5m43s · CI not read under mf-ship
+
 - Pin tests hold what a cloud session meets today: a refused tag push halts the run after the default branch lands; a
   local default branch behind `origin` stays where it is; `gc.auto` in the repo's config makes `status` refuse it
   (0132-cloud-run, phase 1).

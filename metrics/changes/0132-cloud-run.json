@@ -1,0 +1,232 @@
+{
+  "change": "0132-cloud-run",
+  "version": "0.105",
+  "base": "8b3a51a7",
+  "analyzed": "1096cc64",
+  "measured_on": "local",
+  "collected_at": "2026-11-16T22:37:15+02:00",
+  "mf_version": "v0.101.1",
+  "executor": "Claude Code",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 4451
+    },
+    "converge-conformance-reading-set": {
+      "value": 6143
+    },
+    "converge-adversarial-reading-set": {
+      "value": 8705
+    },
+    "shared-context": {
+      "value": 17307
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 777
+    },
+    "gate-seconds": {
+      "value": 327
+    },
+    "largest-module-lines": {
+      "value": 13823
+    },
+    "modules-over-1000-lines": {
+      "value": 9
+    },
+    "complex-functions": {
+      "value": 30
+    },
+    "suppressions": {
+      "value": 24
+    },
+    "test-to-code-lines": {
+      "value": 1.44
+    },
+    "python-lines": {
+      "value": 59923
+    },
+    "dependencies": {
+      "value": 2
+    },
+    "dev-dependencies": {
+      "value": 9
+    },
+    "test-seconds": {
+      "value": 323.08
+    },
+    "slowest-test-seconds": {
+      "value": 117.73
+    },
+    "test-seconds-summed": {
+      "value": 2902.64
+    },
+    "slow-tests": {
+      "value": 134
+    },
+    "total-coverage": {
+      "value": 99.03
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 119
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 1
+    },
+    "open-backlog-cards": {
+      "value": 34
+    },
+    "diff-lines": {
+      "value": 1171
+    },
+    "diff-files": {
+      "value": 11
+    },
+    "lead-minutes": {
+      "value": 256.2
+    },
+    "build-minutes": {
+      "value": 151.9
+    },
+    "converge-minutes": {
+      "value": 33.7
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 11.0
+    },
+    "after-wait-minutes": {
+      "value": 53.1
+    },
+    "converge-rounds": {
+      "value": 2
+    },
+    "blockers-round-1": {
+      "value": 4
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 0
+    },
+    "halts-build": {
+      "value": 3
+    },
+    "halts-converge": {
+      "value": 0
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 2
+    },
+    "rescues-diagnosed": {
+      "value": 1
+    },
+    "rescues-decided": {
+      "value": 0
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 8
+    },
+    "fix-commits": {
+      "value": 1
+    },
+    "cost-usd": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-build": {
+      "value": 30.61
+    },
+    "cost-usd-converge": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "value": 77112912
+    },
+    "tokens-build": {
+      "value": 61586254
+    },
+    "tokens-converge": {
+      "value": 12998246
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "codex-window-5h": {
+      "value": 35.0
+    },
+    "codex-window-week": {
+      "value": 4.0
+    },
+    "cost-per-changed-line": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "conformance-confirmed": {
+      "value": 4
+    },
+    "adversarial-confirmed": {
+      "value": 2
+    },
+    "conformance-refuted": {
+      "value": 3
+    },
+    "adversarial-refuted": {
+      "value": 4
+    },
+    "conformance-tokens-per-confirmed": {
+      "value": 887178
+    },
+    "adversarial-tokens-per-confirmed": {
+      "value": 1658928
+    },
+    "escapes": {
+      "value": 2
+    },
+    "debt-added": {
+      "value": 1
+    },
+    "debt-paid": {
+      "value": 0
+    }
+  }
+}
