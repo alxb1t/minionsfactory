@@ -687,8 +687,11 @@ def test_a_makefile_outside_the_tree_hides_none_inside(tmp_path: Path) -> None:
     for name in inside:
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text("x:\n")
-    (tmp_path / "outside.mk").write_text("x:\n")
-    # A set's order is the hash seed's: many inside names, one outside, any order.
-    trace = "MAKEFILE_LIST := " + " ".join([*inside, "../outside.mk"]) + "\n"
+    outside = [f"../outside{n}.mk" for n in range(5)]
+    for name in outside:
+        (root / name).resolve().write_text("x:\n")
+    # A set's order is the hash seed's: many inside names, several outside, so
+    # that every outside name coming last is vanishingly rare.
+    trace = "MAKEFILE_LIST := " + " ".join([*inside, *outside]) + "\n"
     gate_makefiles = runpy.run_path(str(_SCRIPT))["gate_makefiles"]
     assert sorted(gate_makefiles(root, trace)) == sorted(inside)
