@@ -125,6 +125,19 @@ def has_sandbox() -> bool:
     return shutil.which(SANDBOX) is not None
 
 
+def no_sandbox() -> str:
+    """Return why the OS sandbox does not stand here, as a stop names it.
+
+    e.g. on Linux with no `bwrap` → "bwrap is not on PATH"
+    Why: 0131-linux-runner design D8.
+    """
+    if OS == "linux":
+        if shutil.which(BWRAP) is None:
+            return "bwrap is not on PATH"
+        return "bwrap cannot apply a sandbox here"
+    return "sandbox-exec is not on PATH"
+
+
 def confine(policy: Policy) -> list[str]:
     """Return the prefix that runs a command under `policy`.
 
@@ -182,8 +195,20 @@ def process(pid: int, field: str) -> str:
 
 
 def has_hold() -> bool:
-    """Return whether the awake hold's tool is on `PATH`."""
-    return shutil.which(CAFFEINATE) is not None
+    """Return whether the awake hold's tool is on `PATH`; never on Linux.
+
+    Why: 0131-linux-runner design D4.
+    """
+    return OS != "linux" and shutil.which(CAFFEINATE) is not None
+
+
+def no_hold() -> str:
+    """Return why the machine is not held awake, as the `awake:` line names it.
+
+    e.g. on Linux → "no hold on Linux"
+    Why: 0131-linux-runner design D4.
+    """
+    return "no hold on Linux" if OS == "linux" else "caffeinate not on PATH"
 
 
 def hold_awake(pid: int, seconds: int | None = None) -> subprocess.Popen[bytes]:

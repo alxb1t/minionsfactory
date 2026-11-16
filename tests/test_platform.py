@@ -145,6 +145,35 @@ def test_the_sandbox_stands_on_linux_when_bwrap_applies_one(
     assert calls.read_text() == "call\n"
 
 
+def test_the_reasons_are_the_ports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+
+    with monkeypatch.context() as bare:
+        bare.setattr(platform, "SANDBOX", "sandbox-exec-absent")
+        bare.setattr(platform, "CAFFEINATE", "caffeinate-absent")
+        bare.setenv("PATH", str(empty))
+        assert platform.no_sandbox() == "sandbox-exec is not on PATH"
+        assert platform.no_hold() == "caffeinate not on PATH"
+        bare.setattr(platform, "OS", "linux")
+        assert platform.no_sandbox() == "bwrap is not on PATH"
+        assert platform.no_hold() == "no hold on Linux"
+
+    failing = _tool(tmp_path, "bwrap", "#!/bin/sh\nexit 1\n")
+    with monkeypatch.context() as tried:
+        tried.setattr(platform, "OS", "linux")
+        tried.setenv("PATH", str(failing), prepend=os.pathsep)
+        assert platform.no_sandbox() == "bwrap cannot apply a sandbox here"
+
+    caffeinate = _tool(tmp_path, "caffeinate", "#!/bin/sh\n")
+    monkeypatch.setenv("PATH", str(caffeinate), prepend=os.pathsep)
+    assert platform.has_hold()
+    monkeypatch.setattr(platform, "OS", "linux")
+    assert not platform.has_hold()
+
+
 def test_the_native_architecture_reads_sysctl_past_a_translated_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

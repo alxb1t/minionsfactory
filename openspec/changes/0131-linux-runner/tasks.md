@@ -6,7 +6,7 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 - [x] 1 — The side · moderate
 - [x] 2 — The Linux side · hard
-- [ ] 3 — The callers · moderate
+- [x] 3 — The callers · moderate
 - [ ] 4 — The names · hard
 - [ ] 5 — The real proof · moderate
 - [ ] 6 — The record · moderate
@@ -45,23 +45,23 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 ## 3 — The callers
 
-- [ ] 3.1 In `skills/mflib/platform.py` add `no_sandbox() -> str` and `no_hold() -> str` as [D8](design.md#d8) and [D4](design.md#d4) say, with the literals `sandbox-exec is not on PATH` and `caffeinate not on PATH` on `macos` whatever `CAFFEINATE` and `SANDBOX` hold, and make `has_hold()` return false on `linux` before it looks at `PATH` ([D4](design.md#d4), [D8](design.md#d8)).
+- [x] 3.1 In `skills/mflib/platform.py` add `no_sandbox() -> str` and `no_hold() -> str` as [D8](design.md#d8) and [D4](design.md#d4) say, with the literals `sandbox-exec is not on PATH` and `caffeinate not on PATH` on `macos` whatever `CAFFEINATE` and `SANDBOX` hold, and make `has_hold()` return false on `linux` before it looks at `PATH` ([D4](design.md#d4), [D8](design.md#d8)).
   Verify: `git grep -n -e "^def no_sandbox" -e "^def no_hold" -- skills/mflib/platform.py` prints both lines.
-- [ ] 3.2 In `tests/test_platform.py` add `test_the_reasons_are_the_ports`: `no_sandbox` on `macos`, on `linux` with no `bwrap` and on `linux` with a `bwrap` that cannot apply; `no_hold` on both sides; `has_hold` false on `linux` with a `caffeinate` on `PATH` ([D4](design.md#d4), [D8](design.md#d8)).
+- [x] 3.2 In `tests/test_platform.py` add `test_the_reasons_are_the_ports`: `no_sandbox` on `macos`, on `linux` with no `bwrap` and on `linux` with a `bwrap` that cannot apply; `no_hold` on both sides; `has_hold` false on `linux` with a `caffeinate` on `PATH` ([D4](design.md#d4), [D8](design.md#d8)).
   Verify: `uv run pytest tests/test_platform.py -q -k reasons_are` passes.
-- [ ] 3.3 In `skills/mf-ship/scripts/conduct.py` delete `NO_SANDBOX`, add `_no_sandbox() -> Stop` returning `Stop(2, f"conduct: cannot run — no OS sandbox: {mflib.platform.no_sandbox()}")`, and `raise _no_sandbox()` at both sites. Make `_hold_awake` return `f"awake: not held — {mflib.platform.no_hold()}"` where it returned `awake: not held — caffeinate not on PATH` ([D8](design.md#d8)).
+- [x] 3.3 In `skills/mf-ship/scripts/conduct.py` delete `NO_SANDBOX`, add `_no_sandbox() -> Stop` returning `Stop(2, f"conduct: cannot run — no OS sandbox: {mflib.platform.no_sandbox()}")`, and `raise _no_sandbox()` at both sites. Make `_hold_awake` return `f"awake: not held — {mflib.platform.no_hold()}"` where it returned `awake: not held — caffeinate not on PATH` ([D8](design.md#d8)).
   Verify: `git grep -n -e NO_SANDBOX -e "caffeinate not on PATH" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.4 In `skills/mf-cut-change/scripts/awake.py` make `_start` return `f"awake: not held — {mflib.platform.no_hold()}"` where it returned `awake: not held — caffeinate not on PATH` ([D8](design.md#d8)).
+- [x] 3.4 In `skills/mf-cut-change/scripts/awake.py` make `_start` return `f"awake: not held — {mflib.platform.no_hold()}"` where it returned `awake: not held — caffeinate not on PATH` ([D8](design.md#d8)).
   Verify: `git grep -n "caffeinate not on PATH" -- skills/mf-cut-change/scripts/awake.py` prints nothing.
-- [ ] 3.5 In `tests/test_sandboxed.py` add `test_no_bwrap_stops_with_2` on `OS` `linux`: with no `bwrap` on `PATH`, and with a `bwrap` that exits 1, `sandboxed` raises `Stop` code 2 whose text holds `no OS sandbox` and `bwrap`, and runs nothing ([D8](design.md#d8)).
+- [x] 3.5 In `tests/test_sandboxed.py` add `test_no_bwrap_stops_with_2` on `OS` `linux`: with no `bwrap` on `PATH`, and with a `bwrap` that exits 1, `sandboxed` raises `Stop` code 2 whose text holds `no OS sandbox` and `bwrap`, and runs nothing ([D8](design.md#d8)).
   Verify: `uv run pytest tests/test_sandboxed.py -q -k no_bwrap` passes.
-- [ ] 3.6 In `tests/test_awake.py` add `test_a_cut_on_linux_says_it_holds_nothing`: on `OS` `linux`, with a fake `caffeinate` on `PATH`, `start` prints `awake: not held — no hold on Linux`, records nothing, starts no `caffeinate` and exits 0 ([D4](design.md#d4)).
+- [x] 3.6 In `tests/test_awake.py` add `test_a_cut_on_linux_says_it_holds_nothing`: on `OS` `linux`, with a fake `caffeinate` on `PATH`, `start` prints `awake: not held — no hold on Linux`, records nothing, starts no `caffeinate` and exits 0 ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_awake.py -q -k cut_on_linux` passes.
-- [ ] 3.7 In `tests/test_conduct.py` add `test_a_run_on_linux_holds_nothing_and_says_so`, shaped on `test_a_run_holds_the_machine_awake` and marked `slow` as it is: on `OS` `linux` with a fake `caffeinate` present, `_hold_awake(4242)` returns `awake: not held — no hold on Linux` and the run's `start` line ends with it ([D4](design.md#d4)).
+- [x] 3.7 In `tests/test_conduct.py` add `test_a_run_on_linux_holds_nothing_and_says_so`, shaped on `test_a_run_holds_the_machine_awake` and marked `slow` as it is: on `OS` `linux` with a fake `caffeinate` present, `_hold_awake(4242)` returns `awake: not held — no hold on Linux` and the run's `start` line ends with it ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_conduct.py -q -k on_linux_holds_nothing` passes.
-- [ ] 3.8 In `tests/test_structure.py` change `_OS_WORDS` to `sandbox-exec|bwrap|caffeinate|sysctl|ps` and add `test_check_os_fails_on_bwrap_in_an_unlisted_file`, shaped on the `caffeinate` one ([D8](design.md#d8)).
+- [x] 3.8 In `tests/test_structure.py` change `_OS_WORDS` to `sandbox-exec|bwrap|caffeinate|sysctl|ps` and add `test_check_os_fails_on_bwrap_in_an_unlisted_file`, shaped on the `caffeinate` one ([D8](design.md#d8)).
   Verify: `uv run pytest tests/test_structure.py -q -k bwrap` passes.
-- [ ] 3.9 In `tests/test_structure.py` delete from `OS_NAMES` the pairs `("awake.py", "caffeinate")`, `("conduct.py", "caffeinate")` and `("conduct.py", "sandbox-exec")`; the pair `("conduct.py", "ps")` stays ([D8](design.md#d8)).
+- [x] 3.9 In `tests/test_structure.py` delete from `OS_NAMES` the pairs `("awake.py", "caffeinate")`, `("conduct.py", "caffeinate")` and `("conduct.py", "sandbox-exec")`; the pair `("conduct.py", "ps")` stays ([D8](design.md#d8)).
   Verify: `uv run pytest tests/test_structure.py -q -k check_os` passes.
 
 ## 4 — The names

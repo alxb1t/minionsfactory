@@ -53,13 +53,10 @@ PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
 )
 OS_NAMES: frozenset[tuple[str, str]] = frozenset(
     {
-        ("awake.py", "caffeinate"),
-        ("conduct.py", "caffeinate"),
         ("conduct.py", "ps"),
-        ("conduct.py", "sandbox-exec"),
     }
 )
-_OS_WORDS = re.compile(r"\b(sandbox-exec|caffeinate|sysctl|ps)\b")
+_OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")
 _PORT = "skills/mflib/platform.py"
 _HOME = "skills/mflib/"
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
@@ -775,6 +772,13 @@ def test_check_os_fails_on_caffeinate_in_an_unlisted_file(tmp_path: Path) -> Non
     root = _plant(tmp_path, {"scripts/x.py": _AWAKE})
     assert check_os(root, listed=frozenset()) == [
         "x.py names caffeinate: an OS command, not listed in OS_NAMES"
+    ]
+
+
+def test_check_os_fails_on_bwrap_in_an_unlisted_file(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": 'RUN = ["bwrap", "--"]\n'})
+    assert check_os(root, listed=frozenset()) == [
+        "x.py names bwrap: an OS command, not listed in OS_NAMES"
     ]
 
 

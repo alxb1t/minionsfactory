@@ -8388,6 +8388,36 @@ def test_a_run_holds_the_machine_awake(
         assert lines[-1].endswith(" · run · done — nothing to ship")
 
 
+@pytest.mark.slow
+def test_a_run_on_linux_holds_nothing_and_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    folder = tmp_path / "caffeinate-bin"
+    folder.mkdir()
+    argv = tmp_path / "caffeinate-argv.txt"
+    tool = folder / "caffeinate"
+    tool.write_text(f'#!/bin/sh\necho "$@" >> {shlex.quote(str(argv))}\n')
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
+    monkeypatch.setattr(platform, "OS", "linux")
+    field = "awake: not held — no hold on Linux"
+
+    assert conduct["_hold_awake"](4242) == field
+
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept.mkdir()
+    (kept / "pending").write_text("v9.9.9\n")
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.ship() == 0
+    lines = conductor.log.path.read_text().splitlines()[2:]
+    assert " · run · start — " in lines[0]
+    assert lines[0].endswith(f" · pending v9.9.9 · {field}")
+    assert not argv.exists()
+
+
 def _run_claude(
     conduct: dict[str, Any], root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> int:

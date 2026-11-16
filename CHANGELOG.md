@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On Linux the port confines a command with `bwrap`: a read-only disk, the writable roots bound, the secrets masked,
   its own PID and network namespaces. The sandbox stands only when `bwrap` applies an empty one, probed once a path,
   and `Read-only file system` is Linux's refusal (0131-linux-runner, phase 2).
+- The port words why there is no sandbox and no hold; the conductor and the cut's hold name no OS tool. Linux has no
+  awake hold and says `awake: not held — no hold on Linux`; `bwrap` joins the OS commands only the port names
+  (0131-linux-runner, phase 3).
 
 ## [0.103.0] - 2026-11-16
 

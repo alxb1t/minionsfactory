@@ -390,6 +390,30 @@ def test_a_linux_denial_gets_the_line(
         assert (_DENIAL in seen.err) is denied
 
 
+def test_no_bwrap_stops_with_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(platform, "OS", "linux")
+    conduct = _conduct()
+    trees = _trees(tmp_path)
+    marker = tmp_path / "ran.txt"
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    failing = tmp_path / "failing-bin"
+    failing.mkdir()
+    (failing / "bwrap").write_text("#!/bin/sh\nexit 1\n")
+    (failing / "bwrap").chmod(0o755)
+
+    for folder, why in ((empty, "is not on PATH"), (failing, "cannot apply")):
+        monkeypatch.setenv("PATH", str(folder))
+        with pytest.raises(conduct["Stop"]) as stop:
+            conduct["sandboxed"](
+                _python(f"open({str(marker)!r}, 'w').close()"), trees[0], trees
+            )
+        assert stop.value.code == 2
+        assert "no OS sandbox: bwrap" in str(stop.value)
+        assert why in str(stop.value)
+        assert not marker.exists()
+
+
 def test_the_output_goes_to_the_file_given(
     tmp_path: Path, fake_sandbox_exec: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

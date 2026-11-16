@@ -245,7 +245,6 @@ FORCED = (
     ("worktree remove", "-f"),
 )
 DENIALS = ("has been denied", "needs approval", "denied by your permission settings")
-NO_SANDBOX = "conduct: cannot run — no OS sandbox: sandbox-exec is not on PATH"
 SECRETS = (
     "~/.ssh",
     "~/.aws",
@@ -3329,6 +3328,16 @@ def _watch(
         os.killpg(group, signal.SIGKILL)
 
 
+def _no_sandbox() -> Stop:
+    """Return the stop for a run whose OS sandbox does not stand, its why the port's.
+
+    Why: 0131-linux-runner design D8.
+    """
+    return Stop(
+        2, f"conduct: cannot run — no OS sandbox: {mflib.platform.no_sandbox()}"
+    )
+
+
 def sandboxed(
     argv: list[str],
     cwd: Path,
@@ -3343,7 +3352,7 @@ def sandboxed(
     design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
     """
     if not mflib.platform.has_sandbox():
-        raise Stop(2, NO_SANDBOX)
+        raise _no_sandbox()
     minions = trees[0] / ".minions"
     try:
         os.close(_folder_fd(trees[0], ".minions"))
@@ -4216,7 +4225,7 @@ def _hold_awake(pid: int) -> str:
     e.g. `awake: held`. Why: 0069-caffeinate design D1.
     """
     if not mflib.platform.has_hold():
-        return "awake: not held — caffeinate not on PATH"
+        return f"awake: not held — {mflib.platform.no_hold()}"
     mflib.platform.hold_awake(pid)
     return "awake: held"
 
@@ -7309,7 +7318,7 @@ def _fetch_run(
     """
     policy = _policy(writes, Path.home(), network=True)
     if not mflib.platform.has_sandbox():
-        raise Stop(2, NO_SANDBOX)
+        raise _no_sandbox()
     return subprocess.run(
         [*mflib.platform.confine(policy), *argv],
         cwd=cwd,
