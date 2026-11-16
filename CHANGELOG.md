@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key still halt. Where Codex is not on `PATH`, a converge checker a plan gives Codex runs on Claude, a shadow on Codex
   stops as at a usage limit, and the run says so once; a station on Codex still halts at its probe (0132-cloud-run,
   phase 5).
+- D17, D47, D76 and D84 record the `tags` setting, the start's fetch, fast-forward and tags, `gc.auto` and a missing
+  Codex; the threat model and `mf-ship` say what a cloud machine pushes and fetches (0132-cloud-run, phase 6).
 
 ## [0.103.1] - 2026-11-16
 
