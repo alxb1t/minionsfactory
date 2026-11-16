@@ -13,7 +13,7 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 ## 1 — A phase and an id
 
 - [x] 1.1 In `tests/test_converge.py` add the setups `_no_progress` (commit a `tasks.md` with no `## Progress` list) and `_upper_tick` (`_TASKS` with `- [x] 1` as `- [X] 1`), and the cases `no progress` and `upper-case tick` to `_REFUSED`, each code 1 and reason `tasks.md has no ## Progress list` ([D1](design.md#d1)).
-  Verify: `uv run pytest tests/test_converge.py --collect-only -q -k refuses_what_it_cannot_start` lists the cases `no progress` and `upper-case tick`.
+  Verify: `uv run pytest tests/test_converge.py --collect-only -q -k refuses_what_it_cannot_start` lists the cases named no progress and upper-case tick.
 - [x] 1.2 In `skills/mf-converge/scripts/converge.py` change `PROGRESS` to `^- \[([ x])\] (\d+) — `, and make `preconditions` raise `Halt("tasks.md has no ## Progress list")` when `PROGRESS.findall` finds nothing, before it reads a box ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_converge.py -q -k refuses_what_it_cannot_start` passes.
 - [x] 1.3 In `tests/test_conduct.py` add `test_a_change_id_has_no_empty_word`: the conductor's `CHANGE_ID` fully matches `0001-a` and `0001-a-b`, and no `0001-a-`, `0001--a` or `0001-`. In `tests/test_integrate.py` add `test_next_names_no_version_whose_id_has_an_empty_word`: after `_version(root, "0001-a-")`, `_run(root, "next", "0001-a-")` returns code 1 and `next: 0001-a- · not open` ([D2](design.md#d2)).

@@ -71,7 +71,7 @@ The case plants a status log whose first event is a catch-up at round 2 counted,
 
 ### D8
 
-`test_the_cuts_hold_is_released_under_the_rule` goes. In its place one sandboxed command runs two processes: the first starts a `sleep` in a session of its own and prints its pid; the second, its sibling, signals that pid.
+The real-sandbox case of the cut's hold goes, as the removal table below names it. In its place one sandboxed command runs two processes: the first starts a `sleep` in a session of its own and prints its pid; the second, its sibling, signals that pid.
 
 Under the profile's `(allow signal (target same-sandbox))` the signal is delivered, as the hold's release is. No `ps` runs. CI's macOS job sets `MF_REQUIRE_SEATBELT`, so the case fails there when Seatbelt cannot apply a profile.
 
