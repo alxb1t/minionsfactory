@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `tests/test_sandboxed.py` load it through that, so no call compiles the script again (0127-test-cost, phase 2).
 - Each test the build's durations run lists at 5 s or more carries `@pytest.mark.slow`, so `make check` leaves it to
   the gate, as `T1` says (0127-test-cost, phase 3).
+- Each duplicate test is deleted or merged into the test that holds its proof, as the `## Tests` table of the
+  `0127-test-cost` design names, so no assertion goes (0127-test-cost, phase 4).
 
 ## [0.101.1] - 2026-11-14
 

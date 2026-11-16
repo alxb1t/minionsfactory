@@ -310,27 +310,6 @@ def test_a_sub_make_weakened_on_the_branch_halts(tmp_path: Path) -> None:
     assert not _halted(result, added), result.stdout
 
 
-def test_a_dash_prefix_halts(tmp_path: Path) -> None:
-    files = {"Makefile": "gate:\n\tfalse\n"}
-    base = _branch(tmp_path, files, _UNPLANNED, {"Makefile": "gate:\n\t-false\n"})
-    result = _check(tmp_path, base)
-    assert not _halted(result, "added: Makefile: -false"), result.stdout
-
-
-def test_an_ignore_target_halts(tmp_path: Path) -> None:
-    branch = {"Makefile": f".IGNORE:\n{_GATE}"}
-    base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, branch)
-    result = _check(tmp_path, base)
-    assert not _halted(result, "added: Makefile: .IGNORE:"), result.stdout
-
-
-def test_makeflags_ignore_halts(tmp_path: Path) -> None:
-    branch = {"Makefile": f"MAKEFLAGS += -i\n{_GATE}"}
-    base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, branch)
-    result = _check(tmp_path, base)
-    assert not _halted(result, "added: Makefile: MAKEFLAGS += -i"), result.stdout
-
-
 def test_a_halt_lists_every_unquoted_line(tmp_path: Path) -> None:
     gate = f".PHONY: gate browsers drift derive\n{_GATE}"
     branch = {"Makefile": f".PHONY: gate browsers drift derive setup\nsetup:\n{_GATE}"}
@@ -379,6 +358,8 @@ def test_a_planned_dash_the_task_does_not_quote_halts(tmp_path: Path) -> None:
     # `$(shell)` value. Every added line the task does not quote halts.
     unlisted = tmp_path / "unlisted"
     lines = [
+        ".IGNORE:",
+        "MAKEFLAGS += -i",
         "SHELL := /bin/sh",
         "I := -",
         ".ONESHELL:",

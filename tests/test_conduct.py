@@ -1914,28 +1914,6 @@ def test_a_halted_dependency_blocks_a_chain(
 
 
 @pytest.mark.slow
-def test_a_lone_dependent_is_blocked_by_its_halt(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    calls = fake()
-    lone = _primary(tmp_path)
-    _version(lone, "0001-todo", "- [ ] 1 — Ship **HUMAN**\n")
-    _version(lone, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
-    _version(lone, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
-    assert _run_claude(conduct, lone, monkeypatch) == 1
-    assert _calls(calls) == []
-    lines = _log(lone)
-    assert any(
-        line.endswith(" · 0003-more · blocked — by 0002-marks") for line in lines
-    )
-    assert lines[-1].endswith(
-        " · run · halt — halted 0001-todo · blocked 0002-marks 0003-more"
-        " · released none · needs 0001-todo its **HUMAN phase"
-    )
-
-
-@pytest.mark.slow
 def test_a_free_version_ships_past_a_blocked_chain(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -2103,12 +2081,22 @@ def test_run_halts_on_a_human_phase(
     only.mkdir()
     lone = _primary(only)
     _version(lone, "0001-todo", "- [ ] 1 — Ship **HUMAN**\n")
+    _version(lone, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    _version(lone, "0003-more", "- [ ] 1 — More\n", after="0002-marks")
     calls.unlink()
     assert (
         _main(conduct, lone, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
     assert _calls(calls) == []
+    lone_lines = _log(lone)
+    assert any(
+        line.endswith(" · 0003-more · blocked — by 0002-marks") for line in lone_lines
+    )
+    assert lone_lines[-1].endswith(
+        " · run · halt — halted 0001-todo · blocked 0002-marks 0003-more"
+        " · released none · needs 0001-todo its **HUMAN phase"
+    )
 
     # A build that reaches a HUMAN phase gets no rescue: the phase needs the person.
     stops = tmp_path / "stops"
@@ -3747,28 +3735,6 @@ def test_a_later_version_halts_and_the_earlier_ships(
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     report = capsys.readouterr().out.splitlines()
     assert report[-3:] == [*halts, lines[-1]]
-
-
-@pytest.mark.slow
-def test_a_later_version_ships_past_a_halted_one(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    calls = fake("liar-0001-todo")
-    root = _primary(tmp_path)
-    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
-
-    assert (
-        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-        == 1
-    )
-
-    assert "release 0002-marks" in _calls(calls)
-    assert _log(root)[-1].endswith(
-        " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
-        " · needs 0001-todo a fix"
-    )
 
 
 @pytest.mark.slow
@@ -8023,6 +7989,9 @@ def test_a_plain_commit_on_main_is_not_pushed(
     _, root, halts_on = _origin_judged(tmp_path, monkeypatch, capsys, fake)
     _commit(root, {"mine.txt": "x\n"}, "a person's commit")
     halts_on(_git(root, "rev-parse", "main")[:7])
+    # A worker moves the local remote ref: the base is origin's own head.
+    _git(root, "update-ref", "refs/remotes/origin/main", "main")
+    halts_on(_git(root, "rev-parse", "main")[:7])
 
 
 @pytest.mark.slow
@@ -8479,21 +8448,6 @@ def _push_then_forge(
             _git(root, "replace", "-d", commit)
         (git_dir / "info" / "grafts").unlink(missing_ok=True)
         (git_dir / "shallow").unlink(missing_ok=True)
-
-
-@pytest.mark.slow
-def test_a_forged_release_is_not_pushed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    calls = fake()
-    root, _ = _with_origin(tmp_path)
-    conduct["_keep_origin"](root)
-
-    # A worker moves the local remote ref: the base is origin's own head.
-    _commit(root, {"mine.txt": "x\n"}, "a plain commit")
-    _git(root, "update-ref", "refs/remotes/origin/main", "main")
-    _halts_on_main(conduct, root, calls, monkeypatch)
 
 
 @pytest.mark.slow
