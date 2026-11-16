@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `verified` (0130-small-fixes, phase 2).
 - Five skills name the run directory without a command substitution, as `mf-rescue` does; `mf-converge` names every
   script its module-map row loads; a test holds each (0130-small-fixes, phase 3).
+- A test holds that a resumed catch-up counted from round 2 halts `cap reached` at round 3; `cap_of`'s `and` as `or`
+  turns it red (0130-small-fixes, phase 4).
 
 ## [0.102.0] - 2026-11-16
 

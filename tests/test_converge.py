@@ -1405,6 +1405,23 @@ def test_round_three_is_the_cap_of_a_pickup_and_a_catch_up(host: Host) -> None:
     )
 
 
+def test_a_resumed_counted_catch_up_halts_at_round_three(host: Host) -> None:
+    head = _head(host)
+    answer(host, "conformance", _card("R1 blocking"), blocking=1, round=3)(head)
+    answer(host, "adversarial", round=3)(head)
+    _plant(
+        host,
+        f"round 2 · catch-up — judged head {head[:7]} · HEAD {head[:7]} · counted",
+        _verdicts("conformance", 3, "changes-requested", 1),
+        mark="catch-up",
+    )
+
+    assert run(host) == 1
+
+    assert events(host)[-1] == f"round 3 · halt — cap reached, R1 open · head {head}"
+    assert host.fixed == []
+
+
 def test_a_sandboxed_command_gets_the_converge_deadline(host: Host) -> None:
     converge = _converge()
     context = converge["Context"](

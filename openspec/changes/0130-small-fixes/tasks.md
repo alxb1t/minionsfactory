@@ -7,7 +7,7 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 - [x] 1 — A phase and an id · moderate
 - [x] 2 — The lock and the card · moderate
 - [x] 3 — The prose · moderate
-- [ ] 4 — The cap's case · moderate
+- [x] 4 — The cap's case · moderate
 - [ ] 5 — The port's case · hard
 
 ## 1 — A phase and an id
@@ -43,9 +43,9 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 
 ## 4 — The cap's case
 
-- [ ] 4.1 In `tests/test_converge.py` add `test_a_resumed_counted_catch_up_halts_at_round_three`, shaped on the `catch-up at round three` branch of `_resumed`: plant a run, mark `catch-up`, whose first event is `round 2 · catch-up — … · counted` and whose newest event is a `verdicts` line at round 3, with the findings files at round 3 and a blocking card open; no `catch-up` or `start` event comes after it. `run(host)` returns 1 and the last event is `round 3 · halt — cap reached, R1 open · head <head>` ([D7](design.md#d7)).
+- [x] 4.1 In `tests/test_converge.py` add `test_a_resumed_counted_catch_up_halts_at_round_three`, shaped on the `catch-up at round three` branch of `_resumed`: plant a run, mark `catch-up`, whose first event is `round 2 · catch-up — … · counted` and whose newest event is a `verdicts` line at round 3, with the findings files at round 3 and a blocking card open; no `catch-up` or `start` event comes after it. `run(host)` returns 1 and the last event is `round 3 · halt — cap reached, R1 open · head <head>` ([D7](design.md#d7)).
   Verify: `uv run pytest tests/test_converge.py -q -k counted_catch_up` passes.
-- [ ] 4.2 See 4.1's case red: in `skills/mf-converge/scripts/converge.py` change the `and` of `first.name == "catch-up" and first.detail` in `cap_of` to `or`, run the case, see it fail, and put `and` back. Quote the failing line in the commit body ([D7](design.md#d7)).
+- [x] 4.2 See 4.1's case red: in `skills/mf-converge/scripts/converge.py` change the `and` of `first.name == "catch-up" and first.detail` in `cap_of` to `or`, run the case, see it fail, and put `and` back. Quote the failing line in the commit body ([D7](design.md#d7)).
   Verify: `git grep -n -F "first.name == \"catch-up\" and first.detail" -- skills/mf-converge/scripts/converge.py` prints the line.
 
 ## 5 — The port's case
