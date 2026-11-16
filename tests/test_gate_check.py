@@ -490,6 +490,7 @@ def test_a_staged_tree_is_checked(tmp_path: Path) -> None:
     assert "\n+echo c" in quoted.stdout
 
 
+@pytest.mark.slow
 def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
     root, home = tmp_path / "repo", tmp_path / "home"
     branch = {"Makefile": f".IGNORE:\n{_GATE}"}
@@ -538,6 +539,7 @@ def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
     assert not _halted(lapsed, "added: Makefile: SHELL := /bin/sh"), lapsed.stdout
 
 
+@pytest.mark.slow
 def test_an_edited_verify_halts(tmp_path: Path) -> None:
     check = "Verify: `grep -n x README.md` prints a line."
     tasks = (

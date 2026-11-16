@@ -87,6 +87,7 @@ def _tasks(root: Path, progress: str, *tasks: str) -> None:
     (root / _FOLDER / "tasks.md").write_text(text)
 
 
+@pytest.mark.slow
 def test_a_plan_check_finds_what_the_plan_left(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -568,6 +569,7 @@ def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
     subprocess.run(["pkill", "-f", "sleep 20"], check=False)
 
 
+@pytest.mark.slow
 def test_a_result_is_kept_by_tree_and_reused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

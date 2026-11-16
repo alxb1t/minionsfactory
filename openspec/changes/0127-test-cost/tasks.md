@@ -6,7 +6,7 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 
 - [x] 1 — One round · moderate
 - [x] 2 — One compile · moderate
-- [ ] 3 — The slow marks · moderate
+- [x] 3 — The slow marks · moderate
 - [ ] 4 — The duplicates · moderate
 - [ ] 5 — Waits that assert · moderate
 
@@ -34,9 +34,9 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 
 ## 3 — The slow marks
 
-- [ ] 3.1 Run the build's durations run and mark what it lists ([D3](design.md#d3)): above the `def` of each test its `slowest durations` block names, add `@pytest.mark.slow`, the other decorators kept; a test listed for setup or teardown only is marked too.
+- [x] 3.1 Run the build's durations run and mark what it lists ([D3](design.md#d3)): above the `def` of each test its `slowest durations` block names, add `@pytest.mark.slow`, the other decorators kept; a test listed for setup or teardown only is marked too.
   Verify: `uv run pytest -q -n auto -m "not slow" --durations=0 --durations-min=5 tests/test_*.py` exits 0.
-- [ ] 3.2 Run it again; mark each test it still lists, and run it again until it lists none.
+- [x] 3.2 Run it again; mark each test it still lists, and run it again until it lists none.
   Verify: `uv run pytest -q -n auto -m "not slow" --durations=0 --durations-min=5 tests/test_*.py` prints `hidden` under `slowest durations`, and no line holding `s call`, `s setup` or `s teardown`.
 
 ## 4 — The duplicates

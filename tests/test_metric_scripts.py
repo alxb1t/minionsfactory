@@ -645,6 +645,7 @@ def _finding(card: str, verdict: str, related: str) -> str:
     )
 
 
+@pytest.mark.slow
 def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     env = _run_fixture(tmp_path)
     read = _reader(tmp_path, env)

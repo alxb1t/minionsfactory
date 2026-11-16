@@ -126,6 +126,7 @@ def test_a_fact_citing_a_path_and_a_line_is_ready(
     assert capsys.readouterr().out == "[]\n"
 
 
+@pytest.mark.slow
 def test_a_fact_out_of_grammar_halts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -315,6 +316,7 @@ def test_a_custom_tag_opens_no_section() -> None:
         assert keys == [*plain[:2], tag, *plain[2:]]
 
 
+@pytest.mark.slow
 def test_a_hard_brief_is_ready_for_the_cut(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -409,6 +411,7 @@ def test_an_npm_row_is_checked_at_the_plan(
     ]
 
 
+@pytest.mark.slow
 def test_a_brief_out_of_shape_halts(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

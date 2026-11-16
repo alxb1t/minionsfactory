@@ -415,6 +415,7 @@ def _when_logged(
     return join
 
 
+@pytest.mark.slow
 def test_status_reads_each_stage_from_disk(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1382,6 +1383,7 @@ def test_a_merge_in_refuses_a_planted_hook(
     assert "chore(integrate)" not in _git(hooked, "log", "--format=%s", "0002-marks")
 
 
+@pytest.mark.slow
 def test_a_stacked_dependent_resets_and_merges_back(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -1576,6 +1578,7 @@ def test_a_stacked_dependent_resets_and_merges_back(
     assert _git(race, "rev-parse", "HEAD^1") == race_cut
 
 
+@pytest.mark.slow
 def test_a_merge_in_renumbers_a_planned_decision(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -1675,6 +1678,7 @@ _MERGED = "chore(integrate): merge main into 0001-todo"
 _GATE_HALT = "conduct: halt — main changed Makefile"
 
 
+@pytest.mark.slow
 def test_a_cut_only_version_merges_in_before_its_first_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1692,6 +1696,7 @@ def test_a_cut_only_version_merges_in_before_its_first_worker(
     assert _MERGED in _git(cut_only, "log", "--format=%s", "0001-todo")
 
 
+@pytest.mark.slow
 def test_a_cut_only_version_merged_in_once_merges_again(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -1709,6 +1714,7 @@ def test_a_cut_only_version_merged_in_once_merges_again(
     assert _git(once, "rev-list", "--count", "--merges", "main..0001-todo") == "2"
 
 
+@pytest.mark.slow
 def test_a_clean_merge_in_builds_on_the_merge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1720,6 +1726,7 @@ def test_a_clean_merge_in_builds_on_the_merge(
     assert _MERGED in _git(gated, "log", "--format=%s", "0001-todo")
 
 
+@pytest.mark.slow
 def test_a_changelog_conflict_is_settled_by_rule(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1743,6 +1750,7 @@ def test_a_changelog_conflict_is_settled_by_rule(
     )
 
 
+@pytest.mark.slow
 def test_a_merge_in_conflict_halts_naming_the_merge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1771,6 +1779,7 @@ def test_a_merge_in_conflict_halts_naming_the_merge(
         conduct["Run"](clashed, "claude").settle(clashed_tree, "0001-todo", hostile)
 
 
+@pytest.mark.slow
 def test_a_started_version_behind_an_unchanged_gate_builds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1782,6 +1791,7 @@ def test_a_started_version_behind_an_unchanged_gate_builds(
     assert "build 0001-todo" in _calls(calls)
 
 
+@pytest.mark.slow
 def test_a_ticked_version_goes_to_integrate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1795,6 +1805,7 @@ def test_a_ticked_version_goes_to_integrate(
     assert not any(_GATE_HALT in line for line in _log(built))
 
 
+@pytest.mark.slow
 def test_an_open_merge_with_no_note_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1816,6 +1827,7 @@ def test_an_open_merge_with_no_note_halts(
     assert _git(opened_tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
 
 
+@pytest.mark.slow
 def test_an_open_merge_with_its_note_halts_as_integrating(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1839,6 +1851,7 @@ def test_an_open_merge_with_its_note_halts_as_integrating(
     assert not any(_GATE_HALT in line for line in _log(noted))
 
 
+@pytest.mark.slow
 def test_a_started_dependents_open_merge_is_merge_ins(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1900,6 +1913,7 @@ def test_a_halted_dependency_blocks_a_chain(
     assert report[2].endswith(" · blocked by 0002-marks")
 
 
+@pytest.mark.slow
 def test_a_lone_dependent_is_blocked_by_its_halt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -1921,6 +1935,7 @@ def test_a_lone_dependent_is_blocked_by_its_halt(
     )
 
 
+@pytest.mark.slow
 def test_a_free_version_ships_past_a_blocked_chain(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
@@ -2057,6 +2072,7 @@ def test_a_rejoined_dependency_brings_its_chain_back(
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0 v0.3.0 v0.4.0")
 
 
+@pytest.mark.slow
 def test_run_halts_on_a_human_phase(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2234,6 +2250,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     )
 
 
+@pytest.mark.slow
 def test_a_rescue_fixes_a_plan_halt_in_its_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2805,6 +2822,7 @@ def test_a_rescue_decides_under_the_switch(
     )
 
 
+@pytest.mark.slow
 def test_an_amend_during_a_rescue_goes_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3065,6 +3083,7 @@ def test_a_rescue_diagnoses_a_decision_halt(
     assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue worker exit 1")
 
 
+@pytest.mark.slow
 def test_a_rescue_outside_the_plan_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3111,6 +3130,7 @@ def test_a_rescue_outside_the_plan_halts(
         )
 
 
+@pytest.mark.slow
 def test_a_sub_task_is_rescued_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3143,6 +3163,7 @@ def test_a_sub_task_is_rescued_once(
     assert conductor.rescued("0002-marks", "1.1") == ""
 
 
+@pytest.mark.slow
 def test_rescue_skip_runs_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3278,6 +3299,7 @@ def test_a_supervisor_answers_a_diagnosed_halt(
     assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
 
 
+@pytest.mark.slow
 def test_a_spent_rescue_starts_the_supervisor_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3404,6 +3426,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
     assert not held(minions, "0001-todo", halt)
 
 
+@pytest.mark.slow
 def test_a_refused_supervisor_amend_is_not_the_persons(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3684,6 +3707,7 @@ def test_a_linked_rejoin_folder_deletes_nothing(
     assert (runs / "listed" / "all").is_file()
 
 
+@pytest.mark.slow
 def test_a_later_version_halts_and_the_earlier_ships(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3725,6 +3749,7 @@ def test_a_later_version_halts_and_the_earlier_ships(
     assert report[-3:] == [*halts, lines[-1]]
 
 
+@pytest.mark.slow
 def test_a_later_version_ships_past_a_halted_one(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -4004,6 +4029,7 @@ def _swap_runner(conduct: dict[str, Any]) -> None:
     names["_prefetch"] = lambda primary, rows: []
 
 
+@pytest.mark.slow
 def test_parallel_cuts_reserve_apart_and_start_one_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4891,6 +4917,7 @@ def test_a_run_start_fetches_each_tracked_lock(
     assert _npm_runs(record) == []
 
 
+@pytest.mark.slow
 def test_a_started_run_is_seen_by_its_claim_or_its_end(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4962,6 +4989,7 @@ def test_a_started_run_is_seen_by_its_claim_or_its_end(
     assert log.read_text().count("run: done · ") == 2
 
 
+@pytest.mark.slow
 def test_a_request_at_a_runs_close_starts_the_next_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5241,6 +5269,7 @@ def test_three_versions_cut_built_converged_and_closed_at_once(
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0 v0.3.0")
 
 
+@pytest.mark.slow
 def test_a_cut_brief_reaches_the_supervisor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -6063,6 +6092,7 @@ def test_a_limited_checker_falls_back_to_claude(
     assert [who for who, _ in run.halts] == ["0001-todo"]
 
 
+@pytest.mark.slow
 def test_a_codex_checker_is_stamped_and_counted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -6622,6 +6652,7 @@ def test_a_shadow_round_drives_no_fix(
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
+@pytest.mark.slow
 def test_a_station_runs_on_its_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -6747,6 +6778,7 @@ def test_a_station_runs_on_its_executor(
     )
 
 
+@pytest.mark.slow
 def test_a_models_mismatch_halts_its_version(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -6840,6 +6872,7 @@ def test_a_changed_git_config_halts_a_merge_in(
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
 
 
+@pytest.mark.slow
 def test_run_halts_on_a_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -6870,6 +6903,7 @@ def test_run_halts_on_a_timeout(
     )
 
 
+@pytest.mark.slow
 def test_a_dead_converge_halts_and_a_rerun_finishes_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6924,6 +6958,7 @@ def test_a_dead_converge_halts_and_a_rerun_finishes_it(
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
+@pytest.mark.slow
 def test_a_build_dead_in_simplify_resumes_at_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6994,6 +7029,7 @@ def test_a_build_dead_in_simplify_resumes_at_it(
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
+@pytest.mark.slow
 def test_a_stale_lock_is_cleared_and_converge_resumes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -7069,6 +7105,7 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert any(linked in log.read_text() for log in (aside / "runs").glob("*.md"))
 
 
+@pytest.mark.slow
 def test_a_run_moves_an_old_backlog_to_the_debt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -7274,6 +7311,7 @@ def _to_old(root: Path) -> None:
         (minions / stray).write_text("x\n")
 
 
+@pytest.mark.slow
 def test_a_run_moves_an_old_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -7879,6 +7917,7 @@ def test_the_scratch_stands_outside_the_worktree(
         assert conduct["_kept_origin"](root) is None
 
 
+@pytest.mark.slow
 def test_a_local_origin_url_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7913,6 +7952,7 @@ def test_a_local_origin_url_is_refused(
         assert conduct["NETWORK_URL"].fullmatch(url)
 
 
+@pytest.mark.slow
 def test_a_tag_alone_starts_one_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7973,6 +8013,7 @@ def _origin_judged(
     return conduct, root, halts_on
 
 
+@pytest.mark.slow
 def test_a_plain_commit_on_main_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7984,6 +8025,7 @@ def test_a_plain_commit_on_main_is_not_pushed(
     halts_on(_git(root, "rev-parse", "main")[:7])
 
 
+@pytest.mark.slow
 def test_a_tagged_side_merge_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7999,6 +8041,7 @@ def test_a_tagged_side_merge_is_not_pushed(
     halts_on(_git(root, "rev-parse", "main")[:7])
 
 
+@pytest.mark.slow
 def test_a_release_merge_no_run_made_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8086,6 +8129,7 @@ def test_an_octopus_with_a_recorded_release_is_not_pushed(
         conduct["_foreign_commit"](root, base, "main")
 
 
+@pytest.mark.slow
 def test_a_bare_version_tag_is_not_pushed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8098,6 +8142,7 @@ def test_a_bare_version_tag_is_not_pushed(
     assert _git(root, "ls-remote", "--tags", "origin") == ""
 
 
+@pytest.mark.slow
 def test_a_hand_release_is_the_persons_to_push(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8132,6 +8177,7 @@ def test_a_stray_tag_on_a_run_release_halts_until_removed(
     assert conduct["_ledger_heads"](root) == set()
 
 
+@pytest.mark.slow
 def test_a_secret_in_the_push_range_halts_the_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -8267,6 +8313,7 @@ def test_a_run_without_betterleaks_stops_at_start(
     assert not (root / ".minions" / "runs").exists()
 
 
+@pytest.mark.slow
 def test_a_run_holds_the_machine_awake(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -8879,6 +8926,7 @@ def _with_origin(tmp_path: Path) -> tuple[Path, Path]:
     return root, origin
 
 
+@pytest.mark.slow
 def test_anchor_seeds_the_offline_base(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8976,6 +9024,7 @@ def _waits(lines: list[str]) -> list[str]:
     return [line for line in lines if line.startswith("run · push — waiting: ")]
 
 
+@pytest.mark.slow
 def test_a_run_with_no_offline_base_halts_when_origin_is_down(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -8995,6 +9044,7 @@ def test_a_run_with_no_offline_base_halts_when_origin_is_down(
     assert _calls(calls) == []
 
 
+@pytest.mark.slow
 def test_a_commit_past_the_offline_base_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -9182,6 +9232,7 @@ def test_the_remote_calls_carry_the_ssh_options(
     assert "BatchMode" not in reached()
 
 
+@pytest.mark.slow
 def test_the_plan_is_read_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -9339,6 +9390,7 @@ def test_the_plan_is_read_once(
     ) in log
 
 
+@pytest.mark.slow
 def test_a_commit_during_a_run_halts_before_integrate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -9728,6 +9780,7 @@ def _replanned(root: Path, ids: str) -> list[str]:
     return lines
 
 
+@pytest.mark.slow
 def test_a_design_change_cap_halts_as_replan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -9748,6 +9801,7 @@ def test_a_design_change_cap_halts_as_replan(
     assert not (root / ".minions" / "grants").exists()
 
 
+@pytest.mark.slow
 def test_an_auto_granted_round_that_blocks_halts_as_replan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -9780,6 +9834,7 @@ def test_an_auto_granted_round_that_blocks_halts_as_replan(
     assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
 
 
+@pytest.mark.slow
 def test_auto_grant_false_grants_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10028,6 +10083,7 @@ def test_a_grant_buys_one_round(
     shutil.rmtree(active)
 
 
+@pytest.mark.slow
 def test_a_fix_after_a_cap_halt_gets_one_round(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10194,6 +10250,7 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
     assert _git(base, "tag", "-l") == "v0.1.0"
 
 
+@pytest.mark.slow
 def test_a_done_under_the_top_line_is_stamped_again(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -10407,6 +10464,7 @@ def test_an_amend_past_the_judged_head_gets_one_round(
     assert not amendable(runs, "0001-todo", halt)
 
 
+@pytest.mark.slow
 def test_a_usage_limit_converge_halt_gets_no_rescue(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10450,6 +10508,7 @@ def test_a_usage_limit_converge_halt_gets_no_rescue(
     assert run.supervisions == {"0001-todo": ["converge-halted"]}
 
 
+@pytest.mark.slow
 def test_a_verify_halt_is_diagnosed_without_a_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10669,6 +10728,7 @@ def test_a_missing_skill_stops_a_run(
     )
 
 
+@pytest.mark.slow
 def test_a_run_marks_itself_live(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10729,6 +10789,7 @@ def test_a_run_marks_itself_live(
     assert seen[-1] is None
 
 
+@pytest.mark.slow
 def test_the_last_run_moves_the_links(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -10832,6 +10893,7 @@ def test_a_failed_environment_build_halts_the_run(
     assert why == f"uv sync --script {first} failed: No such file or directory"
 
 
+@pytest.mark.slow
 def test_a_re_pin_builds_the_new_releases_environments(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -10880,6 +10942,7 @@ def test_a_re_pin_builds_the_new_releases_environments(
     assert "run: uv sync --script a.py failed: error: gone" in capsys.readouterr().out
 
 
+@pytest.mark.slow
 def test_a_stale_claim_is_cleared(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -11045,6 +11108,7 @@ def test_bounded_reads_only_a_regular_file_of_the_cap(tmp_path: Path) -> None:
     assert bounded(full) == "a" * cap
 
 
+@pytest.mark.slow
 def test_a_usage_limit_is_named(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -11367,6 +11431,7 @@ def test_a_claude_worker_starts_in_the_sandbox(
         assert value in str(stop.value)
 
 
+@pytest.mark.slow
 def test_every_station_starts_lean(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -11463,6 +11528,7 @@ def test_reach_stops_at_live_worktrees(tmp_path: Path) -> None:
     assert conduct["reach"](root) == [root, tree, queued.resolve()]
 
 
+@pytest.mark.slow
 def test_a_worker_asking_for_a_missing_tool_halts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -11523,6 +11589,7 @@ def test_the_probe_reports_its_first_turn(
     assert conduct["first_turn"](log) is None
 
 
+@pytest.mark.slow
 def test_a_probe_halts_on_a_write_out(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -11614,6 +11681,7 @@ def test_a_probe_halts_on_a_write_out(
     assert not list(marks.glob("probe-*"))
 
 
+@pytest.mark.slow
 def test_the_codex_probe_runs_a_checker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -11725,6 +11793,7 @@ def test_the_codex_probe_runs_a_checker(
     )
 
 
+@pytest.mark.slow
 def test_a_usage_limit_at_the_probe_is_no_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -11878,6 +11947,7 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     assert [who for who, _ in run.halts] == ["0001-build", "0003-a"]
 
 
+@pytest.mark.slow
 def test_a_codex_fixer_halts_at_a_limit_and_never_falls_back(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -12036,6 +12106,7 @@ def test_a_limit_halts_only_the_stations_ahead(tmp_path: Path) -> None:
     assert [who for who, _ in run.halts] == ["0001-build"]
 
 
+@pytest.mark.slow
 def test_a_fixer_probe_the_deadline_kills_is_no_run_wide_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -12343,6 +12414,7 @@ def test_a_worker_carries_the_npm_settings(
     assert prefix[-4].startswith("PATH=")
 
 
+@pytest.mark.slow
 def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -12747,6 +12819,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     ) in capsys.readouterr().out
 
 
+@pytest.mark.slow
 def test_approve_gate_records_the_hash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
