@@ -5204,9 +5204,7 @@ def test_a_queued_cut_is_cut_then_built(
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("attempt", range(10))
 def test_three_versions_cut_built_converged_and_closed_at_once(
-    attempt: int,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     fake: Callable[..., Path],
@@ -5232,7 +5230,7 @@ def test_three_versions_cut_built_converged_and_closed_at_once(
             f"release {change}",
             *_judged(change),
         ):
-            assert call in made, (attempt, call)
+            assert call in made, call
     lines = _log(root)
     assert not [line for line in lines if " · halt — " in line]
     assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0 v0.3.0")

@@ -4,7 +4,7 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 
 ## Progress
 
-- [ ] 1 — One round · moderate
+- [x] 1 — One round · moderate
 - [ ] 2 — One compile · moderate
 - [ ] 3 — The slow marks · moderate
 - [ ] 4 — The duplicates · moderate
@@ -12,11 +12,11 @@ One round for ten, one compile, the slow marks, the duplicates merged, and waits
 
 ## 1 — One round
 
-- [ ] 1.1 In `tests/test_conduct.py`, drop `@pytest.mark.parametrize("attempt", range(10))` and the `attempt` parameter from `test_three_versions_cut_built_converged_and_closed_at_once`, and end its assert as `assert call in made, call` ([D1](design.md#d1)). Keep `@pytest.mark.slow`.
+- [x] 1.1 In `tests/test_conduct.py`, drop `@pytest.mark.parametrize("attempt", range(10))` and the `attempt` parameter from `test_three_versions_cut_built_converged_and_closed_at_once`, and end its assert as `assert call in made, call` ([D1](design.md#d1)). Keep `@pytest.mark.slow`.
   Verify: `git grep -n attempt -- tests/test_conduct.py` prints no line.
-- [ ] 1.2 Check the test collects once.
+- [x] 1.2 Check the test collects once.
   Verify: `uv run pytest tests/test_conduct.py -q --collect-only -k three_versions` prints one test id, with no `[` in it.
-- [ ] 1.3 In `openspec/changes/archive/0112-uv-race/design.md`, correct the fifth decision as [D6](design.md#d6) says. In its row, "is parametrized over ten rounds, each in its own `tmp_path`" → "runs one round in its own `tmp_path`", and the whole *because* cell becomes "the three versions share every resource of [the audit](#the-shared-state-audit) at once; the autouse `_uv_sync` fixture fakes every `uv sync --script`, so a second round repeats the first". In the `## Tests` table, "[D5](#d5), ten rounds" → "[D5](#d5), one round".
+- [x] 1.3 In `openspec/changes/archive/0112-uv-race/design.md`, correct the fifth decision as [D6](design.md#d6) says. In its row, "is parametrized over ten rounds, each in its own `tmp_path`" → "runs one round in its own `tmp_path`", and the whole *because* cell becomes "the three versions share every resource of [the audit](#the-shared-state-audit) at once; the autouse `_uv_sync` fixture fakes every `uv sync --script`, so a second round repeats the first". In the `## Tests` table, "[D5](#d5), ten rounds" → "[D5](#d5), one round".
   Verify: `git grep -n "ten rounds" -- openspec/changes/archive/0112-uv-race/design.md` prints no line.
 
 ## 2 — One compile

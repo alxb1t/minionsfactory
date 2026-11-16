@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `test_three_versions_cut_built_converged_and_closed_at_once` runs one round: the autouse `_uv_sync` fixture fakes
+  every `uv sync --script`, so a second round repeated the first; the archived `0112-uv-race` design says so
+  (0127-test-cost, phase 1).
+
 ## [0.101.1] - 2026-11-14
 
 Gate: local 6m19s · CI not read under mf-ship · 0.101.0: local 7m38s · CI not read under mf-ship
