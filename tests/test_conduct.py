@@ -264,6 +264,15 @@ def test_each_conduct_load_is_a_fresh_module() -> None:
     assert "<run_path>" not in sys.modules
 
 
+def test_a_change_id_has_no_empty_word() -> None:
+    pattern = _conduct()["CHANGE_ID"]
+
+    assert pattern.fullmatch("0001-a")
+    assert pattern.fullmatch("0001-a-b")
+    for refused in ("0001-a-", "0001--a", "0001-"):
+        assert not pattern.fullmatch(refused), refused
+
+
 @pytest.fixture
 def fake(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., Path]:
     """Point `MF_SHIP_AGENT` at `fake_worker.py`; return a setter of its modes."""

@@ -4,7 +4,7 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 
 ## Progress
 
-- [ ] 1 — A phase and an id · moderate
+- [x] 1 — A phase and an id · moderate
 - [ ] 2 — The lock and the card · moderate
 - [ ] 3 — The prose · moderate
 - [ ] 4 — The cap's case · moderate
@@ -12,13 +12,13 @@ The phases follow [design](design.md): a phase and an id, the lock and the card,
 
 ## 1 — A phase and an id
 
-- [ ] 1.1 In `tests/test_converge.py` add the setups `_no_progress` (commit a `tasks.md` with no `## Progress` list) and `_upper_tick` (`_TASKS` with `- [x] 1` as `- [X] 1`), and the cases `no progress` and `upper-case tick` to `_REFUSED`, each code 1 and reason `tasks.md has no ## Progress list` ([D1](design.md#d1)).
+- [x] 1.1 In `tests/test_converge.py` add the setups `_no_progress` (commit a `tasks.md` with no `## Progress` list) and `_upper_tick` (`_TASKS` with `- [x] 1` as `- [X] 1`), and the cases `no progress` and `upper-case tick` to `_REFUSED`, each code 1 and reason `tasks.md has no ## Progress list` ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_converge.py --collect-only -q -k refuses_what_it_cannot_start` lists the cases `no progress` and `upper-case tick`.
-- [ ] 1.2 In `skills/mf-converge/scripts/converge.py` change `PROGRESS` to `^- \[([ x])\] (\d+) — `, and make `preconditions` raise `Halt("tasks.md has no ## Progress list")` when `PROGRESS.findall` finds nothing, before it reads a box ([D1](design.md#d1)).
+- [x] 1.2 In `skills/mf-converge/scripts/converge.py` change `PROGRESS` to `^- \[([ x])\] (\d+) — `, and make `preconditions` raise `Halt("tasks.md has no ## Progress list")` when `PROGRESS.findall` finds nothing, before it reads a box ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_converge.py -q -k refuses_what_it_cannot_start` passes.
-- [ ] 1.3 In `tests/test_conduct.py` add `test_a_change_id_has_no_empty_word`: the conductor's `CHANGE_ID` fully matches `0001-a` and `0001-a-b`, and no `0001-a-`, `0001--a` or `0001-`. In `tests/test_integrate.py` add `test_next_names_no_version_whose_id_has_an_empty_word`: after `_version(root, "0001-a-")`, `_run(root, "next", "0001-a-")` returns code 1 and `next: 0001-a- · not open` ([D2](design.md#d2)).
+- [x] 1.3 In `tests/test_conduct.py` add `test_a_change_id_has_no_empty_word`: the conductor's `CHANGE_ID` fully matches `0001-a` and `0001-a-b`, and no `0001-a-`, `0001--a` or `0001-`. In `tests/test_integrate.py` add `test_next_names_no_version_whose_id_has_an_empty_word`: after `_version(root, "0001-a-")`, `_run(root, "next", "0001-a-")` returns code 1 and `next: 0001-a- · not open` ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_conduct.py tests/test_integrate.py --collect-only -q -k empty_word` lists both tests.
-- [ ] 1.4 In `skills/mf-ship/scripts/conduct.py` build `CHANGE_ID` from `SLUG`, so both groups stay: `re.compile(rf"(\d+)-({SLUG.pattern})")`, after `SLUG`. In `skills/mf-integrate/scripts/integrate.py` change `CHANGE_ID` to `(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)` ([D2](design.md#d2)).
+- [x] 1.4 In `skills/mf-ship/scripts/conduct.py` build `CHANGE_ID` from `SLUG`, so both groups stay: `re.compile(rf"(\d+)-({SLUG.pattern})")`, after `SLUG`. In `skills/mf-integrate/scripts/integrate.py` change `CHANGE_ID` to `(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)` ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_conduct.py tests/test_integrate.py -q -k empty_word` passes.
 
 ## 2 — The lock and the card

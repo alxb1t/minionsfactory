@@ -327,6 +327,16 @@ def _unticked(host: Host) -> None:
     _commit(host.tree, {f"openspec/changes/{_CHANGE}/tasks.md": tasks}, "a phase")
 
 
+def _no_progress(host: Host) -> None:
+    tasks = "# Tasks\n\n## 1 — One\n\n- [x] 1.1 One.\n"
+    _commit(host.tree, {f"openspec/changes/{_CHANGE}/tasks.md": tasks}, "no progress")
+
+
+def _upper_tick(host: Host) -> None:
+    tasks = _TASKS.replace("- [x] 1", "- [X] 1")
+    _commit(host.tree, {f"openspec/changes/{_CHANGE}/tasks.md": tasks}, "a capital")
+
+
 def _empty(host: Host) -> None:
     _git(host.tree, "reset", "-q", "--hard", "main")
 
@@ -390,6 +400,8 @@ def _unstamped(host: Host) -> None:
 _REFUSED: dict[str, tuple[Callable[[Host], None], int, str | None]] = {
     "dirty": (_dirty, 1, "the tree is dirty: stray.txt"),
     "unticked": (_unticked, 1, "phase 2 of tasks.md is unticked: mf-build owns it"),
+    "no progress": (_no_progress, 1, "tasks.md has no ## Progress list"),
+    "upper-case tick": (_upper_tick, 1, "tasks.md has no ## Progress list"),
     "unrelated": (_unrelated, 1, "git merge-base failed: "),
     "unreadable": (
         _unreadable,

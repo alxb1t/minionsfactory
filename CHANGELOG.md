@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cut` names the cap in its line, and the viewer shows the cut as `queued` (0129-queue-cap, phase 3).
 - D84 records the cap and D47 gains it; `mf-ship`'s flow, `run`, `status` and `cut` rows and `mf-plan`'s close say the
   run cuts a queued item when a slot frees (0129-queue-cap, phase 4).
+- Converge reads a ticked phase as `[x]` and halts on a `tasks.md` with no `## Progress` list, as the conductor and
+  integrate do; their change id refuses a trailing or a doubled hyphen, as D20 does (0130-small-fixes, phase 1).
 
 ## [0.102.0] - 2026-11-16
 

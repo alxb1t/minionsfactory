@@ -55,7 +55,7 @@ OLD_LAYOUT = (
     *("changes/{}/review.md", "changes/{}/security.md"),
 )
 NO_COMMAND = ("is up to date", "Nothing to be done")
-PROGRESS = re.compile(r"^- \[([ xX])\] (\d+) — ", re.MULTILINE)
+PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — ", re.MULTILINE)
 PLANNED = re.compile(r"(\d+\.\d+) — ")
 SUBTASK = re.compile(r"^  (\d+(?:\.\d+)+)(?: · uncommitted)?$", re.MULTILINE)
 REFERENCES = HERE.parent / "references"
@@ -412,6 +412,8 @@ def preconditions(context: Context) -> str:
         boxes = PROGRESS.findall(tasks.read_text())
     except OSError as error:
         raise Halt(f"tasks.md cannot be read: {error.strerror}") from error
+    if not boxes:
+        raise Halt("tasks.md has no ## Progress list")
     if open_box := next((n for box, n in boxes if box == " "), None):
         raise Halt(f"phase {open_box} of tasks.md is unticked: mf-build owns it")
     base = base_of(context)
