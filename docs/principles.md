@@ -160,6 +160,8 @@ is done on a commit and a ticked box together; a round number lives in the findi
   the list of repos a run started in, `repos`, the
   default-branch sha a run last saw on `origin`, a person's gate approval beside it, which `gate_check.py` reads, and the
   queue, `<digest>.queue/`: its lock, its queued cuts and its rejoin requests;
+- `conduct.py`'s read-only read of the operator's `ship.toml`, under `$XDG_CONFIG_HOME/minionsfactory/` — named in no
+  repo ([D84](decisions.md#d84--a-queued-cut-waits-while-the-line-is-at-its-cap));
 - `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending`,
   `checkout` and `live/` beside the kept URLs, which `conduct.py` reads and writes too, and the `mf-*` links on
   `~/.claude/skills` and `~/.agents/skills`, which a run's end moves — named in no target repo

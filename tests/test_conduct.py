@@ -8385,6 +8385,62 @@ def _run_claude(
     return _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
 
 
+def _ship_toml(text: str) -> Path:
+    """Write `ship.toml` under `$XDG_CONFIG_HOME/minionsfactory/`; return its path."""
+    path = Path(os.environ["XDG_CONFIG_HOME"]) / "minionsfactory" / "ship.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
+
+
+def test_cap_reads_ship_toml() -> None:
+    conduct = _conduct()
+    assert conduct["_cap"]() is None
+    for text in ("", "[other]\nin_flight = 2\n", "[queue]\n", "queue = 3\n"):
+        _ship_toml(text)
+        assert conduct["_cap"]() is None
+    path = _ship_toml("[queue]\nin_flight = 2\n")
+    assert conduct["_cap"]() == 2
+    for text in ("[queue", "[queue]\nin_flight = [\n"):
+        _ship_toml(text)
+        with pytest.raises(conduct["Stop"], match=re.escape(str(path))) as stopped:
+            conduct["_cap"]()
+        assert stopped.value.code == 2
+    path.write_bytes(b"\xff\xfe")
+    with pytest.raises(conduct["Stop"], match=re.escape(str(path))):
+        conduct["_cap"]()
+    path.unlink()
+    path.mkdir()
+    with pytest.raises(conduct["Stop"], match=re.escape(str(path))):
+        conduct["_cap"]()
+    path.rmdir()
+    for value in ("0", "-1", "1.5", '"2"', "true"):
+        _ship_toml(f"[queue]\nin_flight = {value}\n")
+        with pytest.raises(
+            conduct["Stop"],
+            match=re.escape(f"{path}: `in_flight` is not a whole number above 0"),
+        ) as stopped:
+            conduct["_cap"]()
+        assert stopped.value.code == 2
+
+
+def test_cap_file_that_is_bad_stops_the_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _ship_toml("[queue]\nin_flight = 0\n")
+
+    assert _run_claude(conduct, root, monkeypatch) == 2
+    assert "ship.toml" in capsys.readouterr().out
+    assert not (root / ".minions" / "runs" / "active").exists()
+    assert _calls(calls) == []
+
+
 def _halts_on_main(
     conduct: dict[str, Any], root: Path, calls: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

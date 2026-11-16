@@ -4441,6 +4441,9 @@ class Run:
         self.queue = _queue(primary)
         # The queued cuts the run read; None until `ship` reads the queue.
         self.seen: set[str] | None = None
+        # The most versions at a station a queued cut waits for; None for no cap.
+        # Why: 0129-queue-cap design D1.
+        self.cap: int | None = None
         self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
@@ -6755,6 +6758,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     mark = _mark_live(pin, primary_of(cwd))
     try:
         primary = preconditions(cwd, executor)
+        cap = _cap()
         if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
         runs = primary / ".minions" / "runs"
@@ -6781,6 +6785,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         (active / "pid").write_text(str(os.getpid()))
         _record_repo(primary)
         conductor = Run(primary, executor)
+        conductor.cap = cap
         try:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
@@ -6908,6 +6913,29 @@ def _queue(primary: Path) -> Path:
     e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
     """
     return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
+
+
+def _cap() -> int | None:
+    """Return the `in_flight` cap of the operator's `ship.toml`, None when none is set.
+
+    e.g. `[queue]` holding `in_flight = 2` gives 2. Why: 0129-queue-cap design D1.
+    """
+    base = os.environ.get("XDG_CONFIG_HOME")
+    config = Path(base) if base else Path.home() / ".config"
+    path = config / "minionsfactory" / "ship.toml"
+    try:
+        data = tomllib.loads(path.read_text())
+    except FileNotFoundError:
+        return None
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise Stop(2, f"{path}: {error}") from None
+    table = data.get("queue")
+    if not isinstance(table, dict) or "in_flight" not in table:
+        return None
+    value = table["in_flight"]
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise Stop(2, f"{path}: `in_flight` is not a whole number above 0")
+    return value
 
 
 def _brief_of(primary: Path, change: str) -> str | None:

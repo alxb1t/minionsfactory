@@ -4,22 +4,22 @@ The phases follow [design](design.md): the setting, the gate, what is shown, the
 
 ## Progress
 
-- [ ] 1 — The setting · moderate
+- [x] 1 — The setting · moderate
 - [ ] 2 — The gate · hard
 - [ ] 3 — What is shown · moderate
 - [ ] 4 — The record · moderate
 
 ## 1 — The setting
 
-- [ ] 1.1 In `tests/test_conduct.py` add the helper `_ship_toml(text)`, which writes `ship.toml` under `$XDG_CONFIG_HOME/minionsfactory/`, and `test_cap_reads_ship_toml`: no file, no `[queue]` table and no key give `None`; `in_flight = 2` gives `2`; an unparsable file, `0`, `-1`, `1.5`, `"2"` and `true` raise `Stop` with code 2, naming the file ([D1](design.md#d1)).
+- [x] 1.1 In `tests/test_conduct.py` add the helper `_ship_toml(text)`, which writes `ship.toml` under `$XDG_CONFIG_HOME/minionsfactory/`, and `test_cap_reads_ship_toml`: no file, no `[queue]` table and no key give `None`; `in_flight = 2` gives `2`; an unparsable file, `0`, `-1`, `1.5`, `"2"` and `true` raise `Stop` with code 2, naming the file ([D1](design.md#d1)).
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_reads"` lists `test_cap_reads_ship_toml`.
-- [ ] 1.2 In `skills/mf-ship/scripts/conduct.py` add `_cap() -> int | None` beside `_queue`, as [D1](design.md#d1) tabulates, with a docstring and an `e.g.` line.
+- [x] 1.2 In `skills/mf-ship/scripts/conduct.py` add `_cap() -> int | None` beside `_queue`, as [D1](design.md#d1) tabulates, with a docstring and an `e.g.` line.
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_reads"` passes.
-- [ ] 1.3 In `tests/test_conduct.py` add `test_cap_file_that_is_bad_stops_the_run`: with `in_flight = 0` written, `_run_claude` returns 2, the output names `ship.toml`, and no `.minions/runs/active` stands.
+- [x] 1.3 In `tests/test_conduct.py` add `test_cap_file_that_is_bad_stops_the_run`: with `in_flight = 0` written, `_run_claude` returns 2, the output names `ship.toml`, and no `.minions/runs/active` stands.
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_file"` lists `test_cap_file_that_is_bad_stops_the_run`.
-- [ ] 1.4 In `skills/mf-ship/scripts/conduct.py` set `self.cap: int | None = None` in `Run.__init__`, leaving its parameters as they are, and make `run()` call `_cap()` in its first `try` after `preconditions` and assign the value to `conductor.cap` once `Run` is built.
+- [x] 1.4 In `skills/mf-ship/scripts/conduct.py` set `self.cap: int | None = None` in `Run.__init__`, leaving its parameters as they are, and make `run()` call `_cap()` in its first `try` after `preconditions` and assign the value to `conductor.cap` once `Run` is built.
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_file"` passes.
-- [ ] 1.5 In `docs/principles.md` add to the closed list of *The repo reaches nothing outside itself*, before the `pin.py` bullet, a bullet: `conduct.py`'s read-only read of the operator's `ship.toml` under `$XDG_CONFIG_HOME/minionsfactory/`, named in no repo, linking D84 ([D6](design.md#d6)).
+- [x] 1.5 In `docs/principles.md` add to the closed list of *The repo reaches nothing outside itself*, before the `pin.py` bullet, a bullet: `conduct.py`'s read-only read of the operator's `ship.toml` under `$XDG_CONFIG_HOME/minionsfactory/`, named in no repo, linking D84 ([D6](design.md#d6)).
   Verify: `git grep -n "ship.toml" -- docs/principles.md` prints a line of the closed list.
 
 ## 2 — The gate
