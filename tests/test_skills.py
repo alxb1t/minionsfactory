@@ -732,3 +732,71 @@ def test_the_plan_review_scan_reports_each_breach(tmp_path: Path) -> None:
         f"{prefix}: `{_REVIEW}` has no **second** row",
         f"{prefix}: `{_MODELS}` names no Sonnet 5.5 · high build",
     ]
+
+
+# No skill tells a worker to run a command substitution: the conductor's shell rules
+# refuse one. `$(shell …)` and `$(MAKE)` in a rule's prose are not one.
+# Why: 0130-small-fixes design D5.
+_SUBSTITUTION = re.compile(r"\$\((?!shell\b)[a-z]")
+
+
+def _substitution_problems(base: Path) -> list[str]:
+    """Return one line per `SKILL.md` line that names a command substitution."""
+    return [
+        f"skills/{path.parent.name}/SKILL.md:{number}: a command substitution"
+        for path in sorted((base / "skills").glob("*/SKILL.md"))
+        for number, line in enumerate(path.read_text().splitlines(), 1)
+        if _SUBSTITUTION.search(line)
+    ]
+
+
+def test_no_skill_names_a_command_substitution() -> None:
+    assert _substitution_problems(_REPO) == []
+
+
+def test_the_substitution_scan_reports_each_line(tmp_path: Path) -> None:
+    _plant(
+        tmp_path,
+        {"mf-x": "a\n`$(git rev-parse HEAD)`\n`$(shell …)`\n`$(MAKE)`\n"},
+    )
+
+    assert _substitution_problems(tmp_path) == [
+        "skills/mf-x/SKILL.md:2: a command substitution"
+    ]
+
+
+# `mf-converge`'s text names each script the module map says converge loads.
+# Why: 0130-small-fixes design D6.
+_CONVERGE_ROW = re.compile(
+    r"^\| `skills/mf-converge/scripts/converge\.py` \| [^|]+ \| ([^|]+) \|",
+    re.MULTILINE,
+)
+
+
+def _loads_problems(base: Path) -> list[str]:
+    """Return one line per script converge's map row names that its text does not.
+
+    e.g. a row cell "a.py, b.py" and a text naming `a.py` → one line for b.py
+    """
+    row = _CONVERGE_ROW.search((base / "docs" / "modules.md").read_text())
+    assert row, "docs/modules.md has no converge row"
+    text = (base / "skills" / "mf-converge" / "SKILL.md").read_text()
+    return [
+        f"skills/mf-converge/SKILL.md: {name}: not named"
+        for name in (cell.strip() for cell in row.group(1).split(","))
+        if name not in text
+    ]
+
+
+def test_mf_converge_names_each_script_the_map_says_it_loads() -> None:
+    assert _loads_problems(_REPO) == []
+
+
+def test_the_loads_scan_reports_a_script_the_text_lacks(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "modules.md").write_text(
+        "| `skills/mf-converge/scripts/converge.py` | station | a.py, b.py |\n"
+    )
+    _plant(tmp_path, {"mf-converge": "It loads `a.py`.\n"})
+
+    assert _loads_problems(tmp_path) == ["skills/mf-converge/SKILL.md: b.py: not named"]

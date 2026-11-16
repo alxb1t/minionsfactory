@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 TIMEOUT_SECONDS = 60
-CHANGE_ID = re.compile(r"(\d+)-([a-z0-9-]+)")
+CHANGE_ID = re.compile(r"(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — ", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): \S+")
 UNRELEASED = re.compile(r"^## \[Unreleased\]\n", re.MULTILINE)

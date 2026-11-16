@@ -41,7 +41,7 @@ The current directory is the **primary**, the checkout on the default branch.
 
 The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/HEAD` names after `origin/`, or
 `main` when that fails. The **run directory** is `.minions/` beside the primary:
-`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`. Every `.minions/` path below is in it.
+`git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions`. Every `.minions/` path below is in it.
 
 **The script** is `scripts/integrate.py`, beside this file, run as
 `uv run --script <this package>/scripts/integrate.py <command>`, `<this package>` resolved from this installed

@@ -61,7 +61,7 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 `main` when that fails.
 
 The **run directory** is `.minions/` beside the primary checkout:
-`$(git rev-parse --path-format=absolute --git-common-dir)/../.minions`, the same from every worktree. Every
+`git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
 
 A **version file** may be absent — many repos keep none. That is a **stated skip, not a halt**: report it as
@@ -115,10 +115,10 @@ leaves never halts.
    seconds its last line prints: `gate: green — <tree> · <n>s`, the run's, or
    `gate: reused — <tree> · <n>s · <date>`, the record's.
 2. If converge ran (precondition 4): **conformance is clean** — `.minions/changes/<change-id>/conformance.md` exists, says
-   `verdict: clean`, and **every** blocking finding is `verified`, not merely `fixed`: `fixed` is the producer's
+   `verdict: clean`, and **every** blocking finding is `verified` or `accepted`, not merely `fixed`: `fixed` is the producer's
    claim. Else → halt.
 3. If converge ran (precondition 4): **adversarial is clean** — `.minions/changes/<change-id>/adversarial.md` exists,
-   says `verdict: clean`, and every `critical` and `high` finding is `verified`. Else → halt.
+   says `verdict: clean`, and every `critical` and `high` finding is `verified` or `accepted`. Else → halt.
 4. **Converge ran, or was skipped — the diff patch and the findings files decide, and simplify is declared out by
    name.**
 
@@ -256,7 +256,7 @@ binding check covers it, and a gate without one gives a separate step nothing to
    start, and a re-run of this release resumes here. Otherwise delete exactly those cards from `.minions/debt.md`
    — each card's list line and nested bullets — and a change heading left empty. An id not found is reported, not a halt. Nothing to commit:
    the debt is gitignored. **The lock:** before writing `.minions/debt.md`, `mkdir .minions/debt.lock`;
-   it exists → wait 5 seconds and retry, for 2 minutes, then halt, naming the lock; `rmdir` it when the write
+   it exists → wait 5 seconds and retry, for 10 minutes, then halt, naming the lock; `rmdir` it when the write
    ends, written or halted.
 
 ## Step 5 — Merge and push, on the person's yes

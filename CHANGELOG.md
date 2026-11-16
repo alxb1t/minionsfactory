@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.103.1] - 2026-11-16
+
+Gate: local 5m30s · CI not read under mf-ship · 0.103.0: local 5m21s · CI not read under mf-ship
+
+- Converge reads a ticked phase as `[x]` and halts on a `tasks.md` with no `## Progress` list, as the conductor and
+  integrate do; their change id refuses a trailing or a doubled hyphen, as D20 does (0130-small-fixes, phase 1).
+- `mf-release` waits ten minutes for the debt lock, as converge does, and passes a blocking card `accepted` as well as
+  `verified` (0130-small-fixes, phase 2).
+- `mf-build`, `mf-plan`, `mf-cut-change`, `mf-release` and `mf-integrate` name the run directory without a command
+  substitution, as `mf-rescue` does; `mf-converge` names every script its module-map row loads; a test holds each
+  (0130-small-fixes, phase 3).
+- A test holds that a resumed catch-up counted from round 2 halts `cap reached` at round 3; `cap_of`'s `and` as `or`
+  turns it red (0130-small-fixes, phase 4).
+- The real-sandbox case of the cut's hold goes, as it ran `ps`, which Seatbelt refuses; a case of a signal between
+  siblings under the real sandbox replaces it (0130-small-fixes, phase 5).
+
 ## [0.103.0] - 2026-11-16
 
 Gate: local 5m21s · CI not read under mf-ship · 0.102.0: local 5m41s · CI not read under mf-ship
