@@ -44,15 +44,24 @@ def isolated_home(
 def fake_sandbox_exec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Put a fake `sandbox-exec` first on `PATH`; return the file its profile lands in.
 
-    The fake writes its profile argument, then runs the rest of its arguments
-    unconfined: a nested Seatbelt cannot apply one. Why: 0108-converge-script C5.
+    It refuses a first word but `-p`, then writes the profile and runs the rest
+    unconfined (no Seatbelt nests). Why: 0108-converge-script C5, 0128 design D8.
     """
     folder = tmp_path / "fake-bin"
     folder.mkdir()
     profile = tmp_path / "profile.sb"
     fake = folder / "sandbox-exec"
     target = shlex.quote(str(profile))
-    fake.write_text(f'#!/bin/sh\nprintf \'%s\' "$2" > {target}\nshift 2\nexec "$@"\n')
+    fake.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" != "-p" ]; then\n'
+        '  echo "sandbox-exec: want -p, got $1" >&2\n'
+        "  exit 64\n"
+        "fi\n"
+        f"printf '%s' \"$2\" > {target}\n"
+        "shift 2\n"
+        'exec "$@"\n'
+    )
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
     return profile

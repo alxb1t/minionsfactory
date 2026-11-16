@@ -89,6 +89,51 @@ def test_a_profile_may_open_the_network(tmp_path: Path) -> None:
     assert opened.splitlines()[-1].startswith("(deny file-read* file-write* ")
 
 
+_CLOSED_PROFILE = (
+    "(version 1)\n"
+    "(allow default)\n"
+    "(deny file-write*)\n"
+    '(allow file-write* (subpath "{a}") (subpath "{b}")'
+    ' (literal "/dev/null") (literal "/dev/tty") (literal "/dev/dtracehelper")'
+    ' (literal "/dev/autofs_nowait") (literal "/dev/stdout")'
+    ' (literal "/dev/stderr"))\n'
+    '(deny file-read* file-write* (subpath "{home}/.ssh") (subpath "{home}/.aws")'
+    ' (subpath "{home}/.config/gh") (subpath "{home}/.netrc")'
+    ' (subpath "{home}/.gnupg") (subpath "{home}/.kube")'
+    ' (subpath "{home}/.docker/config.json") (subpath "{home}/.git-credentials")'
+    ' (subpath "{home}/.config/git/credentials") (subpath "{home}/.npmrc")'
+    ' (subpath "{home}/.pypirc") (subpath "{home}/.codex/auth.json")'
+    ' (subpath "{home}/.claude/.credentials.json"))\n'
+    "(deny network*)"
+)
+_OPEN_PROFILE = (
+    "(version 1)\n"
+    "(allow default)\n"
+    "(deny file-write*)\n"
+    '(allow file-write* (subpath "{a}") (subpath "{b}")'
+    ' (literal "/dev/null") (literal "/dev/tty") (literal "/dev/dtracehelper")'
+    ' (literal "/dev/autofs_nowait") (literal "/dev/stdout")'
+    ' (literal "/dev/stderr"))\n'
+    '(deny file-read* file-write* (subpath "{home}/.ssh") (subpath "{home}/.aws")'
+    ' (subpath "{home}/.config/gh") (subpath "{home}/.netrc")'
+    ' (subpath "{home}/.gnupg") (subpath "{home}/.kube")'
+    ' (subpath "{home}/.docker/config.json") (subpath "{home}/.git-credentials")'
+    ' (subpath "{home}/.config/git/credentials") (subpath "{home}/.npmrc")'
+    ' (subpath "{home}/.pypirc") (subpath "{home}/.codex/auth.json")'
+    ' (subpath "{home}/.claude/.credentials.json"))'
+)
+
+
+def test_the_profile_text_is_held_byte_for_byte(tmp_path: Path) -> None:
+    profile = _conduct()["_profile"]
+    a, b = _trees(tmp_path)
+    home = tmp_path / "home"
+    paths = {"a": a, "b": b, "home": home.resolve()}
+
+    assert profile([a, b], home) == _CLOSED_PROFILE.format(**paths)
+    assert profile([a, b], home, network=True) == _OPEN_PROFILE.format(**paths)
+
+
 def test_the_deny_lists_are_literals() -> None:
     conduct = _conduct()
 
@@ -517,11 +562,42 @@ def _seatbelt() -> bool:
     return subprocess.run(probe, capture_output=True).returncode == 0
 
 
+def _require_seatbelt() -> None:
+    """Pass where the real `sandbox-exec` applies a profile; else fail or skip.
+
+    `MF_REQUIRE_SEATBELT` set fails it: CI's macOS job. Why: 0128-platform-port D12.
+    """
+    if _seatbelt():
+        return
+    reason = "sandbox-exec cannot apply a profile here"
+    if os.environ.get("MF_REQUIRE_SEATBELT"):
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
 @pytest.fixture
 def real_sandbox() -> None:
-    """Skip the test where the real `sandbox-exec` cannot apply a profile."""
-    if not _seatbelt():
-        pytest.skip("sandbox-exec cannot apply a profile here")
+    """Skip the test, or fail it as `_require_seatbelt` says, without Seatbelt."""
+    _require_seatbelt()
+
+
+def test_a_required_seatbelt_that_cannot_apply_fails_and_else_skips(
+    tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MF_REQUIRE_SEATBELT", "1")
+    _require_seatbelt()
+
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+    outcomes = (pytest.fail.Exception, pytest.skip.Exception)
+    with pytest.raises(outcomes, match="cannot apply a profile") as required:
+        _require_seatbelt()
+    assert required.type is pytest.fail.Exception
+    monkeypatch.delenv("MF_REQUIRE_SEATBELT")
+    with pytest.raises(outcomes, match="cannot apply a profile") as optional:
+        _require_seatbelt()
+    assert optional.type is pytest.skip.Exception
 
 
 def test_a_write_outside_the_trees_is_denied(

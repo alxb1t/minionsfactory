@@ -4,7 +4,7 @@ The pin on today's code, the home with its first tenant, the move of the rest, a
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The home · hard
 - [ ] 3 — The move · hard
 - [ ] 4 — The fix · hard

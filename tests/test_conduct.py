@@ -4762,6 +4762,23 @@ def test_a_cut_fetches_the_npm_rows_it_approves(
     assert os.listdir(elsewhere) == []
 
 
+def test_the_fetch_command_starts_sandbox_exec_with_dash_p(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    writes = tmp_path / "writes"
+    writes.mkdir()
+
+    done = _conduct()["_fetch_run"](
+        ["sh", "-c", "echo fetched"], tmp_path, [writes], dict(os.environ), 10
+    )
+
+    assert done.returncode == 0
+    assert done.stdout == "fetched\n"
+    lines = fake_sandbox_exec.read_text().splitlines()
+    assert lines[0] == "(version 1)"
+    assert "(deny network*)" not in lines
+
+
 def test_a_missing_npm_halts_by_name_only_where_it_is_needed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -11044,8 +11061,11 @@ def test_a_stale_claim_is_cleared(
 
     with monkeypatch.context() as patch:
         patch.setattr(os, "killpg", refuse)
-        with pytest.raises(conduct["Stop"], match=f"group {refusing.pid} survives"):
+        with pytest.raises(
+            conduct["Stop"], match=f"group {refusing.pid} survives"
+        ) as stopped:
             conduct["_clear"](active)
+    assert stopped.value.code == 2
     assert all(path.exists() for path in held)
     with monkeypatch.context() as patch:
         patch.setenv("PATH", _no_ps(tmp_path), prepend=os.pathsep)
@@ -11055,6 +11075,32 @@ def test_a_stale_claim_is_cleared(
     refusing.kill()
     for process in (recycled, unstamped, refusing):
         process.wait(timeout=10)
+
+
+def test_the_liveness_probe_sends_signal_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setenv("PATH", _no_ps(tmp_path), prepend=os.pathsep)
+    sent: list[tuple[int, int]] = []
+    answer: list[type[OSError] | None] = [None]
+
+    def kill(pid: int, sig: int) -> None:
+        sent.append((pid, sig))
+        if answer[0] is not None:
+            raise answer[0](1, "probe")
+
+    monkeypatch.setattr(os, "kill", kill)
+
+    answer[0] = ProcessLookupError
+    assert conduct["_started"](4242) == ""
+    assert sent == [(4242, 0)]
+    for error in (None, PermissionError):
+        answer[0] = error
+        with pytest.raises(conduct["Stop"], match="ps cannot read pid 4242") as stop:
+            conduct["_started"](4242)
+        assert stop.value.code == 2
+    assert sent == [(4242, 0)] * 3
 
 
 def test_a_claim_naming_a_low_group_signals_nothing(
