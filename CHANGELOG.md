@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `tests/test_gate_check.py`, `tests/test_gate_run.py` and `tests/test_plan_check.py` hold the gate's guards: a second
+  task after a non-makefile one, a makefile outside the tree beside many inside, a gate that rewrites the tree or
+  its own dry run, and a failing command under `prints nothing`. Each was removed and the suite stayed green
+  (0126-station-guards, phase 1).
+
 ## [0.101.1] - 2026-11-14
 
 Gate: local 6m19s · CI not read under mf-ship · 0.101.0: local 7m38s · CI not read under mf-ship

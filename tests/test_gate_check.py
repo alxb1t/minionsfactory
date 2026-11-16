@@ -7,6 +7,7 @@ Why: 0034-gate-recipe-hardening design D1…D4.
 import hashlib
 import os
 import re
+import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -659,6 +660,7 @@ def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:
         "gapped": (gapped, 1),
         "mk": ("- [ ] 2.1 Add `setup` to `mk/tools.mk`.\n", 1),
         "none": ("- [ ] 1.1 Edit `README.md`.\n", 0),
+        "second": ("- [ ] 1.1 Edit `README.md`.\n" + prose.replace("1.6", "1.2"), 1),
     }
     outcomes = {}
     for label, (task, _) in cases.items():
@@ -676,3 +678,17 @@ def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:
     assert halt.startswith("gate: halt — I18: "), halt
     assert "\n  1.6: no ```diff line · no line starting `+ ` or `- `\n" in halt
     assert "\n  2.1: no `gate` · no ```diff line" in outcomes["mk"][1]
+    assert "\n  1.2: no ```diff line" in outcomes["second"][1]
+
+
+def test_a_makefile_outside_the_tree_hides_none_inside(tmp_path: Path) -> None:
+    root = tmp_path / "tree"
+    inside = [f"mk/part{n}.mk" for n in range(30)]
+    for name in inside:
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text("x:\n")
+    (tmp_path / "outside.mk").write_text("x:\n")
+    # A set's order is the hash seed's: many inside names, one outside, any order.
+    trace = "MAKEFILE_LIST := " + " ".join([*inside, "../outside.mk"]) + "\n"
+    gate_makefiles = runpy.run_path(str(_SCRIPT))["gate_makefiles"]
+    assert sorted(gate_makefiles(root, trace)) == sorted(inside)

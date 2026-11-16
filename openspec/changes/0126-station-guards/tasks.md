@@ -4,7 +4,7 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 ## Progress
 
-- [ ] 1 — The gate's guards · moderate
+- [x] 1 — The gate's guards · moderate
 - [ ] 2 — Verify:'s shell refusals · moderate
 - [ ] 3 — The cut's contract · moderate
 - [ ] 4 — Converge's cards, cap and verdict · moderate
@@ -13,15 +13,15 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 ## 1 — The gate's guards
 
-- [ ] 1.1 Add row G1's two-task case, keyed `"second"`, to `tests/test_gate_check.py`'s `test_a_bare_makefile_task_fails_the_plan_check`.
+- [x] 1.1 Add row G1's two-task case, keyed `"second"`, to `tests/test_gate_check.py`'s `test_a_bare_makefile_task_fails_the_plan_check`.
   Verify: `git grep -n '"second"' -- tests/test_gate_check.py` prints a line, then `uv run pytest tests/test_gate_check.py::test_a_bare_makefile_task_fails_the_plan_check -q` exits 0.
-- [ ] 1.2 Add the new `test_a_makefile_outside_the_tree_hides_none_inside` to `tests/test_gate_check.py`, built to row G2 and [D3](design.md#d3).
+- [x] 1.2 Add the new `test_a_makefile_outside_the_tree_hides_none_inside` to `tests/test_gate_check.py`, built to row G2 and [D3](design.md#d3).
   Verify: `uv run pytest tests/test_gate_check.py::test_a_makefile_outside_the_tree_hides_none_inside -q` exits 0.
-- [ ] 1.3 Add the new `test_a_gate_that_changes_what_it_ran_on_records_nothing` to `tests/test_gate_run.py`: row G3's case, then row G4's, per [D4](design.md#d4).
+- [x] 1.3 Add the new `test_a_gate_that_changes_what_it_ran_on_records_nothing` to `tests/test_gate_run.py`: row G3's case, then row G4's, per [D4](design.md#d4).
   Verify: `uv run pytest tests/test_gate_run.py::test_a_gate_that_changes_what_it_ran_on_records_nothing -q` exits 0.
-- [ ] 1.4 Add row G5's `false` case, a sub-task titled `Silent`, to `tests/test_plan_check.py`'s `test_a_plan_check_finds_what_the_plan_left`.
+- [x] 1.4 Add row G5's `false` case, a sub-task titled `Silent`, to `tests/test_plan_check.py`'s `test_a_plan_check_finds_what_the_plan_left`.
   Verify: `git grep -n Silent -- tests/test_plan_check.py` prints a line, then `uv run pytest tests/test_plan_check.py::test_a_plan_check_finds_what_the_plan_left -q` exits 0.
-- [ ] 1.5 Leave every line broken for a red run as it was.
+- [x] 1.5 Leave every line broken for a red run as it was.
   Verify: `git diff --quiet HEAD -- skills` exits 0.
 
 ## 2 — Verify:'s shell refusals

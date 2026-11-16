@@ -126,6 +126,9 @@ def test_a_plan_check_finds_what_the_plan_left(
     assert check() == (0, ["plan: clean"])
     _tasks(root, _ONE, f"- [x] 1.1 Absent.\n  Verify: `{search}` prints a line.\n")
     assert check() == (1, [f"plan: 1.1 — `{search}` exited 1"])
+    # Only a search may exit 1 and print nothing: `false` printing nothing fails.
+    _tasks(root, _ONE, "- [x] 1.1 Silent.\n  Verify: `false` prints nothing.\n")
+    assert check() == (1, ["plan: 1.1 — `false` exited 1"])
 
     # A command that exits 0 must print what its `Verify:` says: a `prints nothing`
     # search that finds a match fails, showing the match.
