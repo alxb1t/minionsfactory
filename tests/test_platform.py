@@ -34,6 +34,17 @@ def _timeout(*args: object, **kwargs: object) -> None:
     raise subprocess.TimeoutExpired("tool", 60)
 
 
+def test_the_side_names_linux_and_else_macos() -> None:
+    names = ("linux", "linux2", "darwin", "freebsd")
+
+    assert [platform.side(name) for name in names] == [
+        "linux",
+        "linux",
+        "macos",
+        "macos",
+    ]
+
+
 def test_the_native_architecture_reads_sysctl_past_a_translated_process(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

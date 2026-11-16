@@ -588,41 +588,45 @@ def _seatbelt() -> bool:
     return subprocess.run(probe, capture_output=True).returncode == 0
 
 
-def _require_seatbelt() -> None:
+def _require_sandbox() -> None:
     """Pass where the real `sandbox-exec` applies a profile; else fail or skip.
 
-    `MF_REQUIRE_SEATBELT` set fails it: CI's macOS job. Why: 0128-platform-port D12.
+    `MF_REQUIRE_SANDBOX` set fails it: CI's macOS job. Why: 0128-platform-port D12.
     """
     if _seatbelt():
         return
     reason = "sandbox-exec cannot apply a profile here"
-    if os.environ.get("MF_REQUIRE_SEATBELT"):
+    if os.environ.get("MF_REQUIRE_SANDBOX"):
         pytest.fail(reason)
     pytest.skip(reason)
 
 
 @pytest.fixture
-def real_sandbox() -> None:
-    """Skip the test, or fail it as `_require_seatbelt` says, without Seatbelt."""
-    _require_seatbelt()
+def real_sandbox(host: str, macos_side: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the test on the host's side; skip or fail it as `_require_sandbox` says.
+
+    Why: 0131-linux-runner design D7.
+    """
+    monkeypatch.setattr(platform, "OS", host)
+    _require_sandbox()
 
 
-def test_a_required_seatbelt_that_cannot_apply_fails_and_else_skips(
+def test_a_required_sandbox_that_cannot_apply_fails_and_else_skips(
     tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("MF_REQUIRE_SEATBELT", "1")
-    _require_seatbelt()
+    monkeypatch.setenv("MF_REQUIRE_SANDBOX", "1")
+    _require_sandbox()
 
     empty = tmp_path / "empty-bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
     outcomes = (pytest.fail.Exception, pytest.skip.Exception)
     with pytest.raises(outcomes, match="cannot apply a profile") as required:
-        _require_seatbelt()
+        _require_sandbox()
     assert required.type is pytest.fail.Exception
-    monkeypatch.delenv("MF_REQUIRE_SEATBELT")
+    monkeypatch.delenv("MF_REQUIRE_SANDBOX")
     with pytest.raises(outcomes, match="cannot apply a profile") as optional:
-        _require_seatbelt()
+        _require_sandbox()
     assert optional.type is pytest.skip.Exception
 
 

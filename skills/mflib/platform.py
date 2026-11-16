@@ -6,6 +6,7 @@ Why: 0128-platform-port design D1 and D4.
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import NamedTuple
 
@@ -17,6 +18,18 @@ DEVICES = (
     *("/dev/null", "/dev/tty", "/dev/dtracehelper", "/dev/autofs_nowait"),
     *("/dev/stdout", "/dev/stderr"),
 )
+
+
+def side(system: str) -> str:
+    """Return the port's side for an OS name: `linux`, else `macos`.
+
+    e.g. "linux2" → "linux", "darwin" → "macos"
+    Why: 0131-linux-runner design D7.
+    """
+    return "linux" if system.startswith("linux") else "macos"
+
+
+OS = side(sys.platform)
 
 
 class Policy(NamedTuple):

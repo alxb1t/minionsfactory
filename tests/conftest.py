@@ -9,6 +9,9 @@ import shlex
 from pathlib import Path
 
 import pytest
+from mflib import platform
+
+HOST = platform.OS
 
 ISOLATED = {
     "XDG_CONFIG_HOME": ".config",
@@ -38,6 +41,21 @@ def isolated_home(
     # Why: 0100-worker-diet design D2 — `_plugins_off` reads the operator's otherwise.
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     return home
+
+
+@pytest.fixture(scope="session")
+def host() -> str:
+    """Return the host's side, read at import, before any test sets `platform.OS`."""
+    return HOST
+
+
+@pytest.fixture(autouse=True)
+def macos_side(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the test on the port's macOS side; a test of the Linux side sets `linux`.
+
+    Why: 0131-linux-runner design D7.
+    """
+    monkeypatch.setattr(platform, "OS", "macos")
 
 
 @pytest.fixture

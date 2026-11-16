@@ -4,7 +4,7 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 ## Progress
 
-- [ ] 1 — The side · moderate
+- [x] 1 — The side · moderate
 - [ ] 2 — The Linux side · hard
 - [ ] 3 — The callers · moderate
 - [ ] 4 — The names · hard
@@ -13,15 +13,15 @@ The phases follow [design](design.md): the side, the Linux side, the callers, th
 
 ## 1 — The side
 
-- [ ] 1.1 In `skills/mflib/platform.py` add `import sys`, `side(system: str) -> str` returning `"linux"` for a name that starts with `linux` and `"macos"` for any other, and, after the constants, `OS = side(sys.platform)`. Its docstring ends `Why: 0131-linux-runner design D7` ([D7](design.md#d7)).
+- [x] 1.1 In `skills/mflib/platform.py` add `import sys`, `side(system: str) -> str` returning `"linux"` for a name that starts with `linux` and `"macos"` for any other, and, after the constants, `OS = side(sys.platform)`. Its docstring ends `Why: 0131-linux-runner design D7` ([D7](design.md#d7)).
   Verify: `git grep -n -e "^def side" -e "^OS = side(sys.platform)" -- skills/mflib/platform.py` prints both lines.
-- [ ] 1.2 In `tests/test_platform.py` add `test_the_side_names_linux_and_else_macos`: `platform.side` of `linux` and `linux2` is `linux`, of `darwin` and `freebsd` is `macos` ([D7](design.md#d7)).
+- [x] 1.2 In `tests/test_platform.py` add `test_the_side_names_linux_and_else_macos`: `platform.side` of `linux` and `linux2` is `linux`, of `darwin` and `freebsd` is `macos` ([D7](design.md#d7)).
   Verify: `uv run pytest tests/test_platform.py -q -k side_names` passes.
-- [ ] 1.3 In `tests/conftest.py` import `from mflib import platform`, add `HOST = platform.OS` after the imports, a session fixture `host` returning `HOST`, and the autouse fixture `macos_side(monkeypatch)` that sets `platform.OS` to `"macos"` ([D7](design.md#d7)).
+- [x] 1.3 In `tests/conftest.py` import `from mflib import platform`, add `HOST = platform.OS` after the imports, a session fixture `host` returning `HOST`, and the autouse fixture `macos_side(monkeypatch)` that sets `platform.OS` to `"macos"` ([D7](design.md#d7)).
   Verify: `git grep -n -e "^HOST = platform.OS" -e "^def host" -e "^def macos_side" -- tests/conftest.py` prints a line holding each.
-- [ ] 1.4 In `tests/test_sandboxed.py` rename `_require_seatbelt` to `_require_sandbox`, the switch `MF_REQUIRE_SEATBELT` to the new `MF_REQUIRE_SANDBOX`, and `test_a_required_seatbelt_that_cannot_apply_fails_and_else_skips` to `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips`. Make `real_sandbox` take `host`, `macos_side` and `monkeypatch`, set `platform.OS` to `host`, then call `_require_sandbox()` ([D5](design.md#d5), [D7](design.md#d7)).
+- [x] 1.4 In `tests/test_sandboxed.py` rename `_require_seatbelt` to `_require_sandbox`, the switch `MF_REQUIRE_SEATBELT` to the new `MF_REQUIRE_SANDBOX`, and `test_a_required_seatbelt_that_cannot_apply_fails_and_else_skips` to `test_a_required_sandbox_that_cannot_apply_fails_and_else_skips`. Make `real_sandbox` take `host`, `macos_side` and `monkeypatch`, set `platform.OS` to `host`, then call `_require_sandbox()` ([D5](design.md#d5), [D7](design.md#d7)).
   Verify: `git grep -n -e MF_REQUIRE_SEATBELT -e _require_seatbelt -- tests` prints nothing.
-- [ ] 1.5 In `.github/workflows/ci.yml` rename `MF_REQUIRE_SEATBELT` in the macOS job to the new `MF_REQUIRE_SANDBOX` ([D5](design.md#d5)).
+- [x] 1.5 In `.github/workflows/ci.yml` rename `MF_REQUIRE_SEATBELT` in the macOS job to the new `MF_REQUIRE_SANDBOX` ([D5](design.md#d5)).
   Verify: `git grep -n MF_REQUIRE_SEATBELT -- .github` prints nothing.
 
 ## 2 — The Linux side

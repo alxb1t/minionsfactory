@@ -56,5 +56,5 @@ jobs:
 
       - name: Real-sandbox tests
         env:
-          MF_REQUIRE_SEATBELT: "1"
+          MF_REQUIRE_SANDBOX: "1"
         run: uv run pytest tests/test_sandboxed.py -q
