@@ -130,6 +130,8 @@ NOTES = 40
 STATIONS = ("build", "converge", "integrate", "release")
 FIXER = "converge.fix"
 WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
+# The stations a missing Codex does not halt. Why: 0132-cloud-run design D5.
+CHECKERS = tuple(name for name in WORKERS if name != FIXER)
 # A cut's worker table under its old name. Why: 0095-converge-roles design D2.
 OLD_WORKERS = {
     "converge.conformance": "converge.review",
@@ -343,7 +345,7 @@ CONFIG_PLAIN = re.compile(
     r"core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase"
     r"|precomposeunicode|symlinks|hookspath)"
     r"|(user|author|committer)\.(name|email)|user\.signingkey|commit\.gpgsign"
-    r"|protocol\.version|pull\.(rebase|ff)"
+    r"|protocol\.version|pull\.(rebase|ff)|gc\.auto"
     r"|remote\..+\.(url|fetch|gh-resolved)"
     r"|branch\..+\.(remote|merge|rebase|description)"
 )
@@ -4568,6 +4570,9 @@ class Run:
         self.tags: bool = True
         # Whether `push_left` reads at the run's start. Why: 0132-cloud-run design D3.
         self.fresh: bool = False
+        # Whether the log said a checker on a missing Codex runs on Claude.
+        # Why: 0132-cloud-run design D5.
+        self.codex_said: bool = False
         # Each queued cut that waits for room, with its reason.
         self.waiting: dict[str, str] = {}
         self.log = RunLog(self.runs, time.strftime(STAMP))
@@ -4975,6 +4980,9 @@ class Run:
 
         Why: 0104-codex-limits design D3; 0117-codex-converge design D4.
         """
+        # Not installed: the third cause of a fallback.
+        if _executor_missing("codex"):
+            return False
         held = _headroom(time.time())
         resets = [self.limited_until("codex"), held[0] if held else None]
         if reset := max((at for at in resets if at is not None), default=None):
@@ -6130,7 +6138,7 @@ class Run:
     def read_plan(self, versions: list[Version]) -> None:
         """Read each station's models, once per version: at the start, or as it joins.
 
-        Why: 0052 D4; 0067 D5; 0070 D4; 0085 D3; 0094 D1; 0097 D3; 0105 D2.
+        Why: 0052 D4; 0067 D5; 0070 D4; 0085 D3; 0094 D1; 0097 D3; 0105 D2; 0132 D5.
         """
         for version, station in itertools.product(versions, PLANNED):
             self.planned.add(version.change)
@@ -6155,6 +6163,19 @@ class Run:
                     self.decides.add(version.change)
                 if shadows:
                     self.shadowed.add(version.change)
+        with self.guard:
+            checkers = (
+                self.plan.get((version.change, name))
+                for version, name in itertools.product(versions, CHECKERS)
+            )
+            on_codex = any(models and models[0] == "codex" for models in checkers)
+            if not self.codex_said and on_codex and _executor_missing("codex"):
+                self.codex_said = True
+                self.log.event(
+                    "run",
+                    "codex",
+                    "not on PATH: a checker a plan gives Codex runs on Claude",
+                )
 
     def models(
         self, change: str, station: str
@@ -6168,24 +6189,31 @@ class Run:
     def named(self, change: str) -> list[str]:
         """Return each executor a version's plan names, a shadow's among them.
 
-        A skipped station and a skipped checker's shadow name none.
-        Why: 0097-cross-model design D3; 0105-converge-switches design D2.
+        A skipped station or shadow, and a checker on a missing Codex, names none.
+        Why: 0097 design D3; 0105 design D2; 0132-cloud-run design D5
         """
         skipped = self.skipped.get(change, frozenset())
+        missing = _executor_missing("codex")
+
+        def kept(station: str, executor: str) -> bool:
+            return not (missing and executor == "codex" and station in CHECKERS)
+
         planned = [
-            self.plan.get((change, station))
+            (station, models)
             for station in PLANNED
             if station not in skipped
+            and (models := self.plan.get((change, station))) is not None
         ]
-        named = [models[0] for models in planned if models]
+        named = [models[0] for station, models in planned if kept(station, models[0])]
         converge = self.plan.get((change, "converge"))
         if change in self.shadowed and converge is not None:
-            checkers = (self.plan.get((change, name)) for name in WORKERS)
-            named += [
-                _shadow(converge, models)[0]
-                for name, models in zip(WORKERS, checkers, strict=True)
-                if models and name != FIXER and name not in skipped
+            shadows = [
+                (name, _shadow(converge, models)[0])
+                for name in CHECKERS
+                if name not in skipped
+                and (models := self.plan.get((change, name))) is not None
             ]
+            named += [executor for name, executor in shadows if kept(name, executor)]
         return list(dict.fromkeys(named))
 
     def executors(self, *cutters: str) -> list[str]:

@@ -21,6 +21,7 @@ import sys
 import threading
 import time
 import tomllib
+import traceback
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -3901,11 +3902,13 @@ def test_a_new_executor_is_probed_mid_run(
         calls = fake("hold-0001-todo")
         calls.unlink(missing_ok=True)
         asked: list[str] = []
-        conduct["main"].__globals__["_executor_missing"] = (
-            lambda name, missing=missing, asked=asked: (
-                asked.append(name) or (missing and name == "codex")
-            )
-        )
+
+        def asks(name: str, missing: bool = missing, asked: list[str] = asked) -> bool:
+            # The probe's asks alone: the roster asks too. Why: 0132-cloud-run D5.
+            asked.append(f"{name} · {traceback.extract_stack(limit=2)[0].name}")
+            return missing and name == "codex"
+
+        conduct["main"].__globals__["_executor_missing"] = asks
         root = _primary(scratch)
         _version(root, "0001-todo", "- [ ] 1 — Todo\n")
         # A failed probe is kept: a second version on codex halts on it, unprobed.
@@ -3941,7 +3944,7 @@ def test_a_new_executor_is_probed_mid_run(
         if missing:
             assert "build 0002-marks" not in made
             assert made.count("probe") == 1
-            assert asked.count("codex") == 1
+            assert asked.count("codex · probe") == 1
             for change in joining:
                 assert not any(f" · rejoin — {change}" in line for line in lines)
                 assert any(
@@ -6359,6 +6362,48 @@ def test_a_codex_checker_runs_through_run_checker(
     )
 
 
+def test_a_checker_on_codex_runs_where_codex_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_executor_missing", lambda name: name == "codex")
+    root = _primary(tmp_path)
+    tables = {
+        "0001-checker": '[converge.conformance]\nexecutor = "codex"\n',
+        "0002-shadow": "[converge]\nshadow = true\n",
+        "0003-build": '[build]\nexecutor = "codex"\n',
+        "0004-fixer": '[converge.fix]\nexecutor = "codex"\nmodel = "gpt-6.1-sol"\n',
+        "0005-other": '[converge.conformance]\nexecutor = "codex"\n',
+    }
+    for change, table in tables.items():
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True)
+        (folder / "models.toml").write_text(table)
+    version = conduct["Version"]
+    run = conduct["Run"](root, "claude")
+    run.claim = None
+    run.read_plan([version(change, root) for change in tables])
+    run.read_plan([version("0005-other", root)])
+
+    said = [line for line in _log(root) if " · run · codex — " in line]
+    assert len(said) == 1
+    assert said[0].endswith("not on PATH: a checker a plan gives Codex runs on Claude")
+    # A checker on Codex, and a shadow on Codex, fall back; a build and a fixer do not.
+    assert run.named("0001-checker") == ["claude"]
+    assert run.named("0002-shadow") == ["claude"]
+    assert run.named("0003-build") == ["codex", "claude"]
+    assert run.named("0004-fixer") == ["claude", "codex"]
+    probes: list[object] = []
+    monkeypatch.setattr(run, "probe_for", lambda *given: probes.append(given))
+    assert run.codex_ready("0001-checker", time.monotonic() + 600) is False
+    assert probes == []
+
+    monkeypatch.setitem(found, "_executor_missing", lambda _: False)
+    assert run.named("0001-checker") == ["claude", "codex"]
+    assert run.named("0002-shadow") == ["claude", "codex"]
+
+
 def test_the_run_passes_a_deadline_to_the_sandbox(
     tmp_path: Path, fake_sandbox_exec: Path
 ) -> None:
@@ -6795,6 +6840,60 @@ def test_a_station_runs_on_its_executor(
     (second / ".minions" / "changes" / "0001-todo").mkdir(parents=True)
     (second / ".minions" / "changes" / "0001-todo" / "models.toml").write_text(table)
     conduct["main"].__globals__["_executor_missing"] = lambda name: name == "codex"
+    calls.unlink()
+    assert (
+        _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 1
+    )
+    assert _calls(calls) == ["probe"]
+    assert any(
+        line.endswith(" · run · halt — probe-codex — codex is not on PATH")
+        for line in _log(second)
+    )
+
+
+@pytest.mark.slow
+def test_a_codex_checker_falls_back_where_codex_is_not_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "_executor_missing", lambda name: name == "codex")
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text('[converge.conformance]\nexecutor = "codex"\n')
+
+    assert (
+        _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+        == 0
+    )
+
+    assert _calls(calls) == [
+        "probe",
+        "build 0001-todo",
+        "build 0001-todo with phase=close",
+        *_judged(),
+        "release 0001-todo",
+    ]
+    spawned = [
+        line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
+    ]
+    assert not any("executor codex" in line for line in spawned)
+    assert any(line.startswith("converge-conformance-r1 · ") for line in spawned)
+    said = [line for line in _log(root) if " · run · codex — " in line]
+    assert len(said) == 1
+    assert said[0].endswith("not on PATH: a checker a plan gives Codex runs on Claude")
+
+    other = tmp_path / "other"
+    other.mkdir()
+    second = _primary(other)
+    _version(second, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = second / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    (folder / "models.toml").write_text('[build]\nexecutor = "codex"\n')
     calls.unlink()
     assert (
         _main(conduct, second, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -7883,7 +7982,7 @@ def test_a_planted_remote_key_refuses_status_and_run(
     assert "hook.probe.event" in log.read_text()
 
 
-def test_the_config_guard_refuses_a_gc_key(
+def test_the_config_guard_allows_gc_auto(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -7893,7 +7992,9 @@ def test_the_config_guard_refuses_a_gc_key(
     fake()
     root, _ = _with_origin(tmp_path)
     _git(root, "config", "gc.auto", "0")
-    assert "gc.auto" in _status(conduct, root, capsys, monkeypatch, 1)
+    _status(conduct, root, capsys, monkeypatch, 0)
+    _git(root, "config", "gc.autodetach", "false")
+    assert "gc.autodetach" in _status(conduct, root, capsys, monkeypatch, 1)
 
 
 @pytest.mark.slow

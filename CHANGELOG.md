@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A run's start fetches `origin`'s default branch through the conductor's scratch repo into the primary's objects
   and fast-forwards the local one, never merging, logging `run · sync — fetched` and `fast-forwarded`; a failed
   fetch is a wait, and a diverged branch still halts at its push (0132-cloud-run, phase 4).
+- The config guard allows `gc.auto`, which the cloud writes into every clone; `gc.autodetach` and every other `gc.`
+  key still halt. Where Codex is not on `PATH`, a converge checker a plan gives Codex runs on Claude, a shadow on Codex
+  stops as at a usage limit, and the run says so once; a station on Codex still halts at its probe (0132-cloud-run,
+  phase 5).
 
 ## [0.103.1] - 2026-11-16
 

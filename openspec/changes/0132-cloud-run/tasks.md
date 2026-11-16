@@ -8,7 +8,7 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 - [x] 2 — The setting · moderate
 - [x] 3 — The tags · hard
 - [x] 4 — The fetch · hard
-- [ ] 5 — The guard and Codex · moderate
+- [x] 5 — The guard and Codex · moderate
 - [ ] 6 — The record · moderate
 
 ## 1 — The pin
@@ -81,21 +81,21 @@ The phases follow [design](design.md): the pin, the setting, the tags, the fetch
 
 ## 5 — The guard and Codex
 
-- [ ] 5.1 In `skills/mf-ship/scripts/conduct.py` change the `CONFIG_PLAIN` line `r"|protocol\.version|pull\.(rebase|ff)"` to end `|gc\.auto"` after `pull\.(rebase|ff)` ([D4](design.md#d4)).
+- [x] 5.1 In `skills/mf-ship/scripts/conduct.py` change the `CONFIG_PLAIN` line `r"|protocol\.version|pull\.(rebase|ff)"` to end `|gc\.auto"` after `pull\.(rebase|ff)` ([D4](design.md#d4)).
   Verify: `git grep -n -F 'gc\.auto' -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 5.2 In `tests/test_conduct.py` rename `test_the_config_guard_refuses_a_gc_key` to `test_the_config_guard_allows_gc_auto`: `gc.auto` in the primary's config makes `_status` exit 0, and `gc.autodetach` makes it exit 1 naming that key ([D4](design.md#d4)).
+- [x] 5.2 In `tests/test_conduct.py` rename `test_the_config_guard_refuses_a_gc_key` to `test_the_config_guard_allows_gc_auto`: `gc.auto` in the primary's config makes `_status` exit 0, and `gc.autodetach` makes it exit 1 naming that key ([D4](design.md#d4)).
   Verify: `git grep -n "test_the_config_guard_allows_gc_auto" -- tests/test_conduct.py` prints the line.
-- [ ] 5.3 In `skills/mf-ship/scripts/conduct.py` add `CHECKERS = tuple(name for name in WORKERS if name != FIXER)` after `WORKERS`, with the comment that these are the stations a missing Codex does not halt ([D5](design.md#d5)).
+- [x] 5.3 In `skills/mf-ship/scripts/conduct.py` add `CHECKERS = tuple(name for name in WORKERS if name != FIXER)` after `WORKERS`, with the comment that these are the stations a missing Codex does not halt ([D5](design.md#d5)).
   Verify: `git grep -n "^CHECKERS" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 5.4 In `skills/mf-ship/scripts/conduct.py`, in `Run.named`, skip a plan entry whose station is in the checkers tuple of 5.3 and whose executor is `codex` while `_executor_missing("codex")`, and skip a shadow whose executor is `codex` under the same test. Its docstring ends `Why: 0132-cloud-run design D5` ([D5](design.md#d5)).
+- [x] 5.4 In `skills/mf-ship/scripts/conduct.py`, in `Run.named`, skip a plan entry whose station is in the checkers tuple of 5.3 and whose executor is `codex` while `_executor_missing("codex")`, and skip a shadow whose executor is `codex` under the same test. Its docstring ends `Why: 0132-cloud-run design D5` ([D5](design.md#d5)).
   Verify: `git grep -n -F '_executor_missing("codex")' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 5.5 In `skills/mf-ship/scripts/conduct.py`, in `Run.codex_ready`, return `False` first when `_executor_missing("codex")`, under the comment `# Not installed: the third cause of a fallback.` ([D5](design.md#d5)).
+- [x] 5.5 In `skills/mf-ship/scripts/conduct.py`, in `Run.codex_ready`, return `False` first when `_executor_missing("codex")`, under the comment `# Not installed: the third cause of a fallback.` ([D5](design.md#d5)).
   Verify: `git grep -n -F "Not installed: the third cause" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 5.6 In `skills/mf-ship/scripts/conduct.py` add `self.codex_said: bool = False` to `Run.__init__`, and at the end of `Run.read_plan`, under `self.guard`, log `run · codex — not on PATH: a checker a plan gives Codex runs on Claude` once, when a station of the checkers tuple of 5.3, of a version just read, has `codex` for its executor while `_executor_missing("codex")` ([D5](design.md#d5)).
+- [x] 5.6 In `skills/mf-ship/scripts/conduct.py` add `self.codex_said: bool = False` to `Run.__init__`, and at the end of `Run.read_plan`, under `self.guard`, log `run · codex — not on PATH: a checker a plan gives Codex runs on Claude` once, when a station of the checkers tuple of 5.3, of a version just read, has `codex` for its executor while `_executor_missing("codex")` ([D5](design.md#d5)).
   Verify: `git grep -n -F "a checker a plan gives Codex runs on Claude" -- skills/mf-ship/scripts/conduct.py` prints the line.
-- [ ] 5.7 In `tests/test_conduct.py` add `test_a_checker_on_codex_runs_where_codex_is_missing`, shaped on the `Run` and `read_plan` steps of `test_a_codex_checker_runs_through_run_checker` with `_executor_missing` patched to report only `codex`: `named` leaves `codex` out for a conformance checker, its shadow and none other, keeps it for a build and the fixer, and `codex_ready` is false and probes nothing; the log holds a single `run · codex` line however many plans are read; with Codex present `named` keeps it ([D5](design.md#d5)).
+- [x] 5.7 In `tests/test_conduct.py` add `test_a_checker_on_codex_runs_where_codex_is_missing`, shaped on the `Run` and `read_plan` steps of `test_a_codex_checker_runs_through_run_checker` with `_executor_missing` patched to report only `codex`: `named` leaves `codex` out for a conformance checker, its shadow and none other, keeps it for a build and the fixer, and `codex_ready` is false and probes nothing; the log holds a single `run · codex` line however many plans are read; with Codex present `named` keeps it ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_conduct.py -q -k a_checker_on_codex_runs_where` passes.
-- [ ] 5.8 In `tests/test_conduct.py` add `test_a_codex_checker_falls_back_where_codex_is_not_installed`, marked `slow`, shaped on the second half of `test_a_station_runs_on_its_executor`: with `[converge.conformance] executor = "codex"` and Codex missing the run ends 0, the checker runs on Claude and one `run · codex` line says why; with `[build] executor = "codex"` in a second primary the run ends 1 on `probe-codex — codex is not on PATH` ([D5](design.md#d5)).
+- [x] 5.8 In `tests/test_conduct.py` add `test_a_codex_checker_falls_back_where_codex_is_not_installed`, marked `slow`, shaped on the second half of `test_a_station_runs_on_its_executor`: with `[converge.conformance] executor = "codex"` and Codex missing the run ends 0, the checker runs on Claude and one `run · codex` line says why; with `[build] executor = "codex"` in a second primary the run ends 1 on `probe-codex — codex is not on PATH` ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_conduct.py -q -k a_codex_checker_falls_back_where` passes.
 
 ## 6 — The record
