@@ -31,7 +31,7 @@ tests/test_viewer.py   skills/mf-ui/scripts/viewer.py              phase 6  view
 | [D3](#d3) | A guard in a loop over a set is held by many inside names | a set's order is the hash seed's, so one outside name breaks some seeds only | one outside name beside one inside name |
 | [D4](#d4) | A guard that is a conjunction has one case per conjunct | `W5`: each conjunct can fail alone | one case for the whole condition |
 | [D5](#d5) | Debt card `0120·R3` is closed by its premise: its tests already carry `slow` at the base | the card's lines moved and its marks were added since; the release deletes the card, so the claim must hold | marking them again |
-| [D6](#d6) | The viewer's bind address is a constant read by a server factory | the address is then a value a test reads on port 0, and `serve` stays a loop that needs no cover | a test that starts `serve` |
+| [D6](#d6) | The viewer's bind address is a constant read by a server factory | the address is then a value a test reads from the server the factory builds, with no socket opened, and `serve` stays a loop that needs no cover | a test that starts `serve`; a test that binds a real socket, which a sandbox that refuses local binding fails at the bind |
 
 ### D1
 
@@ -56,6 +56,8 @@ At the base each of `test_workers_are_the_unfinished_spawns`, `test_the_projecto
 ### D6
 
 `viewer.py` gains `HOST = "127.0.0.1"` beside `PORT`, and `server(port)`, which returns `ThreadingHTTPServer((HOST, port), Handler)`. `serve` calls `server(port).serve_forever()`. The behaviour is the same; the loopback literals of the printed URLs and the `Host` check stay as they are.
+
+The case binds nothing. It sets `ThreadingHTTPServer` in `server.__globals__` to a recorder that keeps the address it is given, as the file's tests reach `read_part.__globals__`, and calls `server(0)`. It turns red when `HOST` is not loopback and when `server` stops reading `HOST`, in any sandbox. The module docstring's `no socket is opened` stays true and stays.
 
 ## The guards
 
@@ -85,7 +87,7 @@ One row per guard. **Break** is the edit that must turn the case red. **Case** i
 | G20 | `BLOCKS` | remove `"critical"` from the adversarial tuple | an open `critical` adversarial card blocks the run |
 | G21 | `merge3` in `skills/mf-integrate/scripts/integrate.py` | delete the `start == groups[-1][0]` clause of the group test | a new test of a table of `merge3(base, ours, theirs)` rows, among them `("a\n", "", "b\na\n")`, which halts with `both sides changed` |
 | G22 | `_git` in the same file | replace its `raise Stop(2, …)` with `pass` | a new test with a `git` stub that runs the real git for `rev-parse` and fails any other call: the exit is 2 and the line is `integrate: cannot run — git <command> failed: <the stub's line>` |
-| G23 | `Handler` and `serve` in `skills/mf-ui/scripts/viewer.py` | `HOST` becomes `"0.0.0.0"` | a new test binds `server(0)`, asserts `server_address[0]` is `127.0.0.1`, and closes it |
+| G23 | `Handler` and `serve` in `skills/mf-ui/scripts/viewer.py` | `HOST` becomes `"0.0.0.0"` | a new test puts a recorder for `ThreadingHTTPServer` in `server.__globals__`, calls `server(0)`, and asserts the address it was given is `("127.0.0.1", 0)` and its handler is `Handler`, per [D6](#d6); no socket is opened |
 
 ## Tests
 
@@ -110,7 +112,7 @@ None.
 
 ## Risks / Trade-offs
 
-- G23 binds a loopback socket on port 0, which `tests/test_sandboxed.py` already does. Where the build's sandbox refuses it, the case fails at the bind, not at the assert: a halt for the person.
+- G23's case reads the address `server` hands its server class and opens no socket: the build's sandbox refuses a local bind, so a real bind fails at the bind, not at the assert, and a case that skips there is never seen red per [D2](#d2). The real bind is the standard library's, and `serve` stays uncovered.
 - G16 to G18 need a status log at round three. `_plant` and a new branch of `_resumed` in `tests/test_converge.py` do it; a case that needs a new fixture beyond them is a doubt for the person.
 - A case asserts what the script prints today. A message that changes in a later move changes the case, by the move rule of the series.
 
