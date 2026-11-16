@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.103.1] - 2026-11-16
+
+Gate: local 5m30s · CI not read under mf-ship · 0.103.0: local 5m21s · CI not read under mf-ship
+
 - Converge reads a ticked phase as `[x]` and halts on a `tasks.md` with no `## Progress` list, as the conductor and
   integrate do; their change id refuses a trailing or a doubled hyphen, as D20 does (0130-small-fixes, phase 1).
 - `mf-release` waits ten minutes for the debt lock, as converge does, and passes a blocking card `accepted` as well as
