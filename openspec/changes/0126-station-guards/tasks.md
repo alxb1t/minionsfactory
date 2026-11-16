@@ -6,7 +6,7 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 - [x] 1 — The gate's guards · moderate
 - [x] 2 — Verify:'s shell refusals · moderate
-- [ ] 3 — The cut's contract · moderate
+- [x] 3 — The cut's contract · moderate
 - [ ] 4 — Converge's cards, cap and verdict · moderate
 - [ ] 5 — Integrate's merge and git failure · moderate
 - [ ] 6 — The viewer's bind · moderate
@@ -35,11 +35,11 @@ A phase for each station: the case each guard lacks, seen red under its break pe
 
 ## 3 — The cut's contract
 
-- [ ] 3.1 Add rows G12 and G13 to `tests/test_cut_check.py`'s `test_i4_names_each_defect_of_the_tasks_shape`, each asserting its message, `listed twice` and `lists no phase`, in the halt.
+- [x] 3.1 Add rows G12 and G13 to `tests/test_cut_check.py`'s `test_i4_names_each_defect_of_the_tasks_shape`, each asserting its message, `listed twice` and `lists no phase`, in the halt.
   Verify: `git grep -n -e 'listed twice' -- tests/test_cut_check.py` prints a line, then `uv run pytest tests/test_cut_check.py::test_i4_names_each_defect_of_the_tasks_shape -q` exits 0.
-- [ ] 3.2 Add row G14's case to the same test, asserting `sits outside its` in the halt, and delete its assert on the absent `sits in section 1` message.
+- [x] 3.2 Add row G14's case to the same test, asserting `sits outside its` in the halt, and delete its assert on the absent `sits in section 1` message.
   Verify: `git grep -n -e 'sits outside its' -- tests/test_cut_check.py` prints a line, then `uv run pytest tests/test_cut_check.py::test_i4_names_each_defect_of_the_tasks_shape -q` exits 0.
-- [ ] 3.3 Leave every line broken for a red run as it was.
+- [x] 3.3 Leave every line broken for a red run as it was.
   Verify: `git diff --quiet HEAD -- skills` exits 0.
 
 ## 4 — Converge's cards, cap and verdict

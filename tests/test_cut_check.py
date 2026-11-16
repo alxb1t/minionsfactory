@@ -489,12 +489,28 @@ def test_i4_names_each_defect_of_the_tasks_shape(
     _, lines = _run(root, monkeypatch, capsys)
     why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
     assert "sub-task 2.1 is not of a listed phase" in why
-    assert "sub-task 2.1 sits in section 1" not in why
     _edit(root, "tasks.md", "- [ ] 2.1 Run", "## 2 — Second\n\n- [ ] 2.1 Run")
     _, lines = _run(root, monkeypatch, capsys)
     why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
     assert "sub-task 2.1 is not of a listed phase" in why
     assert "section 2 is not listed in `## Progress`" in why
+    # A phase listed twice, then no phase listed.
+    first = "- [ ] 1 — First · hard\n"
+    _edit(root, "tasks.md", first, first + first)
+    _, lines = _run(root, monkeypatch, capsys)
+    why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
+    assert "phase 1 is listed twice in `## Progress`" in why
+    _edit(root, "tasks.md", first + first, "")
+    _, lines = _run(root, monkeypatch, capsys)
+    why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
+    assert "`## Progress` lists no phase" in why
+    # A listed phase's sub-task under another phase's heading.
+    second = "- [ ] 2 — Second **HUMAN**\n"
+    _edit(root, "tasks.md", "## Progress\n\n", f"## Progress\n\n{first}{second}")
+    _edit(root, "tasks.md", "## 1 — First", "## 2 — Second")
+    _, lines = _run(root, monkeypatch, capsys)
+    why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
+    assert "sub-task 1.1 sits outside its `## … —` section" in why
 
 
 def test_a_ritual_is_each_station_the_build_owns(
