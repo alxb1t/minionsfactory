@@ -31,7 +31,7 @@ class Policy(NamedTuple):
 def profile(policy: Policy) -> str:
     """Return the Seatbelt profile that renders `policy`.
 
-    Why: 0107-sandbox-runner D1; 0121-ui-prepare D3; 0128-platform-port D3.
+    Why: 0107-sandbox-runner D1; 0121-ui-prepare D3; 0128-platform-port D3 and D11.
     """
 
     def quoted(path: Path) -> str:
@@ -48,6 +48,8 @@ def profile(policy: Policy) -> str:
         "(allow default)",
         "(deny file-write*)",
         f"(allow file-write* {writes} {devices})",
+        "(deny signal)",
+        "(allow signal (target same-sandbox))",
         f"(deny file-read* file-write* {denied})",
     )
     return "\n".join(lines if policy.network else (*lines, "(deny network*)"))

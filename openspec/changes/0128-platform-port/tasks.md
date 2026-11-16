@@ -7,7 +7,7 @@ The pin on today's code, the home with its first tenant, the move of the rest, a
 - [x] 1 — The pin · moderate
 - [x] 2 — The home · hard
 - [x] 3 — The move · hard
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 
 ## 1 — The pin
 
@@ -108,13 +108,13 @@ The rest of the port follows into `skills/mflib/platform.py`, per [D3](design.md
 
 `0107·S1`: the profile stops a command from signalling a process outside its sandbox, per [D11](design.md#d11).
 
-- [ ] 4.1 In `skills/mflib/platform.py` add to `profile`, after the `(allow file-write* …)` line and before the `(deny file-read* file-write* …)` line, `(deny signal)` then `(allow signal (target same-sandbox))`.
+- [x] 4.1 In `skills/mflib/platform.py` add to `profile`, after the `(allow file-write* …)` line and before the `(deny file-read* file-write* …)` line, `(deny signal)` then `(allow signal (target same-sandbox))`.
   Verify: `git grep -n -F "(deny signal)" -- skills/mflib/platform.py` prints the rule.
-- [ ] 4.2 In `tests/test_sandboxed.py` carry `(deny signal)` and `(allow signal (target same-sandbox))` into both templates of `test_the_profile_text_is_held_byte_for_byte`, and write `test_the_profile_denies_a_signal_outside_the_sandbox`: both stand between the write allow and the read deny, with the network closed and open.
+- [x] 4.2 In `tests/test_sandboxed.py` carry `(deny signal)` and `(allow signal (target same-sandbox))` into both templates of `test_the_profile_text_is_held_byte_for_byte`, and write `test_the_profile_denies_a_signal_outside_the_sandbox`: both stand between the write allow and the read deny, with the network closed and open.
   Verify: `uv run pytest tests/test_sandboxed.py -q -k profile_denies_a_signal_outside` exits 0.
-- [ ] 4.3 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_a_signal_to_a_process_outside_is_denied`: a `sleep` the test starts is sent SIGTERM and signal 0 by a sandboxed command; each fails with `Operation not permitted` and the `sleep` still runs.
+- [x] 4.3 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_a_signal_to_a_process_outside_is_denied`: a `sleep` the test starts is sent SIGTERM and signal 0 by a sandboxed command; each fails with `Operation not permitted` and the `sleep` still runs.
   Verify: `uv run pytest tests/test_sandboxed.py -q -k signal_to_a_process_outside_is_denied` exits 0.
-- [ ] 4.4 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_a_signal_to_the_commands_own_child_is_delivered`: a sandboxed command starts a `sleep` and sends it SIGTERM, and exits 0.
+- [x] 4.4 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_a_signal_to_the_commands_own_child_is_delivered`: a sandboxed command starts a `sleep` and sends it SIGTERM, and exits 0.
   Verify: `uv run pytest tests/test_sandboxed.py -q -k signal_to_the_commands_own_child` exits 0.
-- [ ] 4.5 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_the_cuts_hold_is_released_under_the_rule`: one sandboxed command runs `awake.py start` then `awake.py stop` in a scratch repository and prints `awake: held (2 h at most)` then `awake: released`.
+- [x] 4.5 In `tests/test_sandboxed.py` add, under `real_sandbox`, `test_the_cuts_hold_is_released_under_the_rule`: one sandboxed command runs `awake.py start` then `awake.py stop` in a scratch repository and prints `awake: held (2 h at most)` then `awake: released`.
   Verify: `uv run pytest tests/test_sandboxed.py -q -k cuts_hold_is_released_under_the_rule` exits 0.

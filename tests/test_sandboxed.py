@@ -6,6 +6,7 @@ Why: 0107-sandbox-runner design D5.
 import io
 import json
 import os
+import shlex
 import shutil
 import signal
 import socket
@@ -98,6 +99,8 @@ _CLOSED_PROFILE = (
     ' (literal "/dev/null") (literal "/dev/tty") (literal "/dev/dtracehelper")'
     ' (literal "/dev/autofs_nowait") (literal "/dev/stdout")'
     ' (literal "/dev/stderr"))\n'
+    "(deny signal)\n"
+    "(allow signal (target same-sandbox))\n"
     '(deny file-read* file-write* (subpath "{home}/.ssh") (subpath "{home}/.aws")'
     ' (subpath "{home}/.config/gh") (subpath "{home}/.netrc")'
     ' (subpath "{home}/.gnupg") (subpath "{home}/.kube")'
@@ -115,6 +118,8 @@ _OPEN_PROFILE = (
     ' (literal "/dev/null") (literal "/dev/tty") (literal "/dev/dtracehelper")'
     ' (literal "/dev/autofs_nowait") (literal "/dev/stdout")'
     ' (literal "/dev/stderr"))\n'
+    "(deny signal)\n"
+    "(allow signal (target same-sandbox))\n"
     '(deny file-read* file-write* (subpath "{home}/.ssh") (subpath "{home}/.aws")'
     ' (subpath "{home}/.config/gh") (subpath "{home}/.netrc")'
     ' (subpath "{home}/.gnupg") (subpath "{home}/.kube")'
@@ -135,6 +140,24 @@ def test_the_profile_text_is_held_byte_for_byte(tmp_path: Path) -> None:
     assert platform.profile(policy([a, b], home, network=True)) == (
         _OPEN_PROFILE.format(**paths)
     )
+
+
+def test_the_profile_denies_a_signal_outside_the_sandbox(tmp_path: Path) -> None:
+    policy = _conduct()["_policy"]
+    home = tmp_path / "home"
+
+    for network in (False, True):
+        lines = platform.profile(policy([tmp_path], home, network=network)).splitlines()
+        allow = next(
+            index
+            for index, line in enumerate(lines)
+            if line.startswith("(allow file-write* ")
+        )
+        assert lines[allow + 1 : allow + 3] == [
+            "(deny signal)",
+            "(allow signal (target same-sandbox))",
+        ]
+        assert lines[allow + 3].startswith("(deny file-read* file-write* ")
 
 
 def test_the_deny_lists_are_literals() -> None:
@@ -671,6 +694,74 @@ def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None
         assert code != 0
         with pytest.raises(TimeoutError):
             listener.accept()
+
+
+_SIGNAL_OUT = (
+    "import os, signal, sys\n"
+    "for sig in (signal.SIGTERM, 0):\n"
+    "    try:\n"
+    "        os.kill(int(sys.argv[1]), sig)\n"
+    "    except OSError as error:\n"
+    "        print(int(sig), error.strerror)\n"
+    "    else:\n"
+    "        print(int(sig), 'sent')\n"
+)
+_SIGNAL_CHILD = (
+    "import signal, subprocess, sys;"
+    " child = subprocess.Popen(['sleep', '60']);"
+    " child.send_signal(signal.SIGTERM);"
+    " sys.exit(0 if child.wait(timeout=10) == -signal.SIGTERM else 1)"
+)
+_AWAKE = (
+    Path(__file__).resolve().parent.parent / "skills/mf-cut-change/scripts/awake.py"
+)
+
+
+def test_a_signal_to_a_process_outside_is_denied(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    trees = _trees(tmp_path)
+    outside = subprocess.Popen(["sleep", "60"])
+    out = io.StringIO()
+    try:
+        code = _conduct()["sandboxed"](
+            [*_python(_SIGNAL_OUT), str(outside.pid)], trees[0], trees, out
+        )
+
+        assert code == 0
+        assert out.getvalue().splitlines() == [
+            f"{int(signal.SIGTERM)} Operation not permitted",
+            "0 Operation not permitted",
+        ]
+        assert outside.poll() is None
+    finally:
+        outside.kill()
+        outside.wait()
+
+
+def test_a_signal_to_the_commands_own_child_is_delivered(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    trees = _trees(tmp_path)
+
+    assert _conduct()["sandboxed"](_python(_SIGNAL_CHILD), trees[0], trees) == 0
+
+
+def test_the_cuts_hold_is_released_under_the_rule(
+    tmp_path: Path, real_sandbox: None
+) -> None:
+    repo = _repo(tmp_path)
+    awake = f"{shlex.quote(sys.executable)} {shlex.quote(str(_AWAKE))}"
+    command = f"{awake} start 0001-a && {awake} stop 0001-a"
+    out = io.StringIO()
+
+    code = _conduct()["sandboxed"](["sh", "-c", command], repo, [repo], out)
+
+    assert code == 0
+    assert out.getvalue().splitlines() == [
+        "awake: held (2 h at most)",
+        "awake: released",
+    ]
 
 
 @pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])

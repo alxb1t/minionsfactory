@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   text, `process` for every `ps` reader, and the awake hold; the conductor, `awake.py` and the viewer call it. The
   profile's text is unchanged, and `OS_NAMES` loses the `ps` pairs of `awake.py` and `viewer.py`
   (0128-platform-port, phase 3).
+- A sandboxed command can no longer signal a process outside its sandbox, signal 0 included: the profile gains
+  `(deny signal)` then `(allow signal (target same-sandbox))`, paying `0107·S1` (0128-platform-port, phase 4).
 
 ## [0.101.3] - 2026-11-16
 
