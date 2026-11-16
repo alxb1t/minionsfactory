@@ -72,6 +72,11 @@ def test_ps_reads_nothing_when_it_cannot_run(
         bare.setenv("PATH", str(empty))
         assert platform.process(os.getpid(), "lstart") == ""
 
+    failing = _tool(tmp_path, "ps", "#!/bin/sh\necho partial-field\nexit 1\n")
+    with monkeypatch.context() as failed:
+        failed.setenv("PATH", str(failing), prepend=os.pathsep)
+        assert platform.process(os.getpid(), "lstart") == ""
+
     monkeypatch.setattr(subprocess, "run", _timeout)
     assert platform.process(os.getpid(), "lstart") == ""
 

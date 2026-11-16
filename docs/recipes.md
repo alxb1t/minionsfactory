@@ -60,8 +60,8 @@ A platform other than macOS. Today's OS commands are `sandbox-exec`, `caffeinate
 | `skills/mflib/platform.py` | `Policy`, `profile`, `confine` and `has_sandbox`, the sandbox; `refused`, its refusal; `arch`, the host's architecture; `process`, a process's `ps` field; `has_hold`, `hold_awake` and `CAFFEINATE`, the awake hold |
 
 - **Row:** none, unless the extension adds a script; then a row as for a station.
-- **Rules:** `check_os` fails on an OS command a file names unless `OS_NAMES` lists the pair. A new command joins
-  `_OS_WORDS`, so the rule finds it.
+- **Rules:** `check_os` fails on an OS command a file other than the port, `skills/mflib/platform.py`, names unless
+  `OS_NAMES` lists the pair; the port needs no pair. A new command joins `_OS_WORDS`, so the rule finds it.
 
 ## An executor
 

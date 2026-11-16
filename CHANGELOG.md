@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (0128-platform-port, phase 3).
 - A sandboxed command can no longer signal a process outside its sandbox, signal 0 included: the profile gains
   `(deny signal)` then `(allow signal (target same-sandbox))`, paying `0107·S1` (0128-platform-port, phase 4).
+- `process` reads nothing when `ps` exits non-zero, so a failed query no longer passes its output off as a field
+  (0128-platform-port, converge R1).
 
 ## [0.101.3] - 2026-11-16
 

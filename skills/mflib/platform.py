@@ -108,7 +108,7 @@ def process(pid: int, field: str) -> str:
         )
     except (OSError, subprocess.TimeoutExpired):
         return ""
-    return done.stdout.strip()
+    return done.stdout.strip() if done.returncode == 0 else ""
 
 
 def has_hold() -> bool:

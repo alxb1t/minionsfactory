@@ -117,6 +117,7 @@ A literal test holds the profile byte for byte. It is written in the pin on toda
 - Their timeouts, 600 s and 5 s, become 60 s.
 
 No test or operator line holds either.
+Fix note (2026-11-16, R1): `process` also returns an empty string when `ps` exits non-zero, as the spec's process-field scenario says.
 
 ### D6
 
