@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
-  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76
+  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84
 ```
 
 ## The shape
@@ -822,8 +822,9 @@ judged by its exit and a check on disk; a failed check halts its version, a halt
 `after:`, a failed probe at the start halts the run, and one in a live run only the versions on its executor;
 a probe a usage limit stopped, only the versions with a station on its executor
 ([D76](#d76--a-codex-usage-limit-falls-back-and-halts-only-what-runs-on-codex)). A run takes
-each queued cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) at its start and each poll, and its close,
-under the queue lock, starts the next run on a request or a cut it never read. A live run takes a rejoin request, in the
+each queued cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) at its start and each poll, up to the cap
+of [D84](#d84--a-queued-cut-waits-while-the-line-is-at-its-cap), and its close,
+under the queue lock, starts the next run on a request or a cut it never read, never for a cut that only waits. A live run takes a rejoin request, in the
 home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`, where no worker writes, a mailbox that holds no state,
 and, at each poll, every halt answered on disk ([D60](#d60--a-run-heals-its-own-halts)):
 it takes back each requested version whose stage on disk is
@@ -877,6 +878,28 @@ the default branch.**
   which narrows the build's gate check and diff coverage alone: the run removes it before converge and the release.
 - **Rejected:** rebasing the dependent onto the built head (D44, D45) · stacking on two dependencies, or on a head that lacks
   the dependent's base · stopping a running build at a re-plan.
+
+### D84 · A queued cut waits while the line is at its cap
+
+**`in_flight` under `[queue]` in the operator's `ship.toml`, under `$XDG_CONFIG_HOME/minionsfactory/`, is the most
+versions a run keeps at a station; `conduct.py run` reads it once at its start. With a cap, the run takes a queued cut, at
+its start and at each poll, in id order, only while fewer versions of its own repository are in flight than the cap; a
+cut that waits is not read, keeps the run alive, starts no next run at the close, and carries its reason, `<n> in flight,
+cap <N>`, in its queue entry, which `status`, `conduct.py cut` and the viewer show. A version is in flight while its thread
+runs, no halt names it and every `after` id it names is shipped, its cut included. A rejoin request naming a cut, the
+take-back of a version and a version already cut at the run's start run past the cap. No file, no `[queue]` table and no
+key mean no cap; a file that cannot be read, or a value that is no whole number above 0, stops `conduct.py run` and
+`conduct.py cut` with exit 2, naming the file.**
+
+- **Why:** the person runs this repo's line and another repo's line on one laptop, each one version at a time, to save the
+  CPU; the cap is a fact of the machine, so it stands in the operator's folder, where no worker writes, and a halt at
+  night frees its slot for the queue behind it.
+- **Rejected:** a switch in `AGENTS.md` or a parameter in `.minions/` ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)
+  rejects both) · an environment variable · a count across the machine's lines, or a read of the CPU load · pausing a
+  version in flight · a new meaning for `after:`.
+- **Accepts:** a count that passes the cap after a rejoin or a grant, until it falls · a version stacked on its dependency
+  builds with the CPU and uses no slot · the cap read once, so a change of the file takes effect at the next run · a stale
+  reason in the entry of a cut a killed run left waiting, until the next run's start.
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 

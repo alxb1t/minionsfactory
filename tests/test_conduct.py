@@ -8385,6 +8385,347 @@ def _run_claude(
     return _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
 
 
+def _ship_toml(text: str) -> Path:
+    """Write `ship.toml` under `$XDG_CONFIG_HOME/minionsfactory/`; return its path."""
+    path = Path(os.environ["XDG_CONFIG_HOME"]) / "minionsfactory" / "ship.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
+
+
+def test_cap_reads_ship_toml() -> None:
+    conduct = _conduct()
+    assert conduct["_cap"]() is None
+    for text in ("", "[other]\nin_flight = 2\n", "[queue]\n", "queue = 3\n"):
+        _ship_toml(text)
+        assert conduct["_cap"]() is None
+    path = _ship_toml("[queue]\nin_flight = 2\n")
+    assert conduct["_cap"]() == 2
+    for text in ("[queue", "[queue]\nin_flight = [\n"):
+        _ship_toml(text)
+        with pytest.raises(conduct["Stop"], match=re.escape(str(path))) as stopped:
+            conduct["_cap"]()
+        assert stopped.value.code == 2
+    path.write_bytes(b"\xff\xfe")
+    with pytest.raises(conduct["Stop"], match=re.escape(str(path))):
+        conduct["_cap"]()
+    path.unlink()
+    path.mkdir()
+    with pytest.raises(conduct["Stop"], match=re.escape(str(path))):
+        conduct["_cap"]()
+    path.rmdir()
+    for value in ("0", "-1", "1.5", '"2"', "true"):
+        _ship_toml(f"[queue]\nin_flight = {value}\n")
+        with pytest.raises(
+            conduct["Stop"],
+            match=re.escape(f"{path}: `in_flight` is not a whole number above 0"),
+        ) as stopped:
+            conduct["_cap"]()
+        assert stopped.value.code == 2
+
+
+def test_cap_file_that_is_bad_stops_the_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _ship_toml("[queue]\nin_flight = 0\n")
+
+    assert _run_claude(conduct, root, monkeypatch) == 2
+    assert "ship.toml" in capsys.readouterr().out
+    assert not (root / ".minions" / "runs" / "active").exists()
+    assert _calls(calls) == []
+
+
+def _held(gate: threading.Event) -> threading.Thread:
+    """Start a thread that lives until `gate` is set."""
+    thread = threading.Thread(target=gate.wait, daemon=True)
+    thread.start()
+    return thread
+
+
+def test_cap_counts_only_versions_at_a_station(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _commit(root, {"openspec/changes/archive/0001-s/proposal.md": ""}, "ship 0001-s")
+    for change, after in (
+        ("0002-live", "0001-s"),
+        ("0004-halted", ""),
+        ("0005-after", "0009-x"),
+    ):
+        _version(root, change, "- [ ] 1 — T\n", after=after)
+    _queued(conduct, root, "0006-cut", brief, after=("0009-x",))
+    _queued(conduct, root, "0007-cut", brief, after=("0001-s",))
+    gate = threading.Event()
+    dead = threading.Thread(target=bool)
+    dead.start()
+    dead.join()
+    threads = {
+        "0002-live": _held(gate),
+        "0003-dead": dead,
+        "0004-halted": _held(gate),
+        "0005-after": _held(gate),
+        "0006-cut": _held(gate),
+    }
+    conductor = conduct["Run"](root, "claude")
+    conductor.halts.append(("0004-halted", "a halt"))
+
+    # Each conjunct of a version at a station has a case that only it fails.
+    conductor.cap = 1
+    assert conductor.in_flight(threads) == 1
+    assert not conductor.room(threads)
+    conductor.cap = 2
+    assert conductor.room(threads)
+    threads["0007-cut"] = _held(gate)
+    assert conductor.in_flight(threads) == 2
+    assert not conductor.room(threads)
+
+    # No cap reads nothing.
+    def unread(threads: dict[str, threading.Thread]) -> int:
+        raise AssertionError("read")
+
+    conductor.cap = None
+    conductor.in_flight = unread
+    assert conductor.room(threads)
+    gate.set()
+
+
+def test_cap_gates_the_poll_and_not_a_request(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0003-a", brief)
+    conductor = conduct["Run"](root, "claude")
+    conductor.cap = 1
+    conductor.seen = set()
+    taken: list[str] = []
+    conductor.take_cut = lambda change, entry, threads: taken.append(change) or True
+    gate = threading.Event()
+    threads = {"0002-v": _held(gate)}
+    wait = " · run · wait — 0003-a: 1 in flight, cap 1"
+
+    # A full line takes no cut at a poll, reads none, and logs the wait once.
+    for _ in range(3):
+        assert not conductor.take_requests(threads)
+    assert taken == []
+    assert "0003-a" not in conductor.seen
+    assert conductor.log.path.read_text().count(wait) == 1
+
+    # The poll that finds room takes it.
+    gate.set()
+    threads["0002-v"].join()
+    assert conductor.take_requests(threads)
+    assert taken == ["0003-a"]
+
+    # A cut a rejoin request names is taken with the line full; one it leaves waits.
+    taken.clear()
+    full = threading.Event()
+    threads = {"0002-v": _held(full)}
+    _queued(conduct, root, "0004-b", brief)
+    _queued(conduct, root, "0005-c", brief)
+    conductor.seen = {"0003-a"}
+    conduct["_request"](root, "0005-c")
+    assert conductor.take_requests(threads)
+    assert taken == ["0005-c"]
+    assert "0005-c" not in conductor.waiting
+    assert conductor.waiting["0004-b"] == "1 in flight, cap 1"
+    full.set()
+
+
+@pytest.mark.slow
+def test_cap_of_one_runs_the_cuts_one_at_a_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # No lower layer reaches `Run.ship()`'s order. Why: 0129-queue-cap design D3.
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    calls = fake()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _ship_toml("[queue]\nin_flight = 1\n")
+    _queued(conduct, root, "0001-a", brief)
+    _queued(conduct, root, "0002-b", brief)
+
+    assert _run_claude(conduct, root, monkeypatch) == 0
+
+    made = _calls(calls)
+    assert made.index("release 0001-a") < made.index("cut-change 0002-b")
+    waits = [line for line in _log(root) if " · run · wait — " in line]
+    assert [line.split(" · run · wait — ")[1] for line in waits] == [
+        "0002-b: 1 in flight, cap 1"
+    ]
+
+
+def test_cap_close_starts_no_run_for_a_waiting_cut(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.handled() is None
+    conductor.seen = {"0001-a"}
+    conductor.waiting["0002-b"] = "1 in flight, cap 1"
+    assert conductor.handled() == {"0001-a", "0002-b"}
+
+    starts: list[tuple[Path, str]] = []
+
+    def start(primary: Path, executor: str) -> int:
+        starts.append((primary, executor))
+        return 4242
+
+    names["_start_run"] = start
+
+    def ships(*queued: str) -> None:
+        def ship(self: object) -> int:
+            vars(self)["seen"] = set()
+            vars(self)["waiting"]["0001-a"] = "1 in flight, cap 1"
+            for change in queued:
+                _queued(conduct, root, change, brief)
+            return 0
+
+        monkeypatch.setattr(names["Run"], "ship", ship)
+
+    def run() -> str:
+        capsys.readouterr()
+        assert conduct["run"](root, "claude", False) == 0
+        return capsys.readouterr().out
+
+    # A cut left waiting starts no next run; one the run never read starts one.
+    ships("0001-a")
+    assert "next started" not in run()
+    assert starts == []
+    ships("0001-a", "0002-b")
+    assert run().endswith("run: next started · pid 4242\n")
+    assert starts == [(root, "claude")]
+
+
+def test_cap_writes_the_reason_into_the_entry(tmp_path: Path) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0003-a", brief)
+    _queued(conduct, root, "0004-b", brief, halt="a halt")
+    conductor = conduct["Run"](root, "claude")
+    conductor.cap = 1
+    gate = threading.Event()
+    threads = {"0002-v": _held(gate)}
+    written: list[str] = []
+    write = names["_write_cut"]
+
+    def record(primary: Path, change: str, entry: dict[str, Any]) -> None:
+        written.append(change)
+        write(primary, change, entry)
+
+    names["_write_cut"] = record
+
+    def waits(change: str) -> str | None:
+        return conduct["_cuts"](root)[change].get("waits")
+
+    # The reason is written once, and again when the count changes.
+    conductor.wait_cut("0003-a", threads)
+    conductor.wait_cut("0003-a", threads)
+    assert waits("0003-a") == "1 in flight, cap 1"
+    assert written == ["0003-a"]
+    threads["0002-w"] = _held(gate)
+    conductor.wait_cut("0003-a", threads)
+    assert waits("0003-a") == "2 in flight, cap 1"
+    assert written == ["0003-a"] * 2
+
+    # A halted entry and a vanished one are left as they are.
+    conductor.wait_cut("0004-b", threads)
+    assert waits("0004-b") is None
+    assert conduct["_cuts"](root)["0004-b"]["halt"] == "a halt"
+    conductor.wait_cut("0005-gone", threads)
+    assert "0005-gone" not in conduct["_cuts"](root)
+    assert written == ["0003-a"] * 2
+
+    # An entry that holds no reason takes no lock and writes nothing.
+    def locked(primary: Path) -> None:
+        raise AssertionError("locked")
+
+    lock = names["_queue_lock"]
+    names["_queue_lock"] = locked
+    conductor.unwait("0004-b", conduct["_cuts"](root)["0004-b"])
+    assert "0004-b" not in conductor.waiting
+    names["_queue_lock"] = lock
+
+    # Taking the cut clears the reason; an entry that has gone stays gone.
+    held = conduct["_cuts"](root)["0003-a"]
+    conductor.unwait("0003-a", held)
+    assert "0003-a" not in conductor.waiting
+    kept = {key: value for key, value in held.items() if key != "waits"}
+    assert conduct["_cuts"](root)["0003-a"] == kept
+    assert written == ["0003-a"] * 3
+    (conduct["_queue"](root) / "cuts" / "0003-a").unlink()
+    conductor.unwait("0003-a", held)
+    assert "0003-a" not in conduct["_cuts"](root)
+    assert written == ["0003-a"] * 3
+    gate.set()
+
+
+def test_cap_status_and_cut_line(tmp_path: Path, fake: Callable[..., Path]) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    for change, halt in (("0001-a", None), ("0002-b", None), ("0003-c", "a halt")):
+        _queued(conduct, root, change, brief, halt=halt)
+    for change in ("0001-a", "0003-c"):
+        entry = conduct["_cuts"](root)[change]
+        conduct["_write_cut"](root, change, {**entry, "waits": "1 in flight, cap 1"})
+
+    # A halt shows before a reason.
+    assert conduct["status"](root).splitlines() == [
+        "0001-a · cut — waits: 1 in flight, cap 1",
+        "0002-b · cut",
+        "0003-c · cut-halted — a halt",
+    ]
+
+    # A cap shows in the line of a cut queued for a live run and for a started one.
+    _swap_runner(conduct)
+    names["_start_run"] = lambda primary, executor: 4242
+    real = tmp_path / "real.md"
+    real.write_text(f"# brief\n\n{_items('d', 'e', 'f')}")
+
+    def cut(slug: str) -> str:
+        return conduct["cut"](
+            root, slug, "minor", f"brief={real}", [], "claude", None, None
+        )
+
+    _ship_toml("[queue]\nin_flight = 2\n")
+    _claimed(conduct, root)
+    assert cut("d") == "cut: queued 0004-d · the live run takes it · cap 2"
+    shutil.rmtree(root / ".minions" / "runs" / "active")
+    assert cut("e") == "cut: queued 0005-e · run started · pid 4242 · cap 2"
+    _ship_toml("")
+    assert cut("f") == "cut: queued 0006-f · run started · pid 4242"
+
+    # A bad file refuses the cut before it reserves a number.
+    reserved = sorted(os.listdir(root / ".minions" / "cuts"))
+    _ship_toml("[queue]\nin_flight = 0\n")
+    with pytest.raises(conduct["Stop"], match=r"ship\.toml") as refused:
+        cut("f")
+    assert refused.value.code == 2
+    assert sorted(os.listdir(root / ".minions" / "cuts")) == reserved
+
+
 def _halts_on_main(
     conduct: dict[str, Any], root: Path, calls: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

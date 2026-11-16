@@ -111,8 +111,10 @@ def _halt(root: Path, change: str, tree: Path) -> None:
     _write(root / ".minions" / "changes" / change / "build.halt", text)
 
 
-def _queue(root: Path, entries: dict[str, str | None]) -> None:
-    """Queue a cut for each id, its halt the value."""
+def _queue(
+    root: Path, entries: dict[str, str | None], waits: dict[str, str] | None = None
+) -> None:
+    """Queue a cut for each id, its halt the value, and `waits` for those it names."""
     conduct = runpy.run_path(
         str(_REPO / "skills" / "mf-ship" / "scripts" / "conduct.py")
     )
@@ -120,7 +122,10 @@ def _queue(root: Path, entries: dict[str, str | None]) -> None:
         Path.home() / ".mf-ship-origin" / f"{conduct['_digest'](root)}.queue" / "cuts"
     )
     for name, halt in entries.items():
-        _write(folder / name, json.dumps({**_CUT, "halt": halt}))
+        entry = {**_CUT, "halt": halt}
+        if waits and name in waits:
+            entry["waits"] = waits[name]
+        _write(folder / name, json.dumps(entry))
 
 
 def _tree(
@@ -572,9 +577,14 @@ def test_for_you_holds_what_needs_a_person(tmp_path: Path) -> None:
     assert whys["usage limit"] == "codex limited until 2099-01-01 00:00"
     assert whys["unpushed"] == "main is ahead of origin"
     assert shown["queue"] == [
-        {"id": "0003-c", "state": "cut", "halt": None},
-        {"id": "0010-cut", "state": "cut halted", "halt": "the cut halted"},
-        {"id": "0011-cut", "state": "cut", "halt": None},
+        {"id": "0003-c", "state": "cut", "halt": None, "waits": None},
+        {
+            "id": "0010-cut",
+            "state": "cut halted",
+            "halt": "the cut halted",
+            "waits": None,
+        },
+        {"id": "0011-cut", "state": "cut", "halt": None, "waits": None},
     ]
     assert sorted(_by_id(shown)) == ["0001-a", "0002-b"]
     assert _by_id(shown)["0001-a"]["notes"] == [
@@ -583,6 +593,30 @@ def test_for_you_holds_what_needs_a_person(tmp_path: Path) -> None:
     ]
     assert "usage limit" not in _kinds(root, "2000-01-01 00:00")
     assert "usage limit" in _kinds(root, "a reset it did not name")
+
+
+def test_the_queue_shows_a_waiting_cut_as_queued(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    reason = "1 in flight, cap 1"
+    _queue(
+        root,
+        {"0003-c": None, "0004-d": None, "0005-e": "the cut halted"},
+        {"0003-c": reason, "0005-e": reason},
+    )
+    shown = _tree(root)
+    assert shown["queue"] == [
+        {"id": "0003-c", "state": "queued", "halt": None, "waits": reason},
+        {"id": "0004-d", "state": "cut", "halt": None, "waits": None},
+        {
+            "id": "0005-e",
+            "state": "cut halted",
+            "halt": "the cut halted",
+            "waits": None,
+        },
+    ]
+    assert [(row["kind"], row["id"]) for row in shown["for_you"]] == [
+        ("cut halted", "0005-e")
+    ]
 
 
 def _kinds(root: Path, until: str) -> list[str]:

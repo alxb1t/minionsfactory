@@ -3216,14 +3216,15 @@ change directories, every reservation in `.minions/cuts/` and every queued cut. 
 `.minions/cuts/<id>` and keep the cut's bump, brief path, `after` ids, any `beside` ids, executor, model and effort in the
 queue in the home folder, where no worker writes, with the package and constraint of each row of the brief's
 `## Dependencies` whose item is `<slug>`, then hand the cut to the live run, or, with none live, start a run detached and
-wait, under the lock, until that run holds its claim or has ended. A brief with no `## Dependencies` approves no package. A
+wait, under the lock, until that run holds its claim or has ended. Its line SHALL name the cap when `ship.toml` sets one. A brief with no `## Dependencies` approves no package. A
 queue entry with no `beside` SHALL read as one naming none. A slug that is not lowercase words joined by `-`, a bump other
 than `minor` or `patch`, a brief that is no file, a brief whose `## Dependencies` is neither `None.` nor a table of item,
 package, constraint and why, an `after` id that names no open version or queued cut, a `beside` id that is no change id, or
 an argument after the brief that is neither `after=` nor `beside=`, or names either twice, SHALL exit 2 and reserve nothing;
 so SHALL a run that cannot start, its precondition named. Queuing a cut SHALL be the person's yes to cut,
 run, merge and push that version, and to the packages its rows name. A run SHALL take the queue lock before it removes its
-claim, and then start the next run when a rejoin request or a queued cut it never read stands.
+claim, and then start the next run when a rejoin request or a queued cut it never read stands, a cut that only waits for room
+under the cap excepted.
 
 #### Scenario: Two cuts at once with no run live
 - **WHEN** two `conduct.py cut` calls run at once and no run is live
@@ -3258,7 +3259,8 @@ claim, and then start the next run when a rejoin request or a queued cut it neve
 ### Requirement: A run cuts each queued brief in a station of its own
 
 A run SHALL read the queue at its start and at every poll, and take each queued cut with no halt that it has not read
-before, or that a request names. For each, `conduct.py` SHALL make the branch named by its id and its linked worktree from the
+before, or that a request names, while the line has room under its cap, a request-named cut excepted
+(*A queued cut waits while the line is at its cap*). For each, `conduct.py` SHALL make the branch named by its id and its linked worktree from the
 default branch, as code, then run `mf-cut-change` with `unattended=yes` as a fresh sandboxed worker in that worktree, logged
 as the station `cut`. The cut SHALL pass when the branch's tip is the change's `docs(<id>): land the change directory` commit,
 the branch holds `openspec/changes/<id>/`, its tree is clean, `.minions/changes/<id>/models.toml` stands, and each row of the
@@ -3281,7 +3283,7 @@ before its first worker, as a version's is. The run SHALL never read the brief f
 
 #### Scenario: A cut queued during a run
 - **WHEN** a cut is queued while a run is live
-- **THEN** the run takes it at its next poll, beside the versions it is running
+- **THEN** the run takes it at its next poll, beside the versions it is running, while the line has room under its cap
 
 #### Scenario: A cut that adds the approved packages
 - **WHEN** the cutter commits a `design.md` whose `## Dependencies` lists only packages and constraints the queue entry holds
@@ -3332,7 +3334,8 @@ A cut that does not pass SHALL put its queued cut at the stage `cut-halted`, wit
 package outside the queue entry's rows, SHALL end
 ` · needs <id> its brief answered (/mf-plan <id> depth=hard brief=<brief> from=<brief>), then conduct.py rejoin <id>`, `<brief>`
 the path its queue entry holds; every other cut halt keeps its line. No rescue SHALL run. `status`
-SHALL print `<id> · cut` for a queued cut and `<id> · cut-halted — <line>` for a halted one, `report` SHALL print its halt
+SHALL print `<id> · cut` for a queued cut, `<id> · cut — waits: <n> in flight, cap <N>` for one that waits for room under the
+cap, and `<id> · cut-halted — <line>` for a halted one, `report` SHALL print its halt
 line, and the run's closing line SHALL name ` · needs <id> its brief answered (…), then conduct.py rejoin <id>` for a cut
 halted with that answer. A run's start SHALL log each halted cut as a halt and take it into no thread. `conduct.py rejoin <id>`
 naming a queued cut SHALL clear its halt, under the queue lock, keeping the queue entry's already-queued package rows, then
@@ -5319,3 +5322,64 @@ A script SHALL reach the operating system through `skills/mflib/platform.py`, th
 #### Scenario: The awake hold starts in a session of its own
 - **WHEN** the conductor or `awake.py` holds the machine awake with `caffeinate` on `PATH`
 - **THEN** `caffeinate` starts in a session of its own, and a caller with none on `PATH` prints its own `not held` line and goes on
+
+### Requirement: A queued cut waits while the line is at its cap
+
+A run SHALL read `in_flight` under `[queue]` in `ship.toml`, found under `$XDG_CONFIG_HOME/minionsfactory/`, else
+`~/.config/minionsfactory/`, once at its start; a missing file, a missing `[queue]` table or a missing key SHALL mean no cap, as
+before. A file that cannot be read, or a value that is no whole number above 0, SHALL stop `conduct.py run` and `conduct.py cut`
+with exit 2, naming the file. With a cap, the run SHALL take a queued cut, at its start and at each poll, in id order, only
+while fewer versions are in flight than the cap, and SHALL count the versions of its own repository alone. A version SHALL be in
+flight while its thread runs, no halt names it and every `after` id it names is shipped, its cut included; a halted version, and
+a version or cut waiting on its `after`, SHALL not be. A rejoin request naming a cut, the take-back of a version by a rejoin or a
+grant, and a version already cut at the run's start SHALL run whatever the cap.
+
+A cut that waits SHALL not count as read: the run SHALL take it at the first poll after a slot frees, SHALL stay alive while it
+waits and a version is in flight, and its close SHALL start no next run for a cut that only waits. A waiting cut SHALL carry its
+reason, `<n> in flight, cap <N>`, in its queue entry, written under the queue lock and cleared when the run takes the cut, and
+the run SHALL log one `wait` line when a cut starts to wait. `status` SHALL print the reason, the viewer SHALL show the state
+`queued` with it, and `conduct.py cut` SHALL name the cap in its line.
+
+#### Scenario: No file
+- **WHEN** no `ship.toml` stands, or it holds no `in_flight` key, and cuts are queued for a run
+- **THEN** the run takes every queued cut at its start, and each cut queued into the live run at the next poll
+
+#### Scenario: A bad file
+- **WHEN** `ship.toml` cannot be parsed, or `in_flight` is `0`, negative, a fraction, a string or a boolean
+- **THEN** `conduct.py run` exits 2 naming the file, and starts no worker, and `conduct.py cut` exits 2 and reserves nothing
+
+#### Scenario: A cap of 1
+- **WHEN** `in_flight` is 1 and two cuts are queued
+- **THEN** the run takes the lower id, logs one `wait` line for the other, and takes it only after the first's release
+
+#### Scenario: A halted version does not hold the queue
+- **WHEN** `in_flight` is 1 and the one version in flight halts
+- **THEN** the run takes the next queued cut at its next poll, the halted version still open
+
+#### Scenario: A version waiting on its after does not hold the queue
+- **WHEN** `in_flight` is 1 and the one version at a station names an `after` id that is not shipped
+- **THEN** the run takes the next queued cut at its next poll
+
+#### Scenario: A cut queued into a live run
+- **WHEN** `in_flight` is 1, a version is in flight and a cut is queued
+- **THEN** the cut waits, its queue entry holds `1 in flight, cap 1`, and the run takes it at the poll after the version leaves the line
+
+#### Scenario: A rejoin runs past the cap
+- **WHEN** `in_flight` is 1, a version is in flight and `conduct.py rejoin <id>` names a halted cut
+- **THEN** the live run takes that cut at its next poll
+
+#### Scenario: A cap above 1
+- **WHEN** `in_flight` is 2 and three cuts are queued
+- **THEN** the run takes the two lowest ids and holds the third until one of them leaves the line
+
+#### Scenario: The run stays alive for a waiting cut
+- **WHEN** a cut waits and the only version in flight is still building
+- **THEN** the run does not end, and takes the cut once the version releases
+
+#### Scenario: The close starts no run for a waiting cut
+- **WHEN** a run ends with a queued cut that only waited for room
+- **THEN** its close starts no next run, and a cut queued after its last poll still starts one
+
+#### Scenario: A waiting cut is shown
+- **WHEN** a cut waits at `1 in flight, cap 1`
+- **THEN** `status` prints `<id> · cut — waits: 1 in flight, cap 1`, the viewer's queue shows `<id>` in the state `queued` with that reason, and `conduct.py cut` prints the cap in its line
