@@ -5,7 +5,7 @@ The phases follow [design](design.md): the setting, the gate, what is shown, the
 ## Progress
 
 - [x] 1 — The setting · moderate
-- [ ] 2 — The gate · hard
+- [x] 2 — The gate · hard
 - [ ] 3 — What is shown · moderate
 - [ ] 4 — The record · moderate
 
@@ -24,23 +24,23 @@ The phases follow [design](design.md): the setting, the gate, what is shown, the
 
 ## 2 — The gate
 
-- [ ] 2.1 **HALT CHECK** With no cap file, the test that holds the cuts and versions at once passes at HEAD: the gate of this phase must leave it as it stands ([D3](design.md#d3)).
+- [x] 2.1 **HALT CHECK** With no cap file, the test that holds the cuts and versions at once passes at HEAD: the gate of this phase must leave it as it stands ([D3](design.md#d3)).
   Verify: `uv run pytest tests/test_conduct.py -q -k "three_versions"` passes.
-- [ ] 2.2 In `tests/test_conduct.py` add `test_cap_counts_only_versions_at_a_station`: on a `Run` whose `cap` is set, threads held on an event count, and a dead thread, a halted change (`halts` holds it), a change whose proposal's `after` names an unshipped id and a queued cut whose entry's `after` does the same do not; `room` is false at the cap of 1 with one live version and true at the cap of 2 ([D2](design.md#d2)).
+- [x] 2.2 In `tests/test_conduct.py` add `test_cap_counts_only_versions_at_a_station`: on a `Run` whose `cap` is set, threads held on an event count, and a dead thread, a halted change (`halts` holds it), a change whose proposal's `after` names an unshipped id and a queued cut whose entry's `after` does the same do not; `room` is false at the cap of 1 with one live version and true at the cap of 2 ([D2](design.md#d2)).
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_counts"` lists `test_cap_counts_only_versions_at_a_station`.
-- [ ] 2.3 In `skills/mf-ship/scripts/conduct.py` add `Run.in_flight(threads)` and `Run.room(threads)` after `Run.live`, as [D2](design.md#d2) and [D3](design.md#d3) say; `room` reads nothing when `self.cap` is `None`.
+- [x] 2.3 In `skills/mf-ship/scripts/conduct.py` add `Run.in_flight(threads)` and `Run.room(threads)` after `Run.live`, as [D2](design.md#d2) and [D3](design.md#d3) say; `room` reads nothing when `self.cap` is `None`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_counts"` passes.
-- [ ] 2.4 In `tests/test_conduct.py` add `test_cap_gates_the_poll_and_not_a_request`: with `take_cut` stubbed and the cap full, `take_requests` takes no queued cut and the cut stays out of `seen`, and a `run · wait — <id>: 1 in flight, cap 1` line is logged once however many polls pass; once `room` holds, the next poll takes it; a cut named by a rejoin request is taken with the cap full ([D3](design.md#d3), [D4](design.md#d4)).
+- [x] 2.4 In `tests/test_conduct.py` add `test_cap_gates_the_poll_and_not_a_request`: with `take_cut` stubbed and the cap full, `take_requests` takes no queued cut and the cut stays out of `seen`, and a `run · wait — <id>: 1 in flight, cap 1` line is logged once however many polls pass; once `room` holds, the next poll takes it; a cut named by a rejoin request is taken with the cap full ([D3](design.md#d3), [D4](design.md#d4)).
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_gates"` lists `test_cap_gates_the_poll_and_not_a_request`.
-- [ ] 2.5 In `skills/mf-ship/scripts/conduct.py` add `Run.waiting` (a dict), `Run.wait_cut(change, threads)` and `Run.unwait(change, entry)`; the first logs the `wait` event of [D5](design.md#d5) when a cut enters `waiting`, the second drops it. In `Run.take_requests` call `wait_cut` and skip a cut that `room` refuses, unless `names` holds it; make `Run.take_cut` call `unwait` first ([D4](design.md#d4)).
+- [x] 2.5 In `skills/mf-ship/scripts/conduct.py` add `Run.waiting` (a dict), `Run.wait_cut(change, threads)` and `Run.unwait(change, entry)`; the first logs the `wait` event of [D5](design.md#d5) when a cut enters `waiting`, the second drops it. In `Run.take_requests` call `wait_cut` and skip a cut that `room` refuses, unless `names` holds it; make `Run.take_cut` call `unwait` first ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_gates"` passes.
-- [ ] 2.6 In `tests/test_conduct.py` add `test_cap_of_one_runs_the_cuts_one_at_a_time`, marked `slow`: with `in_flight = 1` and a first and a second cut queued, `_run_claude` returns 0, the calls show `cut-change` of the second after `release` of the first, and the log holds a `wait` line for the second, logged once.
+- [x] 2.6 In `tests/test_conduct.py` add `test_cap_of_one_runs_the_cuts_one_at_a_time`, marked `slow`: with `in_flight = 1` and a first and a second cut queued, `_run_claude` returns 0, the calls show `cut-change` of the second after `release` of the first, and the log holds a `wait` line for the second, logged once.
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_of_one"` lists `test_cap_of_one_runs_the_cuts_one_at_a_time`.
-- [ ] 2.7 In `skills/mf-ship/scripts/conduct.py` change the thread start of `Run.ship`: start each open version's thread first, then walk `sorted(takeable - cut_held)`. While `room` holds, `unwait` a cut with its entry and start its thread; hand each other cut to `wait_cut`, and remove `self.waiting` from `self.seen` after ([D3](design.md#d3)).
+- [x] 2.7 In `skills/mf-ship/scripts/conduct.py` change the thread start of `Run.ship`: start each open version's thread first, then walk `sorted(takeable - cut_held)`. While `room` holds, `unwait` a cut with its entry and start its thread; hand each other cut to `wait_cut`, and remove `self.waiting` from `self.seen` after ([D3](design.md#d3)).
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_of_one or three_versions"` passes.
-- [ ] 2.8 In `tests/test_conduct.py` add `test_cap_close_starts_no_run_for_a_waiting_cut`: `handled()` holds `seen` joined with `waiting` and is `None` when `seen` is; through `run()`, with `Run.ship` stubbed and `_start_run` recorded as its neighbours do, a cut left waiting starts no next run and a queued cut the run never read starts one.
+- [x] 2.8 In `tests/test_conduct.py` add `test_cap_close_starts_no_run_for_a_waiting_cut`: `handled()` holds `seen` joined with `waiting` and is `None` when `seen` is; through `run()`, with `Run.ship` stubbed and `_start_run` recorded as its neighbours do, a cut left waiting starts no next run and a queued cut the run never read starts one.
   Verify: `uv run pytest tests/test_conduct.py --collect-only -q -k "cap_close"` lists `test_cap_close_starts_no_run_for_a_waiting_cut`.
-- [ ] 2.9 In `skills/mf-ship/scripts/conduct.py` add `Run.handled()`, which returns `self.seen` joined with the waiting cuts and is `None` when `seen` is, and make `run()` give `_close` its value in place of `conductor.seen` ([D4](design.md#d4)).
+- [x] 2.9 In `skills/mf-ship/scripts/conduct.py` add `Run.handled()`, which returns `self.seen` joined with the waiting cuts and is `None` when `seen` is, and make `run()` give `_close` its value in place of `conductor.seen` ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_conduct.py -q -k "cap_close"` passes.
 
 ## 3 — What is shown

@@ -4444,6 +4444,8 @@ class Run:
         # The most versions at a station a queued cut waits for; None for no cap.
         # Why: 0129-queue-cap design D1.
         self.cap: int | None = None
+        # Each queued cut that waits for room, with its reason.
+        self.waiting: dict[str, str] = {}
         self.log = RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
@@ -5536,6 +5538,34 @@ class Run:
         thread = threads.get(change)
         return thread is not None and thread.is_alive() and change not in self.ended
 
+    def in_flight(self, threads: dict[str, threading.Thread]) -> int:
+        """Return how many of `threads` are versions at a station.
+
+        A queued cut's `after` ids are its entry's. Why: 0129-queue-cap design D2.
+        """
+        default = default_branch(self.primary)
+        cuts = _cuts(self.primary)
+        count = 0
+        for change in threads:
+            with self.built:
+                live = self.live(change, threads)
+            if not live or self.stopped(change):
+                continue
+            after = (
+                cuts[change].get("after", [])
+                if change in cuts
+                else _dependencies(self.primary, change)
+            )
+            count += all(_shipped(self.primary, default, name) for name in after)
+        return count
+
+    def room(self, threads: dict[str, threading.Thread]) -> bool:
+        """Return whether the line has room for a queued cut under its cap.
+
+        Why: 0129-queue-cap design D3.
+        """
+        return self.cap is None or self.in_flight(threads) < self.cap
+
     def stackable(self, version: Version, unreleased: list[str]) -> str | None:
         """Return the built head a version may stack on, else None.
 
@@ -6059,6 +6089,9 @@ class Run:
             seen = change in (self.seen or set()) and change not in names
             if entry.get("halt") is not None or seen or (thread and thread.is_alive()):
                 continue
+            if change not in names and not self.room(threads):
+                self.wait_cut(change, threads)
+                continue
             try:
                 started = self.take_cut(change, entry, threads) or started
             # why: one cut's failure halts it and leaves the other versions running.
@@ -6091,10 +6124,35 @@ class Run:
         self._unblock(threads)
         return started
 
+    def handled(self) -> set[str] | None:
+        """Return the queued cuts the run read or holds waiting, None before it reads.
+
+        Why: 0129-queue-cap design D4.
+        """
+        return None if self.seen is None else self.seen | set(self.waiting)
+
+    def wait_cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
+        """Hold a queued cut for room under the cap, logging its first wait.
+
+        Why: 0129-queue-cap design D5.
+        """
+        reason = f"{self.in_flight(threads)} in flight, cap {self.cap}"
+        if change not in self.waiting:
+            self.log.event("run", "wait", f"{change}: {reason}")
+        self.waiting[change] = reason
+
+    def unwait(self, change: str, entry: dict[str, Any]) -> None:
+        """Drop a cut from the waiting ones.
+
+        Why: 0129-queue-cap design D5.
+        """
+        self.waiting.pop(change, None)
+
     def take_cut(
         self, change: str, entry: dict[str, Any], threads: dict[str, threading.Thread]
     ) -> bool:
         """Start a queued cut's thread once its executor is probed; True if so."""
+        self.unwait(change, entry)
         with self.guard:
             self.halts = [held for held in self.halts if held[0] != change]
         if self.seen is not None:
@@ -6724,12 +6782,18 @@ class Run:
                 threads[version.change] = threading.Thread(
                     target=self.take, args=(version, threads), name=version.change
                 )
-            for change in sorted(takeable - cut_held):
-                threads[change] = threading.Thread(
-                    target=self.cut, args=(change, threads)
-                )
             for thread in threads.values():
                 thread.start()
+            for change in sorted(takeable - cut_held):
+                if self.room(threads):
+                    self.unwait(change, cuts[change])
+                    threads[change] = threading.Thread(
+                        target=self.cut, args=(change, threads)
+                    )
+                    threads[change].start()
+                else:
+                    self.wait_cut(change, threads)
+            self.seen -= set(self.waiting)
             self.cut_halts(cuts)
             self.join(threads)
         else:
@@ -6792,7 +6856,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         except Exception as error:  # noqa: BLE001
             conductor.log.event("run", "halt", f"conduct.py failed: {error}")
             code = 1
-        seen = conductor.seen
+        seen = conductor.handled()
         ended = "done" if code == 0 else "halt"
         print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
         return code

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py run` reads `in_flight` under `[queue]` in the operator's `ship.toml` once at its start and stops with 2,
   naming the file, on a value that is not a whole number above 0; no file leaves every flow as it is
   (0129-queue-cap, phase 1).
+- A run takes a queued cut only while the versions at a station are under the cap: the rest wait, logged once as
+  `run · wait`, and the run's close starts no next run for a cut that only waits (0129-queue-cap, phase 2).
 
 ## [0.102.0] - 2026-11-16
 

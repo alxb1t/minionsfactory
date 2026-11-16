@@ -8441,6 +8441,178 @@ def test_cap_file_that_is_bad_stops_the_run(
     assert _calls(calls) == []
 
 
+def _held(gate: threading.Event) -> threading.Thread:
+    """Start a thread that lives until `gate` is set."""
+    thread = threading.Thread(target=gate.wait, daemon=True)
+    thread.start()
+    return thread
+
+
+def test_cap_counts_only_versions_at_a_station(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _commit(root, {"openspec/changes/archive/0001-s/proposal.md": ""}, "ship 0001-s")
+    for change, after in (
+        ("0002-live", "0001-s"),
+        ("0004-halted", ""),
+        ("0005-after", "0009-x"),
+    ):
+        _version(root, change, "- [ ] 1 — T\n", after=after)
+    _queued(conduct, root, "0006-cut", brief, after=("0009-x",))
+    _queued(conduct, root, "0007-cut", brief, after=("0001-s",))
+    gate = threading.Event()
+    dead = threading.Thread(target=bool)
+    dead.start()
+    dead.join()
+    threads = {
+        "0002-live": _held(gate),
+        "0003-dead": dead,
+        "0004-halted": _held(gate),
+        "0005-after": _held(gate),
+        "0006-cut": _held(gate),
+    }
+    conductor = conduct["Run"](root, "claude")
+    conductor.halts.append(("0004-halted", "a halt"))
+
+    # Each conjunct of a version at a station has a case that only it fails.
+    conductor.cap = 1
+    assert conductor.in_flight(threads) == 1
+    assert not conductor.room(threads)
+    conductor.cap = 2
+    assert conductor.room(threads)
+    threads["0007-cut"] = _held(gate)
+    assert conductor.in_flight(threads) == 2
+    assert not conductor.room(threads)
+
+    # No cap reads nothing.
+    def unread(threads: dict[str, threading.Thread]) -> int:
+        raise AssertionError("read")
+
+    conductor.cap = None
+    conductor.in_flight = unread
+    assert conductor.room(threads)
+    gate.set()
+
+
+def test_cap_gates_the_poll_and_not_a_request(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0003-a", brief)
+    conductor = conduct["Run"](root, "claude")
+    conductor.cap = 1
+    conductor.seen = set()
+    taken: list[str] = []
+    conductor.take_cut = lambda change, entry, threads: taken.append(change) or True
+    gate = threading.Event()
+    threads = {"0002-v": _held(gate)}
+    wait = " · run · wait — 0003-a: 1 in flight, cap 1"
+
+    # A full line takes no cut at a poll, reads none, and logs the wait once.
+    for _ in range(3):
+        assert not conductor.take_requests(threads)
+    assert taken == []
+    assert "0003-a" not in conductor.seen
+    assert conductor.log.path.read_text().count(wait) == 1
+
+    # The poll that finds room takes it.
+    gate.set()
+    threads["0002-v"].join()
+    assert conductor.take_requests(threads)
+    assert taken == ["0003-a"]
+
+    # A cut a rejoin request names is taken with the line full; one it leaves waits.
+    taken.clear()
+    full = threading.Event()
+    threads = {"0002-v": _held(full)}
+    _queued(conduct, root, "0004-b", brief)
+    _queued(conduct, root, "0005-c", brief)
+    conductor.seen = {"0003-a"}
+    conduct["_request"](root, "0005-c")
+    assert conductor.take_requests(threads)
+    assert taken == ["0005-c"]
+    assert "0005-c" not in conductor.waiting
+    assert conductor.waiting["0004-b"] == "1 in flight, cap 1"
+    full.set()
+
+
+@pytest.mark.slow
+def test_cap_of_one_runs_the_cuts_one_at_a_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # No lower layer reaches `Run.ship()`'s order. Why: 0129-queue-cap design D3.
+    conduct = _conduct()
+    conduct["main"].__globals__["REJOIN_POLL"] = 0.1
+    calls = fake()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _ship_toml("[queue]\nin_flight = 1\n")
+    _queued(conduct, root, "0001-a", brief)
+    _queued(conduct, root, "0002-b", brief)
+
+    assert _run_claude(conduct, root, monkeypatch) == 0
+
+    made = _calls(calls)
+    assert made.index("release 0001-a") < made.index("cut-change 0002-b")
+    waits = [line for line in _log(root) if " · run · wait — " in line]
+    assert [line.split(" · run · wait — ")[1] for line in waits] == [
+        "0002-b: 1 in flight, cap 1"
+    ]
+
+
+def test_cap_close_starts_no_run_for_a_waiting_cut(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    conduct = _conduct()
+    names = conduct["main"].__globals__
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    conductor = conduct["Run"](root, "claude")
+    assert conductor.handled() is None
+    conductor.seen = {"0001-a"}
+    conductor.waiting["0002-b"] = "1 in flight, cap 1"
+    assert conductor.handled() == {"0001-a", "0002-b"}
+
+    starts: list[tuple[Path, str]] = []
+
+    def start(primary: Path, executor: str) -> int:
+        starts.append((primary, executor))
+        return 4242
+
+    names["_start_run"] = start
+
+    def ships(*queued: str) -> None:
+        def ship(self: object) -> int:
+            vars(self)["seen"] = set()
+            vars(self)["waiting"]["0001-a"] = "1 in flight, cap 1"
+            for change in queued:
+                _queued(conduct, root, change, brief)
+            return 0
+
+        monkeypatch.setattr(names["Run"], "ship", ship)
+
+    def run() -> str:
+        capsys.readouterr()
+        assert conduct["run"](root, "claude", False) == 0
+        return capsys.readouterr().out
+
+    # A cut left waiting starts no next run; one the run never read starts one.
+    ships("0001-a")
+    assert "next started" not in run()
+    assert starts == []
+    ships("0001-a", "0002-b")
+    assert run().endswith("run: next started · pid 4242\n")
+    assert starts == [(root, "claude")]
+
+
 def _halts_on_main(
     conduct: dict[str, Any], root: Path, calls: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
