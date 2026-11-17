@@ -20,6 +20,9 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills"))
+import mflib.layout
+
 TIMEOUT_SECONDS = 300
 SHOWN = 5
 DEFAULT = "scripts/corpus.toml"
@@ -205,7 +208,7 @@ def run(cases: Path | None, minions: Path | None) -> int:
     root = Path(_git(Path.cwd(), "rev-parse", "--show-toplevel"))
     if minions is None:
         common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-        minions = Path(common).parent / ".minions"
+        minions = mflib.layout.run_dir(mflib.layout.primary_of(common))
     minions = minions.absolute()
     if minions.is_symlink() or (minions / "corpus").is_symlink():
         raise Stop("the run directory or its corpus/ is a link")

@@ -29,11 +29,10 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 TIMEOUT_SECONDS = 600
-CHANGES = Path(".minions/changes")
-# A repo no run has moved keeps its files here, and its worker logs under `RUNS`.
-FINDINGS = Path(".minions/findings")
-RUNS = Path(".minions/runs")
 DATA = "review-metrics.json"
 FILES = (
     "conformance.md",
@@ -170,7 +169,7 @@ def _recorded_repos() -> list[Path]:
     except OSError:
         return []
     found = (Path(line.strip()).resolve() for line in lines if line.strip())
-    return [repo for repo in found if (repo / ".minions").is_dir()]
+    return [repo for repo in found if mflib.layout.run_dir(repo).is_dir()]
 
 
 def _read_config(path: Path) -> dict[str, Any]:
@@ -797,10 +796,11 @@ def _station_logs(repo: Path, change: str, station: str) -> list[Path]:
     Why: 0077-run-metrics design D2; 0080-minions-layout design D3, D5.
     """
     if _moved(repo, change):
-        folder = _change_dir(repo, change) / "logs"
+        folder = mflib.layout.change_dir(repo, change) / "logs"
         found = (folder.glob(f"*-{station}{n}.log") for n in ("", "-[0-9]*"))
     else:
-        stamps = sorted(path for path in (repo / RUNS).glob("*") if path.is_dir())
+        runs = mflib.layout.runs_dir(repo)
+        stamps = sorted(path for path in runs.glob("*") if path.is_dir())
         names = (f"{change}_{station}.log", f"{change}_{station}-[0-9]*.log")
         found = (stamp.glob(name) for stamp in stamps for name in names)
     return [path for paths in found for path in sorted(paths) if path.is_file()]
@@ -812,7 +812,7 @@ def _cost_logs(repo: Path, change: str) -> Record:
     Why: 0076-context-cost design D1;
     0096-codex-ready design D6; 0100-worker-diet design D12.
     """
-    runs = repo / RUNS
+    runs = mflib.layout.runs_dir(repo)
     spawn = re.compile(
         rf"^\d\d:\d\d:\d\d · {re.escape(change)} · spawn — ({'|'.join(STATIONS)})"
         r"(?: ·|$)",
@@ -944,7 +944,7 @@ def _log_workers(path: Path, own: Record | None) -> list[Record]:
 
 def _named_workers(repo: Path, change: str) -> list[Record]:
     """Return a worker per converge log a run named `<stamp>-converge-<role>-r<N>`."""
-    folder = _change_dir(repo, change) / "logs"
+    folder = mflib.layout.change_dir(repo, change) / "logs"
     logs = sorted(folder.glob("*-converge-*.log")) if _moved(repo, change) else []
     named = [
         (log, LOGGED.search(log.name)) for log in logs if not OLDER.search(log.name)
@@ -1169,8 +1169,8 @@ def _station_sessions(repos: Iterable[Path]) -> set[str]:
         log
         for repo in repos
         for found in (
-            (repo / CHANGES).glob("*/logs/*.log"),
-            (repo / RUNS).glob("*/*.log"),
+            _changes_dir(repo).glob("*/logs/*.log"),
+            mflib.layout.runs_dir(repo).glob("*/*.log"),
         )
         for log in found
     ]
@@ -1294,7 +1294,7 @@ def _cut_made(repos: Sequence[Path], ident: str, time: datetime) -> Path | None:
     """
     found = []
     for repo in repos:
-        held = _change_dir(repo, ident).is_dir()
+        held = mflib.layout.change_dir(repo, ident).is_dir()
         logs = _station_logs(repo, ident, "cut") if held else []
         if any(
             datetime.fromtimestamp(log.stat().st_mtime, UTC) >= time for log in logs
@@ -1387,7 +1387,7 @@ def _marks(repos: Sequence[Path], queued: Sequence[Record]) -> list[Record]:
     """
     marks = [{"time": q["time"], "repo": q["repo"], "change": q["id"]} for q in queued]
     for repo in repos:
-        for log in sorted((repo / RUNS).glob("*.md")):
+        for log in sorted(mflib.layout.runs_dir(repo).glob("*.md")):
             last, days = datetime.min, timedelta(0)
             try:
                 text = log.read_text(encoding="utf-8", errors="replace")
@@ -1633,13 +1633,14 @@ def _merged(rows: Iterable[Record], key: str) -> Counter[str]:
     return sum((row[key] for row in rows), Counter())
 
 
-def _change_dir(repo: Path, change: str) -> Path:
-    """Return the change's folder in the repo's run directory.
+def _changes_dir(repo: Path) -> Path:
+    """Return the folder of the change folders in the repo's run directory."""
+    return mflib.layout.run_dir(repo) / mflib.layout.CHANGES
 
-    e.g. "0001-todo" → <repo>/.minions/changes/0001-todo
-    Why: 0080-minions-layout design D1, D2.
-    """
-    return repo / CHANGES / change
+
+def _findings(repo: Path) -> Path:
+    """Return the folder where a repo no run has moved keeps its findings files."""
+    return mflib.layout.run_dir(repo) / "findings"
 
 
 def _moved(repo: Path, change: str) -> bool:
@@ -1647,7 +1648,8 @@ def _moved(repo: Path, change: str) -> bool:
 
     Why: 0080-minions-layout design D5.
     """
-    return any((_change_dir(repo, change) / name).is_file() for name in FILES)
+    folder = mflib.layout.change_dir(repo, change)
+    return any((folder / name).is_file() for name in FILES)
 
 
 def _file(repo: Path, change: str, name: str) -> Path:
@@ -1656,8 +1658,8 @@ def _file(repo: Path, change: str, name: str) -> Path:
     e.g. "review.md" → `changes/0001-x/review.md`, or `findings/0001-x_review.md`
     """
     if _moved(repo, change):
-        return _change_dir(repo, change) / name
-    return repo / FINDINGS / f"{change}_{name}"
+        return mflib.layout.change_dir(repo, change) / name
+    return _findings(repo) / f"{change}_{name}"
 
 
 def _checker(repo: Path, change: str, role: str, old: str) -> Path:
@@ -1672,9 +1674,10 @@ def _checker(repo: Path, change: str, role: str, old: str) -> Path:
 
 def _changes(repo: Path) -> set[str]:
     """Return the changes with a file in their folder or, unmoved, in `findings/`."""
-    folders = (repo / CHANGES).iterdir() if (repo / CHANGES).is_dir() else ()
+    changes = _changes_dir(repo)
+    folders = changes.iterdir() if changes.is_dir() else ()
     moved = {path.name for path in folders if _moved(repo, path.name)}
-    names = (path.name for path in (repo / FINDINGS).glob("*.md"))
+    names = (path.name for path in _findings(repo).glob("*.md"))
     return moved | {found[1] for name in names if (found := OLD_FILES.fullmatch(name))}
 
 
@@ -1795,8 +1798,10 @@ def read_change(repo: Path, change: str) -> Record:
 
 def read_repo(repo: Path) -> list[Record]:
     """Return the repo's records in `reviewed` order, those with no date last."""
-    if not (repo / CHANGES).is_dir() and not (repo / FINDINGS).is_dir():
-        raise CannotRun(f"{repo}: no {CHANGES} or {FINDINGS} directory")
+    changes, findings = _changes_dir(repo), _findings(repo)
+    if not changes.is_dir() and not findings.is_dir():
+        shown = f"{changes.relative_to(repo)} or {findings.relative_to(repo)}"
+        raise CannotRun(f"{repo}: no {shown} directory")
     records = [read_change(repo, change) for change in _changes(repo)]
     return sorted(
         records,

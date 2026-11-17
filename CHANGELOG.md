@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The conductor and `pin.py` take their run-directory paths and the old-layout table from `skills/mflib/layout.py`;
   `conduct.py`'s own `_change_dir`, debt names and table are gone. A move: no behaviour changes
   (0134-run-layout, phase 3).
+- The stations, the readers and the metric scripts take their run-directory paths from `skills/mflib/layout.py`;
+  each keeps its git call, guard and error text, and no script defines its own `_change_dir`. A move: no behaviour
+  changes (0134-run-layout, phase 4).
 
 ## [0.105.0] - 2026-11-16
 

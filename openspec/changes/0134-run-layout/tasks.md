@@ -7,7 +7,7 @@ The phases: pin the region on today's code, born the module, move the conductor,
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
 - [x] 3 — The conductor follows · moderate
-- [ ] 4 — The stations follow · moderate
+- [x] 4 — The stations follow · moderate
 - [ ] 5 — The old layout is one table · hard
 - [ ] 6 — The sixth rule and the record · hard
 
@@ -70,25 +70,25 @@ A move: no assert changes ([D6](design.md#d6)).
 
 A move: no assert changes. Each script keeps its git call, its guard and its error text ([D3](design.md#d3)). A script that holds the seed already gains `import mflib.layout` after it; one that does not gains both.
 
-- [ ] 4.1 In `converge.py` add the seed and import, and read `layout.change_dir` for `Context.folder` (`:302-305`). `debt_lock` takes a primary, not `.minions`, its one caller (`:1455-1467`) passes it and its `minions` local goes, and the debt and backlog joins (`:523-524`, `:1296`, `:1301`, `:1456`, `:1534`) read `layout.debt_file`, `layout.debt_lock` and `layout.backlog_file`; `:491`'s junit report stays.
+- [x] 4.1 In `converge.py` add the seed and import, and read `layout.change_dir` for `Context.folder` (`:302-305`). `debt_lock` takes a primary, not `.minions`, its one caller (`:1455-1467`) passes it and its `minions` local goes, and the debt and backlog joins (`:523-524`, `:1296`, `:1301`, `:1456`, `:1534`) read `layout.debt_file`, `layout.debt_lock` and `layout.backlog_file`; `:491`'s junit report stays.
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 4.2 In `gate_check.py` and `gate_run.py` add the seed and import; `_primary` (`:96-99`) takes `layout.primary_of`, `_change_dir` is deleted and its calls read `layout.change_dir`, and `records` (`:67-70`) returns `layout.gate_dir` of the primary.
+- [x] 4.2 In `gate_check.py` and `gate_run.py` add the seed and import; `_primary` (`:96-99`) takes `layout.primary_of`, `_change_dir` is deleted and its calls read `layout.change_dir`, and `records` (`:67-70`) returns `layout.gate_dir` of the primary.
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-converge/scripts/gate_check.py skills/mf-converge/scripts/gate_run.py` prints a line for each of those files.
-- [ ] 4.3 In `integrate.py` add the seed and import; a `_primary(cwd)` holds the git call, `_run_dir(cwd)` returns `layout.run_dir` of it, and `_change_dir` is deleted, its calls reading `layout.change_dir(_primary(cwd), change)`.
+- [x] 4.3 In `integrate.py` add the seed and import; a `_primary(cwd)` holds the git call, `_run_dir(cwd)` returns `layout.run_dir` of it, and `_change_dir` is deleted, its calls reading `layout.change_dir(_primary(cwd), change)`.
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-integrate/scripts/integrate.py` prints a line.
-- [ ] 4.4 In `cut_context.py` and `cut_pre.py` add the seed and import, and in `awake.py`, which holds the seed, the import; read `layout.run_dir`, `layout.debt_file`, `layout.change_dir` and `layout.cut_reservation` at their finders and joins. `cut_pre.py`'s second git call (`:124`) stays.
+- [x] 4.4 In `cut_context.py` and `cut_pre.py` add the seed and import, and in `awake.py`, which holds the seed, the import; read `layout.run_dir`, `layout.debt_file`, `layout.change_dir` and `layout.cut_reservation` at their finders and joins. `cut_pre.py`'s second git call (`:124`) stays.
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-cut-change/scripts/cut_context.py skills/mf-cut-change/scripts/cut_pre.py skills/mf-cut-change/scripts/awake.py` prints a line for each of those files.
-- [ ] 4.5 In the build's `metrics.py` add the seed and import; `run_directory(root)` (`:205-208`) and the page's path (`:597`) read `layout.run_dir` and `layout.metrics_page`.
+- [x] 4.5 In the build's `metrics.py` add the seed and import; `run_directory(root)` (`:205-208`) and the page's path (`:597`) read `layout.run_dir` and `layout.metrics_page`.
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-build/scripts/metrics.py` prints a line.
-- [ ] 4.6 In `review_metrics.py` add the seed and import; delete `_change_dir` and `CHANGES` and the folder constants at `:33-36`, and read `layout.change_dir`, `layout.run_dir` and `layout.runs_dir` of the repo as named, with no git ([D4](design.md#d4)).
+- [x] 4.6 In `review_metrics.py` add the seed and import; delete `_change_dir` and `CHANGES` and the folder constants at `:33-36`, and read `layout.change_dir`, `layout.run_dir` and `layout.runs_dir` of the repo as named, with no git ([D4](design.md#d4)).
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-review-metrics/scripts/review_metrics.py` prints a line.
-- [ ] 4.7 In `viewer.py`, which holds the seed, add the import and read `layout.run_dir`, `layout.runs_dir`, `layout.claim_file` and `layout.change_dir` at `:214-225`, `:305`, `:364`, `:579` and `:581`.
+- [x] 4.7 In `viewer.py`, which holds the seed, add the import and read `layout.run_dir`, `layout.runs_dir`, `layout.claim_file` and `layout.change_dir` at `:214-225`, `:305`, `:364`, `:579` and `:581`.
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-ui/scripts/viewer.py` prints a line.
-- [ ] 4.8 In `scripts/metrics/run.py`, `scripts/metrics/debt.py` and `scripts/corpus.py` add the seed of [D7](design.md#d7) and the import, delete `run.py`'s `_change_dir`, and read `layout.primary_of`, `layout.run_dir`, `layout.change_dir`, `layout.debt_file` and `layout.runs_dir` at the finders, `DEBT` (`:16`, printed as `no {DEBT}` at `:39`, so that text stays) and `:299`.
+- [x] 4.8 In `scripts/metrics/run.py`, `scripts/metrics/debt.py` and `scripts/corpus.py` add the seed of [D7](design.md#d7) and the import, delete `run.py`'s `_change_dir`, and read `layout.primary_of`, `layout.run_dir`, `layout.change_dir`, `layout.debt_file` and `layout.runs_dir` at the finders, `DEBT` (`:16`, printed as `no {DEBT}` at `:39`, so that text stays) and `:299`.
   Verify: `git grep -c -e "import mflib.layout" -- scripts/metrics/run.py scripts/metrics/debt.py scripts/corpus.py` prints a line for each of those files.
-- [ ] 4.9 Add `layout.py` to the `names` cell of each script that imports it, in `docs/modules.md`, in base-name order; point each test that reached a moved name at its new place. Converge's cell gains `layout.py`, and `tests/test_skills.py`'s `test_mf_converge_names_each_script_the_map_says_it_loads` holds `skills/mf-converge/SKILL.md` to that cell: name `../../mflib/layout.py` in its list of what converge loads (`:56-57`), beside `../../mf-integrate/scripts/integrate.py`, for the run directory's paths.
+- [x] 4.9 Add `layout.py` to the `names` cell of each script that imports it, in `docs/modules.md`, in base-name order; point each test that reached a moved name at its new place. Converge's cell gains `layout.py`, and `tests/test_skills.py`'s `test_mf_converge_names_each_script_the_map_says_it_loads` holds `skills/mf-converge/SKILL.md` to that cell: name `../../mflib/layout.py` in its list of what converge loads (`:56-57`), beside `../../mf-integrate/scripts/integrate.py`, for the run directory's paths.
   Verify: `uv run pytest tests/test_structure.py tests/test_skills.py -q` exits 0.
-- [ ] 4.10 No script under `skills/` or `scripts/` holds `def _change_dir`.
+- [x] 4.10 No script under `skills/` or `scripts/` holds `def _change_dir`.
   Verify: `git grep -n -e "def _change_dir" -- skills scripts` prints no line.
 
 ## 5 — The old layout is one table

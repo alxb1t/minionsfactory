@@ -18,6 +18,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 SCRIPTS = Path(__file__).resolve().parent
 # The runner is a constant so a test swaps it for the interpreter.
 RUNNER = ("uv", "run", "--script")
@@ -322,18 +325,23 @@ def requirements_sections(brief: Path) -> tuple[str, str]:
     )
 
 
-def run_dir() -> Path:
-    """Return the run directory, `.minions/` beside the primary checkout.
-
-    e.g. a common git dir `/w/main/.git` → `/w/main/.minions`
-    """
+def _primary() -> Path:
+    """Return the primary checkout, from any worktree."""
     done = _run(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], "git"
     )
     if done.returncode:
         first = done.stderr.strip().partition("\n")[0]
         raise Stop(2, f"cut_context: cannot write — git rev-parse failed: {first}")
-    return Path(done.stdout.strip()).parent / ".minions"
+    return mflib.layout.primary_of(done.stdout.strip())
+
+
+def run_dir() -> Path:
+    """Return the run directory, `.minions/` beside the primary checkout.
+
+    e.g. a common git dir `/w/main/.git` → `/w/main/.minions`
+    """
+    return mflib.layout.run_dir(_primary())
 
 
 def debt_section(item: list[str] | None, placed: list[Any]) -> str:
@@ -341,7 +349,7 @@ def debt_section(item: list[str] | None, placed: list[Any]) -> str:
 
     The cards are the run directory's `debt.md`, read by `debt_match.py`.
     """
-    path = run_dir() / "debt.md"
+    path = mflib.layout.debt_file(_primary())
     if not path.exists():
         return _section("Debt cards", [])
     debt_match = _load(DEBT_MATCH)
@@ -454,7 +462,7 @@ def pack(brief: Path, change: str) -> int:
         debt_section(item, placed),
         skeletons_section(),
     ]
-    folder = run_dir() / "changes" / change
+    folder = mflib.layout.change_dir(_primary(), change)
     _mkdir(folder)
     _write(folder / "context.md", "\n\n".join(parts) + "\n")
     facts = _facts()

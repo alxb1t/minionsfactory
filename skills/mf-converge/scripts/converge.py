@@ -26,6 +26,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any, NamedTuple, NoReturn, Protocol, TextIO
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 HERE = Path(__file__).resolve().parent
 STAMP = runpy.run_path(str(HERE / "stamp.py"))
 BUNDLE = runpy.run_path(str(HERE / "bundle.py"))
@@ -302,7 +305,7 @@ class Context:
     @property
     def folder(self) -> Path:
         """Return the change's folder in the run directory."""
-        return Path(self.host.primary) / ".minions" / "changes" / self.change
+        return mflib.layout.change_dir(Path(self.host.primary), self.change)
 
     @property
     def log(self) -> Path:
@@ -520,8 +523,9 @@ def freeze(
         BUNDLE["write"](folder / "bundle.md", text)
     except BUNDLE["Stop"] as stop:
         raise Halt(f"bundle: cannot bundle — {stop}") from stop
-    debt = Path(context.host.primary) / ".minions" / "debt.md"
-    old = debt.with_name("backlog.md")
+    primary = Path(context.host.primary)
+    debt = mflib.layout.debt_file(primary)
+    old = mflib.layout.backlog_file(primary)
     debt = old if not os.path.lexists(debt) and os.path.lexists(old) else debt
     cards = folder / "debt-cards.md"
     if DEBT_MATCH["main"]([str(debt), str(patch), str(cards)]) != 0:
@@ -1288,17 +1292,17 @@ def still_true(context: Context, value: str) -> tuple[int | None, str]:
 
 
 @contextmanager
-def debt_lock(minions: Path) -> Iterator[None]:
+def debt_lock(primary: Path) -> Iterator[None]:
     """Hold `.minions/debt.lock` while the body runs; wait for it, then halt.
 
     An old `.minions/backlog.md` takes no lock. Why: design D5, D7.
     """
-    if os.path.lexists(minions / "backlog.md"):
+    if os.path.lexists(mflib.layout.backlog_file(primary)):
         raise Halt(
             ".minions/debt.lock not taken — an old .minions/backlog.md stands;"
             " /mf-ship moves it at a run's start"
         )
-    lock, waited = minions / "debt.lock", 0
+    lock, waited = mflib.layout.debt_lock(primary), 0
     while True:
         try:
             lock.mkdir()
@@ -1452,8 +1456,8 @@ def debt(context: Context) -> Debt:
 
     Why: design D7.
     """
-    minions = Path(context.host.primary) / ".minions"
-    path = minions / "debt.md"
+    primary = Path(context.host.primary)
+    path = mflib.layout.debt_file(primary)
     number = context.change.partition("-")[0]
     files = _files(context)
     cards = [
@@ -1464,7 +1468,7 @@ def debt(context: Context) -> Debt:
     ]
     checks = amends(context, cards, set(DEBT_TITLE.findall(_debt_text(path))))
     moot, written, cleared = list(checks), [], []
-    with debt_lock(minions):
+    with debt_lock(primary):
         text = _debt_text(path) or DEBT_PREAMBLE
         holds = set(DEBT_TITLE.findall(text))
         filed = []
@@ -1531,7 +1535,7 @@ def debted(context: Context) -> Debt:
         part.partition(" ")[0]: part.partition(" ")[2].split(", ")
         for part in detail.split(" · ")
     }
-    text = _debt_text(Path(context.host.primary) / ".minions" / "debt.md")
+    text = _debt_text(mflib.layout.debt_file(Path(context.host.primary)))
     return Debt(
         named.get("written", []),
         named.get("moot", []),

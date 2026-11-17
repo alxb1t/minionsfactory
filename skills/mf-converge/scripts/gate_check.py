@@ -20,6 +20,9 @@ import tarfile
 from pathlib import Path
 from typing import NamedTuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 TIMEOUT_SECONDS = 300
 # `conduct.py`'s `KEPT_ORIGINS`: the person's records, in the home folder.
 KEPT = ".mf-ship-origin"
@@ -96,16 +99,7 @@ def _git(*args: str) -> str:
 def _primary() -> Path:
     """Return the primary checkout, from any worktree."""
     common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common.strip()).parent
-
-
-def _change_dir(primary: Path, change: str) -> Path:
-    """Return the change's folder in the run directory.
-
-    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
-    Why: 0080-minions-layout design D1, D2.
-    """
-    return primary / ".minions" / "changes" / change
+    return mflib.layout.primary_of(common.strip())
 
 
 def _old_layout(primary: Path, change: str) -> str | None:
@@ -120,7 +114,7 @@ def _old_layout(primary: Path, change: str) -> str | None:
 
 def exports(change: str) -> Path:
     """Return the change's `gate-check/` in the primary's run directory."""
-    return _change_dir(_primary(), change) / "gate-check"
+    return mflib.layout.change_dir(_primary(), change) / "gate-check"
 
 
 def approval(change: str) -> str | None:

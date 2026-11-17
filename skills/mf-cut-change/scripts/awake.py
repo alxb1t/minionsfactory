@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
 import mflib.platform
 
 TIMEOUT_SECONDS = 600
@@ -51,7 +52,8 @@ def _record(change_id: str) -> Path:
             f"awake: cannot run — git rev-parse failed: {first};"
             f" run it as uv run --script {Path(__file__)}"
         )
-    return Path(done.stdout.strip()).parent / ".minions" / "awake" / change_id
+    primary = mflib.layout.primary_of(done.stdout.strip())
+    return mflib.layout.run_dir(primary) / "awake" / change_id
 
 
 def _name(pid: int) -> str:

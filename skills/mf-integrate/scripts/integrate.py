@@ -16,6 +16,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — ", re.MULTILINE)
@@ -151,7 +154,7 @@ def _points_back(tree: Path, common: Path) -> bool:
 def _worktrees(cwd: Path) -> dict[str, Path]:
     """Map each checked-out branch to its worktree."""
     found: dict[str, Path] = {}
-    main = _run_dir(cwd).parent.resolve()
+    main = _primary(cwd).resolve()
     path = None
     for line in _git(cwd, "worktree", "list", "--porcelain").splitlines():
         if line.startswith("worktree "):
@@ -164,19 +167,15 @@ def _worktrees(cwd: Path) -> dict[str, Path]:
     return found
 
 
+def _primary(cwd: Path) -> Path:
+    """Return the primary checkout, from any worktree."""
+    common = _git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return mflib.layout.primary_of(common.strip())
+
+
 def _run_dir(cwd: Path) -> Path:
     """Return `.minions/` beside the primary checkout, from any worktree."""
-    common = _git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common.strip()).parent / ".minions"
-
-
-def _change_dir(cwd: Path, change: str) -> Path:
-    """Return the change's folder in the run directory, from any worktree.
-
-    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
-    Why: 0080-minions-layout design D1, D2.
-    """
-    return _run_dir(cwd) / "changes" / change
+    return mflib.layout.run_dir(_primary(cwd))
 
 
 def _old_layout(cwd: Path, change: str) -> str | None:
@@ -210,7 +209,7 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     for dependency in _after(proposal):
         if not _shipped(cwd, change, dependency):
             return f"after {dependency}"
-    folder = _change_dir(cwd, change)
+    folder = mflib.layout.change_dir(_primary(cwd), change)
     files = [folder / f"{role}.md" for role in ("conformance", "adversarial")]
     patch = folder / "diff.patch"
     present = [file for file in files if file.is_file()]
@@ -226,7 +225,7 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
 
 def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
     """Return whether the version's merge is open with its note beside it."""
-    note = _change_dir(cwd, change) / "integrate.md"
+    note = mflib.layout.change_dir(_primary(cwd), change) / "integrate.md"
     return (
         tree is not None
         and note.is_file()
