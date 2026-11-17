@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The old layout is one table, in `skills/mflib/layout.py`: converge, `gate_check.py`, `integrate.py` and
   `scripts/metrics/run.py` halt on each of its entries — an old worker log and a change folder's old `review.md` and
   `security.md` among them — naming the first sorted path, as the conductor does (0134-run-layout, phase 5).
+- A sixth structure rule, `check_layout`, fails on a string constant equal to `.minions` or `.mf-ship-origin`, or
+  starting `.minions/`, outside `skills/mflib/layout.py`, save the sites `LAYOUT_SITES` lists. D57, D83, the
+  state-file recipe, the module map and the threat model name the layout module (0134-run-layout, phase 6).
 
 ## [0.105.0] - 2026-11-16
 

@@ -56,8 +56,29 @@ OS_NAMES: frozenset[tuple[str, str]] = frozenset(
         ("conduct.py", "ps"),
     }
 )
+LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("codebase.py", ".minions/"),
+        ("conduct.py", ".mf-ship-origin"),
+        ("conduct.py", ".minions/"),
+        ("conformance.py", ".minions"),
+        ("converge.py", ".minions"),
+        ("converge.py", ".minions/"),
+        ("cut_check.py", ".minions/"),
+        ("gate_check.py", ".mf-ship-origin"),
+        ("gate_run.py", ".minions/"),
+        ("pin.py", ".mf-ship-origin"),
+        ("review_metrics.py", ".mf-ship-origin"),
+        ("stamp.py", ".minions/"),
+        ("viewer.py", ".mf-ship-origin"),
+        ("viewer.py", ".minions"),
+    }
+)
 _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")
 _PORT = "skills/mflib/platform.py"
+_LAYOUT = "skills/mflib/layout.py"
+_STATE = (".minions", ".mf-ship-origin")
+_STATE_PREFIX = ".minions/"
 _HOME = "skills/mflib/"
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
 SCRIPTS_SEED = (
@@ -369,6 +390,35 @@ def check_os(root: Path, listed: frozenset[tuple[str, str]] = OS_NAMES) -> list[
     }
     shown = {f"{file} names {word}" for file, word in listed}
     return _against(found, shown, "an OS command", "OS_NAMES")
+
+
+def _state_name(text: str) -> str:
+    """Return the state name the string `text` spells, or `""` for none.
+
+    e.g. `".minions/debt.md"` → `".minions/"`, `"no .minions"` → `""`
+    """
+    if text in _STATE:
+        return text
+    return _STATE_PREFIX if text.startswith(_STATE_PREFIX) else ""
+
+
+def check_layout(
+    root: Path, listed: frozenset[tuple[str, str]] = LAYOUT_SITES
+) -> list[str]:
+    """Return a breach line for each state name spelled outside `layout.py` — rule 6.
+
+    e.g. `["x.py spells .minions: a state path outside layout.py, not listed in …"]`
+    Why: 0134-run-layout design D8.
+    """
+    found = {
+        f"{path.rpartition('/')[2]} spells {name}"
+        for path, tree in _parse(root).items()
+        if path != _LAYOUT
+        for name in map(_state_name, _strings(tree))
+        if name
+    }
+    shown = {f"{file} spells {name}" for file, name in listed}
+    return _against(found, shown, "a state path outside layout.py", "LAYOUT_SITES")
 
 
 def _loads_home(node: ast.stmt) -> bool:
@@ -832,6 +882,52 @@ def test_check_os_fails_on_a_file_that_is_no_port(tmp_path: Path) -> None:
     assert check_os(root, listed=frozenset()) == [
         "platform.py names caffeinate: an OS command, not listed in OS_NAMES"
     ]
+
+
+def test_check_layout_holds_on_the_tree() -> None:
+    assert check_layout(_REPO) == []
+
+
+@pytest.mark.parametrize("name", [".minions", ".mf-ship-origin"])
+def test_check_layout_fails_on_a_planted_constant(tmp_path: Path, name: str) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": f'R = "{name}"\n'})
+    assert check_layout(root, listed=frozenset()) == [
+        f"x.py spells {name}: a state path outside layout.py, "
+        "not listed in LAYOUT_SITES"
+    ]
+
+
+def test_check_layout_fails_on_a_planted_prefix(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": 'R = ".minions/debt.md"\n'})
+    assert check_layout(root, listed=frozenset()) == [
+        "x.py spells .minions/: a state path outside layout.py, "
+        "not listed in LAYOUT_SITES"
+    ]
+
+
+def test_check_layout_passes_the_layout_module(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {_LAYOUT: 'M = ".minions"\nD = ".minions/debt.md"\n'})
+    assert check_layout(root, listed=frozenset()) == []
+
+
+def test_check_layout_fails_on_a_listed_site_that_is_gone(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": ""})
+    assert check_layout(root, listed=frozenset({("x.py", ".minions")})) == [
+        "x.py spells .minions: listed in LAYOUT_SITES, not found"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '""".minions"""\ndef f() -> None:\n    """.minions/debt.md"""\n',
+        'SAY = "no .minions/debt.md"\nTOO = ".minionsx"\n',
+    ],
+    ids=["docstring", "longer-text"],
+)
+def test_check_layout_passes_a_docstring(tmp_path: Path, source: str) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": source})
+    assert check_layout(root, listed=frozenset()) == []
 
 
 _SEEDED = f"import sys\nfrom pathlib import Path\n\n{SEED}\nimport mflib.platform\n"

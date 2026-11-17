@@ -9,7 +9,7 @@ The layers:
 - **`station`** — a station's own scripts.
 - **`reader`** — the operator's readers of run data, and the metric scripts.
 - **`gate`** — the scripts `make gate` and `make corpus` run.
-- **`home`** — the shared home, `skills/mflib/`.
+- **`home`** — the shared home, `skills/mflib/`: the port to the OS and the run directory's layout.
 
 A row gives a path once, and `check_map` fails on a `conductor` or `home` row outside its folder.
 

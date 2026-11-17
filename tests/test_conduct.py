@@ -1646,6 +1646,15 @@ def test_a_merge_in_renumbers_a_planned_decision(
     assert _git(waiting, "status", "--porcelain").strip() == ""
 
 
+def test_the_repo_outside_a_repo_is_the_folder_with_no_common_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    assert _conduct()["_repo"](outside) == (outside.resolve(), None)
+
+
 def test_a_git_failure_names_its_line_and_uv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

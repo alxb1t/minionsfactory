@@ -9,7 +9,7 @@ The phases: pin the region on today's code, born the module, move the conductor,
 - [x] 3 — The conductor follows · moderate
 - [x] 4 — The stations follow · moderate
 - [x] 5 — The old layout is one table · hard
-- [ ] 6 — The sixth rule and the record · hard
+- [x] 6 — The sixth rule and the record · hard
 
 ## 1 — The pin
 
@@ -112,15 +112,15 @@ The one behaviour change of the version ([D5](design.md#d5)).
 
 ## 6 — The sixth rule and the record
 
-- [ ] 6.1 In `tests/test_structure.py` add `check_layout(root, listed=LAYOUT_SITES)` per [D8](design.md#d8), `test_check_layout_holds_on_the_tree`, and the twins `test_check_layout_fails_on_a_planted_constant`, `test_check_layout_fails_on_a_planted_prefix`, `test_check_layout_passes_the_layout_module`, `test_check_layout_fails_on_a_listed_site_that_is_gone` and `test_check_layout_passes_a_docstring`.
+- [x] 6.1 In `tests/test_structure.py` add `check_layout(root, listed=LAYOUT_SITES)` per [D8](design.md#d8), `test_check_layout_holds_on_the_tree`, and the twins `test_check_layout_fails_on_a_planted_constant`, `test_check_layout_fails_on_a_planted_prefix`, `test_check_layout_passes_the_layout_module`, `test_check_layout_fails_on_a_listed_site_that_is_gone` and `test_check_layout_passes_a_docstring`.
   Verify: `uv run pytest tests/test_structure.py -q -k "check_layout_fails or check_layout_passes"` exits 0.
-- [ ] 6.2 Write `LAYOUT_SITES` from the rule's own output on the tree: each remaining pair of base name and name.
+- [x] 6.2 Write `LAYOUT_SITES` from the rule's own output on the tree: each remaining pair of base name and name.
   Verify: `uv run pytest tests/test_structure.py -q -k test_check_layout_holds_on_the_tree` exits 0.
-- [ ] 6.3 In `docs/decisions.md` edit D57: the finder is `change_dir` of `skills/mflib/layout.py`; drop *each script finding it through its own `_change_dir`* and the accepts clause that waits for the home. Edit D83: the sixth rule, in its list of what `tests/test_structure.py` holds.
+- [x] 6.3 In `docs/decisions.md` edit D57: the finder is `change_dir` of `skills/mflib/layout.py`; drop *each script finding it through its own `_change_dir`* and the accepts clause that waits for the home. Edit D83: the sixth rule, in its list of what `tests/test_structure.py` holds.
   Verify: `git grep -c -F "mflib/layout.py" -- docs/decisions.md` prints a count.
-- [ ] 6.4 In `docs/recipes.md` rewrite the state-file recipe's rows, its paragraph on the finder and its rules line, which name `_change_dir`: a reader takes `change_dir` from `skills/mflib/layout.py`, and `check_layout` holds that `.minions` is joined there alone.
+- [x] 6.4 In `docs/recipes.md` rewrite the state-file recipe's rows, its paragraph on the finder and its rules line, which name `_change_dir`: a reader takes `change_dir` from `skills/mflib/layout.py`, and `check_layout` holds that `.minions` is joined there alone.
   Verify: `git grep -n -e "_change_dir" -- docs/recipes.md` prints no line.
-- [ ] 6.5 In `THREAT_MODEL.md` extend the surface sentence of `skills/mflib/*` (`:126`) to say the home holds the run directory's layout, beside the port to the OS: `the port to the OS and the run directory's layout`.
+- [x] 6.5 In `THREAT_MODEL.md` extend the surface sentence of `skills/mflib/*` (`:126`) to say the home holds the run directory's layout, beside the port to the OS: `the port to the OS and the run directory's layout`.
   Verify: `git grep -n -F "the run directory's layout" -- THREAT_MODEL.md` prints a line.
-- [ ] 6.6 In `docs/modules.md` extend the line that defines the `home` layer to say it holds the port to the OS and the run directory's layout.
+- [x] 6.6 In `docs/modules.md` extend the line that defines the `home` layer to say it holds the port to the OS and the run directory's layout.
   Verify: `git grep -n -F "run directory's layout" -- docs/modules.md` prints a line.
