@@ -86,8 +86,8 @@ A move: no assert changes. Each script keeps its git call, its guard and its err
   Verify: `git grep -c -e "import mflib.layout" -- skills/mf-ui/scripts/viewer.py` prints a line.
 - [ ] 4.8 In `scripts/metrics/run.py`, `scripts/metrics/debt.py` and `scripts/corpus.py` add the seed of [D7](design.md#d7) and the import, delete `run.py`'s `_change_dir`, and read `layout.primary_of`, `layout.run_dir`, `layout.change_dir`, `layout.debt_file` and `layout.runs_dir` at the finders, `DEBT` (`:16`, printed as `no {DEBT}` at `:39`, so that text stays) and `:299`.
   Verify: `git grep -c -e "import mflib.layout" -- scripts/metrics/run.py scripts/metrics/debt.py scripts/corpus.py` prints a line for each of those files.
-- [ ] 4.9 Add `layout.py` to the `names` cell of each script that imports it, in `docs/modules.md`, in base-name order; point each test that reached a moved name at its new place.
-  Verify: `uv run pytest tests/test_structure.py -q` exits 0.
+- [ ] 4.9 Add `layout.py` to the `names` cell of each script that imports it, in `docs/modules.md`, in base-name order; point each test that reached a moved name at its new place. Converge's cell gains `layout.py`, and `tests/test_skills.py`'s `test_mf_converge_names_each_script_the_map_says_it_loads` holds `skills/mf-converge/SKILL.md` to that cell: name `../../mflib/layout.py` in its list of what converge loads (`:56-57`), beside `../../mf-integrate/scripts/integrate.py`, for the run directory's paths.
+  Verify: `uv run pytest tests/test_structure.py tests/test_skills.py -q` exits 0.
 - [ ] 4.10 No script under `skills/` or `scripts/` holds `def _change_dir`.
   Verify: `git grep -n -e "def _change_dir" -- skills scripts` prints no line.
 
