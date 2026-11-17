@@ -6,7 +6,7 @@ The phases: pin the region on today's code, born the module, move the conductor,
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The conductor follows · moderate
+- [x] 3 — The conductor follows · moderate
 - [ ] 4 — The stations follow · moderate
 - [ ] 5 — The old layout is one table · hard
 - [ ] 6 — The sixth rule and the record · hard
@@ -53,17 +53,17 @@ Tests only: no file under `skills/` or `scripts/` changes in this phase ([D11](d
 
 A move: no assert changes ([D6](design.md#d6)).
 
-- [ ] 3.1 In `conduct.py`, which holds the seed already (`:42-43`), add `import mflib.layout` after `import mflib.platform`, and make `primary_of` (`:503-504`), `_repo` (`:487`) and `preconditions` (`:4503`) take the primary from `layout.primary_of`; `_common_dir` keeps its `resolve()`.
+- [x] 3.1 In `conduct.py`, which holds the seed already (`:42-43`), add `import mflib.layout` after `import mflib.platform`, and make `primary_of` (`:503-504`), `_repo` (`:487`) and `preconditions` (`:4503`) take the primary from `layout.primary_of`; `_common_dir` keeps its `resolve()`.
   Verify: `grep -n -e "import mflib.layout" skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.2 Move `OLD_LAYOUT`, `OLD_ROLES`, `OLD_ID`, `OLD_STAMP`, `OLD_LOG`, `_old_files` and `_old_layout` from `conduct.py` into `layout.py` as the names of [D5](design.md#d5), and make `migrate_layout` (`:6800-6805`), `grant` (`:7995`), `status` and `report` (`:8197`, `:8307`) read them from `layout`. Add to `tests/test_layout.py` `test_old_files_finds_each_old_entry_alone` over `ENTRIES`, `ROLES` and `LOG`, and `test_old_layout_names_the_first_sorted_path`.
+- [x] 3.2 Move `OLD_LAYOUT`, `OLD_ROLES`, `OLD_ID`, `OLD_STAMP`, `OLD_LOG`, `_old_files` and `_old_layout` from `conduct.py` into `layout.py` as the names of [D5](design.md#d5), and make `migrate_layout` (`:6800-6805`), `grant` (`:7995`), `status` and `report` (`:8197`, `:8307`) read them from `layout`. Add to `tests/test_layout.py` `test_old_files_finds_each_old_entry_alone` over `ENTRIES`, `ROLES` and `LOG`, and `test_old_layout_names_the_first_sorted_path`.
   Verify: `uv run pytest tests/test_layout.py -q -k "old_files_finds_each_old_entry_alone or old_layout_names_the_first_sorted_path"` exits 0.
-- [ ] 3.3 Delete `_change_dir` from `conduct.py`; each of its calls becomes `layout.change_dir`, and the descriptors `_folder_fd` and `_remove_in` open over `layout.run_dir(primary)`, `layout.CHANGES` and the id.
+- [x] 3.3 Delete `_change_dir` from `conduct.py`; each of its calls becomes `layout.change_dir`, and the descriptors `_folder_fd` and `_remove_in` open over `layout.run_dir(primary)`, `layout.CHANGES` and the id.
   Verify: `git grep -n -w "_change_dir" -- skills/mf-ship/scripts/conduct.py` prints no line.
-- [ ] 3.4 In `conduct.py` make `_run_dir`, the claim, `runs/`, `gate/`, `cuts/<id>`, `metrics/<id>.html` and the debt names (`DEBT`, `DEBT_LOCK`, `OLD_DEBT`, `OLD_DEBT_LOCK`) read `layout.run_dir`, `layout.claim_file`, `layout.runs_dir`, `layout.gate_dir`, `layout.cut_reservation`, `layout.metrics_page`, `layout.debt_file`, `layout.debt_lock`, `layout.backlog_file` and `layout.backlog_lock`. Where the text of a debt name is the point — a halt or event message, the substring test at `:1655`, `_clear_stale_lock`'s `name` — the site takes the same text as `layout.debt_lock(primary).relative_to(primary)`.
+- [x] 3.4 In `conduct.py` make `_run_dir`, the claim, `runs/`, `gate/`, `cuts/<id>`, `metrics/<id>.html` and the debt names (`DEBT`, `DEBT_LOCK`, `OLD_DEBT`, `OLD_DEBT_LOCK`) read `layout.run_dir`, `layout.claim_file`, `layout.runs_dir`, `layout.gate_dir`, `layout.cut_reservation`, `layout.metrics_page`, `layout.debt_file`, `layout.debt_lock`, `layout.backlog_file` and `layout.backlog_lock`. Where the text of a debt name is the point — a halt or event message, the substring test at `:1655`, `_clear_stale_lock`'s `name` — the site takes the same text as `layout.debt_lock(primary).relative_to(primary)`.
   Verify: `git grep -n -e "^DEBT" -e "^OLD_DEBT" -- skills/mf-ship/scripts/conduct.py` prints no line.
-- [ ] 3.5 In `pin.py` add the seed, as `conduct.py`'s `:42` is, and `import mflib.layout`; take the primary at `:351` from `layout.primary_of(Path(common).resolve())`. Add `layout.py` to the `names` cells of `conduct.py` and `pin.py` in `docs/modules.md`, in base-name order.
+- [x] 3.5 In `pin.py` add the seed, as `conduct.py`'s `:42` is, and `import mflib.layout`; take the primary at `:351` from `layout.primary_of(Path(common).resolve())`. Add `layout.py` to the `names` cells of `conduct.py` and `pin.py` in `docs/modules.md`, in base-name order.
   Verify: `grep -n -e "import mflib.layout" skills/mf-ship/scripts/pin.py` prints a line.
-- [ ] 3.6 Point each test that reached a moved name at its new place, changing no assert.
+- [x] 3.6 Point each test that reached a moved name at its new place, changing no assert.
   Verify: `uv run pytest tests/test_conduct.py tests/test_pin.py tests/test_sandboxed.py tests/test_layout.py tests/test_structure.py -q` exits 0.
 
 ## 4 — The stations follow

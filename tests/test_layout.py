@@ -1,6 +1,6 @@
-"""The run directory's paths, each against the path spelled by hand.
+"""The run directory's paths, each against the path spelled by hand, and the old layout.
 
-Why: 0134-run-layout design D2 and D3.
+Why: 0134-run-layout design D2, D3 and D5.
 """
 
 from collections.abc import Callable
@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from fake_worker import _commit, _git
 from mflib import layout
+from old_layout import ENTRIES, LOG, ROLES, plant
 
 
 def test_the_run_directory_is_the_primarys_minions(tmp_path: Path) -> None:
@@ -77,3 +78,20 @@ def test_primary_of_gives_one_primary_from_a_linked_worktree(tmp_path: Path) -> 
     found = {layout.primary_of(_git(cwd, *asked)) for cwd in (primary, linked)}
 
     assert found == {primary.resolve()}
+
+
+@pytest.mark.parametrize("old", [*ENTRIES, *ROLES, *LOG])
+def test_old_files_finds_each_old_entry_alone(tmp_path: Path, old: str) -> None:
+    path = plant(layout.run_dir(tmp_path), "0001-todo", old)
+    new = {**ENTRIES, **ROLES, **LOG}[old]
+
+    assert layout.old_files(tmp_path) == {"0001-todo": [(path, new)]}
+    assert layout.old_layout(tmp_path, "0001-todo") == str(path.relative_to(tmp_path))
+    assert layout.old_layout(tmp_path, "0002-other") is None
+
+
+def test_old_layout_names_the_first_sorted_path(tmp_path: Path) -> None:
+    for old in ("findings/{}_review.md", "build/{}.done"):
+        plant(layout.run_dir(tmp_path), "0001-todo", old)
+
+    assert layout.old_layout(tmp_path, "0001-todo") == ".minions/build/0001-todo.done"

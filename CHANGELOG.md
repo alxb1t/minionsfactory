@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mflib/layout.py` names the run directory's paths from a primary checkout: the run directory, a change's
   folder, and the generic entries a second script spells. The seed rule now holds `scripts/` too, where the seed adds
   `/ "skills"` to the `parents[N]` of the file's depth (0134-run-layout, phase 2).
+- The conductor and `pin.py` take their run-directory paths and the old-layout table from `skills/mflib/layout.py`;
+  `conduct.py`'s own `_change_dir`, debt names and table are gone. A move: no behaviour changes
+  (0134-run-layout, phase 3).
 
 ## [0.105.0] - 2026-11-16
 
