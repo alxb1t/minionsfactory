@@ -47,7 +47,7 @@ Tests only: no file under `skills/` or `scripts/` changes in this phase ([D11](d
 - [x] 2.4 In `tests/test_structure.py` widen `check_seed` to `scripts/` per [D7](design.md#d7): a file under `scripts/` takes the seed with `parents[N] / "skills"`, `N` its depth. Add `test_check_seed_passes_a_scripts_seed_of_its_depth`, `test_check_seed_fails_on_no_scripts_seed` and `test_check_seed_fails_on_a_scripts_seed_of_the_wrong_depth`.
   Verify: `uv run pytest tests/test_structure.py -q -k scripts_seed` exits 0.
 - [x] 2.5 Turn the `outside-skills` case of `test_check_seed_passes_a_seeded_or_exempt_import` into a case of `test_check_seed_fails_on_an_unseeded_import`, per the table of design's `## Tests`.
-  Verify: `git grep -n -e "outside-skills" -- tests/test_structure.py` prints no line.
+  Verify: `git grep -n -e "outside-skills" -- tests/test_structure.py` prints nothing.
 
 ## 3 — The conductor follows
 
@@ -58,9 +58,9 @@ A move: no assert changes ([D6](design.md#d6)).
 - [x] 3.2 Move `OLD_LAYOUT`, `OLD_ROLES`, `OLD_ID`, `OLD_STAMP`, `OLD_LOG`, `_old_files` and `_old_layout` from `conduct.py` into `layout.py` as the names of [D5](design.md#d5), and make `migrate_layout` (`:6800-6805`), `grant` (`:7995`), `status` and `report` (`:8197`, `:8307`) read them from `layout`. Add to `tests/test_layout.py` `test_old_files_finds_each_old_entry_alone` over `ENTRIES`, `ROLES` and `LOG`, and `test_old_layout_names_the_first_sorted_path`.
   Verify: `uv run pytest tests/test_layout.py -q -k "old_files_finds_each_old_entry_alone or old_layout_names_the_first_sorted_path"` exits 0.
 - [x] 3.3 Delete `_change_dir` from `conduct.py`; each of its calls becomes `layout.change_dir`, and the descriptors `_folder_fd` and `_remove_in` open over `layout.run_dir(primary)`, `layout.CHANGES` and the id.
-  Verify: `git grep -n -w "_change_dir" -- skills/mf-ship/scripts/conduct.py` prints no line.
+  Verify: `git grep -n -w "_change_dir" -- skills/mf-ship/scripts/conduct.py` prints nothing.
 - [x] 3.4 In `conduct.py` make `_run_dir`, the claim, `runs/`, `gate/`, `cuts/<id>`, `metrics/<id>.html` and the debt names (`DEBT`, `DEBT_LOCK`, `OLD_DEBT`, `OLD_DEBT_LOCK`) read `layout.run_dir`, `layout.claim_file`, `layout.runs_dir`, `layout.gate_dir`, `layout.cut_reservation`, `layout.metrics_page`, `layout.debt_file`, `layout.debt_lock`, `layout.backlog_file` and `layout.backlog_lock`. Where the text of a debt name is the point — a halt or event message, the substring test at `:1655`, `_clear_stale_lock`'s `name` — the site takes the same text as `layout.debt_lock(primary).relative_to(primary)`.
-  Verify: `git grep -n -e "^DEBT" -e "^OLD_DEBT" -- skills/mf-ship/scripts/conduct.py` prints no line.
+  Verify: `git grep -n -e "^DEBT" -e "^OLD_DEBT" -- skills/mf-ship/scripts/conduct.py` prints nothing.
 - [x] 3.5 In `pin.py` add the seed, as `conduct.py`'s `:42` is, and `import mflib.layout`; take the primary at `:351` from `layout.primary_of(Path(common).resolve())`. Add `layout.py` to the `names` cells of `conduct.py` and `pin.py` in `docs/modules.md`, in base-name order.
   Verify: `grep -n -e "import mflib.layout" skills/mf-ship/scripts/pin.py` prints a line.
 - [x] 3.6 Point each test that reached a moved name at its new place, changing no assert.
@@ -89,18 +89,18 @@ A move: no assert changes. Each script keeps its git call, its guard and its err
 - [x] 4.9 Add `layout.py` to the `names` cell of each script that imports it, in `docs/modules.md`, in base-name order; point each test that reached a moved name at its new place. Converge's cell gains `layout.py`, and `tests/test_skills.py`'s `test_mf_converge_names_each_script_the_map_says_it_loads` holds `skills/mf-converge/SKILL.md` to that cell: name `../../mflib/layout.py` in its list of what converge loads (`:56-57`), beside `../../mf-integrate/scripts/integrate.py`, for the run directory's paths.
   Verify: `uv run pytest tests/test_structure.py tests/test_skills.py -q` exits 0.
 - [x] 4.10 No script under `skills/` or `scripts/` holds `def _change_dir`.
-  Verify: `git grep -n -e "def _change_dir" -- skills scripts` prints no line.
+  Verify: `git grep -n -e "def _change_dir" -- skills scripts` prints nothing.
 
 ## 5 — The old layout is one table
 
 The one behaviour change of the version ([D5](design.md#d5)).
 
 - [x] 5.1 In `skills/mf-converge/scripts/converge.py` delete its `OLD_LAYOUT` and `old_layout`; its halt reads `layout.old_layout(primary, change)`, its words and return code stay (`:793-795`).
-  Verify: `git grep -n -e "^OLD_LAYOUT" -- skills/mf-converge/scripts/converge.py` prints no line.
+  Verify: `git grep -n -e "^OLD_LAYOUT" -- skills/mf-converge/scripts/converge.py` prints nothing.
 - [x] 5.2 In `gate_check.py` and `integrate.py` delete their `OLD_LAYOUT` and `_old_layout`; the halts read `layout.old_layout` and keep their words and exit 2 (`:489-492`, `:270-273`).
-  Verify: `git grep -n -e "^OLD_LAYOUT" -- skills/mf-converge/scripts/gate_check.py skills/mf-integrate/scripts/integrate.py` prints no line.
+  Verify: `git grep -n -e "^OLD_LAYOUT" -- skills/mf-converge/scripts/gate_check.py skills/mf-integrate/scripts/integrate.py` prints nothing.
 - [x] 5.3 In `scripts/metrics/run.py` delete `OLD_LAYOUT`, `OLD_LOG`, its own `_old_layout` and the worker-log loop at `:150-158`; `Version` raises `OldLayout` from `layout.old_layout` with the same words.
-  Verify: `git grep -n -e "^OLD_LAYOUT" -e "^OLD_LOG" -- scripts` prints no line.
+  Verify: `git grep -n -e "^OLD_LAYOUT" -e "^OLD_LOG" -- scripts` prints nothing.
 - [x] 5.4 Turn the cases of 1.4 to 1.6 to the one table: each of the four copies is tested over `ENTRIES`, `ROLES` and `LOG`. Add to each of the four test files `test_a_halt_names_the_first_sorted_path`: it plants `build/{}.done` and `findings/{}_review.md`, and finds the halt naming `.minions/build/<id>.done`.
   Verify: `uv run pytest tests/test_converge.py tests/test_gate_check.py tests/test_integrate.py tests/test_metric_scripts.py -q -k test_a_halt_names_the_first_sorted_path` exits 0.
 - [x] 5.5 In `tests/test_layout.py` add `test_the_table_equals_the_literals`: `OLD_LAYOUT`, `OLD_ROLES` and `OLD_LOG` equal `tests/old_layout.py`'s `ENTRIES`, `ROLES` and `LOG`.
@@ -108,7 +108,7 @@ The one behaviour change of the version ([D5](design.md#d5)).
 - [x] 5.6 Add the old worker log, `.minions/runs/<stamp>/<change-id>_<station>[-<n>].log`, to the old-layout lists of `skills/mf-build/SKILL.md`, `skills/mf-integrate/SKILL.md` and `skills/mf-release/SKILL.md`, after `release/<change-id>.held` and `gate-check/<change-id>/`.
   Verify: `git grep -c -F "runs/<stamp>/<change-id>_" -- skills/mf-build/SKILL.md skills/mf-integrate/SKILL.md skills/mf-release/SKILL.md` prints a count for each of those files.
 - [x] 5.7 Every definition of the table stands in the module alone; a test that reached a deleted name reaches it through `layout`, changing no assert.
-  Verify: `git grep -n -e "^OLD_LAYOUT" -- skills scripts` prints a line of `skills/mflib/layout.py` alone.
+  Verify: `grep -c -e "^OLD_LAYOUT" skills/mflib/layout.py` prints `1`, and `git grep -n -e "^OLD_LAYOUT" -- skills scripts ":(exclude)skills/mflib/layout.py"` prints nothing.
 
 ## 6 — The sixth rule and the record
 
@@ -119,7 +119,7 @@ The one behaviour change of the version ([D5](design.md#d5)).
 - [x] 6.3 In `docs/decisions.md` edit D57: the finder is `change_dir` of `skills/mflib/layout.py`; drop *each script finding it through its own `_change_dir`* and the accepts clause that waits for the home. Edit D83: the sixth rule, in its list of what `tests/test_structure.py` holds.
   Verify: `git grep -c -F "mflib/layout.py" -- docs/decisions.md` prints a count.
 - [x] 6.4 In `docs/recipes.md` rewrite the state-file recipe's rows, its paragraph on the finder and its rules line, which name `_change_dir`: a reader takes `change_dir` from `skills/mflib/layout.py`, and `check_layout` holds that `.minions` is joined there alone.
-  Verify: `git grep -n -e "_change_dir" -- docs/recipes.md` prints no line.
+  Verify: `git grep -n -e "_change_dir" -- docs/recipes.md` prints nothing.
 - [x] 6.5 In `THREAT_MODEL.md` extend the surface sentence of `skills/mflib/*` (`:126`) to say the home holds the run directory's layout, beside the port to the OS: `the port to the OS and the run directory's layout`.
   Verify: `git grep -n -F "the run directory's layout" -- THREAT_MODEL.md` prints a line.
 - [x] 6.6 In `docs/modules.md` extend the line that defines the `home` layer to say it holds the port to the OS and the run directory's layout.
