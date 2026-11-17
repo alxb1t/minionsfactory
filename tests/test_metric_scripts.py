@@ -14,6 +14,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from old_layout import ENTRIES, LOG, ROLES, plant
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts" / "metrics"
 
@@ -604,6 +605,29 @@ def test_run_metrics_halt_on_an_old_layout(tmp_path: Path) -> None:
         text=True,
     )
     assert (done.returncode, done.stdout, done.stderr) == (2, "", f"{said}\n")
+
+
+def test_run_metrics_halt_on_each_old_entry_alone(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    run = _load("run")
+    for old in {**ENTRIES, **ROLES, **LOG}:
+        planted = plant(tmp_path / ".minions", "0001-x", old)
+        said = f".minions/{old.format('0001-x')} is the old layout: /mf-ship moves it"
+        with pytest.raises(run.OldLayout, match=re.escape(said)):
+            run.measure(tmp_path, ["grants"], env)
+        planted.unlink()
+    assert run.measure(tmp_path, ["grants"], env) == 1
+
+
+def test_a_halt_names_the_first_sorted_path(tmp_path: Path) -> None:
+    env = _run_fixture(tmp_path)
+    run = _load("run")
+    for old in ("build/{}.done", "findings/{}_review.md"):
+        plant(tmp_path / ".minions", "0001-x", old)
+
+    said = ".minions/build/0001-x.done is the old layout: /mf-ship moves it"
+    with pytest.raises(run.OldLayout, match=re.escape(said)):
+        run.measure(tmp_path, ["grants"], env)
 
 
 def _worker_log(

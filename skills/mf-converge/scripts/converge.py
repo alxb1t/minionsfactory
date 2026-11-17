@@ -26,6 +26,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any, NamedTuple, NoReturn, Protocol, TextIO
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 HERE = Path(__file__).resolve().parent
 STAMP = runpy.run_path(str(HERE / "stamp.py"))
 BUNDLE = runpy.run_path(str(HERE / "bundle.py"))
@@ -45,15 +48,6 @@ SIZE = re.compile(r"size:([^:]*)$")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+) — (.*)$")
 SPAN = re.compile(r"(\w+)\.\.(\w+) · (\d+) commits? · (\d+) files?")
 HALTED = re.compile(r" · head (\w+)$")
-# Each path of a change's files before `/mf-ship`'s move, under `.minions/`.
-OLD_LAYOUT = (
-    *("findings/{}_review.md", "findings/{}_security.md"),
-    *("findings/{}_status_log.md", "findings/{}_diff.patch"),
-    *("models/{}.toml", "integrate/{}.md", "integrate/{}.red", "integrate/{}.resolved"),
-    *("build/{}.done", "build/{}.halt", "build/{}.closing", "build/{}.discarded.patch"),
-    *("rescue/{}.md", "release/{}.held", "gate-check/{}"),
-    *("changes/{}/review.md", "changes/{}/security.md"),
-)
 NO_COMMAND = ("is up to date", "Nothing to be done")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — ", re.MULTILINE)
 PLANNED = re.compile(r"(\d+\.\d+) — ")
@@ -302,7 +296,7 @@ class Context:
     @property
     def folder(self) -> Path:
         """Return the change's folder in the run directory."""
-        return Path(self.host.primary) / ".minions" / "changes" / self.change
+        return mflib.layout.change_dir(Path(self.host.primary), self.change)
 
     @property
     def log(self) -> Path:
@@ -387,15 +381,6 @@ def commands(context: Context) -> TextIO:
 def script(name: str, *args: str) -> list[str]:
     """Return the argv that runs a converge script by the conductor's Python."""
     return [sys.executable, str(HERE / name), *args]
-
-
-def old_layout(primary: Path, change: str) -> str | None:
-    """Return the first of the change's files at an old path, else None."""
-    for old in OLD_LAYOUT:
-        path = Path(".minions") / old.format(change)
-        if os.path.lexists(primary / path):
-            return str(path)
-    return None
 
 
 def preconditions(context: Context) -> str:
@@ -520,8 +505,9 @@ def freeze(
         BUNDLE["write"](folder / "bundle.md", text)
     except BUNDLE["Stop"] as stop:
         raise Halt(f"bundle: cannot bundle — {stop}") from stop
-    debt = Path(context.host.primary) / ".minions" / "debt.md"
-    old = debt.with_name("backlog.md")
+    primary = Path(context.host.primary)
+    debt = mflib.layout.debt_file(primary)
+    old = mflib.layout.backlog_file(primary)
     debt = old if not os.path.lexists(debt) and os.path.lexists(old) else debt
     cards = folder / "debt-cards.md"
     if DEBT_MATCH["main"]([str(debt), str(patch), str(cards)]) != 0:
@@ -790,7 +776,7 @@ def converge(
     0 done · 1 halted, its `halt` event written · 2 cannot run.
     """
     context = Context(host, change, Path(tree), workers, deadline)
-    if old := old_layout(Path(host.primary), change):
+    if old := mflib.layout.old_layout(Path(host.primary), change):
         print(f"converge: halt — {old} is at an old path: /mf-ship's run moves it")
         return 1
     try:
@@ -1288,17 +1274,17 @@ def still_true(context: Context, value: str) -> tuple[int | None, str]:
 
 
 @contextmanager
-def debt_lock(minions: Path) -> Iterator[None]:
+def debt_lock(primary: Path) -> Iterator[None]:
     """Hold `.minions/debt.lock` while the body runs; wait for it, then halt.
 
     An old `.minions/backlog.md` takes no lock. Why: design D5, D7.
     """
-    if os.path.lexists(minions / "backlog.md"):
+    if os.path.lexists(mflib.layout.backlog_file(primary)):
         raise Halt(
             ".minions/debt.lock not taken — an old .minions/backlog.md stands;"
             " /mf-ship moves it at a run's start"
         )
-    lock, waited = minions / "debt.lock", 0
+    lock, waited = mflib.layout.debt_lock(primary), 0
     while True:
         try:
             lock.mkdir()
@@ -1452,8 +1438,8 @@ def debt(context: Context) -> Debt:
 
     Why: design D7.
     """
-    minions = Path(context.host.primary) / ".minions"
-    path = minions / "debt.md"
+    primary = Path(context.host.primary)
+    path = mflib.layout.debt_file(primary)
     number = context.change.partition("-")[0]
     files = _files(context)
     cards = [
@@ -1464,7 +1450,7 @@ def debt(context: Context) -> Debt:
     ]
     checks = amends(context, cards, set(DEBT_TITLE.findall(_debt_text(path))))
     moot, written, cleared = list(checks), [], []
-    with debt_lock(minions):
+    with debt_lock(primary):
         text = _debt_text(path) or DEBT_PREAMBLE
         holds = set(DEBT_TITLE.findall(text))
         filed = []
@@ -1531,7 +1517,7 @@ def debted(context: Context) -> Debt:
         part.partition(" ")[0]: part.partition(" ")[2].split(", ")
         for part in detail.split(" · ")
     }
-    text = _debt_text(Path(context.host.primary) / ".minions" / "debt.md")
+    text = _debt_text(mflib.layout.debt_file(Path(context.host.primary)))
     return Debt(
         named.get("written", []),
         named.get("moot", []),

@@ -12,8 +12,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills"))
+import mflib.layout
+
 TIMEOUT_SECONDS = 600
-DEBT = Path(".minions/debt.md")
+DEBT = mflib.layout.debt_file(Path())
 CARD = re.compile(r"^- \*\*\d{4}·", re.MULTILINE)
 
 
@@ -27,7 +30,7 @@ def cards(root: Path) -> int | None:
         check=True,
         timeout=TIMEOUT_SECONDS,
     ).stdout.strip()
-    path = Path(common).parent / DEBT
+    path = mflib.layout.debt_file(mflib.layout.primary_of(common))
     if not path.is_file():
         return None
     return len(CARD.findall(path.read_text(encoding="utf-8")))

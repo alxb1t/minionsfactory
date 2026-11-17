@@ -21,6 +21,9 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 HOSTS = (".claude/skills", ".agents/skills")
 KEPT = ".mf-ship-origin"
 CONDUCT = Path(__file__).resolve().with_name("conduct.py")
@@ -348,7 +351,7 @@ def install(cwd: Path, release: str | None) -> str:
     """
     checkout = Path(_out(cwd, "rev-parse", "--show-toplevel")).resolve()
     common = _out(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
-    primary = Path(common).resolve().parent
+    primary = mflib.layout.primary_of(Path(common).resolve())
     _write("source", str(primary))
     skipped = None
     if release is None:

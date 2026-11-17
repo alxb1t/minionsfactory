@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from markdown_it.token import Token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
 import mflib.platform
 
 TIMEOUT = 10800
@@ -52,10 +53,6 @@ RETRIES = (0, 10, 30)
 PUSH_RETRIES = (0, 10)
 LOCK_SECONDS = 30
 LOCK_STALE = 600
-DEBT = ".minions/debt.md"
-DEBT_LOCK = ".minions/debt.lock"
-OLD_DEBT = ".minions/backlog.md"
-OLD_DEBT_LOCK = ".minions/backlog.lock"
 REJOIN_POLL = 10
 # The most of a file a worker leaves that `_bounded` reads.
 READ_BYTES = 65536
@@ -171,30 +168,6 @@ AMENDS = ("tasks.md", "design.md")
 # decision change. Why: 0103-fewer-rounds design D3.
 FIX_NOTE = re.compile(r"Fix note \(\d{4}-\d{2}-\d{2}, [RS]\d+\): \S.*")
 ROLES = ("conformance", "adversarial")
-# Each old-layout path of a change, by its name in the change's folder.
-# Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D2.
-OLD_LAYOUT = {
-    "findings/{}_review.md": "conformance.md",
-    "findings/{}_security.md": "adversarial.md",
-    "findings/{}_status_log.md": "status_log.md",
-    "findings/{}_diff.patch": "diff.patch",
-    "models/{}.toml": "models.toml",
-    "integrate/{}.md": "integrate.md",
-    "integrate/{}.red": "integrate.red",
-    "integrate/{}.resolved": "integrate.resolved",
-    "build/{}.done": "build.done",
-    "build/{}.halt": "build.halt",
-    "build/{}.closing": "build.closing",
-    "build/{}.discarded.patch": "build.discarded.patch",
-    "rescue/{}.md": "rescue.md",
-    "release/{}.held": "release.held",
-    "gate-check/{}": "gate-check",
-}
-# A change folder's old findings names. Why: 0095-converge-roles design D2.
-OLD_ROLES = {"review.md": "conformance.md", "security.md": "adversarial.md"}
-OLD_ID = r"(\d{4}-[a-z0-9-]+)"
-OLD_STAMP = re.compile(r"\d{8}-\d{6}(?:-\d+)?")
-OLD_LOG = re.compile(rf"{OLD_ID}_([a-z][a-z-]*?)(-\d+)?\.log")
 # A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
 BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
 NON_SECURITY = (
@@ -484,7 +457,7 @@ def primary_of(cwd: Path) -> Path:
             f"conduct: cannot run — git rev-parse failed: {first};"
             f" run it as uv run --script {Path(__file__)}",
         )
-    primary = Path(done.stdout.strip()).resolve().parent
+    primary = mflib.layout.primary_of(Path(done.stdout.strip()).resolve())
     if not cwd.resolve().is_relative_to(primary) and not _kept_file(primary).is_file():
         raise Stop(
             1,
@@ -501,7 +474,9 @@ def _repo(cwd: Path) -> Repo:
     Taken once, before the first worker: git's answer in a tree is worker-written.
     """
     common = _common_dir(cwd)
-    return (common.parent, common) if common else (cwd.resolve(), None)
+    if common is None:
+        return cwd.resolve(), None
+    return mflib.layout.primary_of(common), common
 
 
 def _frontmatter(text: str, key: str) -> str | None:
@@ -672,15 +647,6 @@ def _rating(title: str) -> str:
     return "moderate" if title.endswith(" · moderate") else "hard"
 
 
-def _change_dir(primary: Path, change: str) -> Path:
-    """Return the change's folder in the run directory.
-
-    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
-    Why: 0080-minions-layout design D1, D2.
-    """
-    return primary / ".minions" / "changes" / change
-
-
 def _folder_fd(root: Path, *parts: str) -> int:
     """Return a descriptor on `root`'s folder `parts`, each made, none read as a link.
 
@@ -712,7 +678,7 @@ def _write_in_change(
     A `fresh` write creates the file and never truncates one.
     Why: 0071-ship-fixes design D8; 0119-debt-paydown-3b design D5.
     """
-    fd = _folder_fd(primary / ".minions", "changes", change)
+    fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
     flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
     flags |= os.O_EXCL if fresh else os.O_TRUNC
     try:
@@ -738,7 +704,7 @@ def _open_notes(primary: Path, change: str, flags: int) -> int | None:
 
     Why: 0102-build-per-phase design D3.
     """
-    fd = _folder_fd(primary / ".minions", "changes", change)
+    fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
     name = f".minions/changes/{change}/{NOTES_FILE}"
     try:
         file = os.open(NOTES_FILE, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
@@ -768,7 +734,7 @@ def _note_lines(primary: Path, change: str) -> int:
 
 def _cutter_halt(primary: Path, change: str) -> str | None:
     """Return the cutter's `cut.halt` line, read through no link; None with none."""
-    fd = _folder_fd(primary / ".minions", "changes", change)
+    fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
     try:
         halt = os.open("cut.halt", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
     except OSError:
@@ -799,7 +765,7 @@ def _models_hash(primary: Path, change: str) -> str | None:
     None when the file is missing, a link, or its folder is one. Why: 0106 design D7.
     """
     try:
-        fd = _folder_fd(primary / ".minions", "changes", change)
+        fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
         try:
             file = os.open("models.toml", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
         finally:
@@ -826,7 +792,7 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
         return f"{change}: the branch holds no openspec/changes/{change}/"
     if _dirty(tree):
         return "the tree is not clean"
-    if not (_change_dir(primary, change) / "models.toml").is_file():
+    if not (mflib.layout.change_dir(primary, change) / "models.toml").is_file():
         return f"no .minions/changes/{change}/models.toml"
     queued = _cuts(primary).get(change, {}).get("models")
     if (
@@ -910,49 +876,9 @@ def _npm_unapproved(tree: Path, change: str, default: str) -> str | None:
     return None
 
 
-def _old_files(primary: Path) -> dict[str, list[tuple[Path, str]]]:
-    """Return each change's old-layout files, each with its path in the change's folder.
-
-    Why: 0080-minions-layout design D4; 0095-converge-roles design D2.
-    """
-    minions = primary / ".minions"
-    found: dict[str, list[tuple[Path, str]]] = {}
-    for old, new in OLD_LAYOUT.items():
-        folder, name = old.split("/")
-        pattern = re.compile(re.escape(name).replace(re.escape("{}"), OLD_ID))
-        listed = (minions / folder).iterdir() if (minions / folder).is_dir() else ()
-        for path in listed:
-            if matched := pattern.fullmatch(path.name):
-                found.setdefault(matched[1], []).append((path, new))
-    changes = minions / "changes"
-    folders = sorted(changes.iterdir()) if changes.is_dir() else []
-    for folder in (f for f in folders if f.is_dir()):
-        for name, new in OLD_ROLES.items():
-            if os.path.lexists(folder / name):
-                found.setdefault(folder.name, []).append((folder / name, new))
-    runs = minions / "runs"
-    stamps = runs.iterdir() if runs.is_dir() else ()
-    for stamp in (s for s in stamps if OLD_STAMP.fullmatch(s.name) and s.is_dir()):
-        for path in stamp.iterdir():
-            if matched := OLD_LOG.fullmatch(path.name):
-                change, station, n = matched[1], matched[2], matched[3] or ""
-                new = f"logs/{stamp.name}-{station}{n}.log"
-                found.setdefault(change, []).append((path, new))
-    return found
-
-
-def _old_layout(primary: Path, change: str) -> str | None:
-    """Return the change's first old-layout file, relative to the primary, or None.
-
-    Why: 0080-minions-layout design D4.
-    """
-    held = sorted(path for path, _ in _old_files(primary).get(change, []))
-    return str(held[0].relative_to(primary)) if held else None
-
-
 def _run_end(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event line, or None with no run."""
-    log = _change_dir(runs.parent, change) / "status_log.md"
+    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next(
         (i for i, line in enumerate(lines) if line.startswith("## Run")), None
@@ -967,7 +893,7 @@ def _run_marked(runs: Path, change: str, mark: str) -> bool:
 
     e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
-    log = _change_dir(runs.parent, change) / "status_log.md"
+    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next((line for line in lines if line.startswith("## Run")), "")
     return heading.rstrip().endswith(f" · {mark}")
@@ -987,7 +913,7 @@ def _done_head(primary: Path, change: str) -> str | None:
     A missing or unreadable file names none, nor does one that is no regular file.
     Why: 0055-build-resume design D2.
     """
-    done = _change_dir(primary, change) / "build.done"
+    done = mflib.layout.change_dir(primary, change) / "build.done"
     if not done.is_file():
         return None
     try:
@@ -1055,7 +981,7 @@ def _stacked_on(
 
     Why: 0099-stacked-builds design D3.
     """
-    file = _change_dir(primary, change) / STACKED_ON
+    file = mflib.layout.change_dir(primary, change) / STACKED_ON
     try:
         words = file.read_text().split() if file.is_file() else []
     except (OSError, UnicodeDecodeError):
@@ -1104,8 +1030,10 @@ def _cut_commit(tree: Path, change: str) -> str | None:
 
 def _unstack(primary: Path, change: str) -> None:
     """Remove the change's `stacked-on` when one stands, through no link."""
-    if os.path.lexists(_change_dir(primary, change) / STACKED_ON):
-        _remove_in(primary / ".minions", "changes", change, name=STACKED_ON)
+    if os.path.lexists(mflib.layout.change_dir(primary, change) / STACKED_ON):
+        _remove_in(
+            mflib.layout.run_dir(primary), mflib.layout.CHANGES, change, name=STACKED_ON
+        )
 
 
 def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
@@ -1114,7 +1042,7 @@ def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
     None for a missing, unreadable or stale file. Why: 0067-rescue design D1.
     e.g. "sub-task: 1.2\nstop: 3\nhead: <HEAD>\n" → ("1.2", "3")
     """
-    file = _change_dir(runs.parent, change) / "build.halt"
+    file = mflib.layout.change_dir(runs.parent, change) / "build.halt"
     try:
         text = file.read_text() if file.is_file() else ""
     except (OSError, UnicodeDecodeError):
@@ -1136,7 +1064,7 @@ def _is_event(line: str, event: str) -> bool:
     return line.split(" — ", maxsplit=1)[0].endswith(f" · {event}")
 
 
-def _clear_stale_lock(primary: Path, name: str = DEBT_LOCK) -> int | None:
+def _clear_stale_lock(primary: Path, name: str) -> int | None:
     """Remove the lock `name` older than `LOCK_STALE`; return its age in seconds.
 
     A lock younger, or one `rmdir` refuses, stays. Why: 0053-sandbox-patch design D3.
@@ -1159,9 +1087,9 @@ def _fresh_tmp(primary: Path) -> str | None:
 
     Why: 0084-ship-fixes-2 design D6, its delta's *A worker makes a scratch file*.
     """
-    if (primary / ".minions").is_symlink():
+    if mflib.layout.run_dir(primary).is_symlink():
         return ".minions is a link: a person settles what it names"
-    fd = _folder_fd(primary, ".minions")
+    fd = _folder_fd(primary, mflib.layout.MINIONS)
     try:
         try:
             mode = os.lstat("tmp", dir_fd=fd).st_mode
@@ -1200,7 +1128,7 @@ def _sync_scripts(primary: Path, roots: Iterable[Path]) -> str | None:
         for name, value in os.environ.items()
         if not name.startswith(("UV_", "PIP_")) and name != "VIRTUAL_ENV"
     }
-    env["UV_CACHE_DIR"] = str(primary / ".minions" / "uv-cache")
+    env["UV_CACHE_DIR"] = str(mflib.layout.run_dir(primary) / "uv-cache")
     for script in (s for root in dict.fromkeys(roots) for s in _pinned_scripts(root)):
         failed = f"uv sync --script {script.name} failed: "
         try:
@@ -1247,7 +1175,7 @@ def _run_started(runs: Path, change: str) -> bool:
 
     e.g. "## Run 2 — d", "… · halt — red", "… · start — base a" → True
     """
-    log = _change_dir(runs.parent, change) / "status_log.md"
+    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next(
         (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
@@ -1296,7 +1224,9 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
         _run_marked(runs, change, "catch-up") or _run_marked(runs, change, "amend")
     ):
         return False
-    files = (_change_dir(runs.parent, change) / f"{role}.md" for role in ROLES)
+    files = (
+        mflib.layout.change_dir(runs.parent, change) / f"{role}.md" for role in ROLES
+    )
     return all(
         file.is_file() and _frontmatter(file.read_text(), "verdict") == "clean"
         for file in files
@@ -1355,7 +1285,7 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     if any(_amends(tree, change, halted)):
         return True
     for role in ROLES:
-        file = _change_dir(runs.parent, change) / f"{role}.md"
+        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
         judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
         resolved = judged and _maybe(
             tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
@@ -1375,7 +1305,7 @@ def _buried_done(runs: Path, change: str) -> str | None:
 
     e.g. "… · debt — d" over "… · round 2 · done — ok" → the `done` line
     """
-    log = _change_dir(runs.parent, change) / "status_log.md"
+    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
     lines = log.read_text().splitlines() if log.is_file() else []
     heading = next(
         (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
@@ -1397,7 +1327,7 @@ def _restamp(runs: Path, change: str, buried: str) -> int:
 
     e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
     """
-    log = _change_dir(runs.parent, change) / "status_log.md"
+    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
     found = re.search(r"· (round \d+) · done\b", buried)
     event = f"{found[1] if found else 'round 1'} · done — re-stamped by the run"
     return int(runpy.run_path(str(STAMP_SCRIPT))["main"]([str(log), event]))
@@ -1419,7 +1349,7 @@ def _unjudged(
         return None
     head = _git(tree, "rev-parse", rev).strip()
     for role in ROLES:
-        file = _change_dir(runs.parent, change) / f"{role}.md"
+        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
         if not file.is_file():
             return f"no {role} findings file"
         text = file.read_text()
@@ -1438,7 +1368,7 @@ def _red(primary: Path, tree: Path, change: str) -> str | None:
     None for no file, or no `head:` line. Why: 0071-ship-fixes design D2.
     e.g. "gate red\n2026-11-05\nhead: 7ee2179\n" → "7ee2179…" in full
     """
-    file = _change_dir(primary, change) / "integrate.red"
+    file = mflib.layout.change_dir(primary, change) / "integrate.red"
     try:
         text = file.read_text() if file.is_file() else ""
     except (OSError, UnicodeDecodeError):
@@ -1561,8 +1491,8 @@ def _release_tip(
     skips: frozenset[str] | None = None,
 ) -> tuple[str, str]:
     """Return the stage of a tip that says it is released; only a death re-enters."""
-    runs = primary / ".minions"
-    if (_change_dir(primary, change) / "release.held").is_file():
+    runs = mflib.layout.run_dir(primary)
+    if (mflib.layout.change_dir(primary, change) / "release.held").is_file():
         return "released", (
             f"{tag}: .minions/changes/{change}/release.held holds a person's no:"
             f" /mf-release {change} merges it on their yes"
@@ -1580,7 +1510,7 @@ def _release_tip(
         )
     if why := _unjudged(runs, tree, change, "HEAD~1", skips):
         return "released", f"{tag} {stated}; {why}: a person reads this tip"
-    if _release_died(runs / "runs", change):
+    if _release_died(mflib.layout.runs_dir(primary), change):
         return "release", f"{tag} {stated}; the merge is left"
     return "released", (
         f"{tag} {stated}; the release stopped before its merge:"
@@ -1600,7 +1530,7 @@ def stage_of(
     change = version.change
     if tree is None:
         raise Stop(2, f"conduct: cannot run — {change} has no worktree")
-    runs = primary / ".minions"
+    runs = mflib.layout.run_dir(primary)
     red, merging = _red(primary, tree, change), _merge_open(tree)
     note = f".minions/changes/{change}/integrate"
     if red is not None and not merging:
@@ -1608,7 +1538,7 @@ def stage_of(
             return "integrating", f"red gate: {note}.red"
         return "integrate", "red gate on another head: integrate gates again"
     if merging:
-        marks = _change_dir(primary, change)
+        marks = mflib.layout.change_dir(primary, change)
         # A `.red` with a `head:` names a committed merge: an open one's is stale.
         if red is None and (marks / "integrate.red").is_file():
             return "integrating", f"red gate: {note}.red"
@@ -1652,7 +1582,8 @@ def stage_of(
     # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
     skipped = "converge" in (_skips(runs, change) if skips is None else skips)
     if halt := None if skipped else _converge_halt(runs, change):
-        if DEBT_LOCK in halt or OLD_DEBT_LOCK in halt:
+        locks = (mflib.layout.debt_lock(primary), mflib.layout.backlog_lock(primary))
+        if any(str(lock.relative_to(primary)) in halt for lock in locks):
             return "converge", "halted on the debt lock: resumes at Step 9"
         if _rerun(runs, tree, change, halt):
             return "converge", RERUN
@@ -1675,12 +1606,12 @@ def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
     """Return why the build check fails, or None."""
     change = version.change
     if unticked := _unticked(tree, change):
-        held = _build_halt(primary / ".minions", tree, change)
+        held = _build_halt(mflib.layout.run_dir(primary), tree, change)
         named = f" · {held[0]}: {held[1]}" if held else ""
         return f"phase {unticked[0]} unticked{named}"
     if _dirty(tree):
         return "the tree is not clean"
-    if not _closed(primary / ".minions", tree, change):
+    if not _closed(mflib.layout.run_dir(primary), tree, change):
         return f"no .minions/changes/{change}/build.done names HEAD"
     return _npm_unapproved(tree, change, default_branch(primary))
 
@@ -1697,7 +1628,7 @@ def _check_phase(primary: Path, version: Version, tree: Path, phase: str) -> str
         return f"phase {phase} gone from ## Progress"
     for mark, number, _ in boxes:
         if mark != "x":
-            held = _build_halt(primary / ".minions", tree, change)
+            held = _build_halt(mflib.layout.run_dir(primary), tree, change)
             named = f" · {held[0]}: {held[1]}" if held else ""
             return f"phase {number} unticked{named}"
         if number == phase:
@@ -1713,7 +1644,7 @@ def _check_converge(
     A buried `done` is stamped on top again, `notes` gets `re-stamped done`. Why:
     0109-converge-done-order design D2, D3.
     """
-    runs = primary / ".minions"
+    runs = mflib.layout.run_dir(primary)
     halt = _converge_halt(runs, version.change)
     if halt and not _answered(runs, tree, version.change, halt):
         return f"the status log halts: {halt}"
@@ -1740,10 +1671,11 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     """
     note = f".minions/changes/{version.change}/integrate"
     red = _red(primary, tree, version.change)
+    marks = mflib.layout.change_dir(primary, version.change)
     if _merge_open(tree):
-        if red is None and (primary / f"{note}.red").is_file():
+        if red is None and (marks / "integrate.red").is_file():
             return f"integrate halted — red gate, see {note}.red"
-        if (primary / f"{note}.md").is_file():
+        if (marks / "integrate.md").is_file():
             return f"integrate halted — semantic conflict, see {note}.md"
         return "a merge is still open"
     if red is not None:
@@ -2583,7 +2515,7 @@ def checker_fixture(scratch: Path) -> tuple[str, str]:
         _git(scratch, "add", *files)
         _git(scratch, *SCRATCH_IDENTITY, "commit", "-q", "-m", message)
         shas.append(_git(scratch, "rev-parse", "HEAD").strip())
-    packet = scratch / ".minions" / "changes" / "0001-probe" / "diff.patch"
+    packet = mflib.layout.change_dir(scratch, "0001-probe") / "diff.patch"
     packet.parent.mkdir(parents=True)
     packet.write_text(_git(scratch, "diff", *shas))
     return shas[0], shas[1]
@@ -2594,7 +2526,7 @@ def check_checker(scratch: Path, log: Path) -> str | None:
 
     Why: 0096-codex-ready design D9.
     """
-    findings = scratch / ".minions" / "changes" / "0001-probe" / "conformance.md"
+    findings = mflib.layout.change_dir(scratch, "0001-probe") / "conformance.md"
     try:
         regular = stat.S_ISREG(os.lstat(findings).st_mode)
     except OSError:
@@ -2727,7 +2659,7 @@ class RunLog:
 
 def _models_file(runs: Path, change: str) -> dict[str, object]:
     """Return the cut's models file as TOML reads it; {} with no file."""
-    path = _change_dir(runs.parent, change) / "models.toml"
+    path = mflib.layout.change_dir(runs.parent, change) / "models.toml"
     if not path.is_file():
         return {}
     try:
@@ -2913,7 +2845,7 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """
     found = []
     for role in ROLES:
-        file = _change_dir(runs.parent, change) / f"{role}.md"
+        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
         if not file.is_file():
             return None
         try:
@@ -2937,7 +2869,9 @@ def _security_blocks(runs: Path, change: str, halt: str) -> bool:
     """
     ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
     try:
-        text = (_change_dir(runs.parent, change) / "adversarial.md").read_text()
+        text = (
+            mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
+        ).read_text()
     except (OSError, UnicodeDecodeError):
         return True
     return any(name in ids and _security_card(card) for name, card in _cards_in(text))
@@ -2961,7 +2895,9 @@ def _security_held(runs: Path, change: str, halt: str) -> bool:
     """
     ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
     try:
-        text = (_change_dir(runs.parent, change) / "adversarial.md").read_text()
+        text = (
+            mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
+        ).read_text()
     except (OSError, UnicodeDecodeError):
         return True
     return any(
@@ -3089,7 +3025,7 @@ def _opened(primary: Path, tree: Path, change: str) -> Opened:
         _git(tree, "rev-parse", "HEAD").strip(),
         _git(tree, "rev-parse", "MERGE_HEAD").strip(),
         _git(tree, "ls-files", "-s"),
-        _mtime(_change_dir(primary, change) / "integrate.settled"),
+        _mtime(mflib.layout.change_dir(primary, change) / "integrate.settled"),
     )
 
 
@@ -3105,7 +3041,7 @@ def _settled(
     merge = _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD")
     if merge is None or merge.strip() != start.merge:
         return None, "supervisor closed the merge"
-    marks = _change_dir(primary, change)
+    marks = mflib.layout.change_dir(primary, change)
     if not (marks / "integrate.md").is_file():
         return None, f"supervisor removed .minions/changes/{change}/integrate.md"
     entries = set(start.index.splitlines()) ^ set(
@@ -3442,9 +3378,9 @@ def sandboxed(
     """
     if not mflib.platform.has_sandbox():
         raise _no_sandbox()
-    minions = trees[0] / ".minions"
+    minions = mflib.layout.run_dir(trees[0])
     try:
-        os.close(_folder_fd(trees[0], ".minions"))
+        os.close(_folder_fd(trees[0], mflib.layout.MINIONS))
     except OSError as error:
         raise Stop(2, f"conduct: cannot run — run folder {minions}: {error}") from error
     tmp = _temp_folder("mf-sandbox-")
@@ -3457,9 +3393,9 @@ def sandboxed(
         key, _, value = pair.partition("=")
         env[key] = value
     env["UV_OFFLINE"] = "1"
-    env["UV_CACHE_DIR"] = str(trees[0] / ".minions" / "uv-cache")
+    env["UV_CACHE_DIR"] = str(minions / "uv-cache")
     for pair in (
-        f"npm_config_cache={trees[0] / '.minions' / 'npm-cache'}",
+        f"npm_config_cache={minions / 'npm-cache'}",
         *NPM_SETTINGS,
     ):
         key, _, value = pair.partition("=")
@@ -3545,7 +3481,7 @@ def _run_dir(primary: Path) -> Path:
     A cutter is given it by name, and its parent is every other worker's to rename
     in. Why: 0082-cut-station design D5.
     """
-    minions = primary / ".minions"
+    minions = mflib.layout.run_dir(primary)
     try:
         folder = stat.S_ISDIR(os.lstat(minions).st_mode)
     except OSError:
@@ -3620,12 +3556,12 @@ def argv(
         raise Stop(1, f"conduct: halt — {why}")
     trees = reach(primary) if brief is None else [cwd, _run_dir(primary)]
     edits = [] if brief is None else [brief]
-    cache = f"UV_CACHE_DIR={primary / '.minions' / 'uv-cache'}"
-    npm = f"npm_config_cache={primary / '.minions' / 'npm-cache'}"
+    cache = f"UV_CACHE_DIR={mflib.layout.run_dir(primary) / 'uv-cache'}"
+    npm = f"npm_config_cache={mflib.layout.run_dir(primary) / 'npm-cache'}"
     if executor == "claude":
         # A worker's `mktemp` lands inside its sandbox.
         # Why: 0084-ship-fixes-2 design D6.
-        tmp = primary / ".minions" / "tmp"
+        tmp = mflib.layout.run_dir(primary) / "tmp"
         tmp.mkdir(parents=True, exist_ok=True)
         scratch = f"TMPDIR={tmp}"
         tools, network = lines or ship_lines(primary)
@@ -4492,15 +4428,16 @@ def preconditions(cwd: Path, executor: str) -> Path:
     """Return the primary checkout once every run precondition holds; else exit 2."""
     top = _maybe(cwd, "rev-parse", "--show-toplevel")
     common = _common_dir(cwd)
+    primary = None if common is None else mflib.layout.primary_of(common)
     # Why: 0050-codex-review design D5.
     if (
         top is None
         or common is None
-        or Path(top.strip()).resolve() != common.parent
-        or not cwd.resolve().is_relative_to(common.parent)
+        or primary is None
+        or Path(top.strip()).resolve() != primary
+        or not cwd.resolve().is_relative_to(primary)
     ):
         raise Stop(2, "run: cannot run — the cwd is not the primary checkout")
-    primary = common.parent
     default = default_branch(primary)
     if (branch := _git(primary, "branch", "--show-current").strip()) != default:
         raise Stop(2, f"run: cannot run — on {branch or 'no branch'}, not {default}")
@@ -4515,7 +4452,7 @@ def preconditions(cwd: Path, executor: str) -> Path:
     if shutil.which(SCANNER) is None:
         raise Stop(2, f"run: cannot run — {SCANNER} is not on PATH")
     _unlinked(executor)
-    if _claim(primary / ".minions" / "runs" / "active") == "live":
+    if _claim(mflib.layout.claim_file(primary)) == "live":
         raise Stop(2, "run: cannot run — a run is live: .minions/runs/active exists")
     return primary
 
@@ -4559,9 +4496,9 @@ class Run:
         self.repo = _repo(primary)
         self.worktrees = primary / (_agents_values(primary, "Worktrees") or [""])[0]
         self.executor = executor
-        self.runs = primary / ".minions" / "runs"
+        self.runs = mflib.layout.runs_dir(primary)
         # Where each worker's group is held; a converge by hand holds none.
-        self.claim: Path | None = self.runs / "active"
+        self.claim: Path | None = mflib.layout.claim_file(primary)
         self.queue = _queue(primary)
         # The queued cuts the run read; None until `ship` reads the queue.
         self.seen: set[str] | None = None
@@ -4910,7 +4847,7 @@ class Run:
             if models[0] != "codex" or not usage_limit(out):
                 tokens = tokens_of(out)
                 if code == 0:
-                    folder = _change_dir(self.primary, change)
+                    folder = mflib.layout.change_dir(self.primary, change)
                     _stamp(folder, f"{table}.md", models[1], tokens)
                 return Checked(code, killed, models, usage_limit(out), fallback, tokens)
             codex_runs += 1
@@ -5030,9 +4967,9 @@ class Run:
         if who == "run":
             out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
         else:
-            parts = ("changes", who, "logs")
+            parts = (mflib.layout.CHANGES, who, "logs")
             name = f"{self.log.stamp}-{station}"
-            out, sink = _free_log(self.primary / ".minions", parts, name)
+            out, sink = _free_log(mflib.layout.run_dir(self.primary), parts, name)
         with self.guard:
             self.outs[who, station] = out
         if executor == "codex":
@@ -5106,7 +5043,7 @@ class Run:
         spent = change in self.skips or self.rescued(change, held)
         if tree is None or spent or self.stopped("run"):
             return False
-        halt = _converge_halt(self.primary / ".minions", change)
+        halt = _converge_halt(mflib.layout.run_dir(self.primary), change)
         if held == "converge-halted" and halt and "verify: halt" in halt:
             self.diagnose(change, halt)
             return False
@@ -5116,7 +5053,7 @@ class Run:
             self.rescues.setdefault(change, []).append(held)
         models = self.planned_models(change, "rescue")
         before = _git(tree, "rev-parse", "HEAD").strip()
-        diagnosis = _change_dir(self.primary, change) / "rescue.md"
+        diagnosis = mflib.layout.change_dir(self.primary, change) / "rescue.md"
         written = _mtime(diagnosis)
         decide = " with decide=recommended" if change in self.decides else ""
         prompt = PROMPTS["rescue"].format(change=change, decide=decide)
@@ -5166,7 +5103,7 @@ class Run:
         D5, D6; 0090-supervisor-merge design D2, D4.
         """
         change, tree = version.change, version.tree
-        minions = self.primary / ".minions"
+        minions = mflib.layout.run_dir(self.primary)
         integrating = held == "integrating"
         converged = held == "converge-halted"
         halt = (_converge_halt(minions, change) or "") if converged else ""
@@ -5291,7 +5228,7 @@ class Run:
         Why: 0085-self-healing-ship
         design D5; 0089-supervisor design D6.
         """
-        runs = self.primary / ".minions"
+        runs = mflib.layout.run_dir(self.primary)
         halt = _converge_halt(runs, change) or ""
         found = HALT_HEAD.search(halt)
         halted = found and _maybe(
@@ -5313,7 +5250,7 @@ class Run:
             unticked = _unticked(tree, change)
             if unticked is not None and "**HUMAN" in unticked[1]:
                 return None
-            found = _build_halt(self.primary / ".minions", tree, change)
+            found = _build_halt(mflib.layout.run_dir(self.primary), tree, change)
             return found[0] if found else stage
         if stage in ("converge", "integrate"):
             disk = stage_of(self.primary, version, self.skips_of(version.change))[0]
@@ -5324,7 +5261,9 @@ class Run:
         self, change: str, station: str
     ) -> tuple[str, str | None, str | None]:
         """Return a station's models as the run planned them; a change halts."""
-        models = _models(self.primary / ".minions", change, station, self.executor)
+        models = _models(
+            mflib.layout.run_dir(self.primary), change, station, self.executor
+        )
         if models != self.plan.get((change, station)):
             raise Stop(
                 1,
@@ -5359,7 +5298,7 @@ class Run:
         change = version.change
         if not _is_cap(stage, halt) or self.stopped("run"):
             return False, ""
-        runs = self.primary / ".minions"
+        runs = mflib.layout.run_dir(self.primary)
         blockers = _open_blockers(runs, change)
         if not blockers:
             return False, "no open blocking card read"
@@ -5459,7 +5398,7 @@ class Run:
         Why: 0070 D2, D3; 0084 D1; 0085 D1; 0089 D1; 0090 D4; 0099 D3; 0102 D1, D2, D3;
         0105 D2; 0108 D8.
         """
-        minions, change = self.primary / ".minions", version.change
+        minions, change = mflib.layout.run_dir(self.primary), version.change
         decide = change in self.decides
         try:
             auto = close = False
@@ -5795,7 +5734,7 @@ class Run:
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
-        note = _change_dir(self.primary, change) / "integrate.md"
+        note = mflib.layout.change_dir(self.primary, change) / "integrate.md"
         opened = _merge_open(tree)
         if opened and note.is_file():
             return
@@ -5899,7 +5838,7 @@ class Run:
             return
         at = shlex.quote(str(tree))
         if _merge_open(tree):
-            marks = _change_dir(self.primary, change)
+            marks = mflib.layout.change_dir(self.primary, change)
             noted = any(
                 (marks / f"integrate{end}").is_file() for end in (".md", ".red")
             )
@@ -5977,7 +5916,12 @@ class Run:
         _refuse_config_commands(tree)
         # The notes go first: a folder there halts the version before the branch moves.
         try:
-            _remove_in(self.primary / ".minions", "changes", change, name=NOTES_FILE)
+            _remove_in(
+                mflib.layout.run_dir(self.primary),
+                mflib.layout.CHANGES,
+                change,
+                name=NOTES_FILE,
+            )
         except OSError as error:
             name = f".minions/changes/{change}/{NOTES_FILE}"
             raise Stop(
@@ -6003,7 +5947,10 @@ class Run:
         try:
             for station in PLANNED:
                 _models(
-                    self.primary / ".minions", version.change, station, self.executor
+                    mflib.layout.run_dir(self.primary),
+                    version.change,
+                    station,
+                    self.executor,
                 )
             self.catch_up(version)
             reached: str | None = "waiting"
@@ -6068,7 +6015,9 @@ class Run:
         if (queued := entry.get("models")) is not None:
             _write_models(primary, change, queued)
         branch = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/heads/{change}")
-        _remove_in(primary / ".minions", "changes", change, name="cut.halt")
+        _remove_in(
+            mflib.layout.run_dir(primary), mflib.layout.CHANGES, change, name="cut.halt"
+        )
         if not (branch and _holds(primary, change)):
             # A checkout runs the filters a live worker's config names, outside it.
             if changed := _config_changed(primary, self.git_state):
@@ -6120,7 +6069,7 @@ class Run:
             folder.mkdir(mode=0o700, exist_ok=True)
             (folder / change).write_text(f"{entry['brief']}\n")
             # The entry goes last, so a reservation that cannot go keeps it to halt.
-            _remove_in(primary / ".minions", "cuts", name=change)
+            _remove_in(mflib.layout.run_dir(primary), "cuts", name=change)
             (_queue(primary) / "cuts" / change).unlink()
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
@@ -6148,11 +6097,15 @@ class Run:
                 self.plan[version.change, station] = models
         for version in versions:
             try:
-                skips = _skips_rescue(self.primary / ".minions", version.change)
-                grants = _auto_grants(self.primary / ".minions", version.change)
-                decides = _decides(self.primary / ".minions", version.change)
-                shadows = _shadows(self.primary / ".minions", version.change)
-                skipped = _skips(self.primary / ".minions", version.change)
+                skips = _skips_rescue(
+                    mflib.layout.run_dir(self.primary), version.change
+                )
+                grants = _auto_grants(
+                    mflib.layout.run_dir(self.primary), version.change
+                )
+                decides = _decides(mflib.layout.run_dir(self.primary), version.change)
+                shadows = _shadows(mflib.layout.run_dir(self.primary), version.change)
+                skipped = _skips(mflib.layout.run_dir(self.primary), version.change)
             except (Stop, ValueError):
                 continue
             with self.guard:
@@ -6184,7 +6137,9 @@ class Run:
     ) -> tuple[str, str | None, str | None] | None:
         """Return one station's models as `_models` reads them; None on a refusal."""
         try:
-            return _models(self.primary / ".minions", change, station, self.executor)
+            return _models(
+                mflib.layout.run_dir(self.primary), change, station, self.executor
+            )
         except (Stop, ValueError):
             return None
 
@@ -6629,7 +6584,7 @@ class Run:
             with self.guard:
                 out = self.outs[who, checker]
             reason = check_checker(scratch, out) or mcp_started(executor, out)
-            findings = scratch / ".minions" / "changes" / "0001-probe"
+            findings = mflib.layout.change_dir(scratch, "0001-probe")
             verdict = None
             if reason is None:
                 text = (findings / "conformance.md").read_text(errors="replace")
@@ -6757,29 +6712,38 @@ class Run:
         Why: 0079-debt-rename design D3;
         0088-paydown-2 design D1.
         """
-        old, new = self.primary / OLD_DEBT, self.primary / DEBT
-        both = f"{OLD_DEBT} and {DEBT} both stand: a person settles which to keep"
+        primary = self.primary
+        old, new = mflib.layout.backlog_file(primary), mflib.layout.debt_file(primary)
+        old_lock, lock = (
+            mflib.layout.backlog_lock(primary),
+            mflib.layout.debt_lock(primary),
+        )
+        old_name, new_name = (
+            str(old.relative_to(primary)),
+            str(new.relative_to(primary)),
+        )
+        old_lock_name = str(old_lock.relative_to(primary))
+        lock_name = str(lock.relative_to(primary))
+        both = f"{old_name} and {new_name} both stand: a person settles which to keep"
         if old.is_file() and new.exists():
             return both
-        self.unlock(OLD_DEBT_LOCK)
+        self.unlock(old_lock_name)
         if not old.is_file():
             return None
         if old.is_symlink():
             # A link would make the debt a second name of the file it names.
-            return f"{OLD_DEBT} is a link: a person settles what it names"
-        old_lock = self.primary / OLD_DEBT_LOCK
+            return f"{old_name} is a link: a person settles what it names"
         if old_lock.is_dir():
-            return f"{OLD_DEBT_LOCK} is held: a person or a hand-run writer holds it"
+            return f"{old_lock_name} is held: a person or a hand-run writer holds it"
         if old_lock.exists():
-            return f"{OLD_DEBT_LOCK} is a file, not a lock: a person removes it"
-        self.unlock(DEBT_LOCK)
-        lock = self.primary / DEBT_LOCK
+            return f"{old_lock_name} is a file, not a lock: a person removes it"
+        self.unlock(lock_name)
         if lock.is_symlink() or (lock.exists() and not lock.is_dir()):
-            return f"{DEBT_LOCK} is a file, not a lock: a person removes it"
+            return f"{lock_name} is a file, not a lock: a person removes it"
         try:
             lock.mkdir()
         except FileExistsError:
-            return f"{DEBT_LOCK} is held: a person or a hand-run writer holds it"
+            return f"{lock_name} is held: a person or a hand-run writer holds it"
         try:
             # A link never replaces: a debt file made since the check stands.
             os.link(old, new)
@@ -6788,7 +6752,7 @@ class Run:
             return both
         finally:
             lock.rmdir()
-        self.log.event("run", "move", f"{OLD_DEBT} → {DEBT}")
+        self.log.event("run", "move", f"{old_name} → {new_name}")
         return None
 
     def migrate_layout(self) -> str | None:
@@ -6797,15 +6761,21 @@ class Run:
         Why: 0080-minions-layout design
         D4, D6; 0095-converge-roles design D2; 0119-debt-paydown-3b design D4.
         """
-        found = _old_files(self.primary)
-        minions = self.primary / ".minions"
-        runs = minions / "runs"
+        found = mflib.layout.old_files(self.primary)
+        minions = mflib.layout.run_dir(self.primary)
+        runs = mflib.layout.runs_dir(self.primary)
         stamps = sorted(runs.iterdir()) if runs.is_dir() else []
-        folders = sorted({minions / old.split("/")[0] for old in OLD_LAYOUT})
-        olds = [*folders, runs, *(s for s in stamps if OLD_STAMP.fullmatch(s.name))]
+        folders = sorted(
+            {minions / old.split("/")[0] for old in mflib.layout.OLD_LAYOUT}
+        )
+        olds = [
+            *folders,
+            runs,
+            *(s for s in stamps if mflib.layout.OLD_STAMP.fullmatch(s.name)),
+        ]
         for change, files in sorted(found.items()):
-            folder = _change_dir(self.primary, change)
-            links = [*olds, minions / "changes", folder, folder / "logs"]
+            folder = mflib.layout.change_dir(self.primary, change)
+            links = [*olds, folder.parent, folder, folder / "logs"]
             for link in [*links, *(old for old, _ in files)]:
                 if link.is_symlink():
                     named = link.relative_to(self.primary)
@@ -6829,7 +6799,9 @@ class Run:
         for change, files in sorted(found.items()):
             for old, new in files:
                 where, _, name = new.rpartition("/")
-                fd = _folder_fd(minions, "changes", change, *([where] if where else []))
+                fd = _folder_fd(
+                    minions, mflib.layout.CHANGES, change, *([where] if where else [])
+                )
                 try:
                     if old.is_dir():
                         os.rename(old, name, dst_dir_fd=fd)
@@ -6872,7 +6844,7 @@ class Run:
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         # A worker may link the folder elsewhere: a link lists nothing.
-        standing = _entries(self.primary / ".minions" / "grants", empty=False)
+        standing = _entries(mflib.layout.run_dir(self.primary) / "grants", empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
         release = _pin()["describe"]()
         awake = (
@@ -6895,7 +6867,7 @@ class Run:
             self.halt("run", why)
             self.log.event("run", "halt", self.closing())
             return 1
-        self.unlock(DEBT_LOCK)
+        self.unlock(str(mflib.layout.debt_lock(self.primary).relative_to(self.primary)))
         roots = [SKILLS_DIR, *_pin()["trees"]()]
         if why := (
             _fresh_tmp(self.primary)
@@ -6934,7 +6906,7 @@ class Run:
         # An `amend needed` halt its rescue may amend is not stuck either: its thread
         # starts for the entry rescue, one the models file skips none.
         # Why: 0085-self-healing-ship design D1.
-        minions = self.primary / ".minions"
+        minions = mflib.layout.run_dir(self.primary)
         stuck = all(
             stage in STUCK
             and not (
@@ -7014,9 +6986,9 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         tags = _pushes_tags()
         if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
-        runs = primary / ".minions" / "runs"
+        runs = mflib.layout.runs_dir(primary)
         runs.mkdir(parents=True, exist_ok=True)
-        active = runs / "active"
+        active = mflib.layout.claim_file(primary)
         if _claim(active) == "stale":
             _clear(active)
     except Stop:
@@ -7065,7 +7037,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
 
 def _detach(primary: Path, executor: str) -> subprocess.Popen[bytes]:
     """Start a run in a new session, its output in `.minions/runs/detached.log`."""
-    with (primary / ".minions" / "runs" / "detached.log").open("a") as sink:
+    with (mflib.layout.runs_dir(primary) / "detached.log").open("a") as sink:
         return subprocess.Popen(
             [sys.executable, str(Path(__file__).resolve()), "run"]
             + ["--executor", executor],
@@ -7083,13 +7055,13 @@ def _start_run(primary: Path, executor: str) -> int:
     Why: 0082-cut-station
     design D2.
     """
-    runs = primary / ".minions" / "runs"
+    runs = mflib.layout.runs_dir(primary)
     runs.mkdir(parents=True, exist_ok=True)
     log = runs / "detached.log"
     size = log.stat().st_size if log.is_file() else 0
     child = _detach(primary, executor)
     deadline = time.monotonic() + CLAIM_SECONDS
-    while _claim(runs / "active") != "live":
+    while _claim(mflib.layout.claim_file(primary)) != "live":
         if child.poll() is not None or time.monotonic() >= deadline:
             with log.open("rb") as file:
                 file.seek(size)
@@ -7133,8 +7105,9 @@ def stop_run(cwd: Path) -> str:
     Why:
     0051-reliability-paydown design D5.
     """
-    runs = primary_of(cwd) / ".minions" / "runs"
-    active = runs / "active"
+    primary = primary_of(cwd)
+    runs = mflib.layout.runs_dir(primary)
+    active = mflib.layout.claim_file(primary)
     if (pid := _conductor(active)) is None:
         return "stop: none — no run is live"
     try:
@@ -7521,9 +7494,9 @@ def _fetch_run(
 
 def _scratch_folder(primary: Path, command: str) -> Path:
     """Return a fresh folder in the primary's `.minions/tmp`; a link stops with 2."""
-    scratch = primary / ".minions" / "tmp"
+    scratch = mflib.layout.run_dir(primary) / "tmp"
     try:
-        os.close(_folder_fd(primary, ".minions", "tmp"))
+        os.close(_folder_fd(primary, mflib.layout.MINIONS, "tmp"))
         return Path(tempfile.mkdtemp(dir=scratch))
     except OSError as error:
         raise Stop(
@@ -7607,8 +7580,8 @@ def _fetch_npm(primary: Path, rows: list[list[str]], command: str) -> list[str]:
     if shutil.which("npm") is None:
         raise Stop(2, f"{command}: cannot run — npm is not on PATH")
     try:
-        cache = primary / ".minions" / "npm-cache"
-        os.close(_folder_fd(primary, ".minions", "npm-cache"))
+        cache = mflib.layout.run_dir(primary) / "npm-cache"
+        os.close(_folder_fd(primary, mflib.layout.MINIONS, "npm-cache"))
     except OSError as error:
         raise Stop(2, f"{command}: cannot run — npm cache {cache}: {error}") from error
     sources = [
@@ -7670,7 +7643,7 @@ def _prefetch(primary: Path, rows: list[list[str]]) -> list[str]:
         for name, value in os.environ.items()
         if not name.startswith(("UV_", "PIP_"))
     }
-    env["UV_CACHE_DIR"] = str(primary / ".minions" / "uv-cache")
+    env["UV_CACHE_DIR"] = str(mflib.layout.run_dir(primary) / "uv-cache")
     for package, constraint in rows:
         if package.startswith(NPM_PREFIX):
             continue
@@ -7749,7 +7722,12 @@ def _write_models(primary: Path, change: str, text: str) -> None:
     """
     try:
         # A fresh file: truncating the old one would write through a hard link.
-        _remove_in(primary / ".minions", "changes", change, name="models.toml")
+        _remove_in(
+            mflib.layout.run_dir(primary),
+            mflib.layout.CHANGES,
+            change,
+            name="models.toml",
+        )
         _write_in_change(primary, change, "models.toml", text, fresh=True)
     except OSError as error:
         raise Stop(
@@ -7776,7 +7754,10 @@ def _next_id(primary: Path) -> int:
     """
     default = default_branch(primary)
     branches = _git(primary, "branch", "--list", "[0-9]*", "--format=%(refname:short)")
-    names = [*branches.split(), *_entries(primary / ".minions" / "cuts", empty=False)]
+    names = [
+        *branches.split(),
+        *_entries(mflib.layout.run_dir(primary) / "cuts", empty=False),
+    ]
     names += _cuts(primary)
     for rev in [default, *branches.split()]:
         for folder in ("openspec/changes", "openspec/changes/archive"):
@@ -7839,12 +7820,12 @@ def cut(
                     f"cut: cannot run — after={named} names no open version or"
                     " queued cut",
                 )
-        live = _claim(primary / ".minions" / "runs" / "active") == "live"
+        live = _claim(mflib.layout.claim_file(primary)) == "live"
         if not live:
             preconditions(cwd, executor)
         change = f"{_next_id(primary):04d}-{slug}"
         _write_models(primary, change, models)
-        fd = _folder_fd(primary / ".minions", "cuts")
+        fd = _folder_fd(mflib.layout.run_dir(primary), "cuts")
         try:
             flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
             os.close(os.open(change, flags, 0o644, dir_fd=fd))
@@ -7907,9 +7888,8 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     0091-cut-halts design D3; 0119-debt-paydown-3b design D8.
     """
     primary = primary_of(cwd)
-    runs = primary / ".minions" / "runs"
     with _queue_lock(primary):
-        live = _claim(runs / "active") == "live"
+        live = _claim(mflib.layout.claim_file(primary)) == "live"
         if change is not None and (entry := _cuts(primary).get(change)) is not None:
             if not entry.keys() >= CUT_KEYS:
                 name = _queue(primary) / "cuts" / change
@@ -7992,7 +7972,7 @@ def grant(cwd: Path, change: str, executor: str) -> int:
     primary = primary_of(cwd)
     if (version := find_version(primary, change)) is None:
         raise Stop(2, f"grant: cannot run — no version branch holds {change}")
-    if old := _old_layout(primary, change):
+    if old := mflib.layout.old_layout(primary, change):
         raise Stop(2, f"grant: cannot run — {old} is the old layout: /mf-ship moves it")
     stage, why = stage_of(primary, version)
     if (stage, why) == ("converge", "granted"):
@@ -8003,9 +7983,9 @@ def grant(cwd: Path, change: str, executor: str) -> int:
             f"grant: cannot run — {change} is at {stage}: run /mf-ship; grant once"
             " converge caps",
         )
-    runs = primary / ".minions" / "runs"
+    runs = mflib.layout.runs_dir(primary)
     with _queue_lock(primary):
-        live = _claim(runs / "active") == "live"
+        live = _claim(mflib.layout.claim_file(primary)) == "live"
         if live and _rescuing(runs, change):
             raise Stop(
                 2,
@@ -8014,7 +7994,7 @@ def grant(cwd: Path, change: str, executor: str) -> int:
             )
         if not live:
             preconditions(cwd, executor)
-        grants = primary / ".minions" / "grants"
+        grants = mflib.layout.run_dir(primary) / "grants"
         grants.mkdir(parents=True, exist_ok=True)
         (grants / change).touch()
         if not live:
@@ -8061,7 +8041,7 @@ def anchor(cwd: Path, yes: str | None) -> str:
     """
     primary = primary_of(cwd)
     _refuse_config_commands(primary)
-    if _claim(primary / ".minions" / "runs" / "active") == "live":
+    if _claim(mflib.layout.claim_file(primary)) == "live":
         raise Stop(2, "anchor: cannot run — a run is live: .minions/runs/active exists")
     file = _pushed_file(primary)
     if file.is_file():
@@ -8106,7 +8086,7 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
         raise Stop(2, f"agent: cannot run — {executor} is not on PATH")
     stamp = time.strftime(STAMP)
     repo = _repo(cwd)
-    out = repo[0] / ".minions" / "runs" / f"agent-{stamp}.log"
+    out = mflib.layout.runs_dir(repo[0]) / f"agent-{stamp}.log"
     command = argv(executor, prompt, cwd, None, None, repo)
     try:
         code, killed = work(command, cwd, out, None)
@@ -8178,7 +8158,7 @@ def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) ->
 def status(cwd: Path) -> str:
     """Return the claim, unpushed and tags lines, then `<change-id> · <stage>` each."""
     primary = primary_of(cwd)
-    claim = _claim(primary / ".minions" / "runs" / "active")
+    claim = _claim(mflib.layout.claim_file(primary))
     lines = {
         "none": [],
         "live": ["run · live"],
@@ -8194,7 +8174,7 @@ def status(cwd: Path) -> str:
     if _unread(primary):
         lines.append("run · unread — a run reads origin's tags, and keeps its URLs")
     # why: 0080-minions-layout design D4
-    old = _old_files(primary)
+    old = mflib.layout.old_files(primary)
     cuts = _cuts(primary)
     lines += [
         f"{version.change} · old layout — a run moves it"
@@ -8279,8 +8259,7 @@ def report(cwd: Path) -> str:
     Why: 0067-rescue design D6; 0085-self-healing-ship design D4.
     """
     primary = primary_of(cwd)
-    runs = primary / ".minions"
-    if (log := last_log(runs / "runs")) is None:
+    if (log := last_log(mflib.layout.runs_dir(primary))) is None:
         return "report: none — no run yet"
     events = [
         found for line in log.read_text().splitlines() if (found := EVENT.match(line))
@@ -8304,7 +8283,7 @@ def report(cwd: Path) -> str:
         if found[2] == "push"
         and (detail := found.string[found.end() :]).startswith("waiting: ")
     ]
-    old = _old_files(primary)
+    old = mflib.layout.old_files(primary)
     for change in sorted(touched, key=_change_number):
         version = find_version(primary, change)
         if version is None:
@@ -8317,13 +8296,14 @@ def report(cwd: Path) -> str:
         if tag is not None and not _tagged(primary, tag):
             tag = None
         pushed = _pushed(primary, change, tag) if tag is not None else False
-        conformance = _change_dir(primary, change) / "conformance.md"
+        conformance = mflib.layout.change_dir(primary, change) / "conformance.md"
         round_ = (
             _frontmatter(conformance.read_text(), "round")
             if conformance.is_file()
             else None
         )
-        page = runs / "metrics" / f"{change}.html"
+        page = mflib.layout.metrics_page(primary, change)
+        cards = _cards(mflib.layout.debt_file(primary), change)
         lines.append(
             " · ".join(
                 [
@@ -8332,7 +8312,7 @@ def report(cwd: Path) -> str:
                     f"merge {_merge_commit(primary, version) or 'none'}",
                     {None: "no origin", True: "pushed", False: "not pushed"}[pushed],
                     f"round {round_ or 'none'}",
-                    f"cards {' '.join(_cards(runs / 'debt.md', change)) or 'none'}",
+                    f"cards {' '.join(cards) or 'none'}",
                     f"denied {', '.join(denied.get(change, [])) or 'none'}",
                     f".minions/metrics/{change}.html"
                     if page.is_file()

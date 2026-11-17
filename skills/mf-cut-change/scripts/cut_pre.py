@@ -16,6 +16,9 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-[a-z0-9]+(?:-[a-z0-9]+)*")
 NO_WORK = ("is up to date", "Nothing to be done")
@@ -66,10 +69,15 @@ def default_branch() -> str:
     return named.stdout.strip().removeprefix("origin/")
 
 
+def _primary() -> Path:
+    """Return the primary checkout, the same from every worktree."""
+    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    return mflib.layout.primary_of(common.stdout.strip())
+
+
 def run_directory() -> Path:
     """Return the primary checkout's `.minions/`, the same from every worktree."""
-    common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common.stdout.strip()).parent / ".minions"
+    return mflib.layout.run_dir(_primary())
 
 
 def open_versions(default: str) -> list[str]:
@@ -160,7 +168,7 @@ def check_reserved(change: str, unattended: bool) -> str | None:
 
     By hand it must not stand; unattended it must, as the run made it under its lock.
     """
-    stands = (run_directory() / "cuts" / change).exists()
+    stands = mflib.layout.cut_reservation(_primary(), change).exists()
     if unattended and not stands:
         return f"{change} has no reservation in .minions/cuts/"
     if stands and not unattended:
@@ -181,7 +189,7 @@ def check_id(change: str, unattended: bool) -> str | None:
     taken = _held(default)
     for branch in open_versions(default):
         taken += _held(branch)
-    cuts = run_directory() / "cuts"
+    cuts = mflib.layout.cut_reservation(_primary(), change).parent
     if cuts.is_dir():
         taken += [_number(p.name) for p in cuts.iterdir() if p.name != change]
     if (top := max(taken, default=0)) >= _number(change):

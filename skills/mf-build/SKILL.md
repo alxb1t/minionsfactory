@@ -93,7 +93,8 @@ The **run directory** is `.minions/` beside the primary checkout:
 `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
 `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
 `.minions/build/<change-id>.done`, `.halt`, `.closing` or `.discarded.patch`, `.minions/rescue/<change-id>.md`,
-`.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/`, or
+`.minions/release/<change-id>.held`, `.minions/gate-check/<change-id>/` or
+`.minions/runs/<stamp>/<change-id>_<station>[-<n>].log`, or
 `.minions/changes/<change-id>/review.md` or `security.md` → halt, naming it and `/mf-ship`, whose run moves it,
 before the resume table below reads `.minions/changes/<change-id>/` and before you write any file in it, so no
 `build.halt`: a new file beside an old one halts the move. Any other file is no old layout: a stray the move leaves

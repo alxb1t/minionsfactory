@@ -69,8 +69,9 @@ reaches the world through. A call goes down only. The conductor is the one scrip
 it loads `converge.py` ([D78](#d78--the-converge-conductor-is-a-script)); no station loads another station or the
 conductor. The world is reached through named seams — the platform, whose file is `skills/mflib/platform.py`, the
 executor, the host and the tooling. `docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds
-the map, the loads, the private names, the cycles, the OS commands, the seed line before a script's first `mflib`
-import, and a threat-model surface for each Python file under `skills/`, in `make gate` and `make check`.**
+the map, the loads, the private names, the cycles, the OS commands, the state paths spelled outside
+`skills/mflib/layout.py`, the seed line its folder fixes before a script's first `mflib` import, and a threat-model
+surface for each Python file under `skills/`, in `make gate` and `make check`.**
 
 - **Why:** the refactoring series moves code one region at a time, and a shape no gate holds drifts back with the next
   feature: a load of another station, a borrowed private name, a cycle, an OS command in a new file.
@@ -1109,14 +1110,15 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 `status_log.md`, `diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`, the cutter's `cut.halt` and `cut-notes.md`,
 `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
-`logs/<stamp>-<station>[-<n>].log`, each script finding it through its own `_change_dir`. `grants/`, `runs/`, `gate/`,
-`replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
+`logs/<stamp>-<station>[-<n>].log`, each script finding it through `change_dir` of `skills/mflib/layout.py`. `grants/`,
+`runs/`, `gate/`, `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
 old `review.md` and `security.md` among it — and a file beside its new one or a link halts it; a hand-run station or
-script on an old layout halts, naming `/mf-ship`, and `review_metrics.py` reads both.**
+script on an old layout halts, naming `/mf-ship`, each reading the one old-layout table of `skills/mflib/layout.py`, and
+`review_metrics.py` reads both.**
 
 - **Why:** a person, or a viewer, reading one version opens one folder, not seven by kind and one per run.
 - **Accepts:** a repo no run has moved halts its hand-run stations until a run moves it · a file the move does not name
-  stays where it is · a script finds the change folder through its own `_change_dir` until the shared home holds the finder.
+  stays where it is.
 - **Rejected:** keeping `<id>_` prefixes · reading both layouts in the stage machine · a
   one-off migration of other repos · the probe's log in a change's folder.

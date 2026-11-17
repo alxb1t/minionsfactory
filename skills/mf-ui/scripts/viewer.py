@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, NoReturn, Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
 import mflib.platform
 
 SELF = Path(__file__).resolve()
@@ -212,9 +213,9 @@ class Reader:
         self.conduct = conduct
         self.converge = converge
         self.primary: Path = conduct["primary_of"](primary)
-        self.runs = self.primary / ".minions"
+        self.runs = mflib.layout.run_dir(self.primary)
         self.now = now
-        self.log: Path | None = conduct["last_log"](self.runs / "runs")
+        self.log: Path | None = conduct["last_log"](mflib.layout.runs_dir(self.primary))
         self.cache: dict[Path, list[Event]] = {}
         self.claimed: str | None = None
 
@@ -222,7 +223,8 @@ class Reader:
         """Return the claim once per project: `none`, `live`, `stale` or `unread`."""
         if self.claimed is None:
             try:
-                self.claimed = self.conduct["_claim"](self.runs / "runs" / "active")
+                claim = mflib.layout.claim_file(self.primary)
+                self.claimed = self.conduct["_claim"](claim)
             except self.conduct["Stop"]:
                 self.claimed = "unread"
         return self.claimed
@@ -302,7 +304,7 @@ class Reader:
         """Return how lately a version with a worker moved, None without one."""
         if not workers or self.log is None:
             return None
-        folder = self.runs / "changes" / version.change
+        folder = mflib.layout.change_dir(self.primary, version.change)
         found = []
         for worker in workers:
             name = f"{self.log.stem}-{glob.escape(worker['station'])}*.log"
@@ -361,7 +363,7 @@ class Reader:
 
     def converge_of(self, change: str) -> dict[str, Any] | None:
         """Return converge's run, round, cap and roles; None with no status log."""
-        folder = self.runs / "changes" / change
+        folder = mflib.layout.change_dir(self.primary, change)
         text = read_part(folder / "status_log.md")
         if text is None:
             return None
@@ -576,9 +578,9 @@ class Reader:
     def fingerprint(self) -> str:
         """Return a hash of the stats of what a change of state touches."""
         git = self.primary / ".git"
-        paths = [self.runs / "runs" / "active", git / "packed-refs"]
+        paths = [mflib.layout.claim_file(self.primary), git / "packed-refs"]
         paths += [self.log] if self.log else []
-        paths += (self.runs / "changes").glob("*/*")
+        paths += (self.runs / mflib.layout.CHANGES).glob("*/*")
         paths += (git / "refs").rglob("*")
         for link in (git / "worktrees").glob("*/gitdir"):
             tree = Path((read_part(link) or "").strip()).parent

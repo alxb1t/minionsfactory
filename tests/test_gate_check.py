@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from old_layout import ENTRIES, LOG, ROLES, plant
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-converge" / "scripts" / "gate_check.py"
@@ -116,6 +117,33 @@ def test_gate_check_halts_on_an_old_layout(tmp_path: Path) -> None:
     assert (result.returncode, result.stdout) == (
         2,
         f"gate: cannot check — .minions/changes/{_CHANGE}/review.md is the old layout:"
+        " /mf-ship moves it\n",
+    )
+
+
+def test_gate_check_halts_on_each_old_entry_alone(tmp_path: Path) -> None:
+    base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
+    for old in {**ENTRIES, **ROLES, **LOG}:
+        planted = plant(tmp_path / ".minions", _CHANGE, old)
+        result = _check(tmp_path, base)
+        assert (result.returncode, result.stdout) == (
+            2,
+            f"gate: cannot check — .minions/{old.format(_CHANGE)} is the old layout:"
+            " /mf-ship moves it\n",
+        ), old
+        planted.unlink()
+
+
+def test_a_halt_names_the_first_sorted_path(tmp_path: Path) -> None:
+    base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
+    for old in ("build/{}.done", "findings/{}_review.md"):
+        plant(tmp_path / ".minions", _CHANGE, old)
+
+    result = _check(tmp_path, base)
+
+    assert (result.returncode, result.stdout) == (
+        2,
+        f"gate: cannot check — .minions/build/{_CHANGE}.done is the old layout:"
         " /mf-ship moves it\n",
     )
 

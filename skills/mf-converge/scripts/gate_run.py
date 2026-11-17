@@ -18,6 +18,9 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+
 TIMEOUT_SECONDS = 600
 GATE_SECONDS = 3600
 CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
@@ -67,7 +70,7 @@ def _git(*args: str) -> str:
 def records() -> Path:
     """Return `.minions/gate` beside the primary checkout, from any worktree."""
     common = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
-    return Path(common.strip()).parent / ".minions" / "gate"
+    return mflib.layout.gate_dir(mflib.layout.primary_of(common.strip()))
 
 
 def settled_tree() -> str | None:

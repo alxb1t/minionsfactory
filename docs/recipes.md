@@ -39,17 +39,16 @@ A new file in `.minions/changes/<change-id>/`, per
 |---|---|
 | `docs/decisions.md` | the file's name in `D57`'s list |
 | the writer's `SKILL.md` or script | where it is written, and its lines |
-| `skills/mf-ship/scripts/conduct.py` | when the run reads it: through `_change_dir` |
+| `skills/mf-ship/scripts/conduct.py` | when the run reads it: through `change_dir` |
 | `skills/mf-ui/scripts/viewer.py` | when the page shows it |
-| `scripts/metrics/run.py`, `skills/mf-review-metrics/scripts/review_metrics.py` | when a metric reads it, each through its own `_change_dir` |
+| `scripts/metrics/run.py`, `skills/mf-review-metrics/scripts/review_metrics.py` | when a metric reads it, through `change_dir` |
 
-Until the home holds the finder, each script finds the change folder through its own `_change_dir`: `conduct.py`,
-`gate_check.py`, `integrate.py`, `review_metrics.py` and `scripts/metrics/run.py` each define one. When the home holds
-the finder, a reader takes it from there.
+A reader takes `change_dir(primary, change)` from `skills/mflib/layout.py`, the home's run-directory layout. It keeps
+its own git call for the primary, and `layout.primary_of` maps git's answer to it.
 
-- **Row:** none, unless the extension adds a script; then a row as for a station.
-- **Rules:** `check_names` holds that no script takes another's `_change_dir`: a private name taken from a named file
-  fails unless `PRIVATE_REACH` lists the pair.
+- **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
+- **Rules:** `check_layout` holds that `.minions` is joined in `skills/mflib/layout.py` alone: a string constant
+  elsewhere equal to `.minions`, or starting `.minions/`, fails unless `LAYOUT_SITES` lists the pair.
 
 ## An OS
 

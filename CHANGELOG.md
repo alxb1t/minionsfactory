@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.106.0] - 2026-11-17
+
+Gate: local 4m58s · CI not read under mf-ship · 0.105.1: local 5m16s · CI not read under mf-ship
+
+- Pin tests hold each old-layout entry alone in every copy that reads it, converge's read of a lone `backlog.md`, the
+  viewer's fingerprint of a change folder's file, and each script's run-directory finder from a linked worktree,
+  before the paths move into one module (0134-run-layout, phase 1).
+- `skills/mflib/layout.py` names the run directory's paths from a primary checkout: the run directory, a change's
+  folder, and the generic entries a second script spells. The seed rule now holds `scripts/` too, where the seed adds
+  `/ "skills"` to the `parents[N]` of the file's depth (0134-run-layout, phase 2).
+- The conductor and `pin.py` take their run-directory paths and the old-layout table from `skills/mflib/layout.py`;
+  `conduct.py`'s own `_change_dir`, debt names and table are gone. A move: no behaviour changes
+  (0134-run-layout, phase 3).
+- The stations, the readers and the metric scripts take their run-directory paths from `skills/mflib/layout.py`;
+  each keeps its git call, guard and error text, and no script defines its own `_change_dir`. A move: no behaviour
+  changes (0134-run-layout, phase 4).
+- The old layout is one table, in `skills/mflib/layout.py`: converge, `gate_check.py`, `integrate.py` and
+  `scripts/metrics/run.py` halt on each of its entries — an old worker log and a change folder's old `review.md` and
+  `security.md` among them — naming the first sorted path, as the conductor does (0134-run-layout, phase 5).
+- A sixth structure rule, `check_layout`, fails on a string constant equal to `.minions` or `.mf-ship-origin`, or
+  starting `.minions/`, outside `skills/mflib/layout.py`, save the sites `LAYOUT_SITES` lists. D57, D83, the
+  state-file recipe, the module map and the threat model name the layout module (0134-run-layout, phase 6).
+
 ## [0.105.1] - 2026-11-17
 
 Gate: local 5m16s · CI not read under mf-ship · 0.105.0: local 5m27s · CI not read under mf-ship
