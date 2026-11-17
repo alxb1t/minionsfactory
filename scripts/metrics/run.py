@@ -69,15 +69,6 @@ ROLE = re.compile(r"\b(conformance|adversarial)\b", re.IGNORECASE)
 PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
 CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
 REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")
-# `conduct.py`'s: each old-layout path of a change, and a worker log's station part.
-OLD_LAYOUT = (
-    *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
-    *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
-    *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
-    *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
-    *("release/{}.held", "gate-check/{}"),
-)
-OLD_LOG = re.compile(r"[a-z][a-z-]*?(-\d+)?\.log")
 # A Codex log's prices, read when one is priced. Why: 0096-codex-ready design D6.
 PRICES = Path(__file__).resolve().parents[2] / "skills/mf-review-metrics/prices.toml"
 
@@ -133,25 +124,6 @@ def _git(root: Path, *args: str) -> str:
         check=True,
         timeout=TIMEOUT_SECONDS,
     ).stdout.strip()
-
-
-def _old_layout(minions: Path, change: str) -> str | None:
-    """Return the change's first file at its old path, worker logs included, or None.
-
-    e.g. "0001-x" → ".minions/runs/20261101-230000/0001-x_build.log"
-    Why: 0080-minions-layout design D4.
-    """
-    held = [minions / name.format(change) for name in OLD_LAYOUT]
-    stamps = sorted(minions.glob("runs/*/"))
-    held += [
-        log
-        for stamp in stamps
-        if STAMP.fullmatch(stamp.name)
-        for log in sorted(stamp.glob(f"{change}_*.log"))
-        if OLD_LOG.fullmatch(log.name.removeprefix(f"{change}_"))
-    ]
-    found = next((path for path in held if os.path.lexists(path)), None)
-    return f".minions/{found.relative_to(minions)}" if found else None
 
 
 def _logs(runs: Path) -> list[tuple[Path, re.Match[str]]]:
@@ -275,7 +247,7 @@ class Version:
         self.primary = mflib.layout.primary_of(common)
         self.minions = mflib.layout.run_dir(self.primary)
         self.folder = mflib.layout.change_dir(self.primary, change)
-        if old := _old_layout(self.minions, change):
+        if old := mflib.layout.old_layout(self.primary, change):
             raise OldLayout(f"{old} is the old layout: /mf-ship moves it")
 
     def _names(self, event: Event) -> bool:

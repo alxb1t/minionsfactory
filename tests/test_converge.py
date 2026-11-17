@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, Protocol, TextIO
 
 import pytest
-from old_layout import ENTRIES, ROLES, plant
+from old_layout import ENTRIES, LOG, ROLES, plant
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "mf-converge" / "scripts"
 _CHANGE = "0001-a"
@@ -525,7 +525,7 @@ def test_converge_halts_on_each_old_entry_alone(
     host: Host, capsys: pytest.CaptureFixture[str]
 ) -> None:
     module = _converge()
-    for old in {**ENTRIES, **ROLES}:
+    for old in {**ENTRIES, **ROLES, **LOG}:
         planted = plant(host.primary / ".minions", _CHANGE, old)
         assert run(host, module=module) == 1, old
         assert host.checks == [], old
@@ -533,6 +533,18 @@ def test_converge_halts_on_each_old_entry_alone(
         assert f".minions/{old.format(_CHANGE)} is at an old path" in printed, old
         assert not (host.folder() / "status_log.md").exists(), old
         planted.unlink()
+
+
+def test_a_halt_names_the_first_sorted_path(
+    host: Host, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for old in ("build/{}.done", "findings/{}_review.md"):
+        plant(host.primary / ".minions", _CHANGE, old)
+
+    assert run(host) == 1
+
+    printed = capsys.readouterr().out
+    assert f".minions/build/{_CHANGE}.done is at an old path" in printed
 
 
 def test_a_freeze_reads_the_cards_of_a_lone_backlog(host: Host) -> None:

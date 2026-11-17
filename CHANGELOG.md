@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The stations, the readers and the metric scripts take their run-directory paths from `skills/mflib/layout.py`;
   each keeps its git call, guard and error text, and no script defines its own `_change_dir`. A move: no behaviour
   changes (0134-run-layout, phase 4).
+- The old layout is one table, in `skills/mflib/layout.py`: converge, `gate_check.py`, `integrate.py` and
+  `scripts/metrics/run.py` halt on each of its entries — an old worker log and a change folder's old `review.md` and
+  `security.md` among them — naming the first sorted path, as the conductor does (0134-run-layout, phase 5).
 
 ## [0.105.0] - 2026-11-16
 

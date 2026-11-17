@@ -48,15 +48,6 @@ SIZE = re.compile(r"size:([^:]*)$")
 EVENT = re.compile(r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+) — (.*)$")
 SPAN = re.compile(r"(\w+)\.\.(\w+) · (\d+) commits? · (\d+) files?")
 HALTED = re.compile(r" · head (\w+)$")
-# Each path of a change's files before `/mf-ship`'s move, under `.minions/`.
-OLD_LAYOUT = (
-    *("findings/{}_review.md", "findings/{}_security.md"),
-    *("findings/{}_status_log.md", "findings/{}_diff.patch"),
-    *("models/{}.toml", "integrate/{}.md", "integrate/{}.red", "integrate/{}.resolved"),
-    *("build/{}.done", "build/{}.halt", "build/{}.closing", "build/{}.discarded.patch"),
-    *("rescue/{}.md", "release/{}.held", "gate-check/{}"),
-    *("changes/{}/review.md", "changes/{}/security.md"),
-)
 NO_COMMAND = ("is up to date", "Nothing to be done")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — ", re.MULTILINE)
 PLANNED = re.compile(r"(\d+\.\d+) — ")
@@ -390,15 +381,6 @@ def commands(context: Context) -> TextIO:
 def script(name: str, *args: str) -> list[str]:
     """Return the argv that runs a converge script by the conductor's Python."""
     return [sys.executable, str(HERE / name), *args]
-
-
-def old_layout(primary: Path, change: str) -> str | None:
-    """Return the first of the change's files at an old path, else None."""
-    for old in OLD_LAYOUT:
-        path = Path(".minions") / old.format(change)
-        if os.path.lexists(primary / path):
-            return str(path)
-    return None
 
 
 def preconditions(context: Context) -> str:
@@ -794,7 +776,7 @@ def converge(
     0 done · 1 halted, its `halt` event written · 2 cannot run.
     """
     context = Context(host, change, Path(tree), workers, deadline)
-    if old := old_layout(Path(host.primary), change):
+    if old := mflib.layout.old_layout(Path(host.primary), change):
         print(f"converge: halt — {old} is at an old path: /mf-ship's run moves it")
         return 1
     try:

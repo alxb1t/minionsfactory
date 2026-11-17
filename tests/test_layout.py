@@ -90,6 +90,22 @@ def test_old_files_finds_each_old_entry_alone(tmp_path: Path, old: str) -> None:
     assert layout.old_layout(tmp_path, "0002-other") is None
 
 
+def test_the_table_equals_the_literals() -> None:
+    roles = {f"changes/{{}}/{name}": new for name, new in layout.OLD_ROLES.items()}
+    logs = {}
+    for old in LOG:
+        _runs, stamp, name = old.split("/")
+        assert layout.OLD_STAMP.fullmatch(stamp), stamp
+        found = layout.OLD_LOG.fullmatch(name.format("0001-todo"))
+        assert found, name
+        assert found[1] == "0001-todo", name
+        logs[old] = f"logs/{stamp}-{found[2]}{found[3] or ''}.log"
+
+    assert layout.OLD_LAYOUT == ENTRIES
+    assert roles == ROLES
+    assert logs == LOG
+
+
 def test_old_layout_names_the_first_sorted_path(tmp_path: Path) -> None:
     for old in ("findings/{}_review.md", "build/{}.done"):
         plant(layout.run_dir(tmp_path), "0001-todo", old)

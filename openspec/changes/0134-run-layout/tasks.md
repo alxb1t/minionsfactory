@@ -8,7 +8,7 @@ The phases: pin the region on today's code, born the module, move the conductor,
 - [x] 2 — The module · hard
 - [x] 3 — The conductor follows · moderate
 - [x] 4 — The stations follow · moderate
-- [ ] 5 — The old layout is one table · hard
+- [x] 5 — The old layout is one table · hard
 - [ ] 6 — The sixth rule and the record · hard
 
 ## 1 — The pin
@@ -95,19 +95,19 @@ A move: no assert changes. Each script keeps its git call, its guard and its err
 
 The one behaviour change of the version ([D5](design.md#d5)).
 
-- [ ] 5.1 In `skills/mf-converge/scripts/converge.py` delete its `OLD_LAYOUT` and `old_layout`; its halt reads `layout.old_layout(primary, change)`, its words and return code stay (`:793-795`).
+- [x] 5.1 In `skills/mf-converge/scripts/converge.py` delete its `OLD_LAYOUT` and `old_layout`; its halt reads `layout.old_layout(primary, change)`, its words and return code stay (`:793-795`).
   Verify: `git grep -n -e "^OLD_LAYOUT" -- skills/mf-converge/scripts/converge.py` prints no line.
-- [ ] 5.2 In `gate_check.py` and `integrate.py` delete their `OLD_LAYOUT` and `_old_layout`; the halts read `layout.old_layout` and keep their words and exit 2 (`:489-492`, `:270-273`).
+- [x] 5.2 In `gate_check.py` and `integrate.py` delete their `OLD_LAYOUT` and `_old_layout`; the halts read `layout.old_layout` and keep their words and exit 2 (`:489-492`, `:270-273`).
   Verify: `git grep -n -e "^OLD_LAYOUT" -- skills/mf-converge/scripts/gate_check.py skills/mf-integrate/scripts/integrate.py` prints no line.
-- [ ] 5.3 In `scripts/metrics/run.py` delete `OLD_LAYOUT`, `OLD_LOG`, its own `_old_layout` and the worker-log loop at `:150-158`; `Version` raises `OldLayout` from `layout.old_layout` with the same words.
+- [x] 5.3 In `scripts/metrics/run.py` delete `OLD_LAYOUT`, `OLD_LOG`, its own `_old_layout` and the worker-log loop at `:150-158`; `Version` raises `OldLayout` from `layout.old_layout` with the same words.
   Verify: `git grep -n -e "^OLD_LAYOUT" -e "^OLD_LOG" -- scripts` prints no line.
-- [ ] 5.4 Turn the cases of 1.4 to 1.6 to the one table: each of the four copies is tested over `ENTRIES`, `ROLES` and `LOG`. Add to each of the four test files `test_a_halt_names_the_first_sorted_path`: it plants `build/{}.done` and `findings/{}_review.md`, and finds the halt naming `.minions/build/<id>.done`.
+- [x] 5.4 Turn the cases of 1.4 to 1.6 to the one table: each of the four copies is tested over `ENTRIES`, `ROLES` and `LOG`. Add to each of the four test files `test_a_halt_names_the_first_sorted_path`: it plants `build/{}.done` and `findings/{}_review.md`, and finds the halt naming `.minions/build/<id>.done`.
   Verify: `uv run pytest tests/test_converge.py tests/test_gate_check.py tests/test_integrate.py tests/test_metric_scripts.py -q -k test_a_halt_names_the_first_sorted_path` exits 0.
-- [ ] 5.5 In `tests/test_layout.py` add `test_the_table_equals_the_literals`: `OLD_LAYOUT`, `OLD_ROLES` and `OLD_LOG` equal `tests/old_layout.py`'s `ENTRIES`, `ROLES` and `LOG`.
+- [x] 5.5 In `tests/test_layout.py` add `test_the_table_equals_the_literals`: `OLD_LAYOUT`, `OLD_ROLES` and `OLD_LOG` equal `tests/old_layout.py`'s `ENTRIES`, `ROLES` and `LOG`.
   Verify: `uv run pytest tests/test_layout.py -q -k test_the_table_equals_the_literals` exits 0.
-- [ ] 5.6 Add the old worker log, `.minions/runs/<stamp>/<change-id>_<station>[-<n>].log`, to the old-layout lists of `skills/mf-build/SKILL.md`, `skills/mf-integrate/SKILL.md` and `skills/mf-release/SKILL.md`, after `release/<change-id>.held` and `gate-check/<change-id>/`.
+- [x] 5.6 Add the old worker log, `.minions/runs/<stamp>/<change-id>_<station>[-<n>].log`, to the old-layout lists of `skills/mf-build/SKILL.md`, `skills/mf-integrate/SKILL.md` and `skills/mf-release/SKILL.md`, after `release/<change-id>.held` and `gate-check/<change-id>/`.
   Verify: `git grep -c -F "runs/<stamp>/<change-id>_" -- skills/mf-build/SKILL.md skills/mf-integrate/SKILL.md skills/mf-release/SKILL.md` prints a count for each of those files.
-- [ ] 5.7 Every definition of the table stands in the module alone; a test that reached a deleted name reaches it through `layout`, changing no assert.
+- [x] 5.7 Every definition of the table stands in the module alone; a test that reached a deleted name reaches it through `layout`, changing no assert.
   Verify: `git grep -n -e "^OLD_LAYOUT" -- skills scripts` prints a line of `skills/mflib/layout.py` alone.
 
 ## 6 — The sixth rule and the record

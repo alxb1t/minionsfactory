@@ -40,16 +40,6 @@ SCRATCH_IDENTITY = (
     *("-c", "user.name=mf-integrate", "-c", "user.email=mf-integrate@example.invalid"),
     *("-c", "commit.gpgsign=false"),
 )
-# Each old-layout path of a change in the run directory.
-# Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D3.
-OLD_LAYOUT = (
-    *("findings/{}_review.md", "findings/{}_security.md", "findings/{}_status_log.md"),
-    *("findings/{}_diff.patch", "models/{}.toml", "integrate/{}.md"),
-    *("integrate/{}.red", "integrate/{}.resolved", "build/{}.done", "build/{}.halt"),
-    *("build/{}.closing", "build/{}.discarded.patch", "rescue/{}.md"),
-    *("release/{}.held", "gate-check/{}"),
-    *("changes/{}/review.md", "changes/{}/security.md"),
-)
 # An edit replaces `base[start:end]` with its lines.
 type Edit = tuple[int, int, list[str]]
 
@@ -178,18 +168,6 @@ def _run_dir(cwd: Path) -> Path:
     return mflib.layout.run_dir(_primary(cwd))
 
 
-def _old_layout(cwd: Path, change: str) -> str | None:
-    """Return the change's first file at its old path, or None.
-
-    e.g. "0001-todo" → ".minions/findings/0001-todo_review.md"
-    Why: 0080-minions-layout design D4.
-    """
-    run = _run_dir(cwd)
-    held = (name.format(change) for name in OLD_LAYOUT)
-    found = next((name for name in held if os.path.lexists(run / name)), None)
-    return f".minions/{found}" if found else None
-
-
 def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     """Return why the version is not ready, or None when it is.
 
@@ -266,7 +244,7 @@ def next_version(cwd: Path, change: str | None = None) -> str:
     for name in sorted(picks, key=lambda name: int(name.split("-")[0])):
         tree = trees.get(name)
         line = f"next: {name} · {tree or 'no worktree'}"
-        if old := _old_layout(cwd, name):
+        if old := mflib.layout.old_layout(_primary(cwd), name):
             raise Stop(
                 2, f"next: cannot run — {old} is the old layout: /mf-ship moves it"
             )

@@ -73,8 +73,9 @@ Run the script's `next`, with `<change-id>` when given. It prints one line: `nex
 A file of the version at one of its old paths, by exact name — `.minions/findings/<change-id>_review.md`,
 `_security.md`, `_status_log.md` or `_diff.patch`, `.minions/models/<change-id>.toml`,
 `.minions/integrate/<change-id>.md`, `.red` or `.resolved`, `.minions/build/<change-id>.done`, `.halt`, `.closing` or
-`.discarded.patch`, `.minions/rescue/<change-id>.md`, `.minions/release/<change-id>.held` or
-`.minions/gate-check/<change-id>/`, or `.minions/changes/<change-id>/review.md` or `security.md` — is an old
+`.discarded.patch`, `.minions/rescue/<change-id>.md`, `.minions/release/<change-id>.held`,
+`.minions/gate-check/<change-id>/` or `.minions/runs/<stamp>/<change-id>_<station>[-<n>].log`, or
+`.minions/changes/<change-id>/review.md` or `security.md` — is an old
 layout: `next` exits 2, naming it and `/mf-ship`, whose run moves it, and so you halt before writing a file at a new
 path. Any other file is no old layout: a stray the move leaves never halts.
 

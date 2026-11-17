@@ -105,7 +105,8 @@ report's `inconclusive` sections, are judged from those reads alone.
 `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
 `.minions/models/<change-id>.toml`, `.minions/integrate/<change-id>.md`, `.red` or `.resolved`,
 `.minions/build/<change-id>.done`, `.halt`, `.closing` or `.discarded.patch`, `.minions/rescue/<change-id>.md`,
-`.minions/release/<change-id>.held` or `.minions/gate-check/<change-id>/`, or
+`.minions/release/<change-id>.held`, `.minions/gate-check/<change-id>/` or
+`.minions/runs/<stamp>/<change-id>_<station>[-<n>].log`, or
 `.minions/changes/<change-id>/review.md` or `security.md` → **halt**, naming it and `/mf-ship`, whose run moves it.
 Read on, its absent new files would say converge was skipped. Any other file is no old layout: a stray the move
 leaves never halts.
