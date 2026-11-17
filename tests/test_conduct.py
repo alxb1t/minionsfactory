@@ -5802,6 +5802,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     ]
 
 
+@pytest.mark.usefixtures("fake_codex")
 def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
@@ -12992,6 +12993,7 @@ def test_a_codex_fixer_halts_at_a_limit_and_never_falls_back(
     assert told() == 2 and not claude_argvs.is_file()
 
 
+@pytest.mark.usefixtures("fake_codex")
 def test_a_checker_falls_back_when_the_weekly_window_is_spent(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
