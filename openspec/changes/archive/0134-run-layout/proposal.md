@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.106
 beside: [0133-host-free-tests]
 ---
 
