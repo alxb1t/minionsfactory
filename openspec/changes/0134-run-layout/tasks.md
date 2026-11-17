@@ -4,7 +4,7 @@ The phases: pin the region on today's code, born the module, move the conductor,
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The conductor follows · moderate
 - [ ] 4 — The stations follow · moderate
@@ -15,25 +15,25 @@ The phases: pin the region on today's code, born the module, move the conductor,
 
 Tests only: no file under `skills/` or `scripts/` changes in this phase ([D11](design.md#d11)).
 
-- [ ] 1.1 **HALT CHECK** The premise of the move: the change folder is one join, `"changes" / change`, in the folder finder of `conduct.py`, `gate_check.py` and `run.py`.
+- [x] 1.1 **HALT CHECK** The premise of the move: the change folder is one join, `"changes" / change`, in the folder finder of `conduct.py`, `gate_check.py` and `run.py`.
   Verify: `git grep -c -F '".minions" / "changes" / change' -- skills/mf-ship/scripts/conduct.py skills/mf-converge/scripts/gate_check.py scripts/metrics/run.py` prints a line for each of those files.
-- [ ] 1.2 Write `tests/old_layout.py`: `ENTRIES`, each old path under `.minions/` as a literal pattern (`findings/{}_review.md` … `gate-check/{}`) mapped to its new name; `ROLES`, `changes/{}/review.md` and `changes/{}/security.md` likewise; `LOG`, `runs/20261101-230000/{}_converge-2.log` mapped to `logs/20261101-230000-converge-2.log`; and `plant(minions, change, old)`, which writes the one file.
+- [x] 1.2 Write `tests/old_layout.py`: `ENTRIES`, each old path under `.minions/` as a literal pattern (`findings/{}_review.md` … `gate-check/{}`) mapped to its new name; `ROLES`, `changes/{}/review.md` and `changes/{}/security.md` likewise; `LOG`, `runs/20261101-230000/{}_converge-2.log` mapped to `logs/20261101-230000-converge-2.log`; and `plant(minions, change, old)`, which writes the one file.
   Verify: `grep -n -e "ENTRIES" tests/old_layout.py` prints a line.
-- [ ] 1.3 In `tests/test_conduct.py` add `test_a_run_moves_each_old_entry_alone` and `test_status_names_each_old_entry_alone`, each over `ENTRIES`, `ROLES` and `LOG`, built as `test_a_run_moves_an_old_layout` (`:7456`) and `test_status_names_an_old_layout` (`:7592`) are: the first calls `migrate_layout` and finds the file at its new name, and a second call moves nothing; the second finds `status` naming the change `old layout`.
+- [x] 1.3 In `tests/test_conduct.py` add `test_a_run_moves_each_old_entry_alone` and `test_status_names_each_old_entry_alone`, each over `ENTRIES`, `ROLES` and `LOG`, built as `test_a_run_moves_an_old_layout` (`:7456`) and `test_status_names_an_old_layout` (`:7592`) are: the first calls `migrate_layout` and finds the file at its new name, and a second call moves nothing; the second finds `status` naming the change `old layout`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "test_a_run_moves_each_old_entry_alone or test_status_names_each_old_entry_alone"` exits 0.
-- [ ] 1.4 In `tests/test_converge.py` add `test_converge_halts_on_each_old_entry_alone` over `ENTRIES` and `ROLES`: it plants the one file through `plant`, as `_old` (`:367-370`) plants one, and runs converge as the test that uses `_old` does, finding the halt names that path.
+- [x] 1.4 In `tests/test_converge.py` add `test_converge_halts_on_each_old_entry_alone` over `ENTRIES` and `ROLES`: it plants the one file through `plant`, as `_old` (`:367-370`) plants one, and runs converge as the test that uses `_old` does, finding the halt names that path.
   Verify: `uv run pytest tests/test_converge.py -q -k test_converge_halts_on_each_old_entry_alone` exits 0.
-- [ ] 1.5 In `tests/test_gate_check.py` add `test_gate_check_halts_on_each_old_entry_alone` and in `tests/test_integrate.py` `test_integrate_halts_on_each_old_entry_alone`, each over `ENTRIES` and `ROLES`: exit 2, the entry's path and `is the old layout: /mf-ship moves it`, as `tests/test_gate_check.py:96` and `tests/test_integrate.py:69` hold.
+- [x] 1.5 In `tests/test_gate_check.py` add `test_gate_check_halts_on_each_old_entry_alone` and in `tests/test_integrate.py` `test_integrate_halts_on_each_old_entry_alone`, each over `ENTRIES` and `ROLES`: exit 2, the entry's path and `is the old layout: /mf-ship moves it`, as `tests/test_gate_check.py:96` and `tests/test_integrate.py:69` hold.
   Verify: `uv run pytest tests/test_gate_check.py tests/test_integrate.py -q -k "test_gate_check_halts_on_each_old_entry_alone or test_integrate_halts_on_each_old_entry_alone"` exits 0.
-- [ ] 1.6 In `tests/test_metric_scripts.py` add `test_run_metrics_halt_on_each_old_entry_alone` over `ENTRIES` and `LOG`: `OldLayout` naming the path, as `:582` holds.
+- [x] 1.6 In `tests/test_metric_scripts.py` add `test_run_metrics_halt_on_each_old_entry_alone` over `ENTRIES` and `LOG`: `OldLayout` naming the path, as `:582` holds.
   Verify: `uv run pytest tests/test_metric_scripts.py -q -k test_run_metrics_halt_on_each_old_entry_alone` exits 0.
-- [ ] 1.7 In `tests/test_converge.py` add `test_a_freeze_reads_the_cards_of_a_lone_backlog`: with an old `backlog.md` holding one card and no `debt.md`, the freeze's `debt-cards.md` holds the card. The read is `converge.py:523-525`; the lock rule `:1296-1300` is held by `tests/test_converge.py:1969-1982`.
+- [x] 1.7 In `tests/test_converge.py` add `test_a_freeze_reads_the_cards_of_a_lone_backlog`: with an old `backlog.md` holding one card and no `debt.md`, the freeze's `debt-cards.md` holds the card. The read is `converge.py:523-525`; the lock rule `:1296-1300` is held by `tests/test_converge.py:1969-1982`.
   Verify: `uv run pytest tests/test_converge.py -q -k lone_backlog` exits 0.
-- [ ] 1.8 In `tests/test_viewer.py` add `test_the_fingerprint_changes_when_a_change_folders_file_is_written`, beside `:628`: a file written under `changes/<id>/` changes the fingerprint, and the run log is not the file.
+- [x] 1.8 In `tests/test_viewer.py` add `test_the_fingerprint_changes_when_a_change_folders_file_is_written`, beside `:628`: a file written under `changes/<id>/` changes the fingerprint, and the run log is not the file.
   Verify: `uv run pytest tests/test_viewer.py -q -k change_folders_file_is_written` exits 0.
-- [ ] 1.9 Write `tests/test_run_dir_finders.py`: from a linked worktree and from the primary, each of `integrate.py`'s `_run_dir`, `cut_pre.py`'s `run_directory`, `metrics.py`'s `run_directory`, `awake.py`'s `_record` and `run.py`'s `Version` gives the primary's `.minions/`. The repo and worktree are built with `tests/fake_worker.py`'s `_git`.
+- [x] 1.9 Write `tests/test_run_dir_finders.py`: from a linked worktree and from the primary, each of `integrate.py`'s `_run_dir`, `cut_pre.py`'s `run_directory`, `metrics.py`'s `run_directory`, `awake.py`'s `_record` and `run.py`'s `Version` gives the primary's `.minions/`. The repo and worktree are built with `tests/fake_worker.py`'s `_git`.
   Verify: `uv run pytest tests/test_run_dir_finders.py -q` exits 0.
-- [ ] 1.10 See each case of 1.3 to 1.9 red under one change to the code it holds — an entry removed from its table, the `.parent` dropped from a finder, a `changes/*/*` stat dropped from the fingerprint — then revert it, and name each change in the phase's commit body.
+- [x] 1.10 See each case of 1.3 to 1.9 red under one change to the code it holds — an entry removed from its table, the `.parent` dropped from a finder, a `changes/*/*` stat dropped from the fingerprint — then revert it, and name each change in the phase's commit body.
   Verify: `git diff --stat -- skills scripts` prints no line.
 
 ## 2 — The module

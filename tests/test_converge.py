@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, Protocol, TextIO
 
 import pytest
+from old_layout import ENTRIES, ROLES, plant
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "mf-converge" / "scripts"
 _CHANGE = "0001-a"
@@ -518,6 +519,44 @@ def test_a_converge_refuses_what_it_cannot_start(
         host.sandbox = RuntimeError("the runner broke")
         with pytest.raises(RuntimeError, match="the runner broke"):
             run(host)
+
+
+def test_converge_halts_on_each_old_entry_alone(
+    host: Host, capsys: pytest.CaptureFixture[str]
+) -> None:
+    module = _converge()
+    for old in {**ENTRIES, **ROLES}:
+        planted = plant(host.primary / ".minions", _CHANGE, old)
+        assert run(host, module=module) == 1, old
+        assert host.checks == [], old
+        printed = capsys.readouterr().out
+        assert f".minions/{old.format(_CHANGE)} is at an old path" in printed, old
+        assert not (host.folder() / "status_log.md").exists(), old
+        planted.unlink()
+
+
+def test_a_freeze_reads_the_cards_of_a_lone_backlog(host: Host) -> None:
+    converge = _converge()
+    old = host.primary / ".minions" / "backlog.md"
+    old.parent.mkdir(parents=True)
+    old.write_text(
+        "# Backlog\n\n## 0000-z\n\n- **0000·R1 — A stays one**\n"
+        "  - **What it affects:** `src/a.py:1`\n"
+    )
+    base = _git(host.tree, "merge-base", "main", "HEAD")
+    head = _git(host.tree, "rev-parse", "HEAD")
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    converge["open_run"](context)
+
+    converge["freeze"](context, base, head)
+
+    cards = host.folder() / "debt-cards.md"
+    assert "0000·R1" in cards.read_text()
+    assert not (host.primary / ".minions" / "debt.md").exists()
+    # Twin: a debt file beside it is read in its place.
+    (host.primary / ".minions" / "debt.md").write_text("# Debt\n")
+    converge["freeze"](context, base, head)
+    assert "0000·R1" not in cards.read_text()
 
 
 def test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards(host: Host) -> None:

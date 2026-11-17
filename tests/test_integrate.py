@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from old_layout import ENTRIES, ROLES, plant
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-integrate" / "scripts" / "integrate.py"
@@ -94,6 +95,20 @@ def test_a_hand_run_station_halts_on_an_old_layout(tmp_path: Path) -> None:
         "next: cannot run — .minions/changes/0001-todo/security.md is the old layout:"
         " /mf-ship moves it\n",
     )
+
+
+def test_integrate_halts_on_each_old_entry_alone(tmp_path: Path) -> None:
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    _version(root, "0001-todo")
+    for old in {**ENTRIES, **ROLES}:
+        planted = plant(root / ".minions", "0001-todo", old)
+        result = _run(root, "next", "0001-todo")
+        assert (result.returncode, result.stdout) == (
+            2,
+            f"next: cannot run — .minions/{old.format('0001-todo')} is the old layout:"
+            " /mf-ship moves it\n",
+        ), old
+        planted.unlink()
 
 
 def test_next_names_no_version_whose_id_has_an_empty_word(tmp_path: Path) -> None:

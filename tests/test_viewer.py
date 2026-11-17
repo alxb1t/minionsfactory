@@ -647,6 +647,22 @@ def test_the_only_options_print_liveness_and_the_fingerprint(
     assert json.loads(capsys.readouterr().out)["fingerprint"] != first
 
 
+def test_the_fingerprint_changes_when_a_change_folders_file_is_written(
+    tmp_path: Path,
+) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    folder = root / ".minions" / "changes" / "0001-a"
+    folder.mkdir(parents=True)
+    first = _tree(root, "fingerprint")["fingerprint"]
+    assert _tree(root, "fingerprint")["fingerprint"] == first
+
+    (folder / "build.halt").write_text("sub-task: 1.1\n")
+
+    assert _tree(root, "fingerprint")["fingerprint"] != first
+    assert not (root / ".minions" / "runs").exists()
+
+
 def _snapshot(top: Path) -> dict[str, tuple[int, int]]:
     """Return the mtime and size of every path under `top`."""
     found = {}

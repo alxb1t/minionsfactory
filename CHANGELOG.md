@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin tests hold each old-layout entry alone in every copy that reads it, converge's read of a lone `backlog.md`, the
+  viewer's fingerprint of a change folder's file, and each script's run-directory finder from a linked worktree,
+  before the paths move into one module (0134-run-layout, phase 1).
+
 ## [0.105.0] - 2026-11-16
 
 Gate: local 5m27s · CI not read under mf-ship · 0.104.0: local 5m43s · CI not read under mf-ship

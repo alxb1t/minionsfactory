@@ -39,6 +39,8 @@ from fake_worker import (
     _git,
 )
 from mflib import platform
+from old_layout import ENTRIES, LOG, ROLES
+from old_layout import plant as plant_old
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
@@ -7620,6 +7622,51 @@ def test_status_names_an_old_layout(
         " /mf-ship moves it",
     ):
         conduct["grant"](root, "0001-todo", "claude")
+
+
+def test_a_run_moves_each_old_entry_alone(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    minions = root / ".minions"
+    conductor = conduct["Run"](root, "claude")
+
+    def moves() -> int:
+        return conductor.log.path.read_text().count(" · move — ")
+
+    for old, new in {**ENTRIES, **ROLES, **LOG}.items():
+        planted = plant_old(minions, "0001-todo", old)
+        before = moves() if conductor.log.path.exists() else 0
+        assert conductor.migrate_layout() is None, old
+        moved = minions / "changes" / "0001-todo" / new
+        assert moved.read_text() == "old\n", old
+        assert not os.path.lexists(planted), old
+        assert moves() == before + 1, old
+        # Twin: a second call moves nothing.
+        assert conductor.migrate_layout() is None, old
+        assert moves() == before + 1, old
+        moved.unlink()
+
+
+def test_status_names_each_old_entry_alone(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    status = conduct["status"]
+    assert status(root).splitlines() == ["0001-todo · build"]
+
+    for old in {**ENTRIES, **ROLES, **LOG}:
+        planted = plant_old(root / ".minions", "0001-todo", old)
+        assert status(root).splitlines() == [
+            "0001-todo · old layout — a run moves it"
+        ], old
+        planted.unlink()
+    assert status(root).splitlines() == ["0001-todo · build"]
 
 
 @pytest.mark.slow

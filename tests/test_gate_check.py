@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from old_layout import ENTRIES, ROLES, plant
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-converge" / "scripts" / "gate_check.py"
@@ -118,6 +119,19 @@ def test_gate_check_halts_on_an_old_layout(tmp_path: Path) -> None:
         f"gate: cannot check — .minions/changes/{_CHANGE}/review.md is the old layout:"
         " /mf-ship moves it\n",
     )
+
+
+def test_gate_check_halts_on_each_old_entry_alone(tmp_path: Path) -> None:
+    base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
+    for old in {**ENTRIES, **ROLES}:
+        planted = plant(tmp_path / ".minions", _CHANGE, old)
+        result = _check(tmp_path, base)
+        assert (result.returncode, result.stdout) == (
+            2,
+            f"gate: cannot check — .minions/{old.format(_CHANGE)} is the old layout:"
+            " /mf-ship moves it\n",
+        ), old
+        planted.unlink()
 
 
 @pytest.mark.slow
