@@ -691,6 +691,15 @@ def _require_sandbox(host: str, tmp_path: Path) -> None:
     pytest.skip(reason)
 
 
+def _clear_coverage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drop the variables that start coverage in a child of the test.
+
+    Why: 0133-host-free-tests design D1.
+    """
+    for name in ("COVERAGE_PROCESS_START", "COVERAGE_PROCESS_CONFIG"):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def real_sandbox(
     host: str, tmp_path: Path, macos_side: None, monkeypatch: pytest.MonkeyPatch
@@ -700,7 +709,21 @@ def real_sandbox(
     Why: 0131-linux-runner design D7.
     """
     monkeypatch.setattr(platform, "OS", host)
+    _clear_coverage(monkeypatch)
     _require_sandbox(host, tmp_path)
+
+
+@pytest.mark.parametrize("name", ["COVERAGE_PROCESS_START", "COVERAGE_PROCESS_CONFIG"])
+def test_a_real_sandbox_child_starts_no_coverage(
+    name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(name, "coveragerc")
+    monkeypatch.setenv("COVERAGE_FILE", "data")
+
+    _clear_coverage(monkeypatch)
+
+    assert name not in os.environ
+    assert "COVERAGE_FILE" in os.environ
 
 
 def test_a_required_sandbox_that_cannot_apply_fails_and_else_skips(
