@@ -31,7 +31,9 @@ OLD_LAYOUT = {
 }
 # A change folder's old findings names. Why: 0095-converge-roles design D2.
 OLD_ROLES = {"review.md": "conformance.md", "security.md": "adversarial.md"}
-OLD_ID = r"(\d{4}-[a-z0-9-]+)"
+# An id of any width, as a station's CHANGE_ID reads one.
+# Why: 0134-run-layout design D5.
+OLD_ID = r"(\d+-[a-z0-9-]+)"
 OLD_STAMP = re.compile(r"\d{8}-\d{6}(?:-\d+)?")
 OLD_LOG = re.compile(rf"{OLD_ID}_([a-z][a-z-]*?)(-\d+)?\.log")
 

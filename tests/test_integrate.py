@@ -95,8 +95,18 @@ def test_a_hand_run_station_halts_on_an_old_layout(tmp_path: Path) -> None:
         "next: cannot run — .minions/changes/0001-todo/security.md is the old layout:"
         " /mf-ship moves it\n",
     )
+    # An id of other than four digits halts the same, never reads as ready.
+    _version(root, "1-x")
+    plant(root / ".minions", "1-x", "findings/{}_security.md")
+    result = _run(root, "next", "1-x")
+    assert (result.returncode, result.stdout) == (
+        2,
+        "next: cannot run — .minions/findings/1-x_security.md is the old layout:"
+        " /mf-ship moves it\n",
+    )
 
 
+@pytest.mark.slow
 def test_integrate_halts_on_each_old_entry_alone(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
     _version(root, "0001-todo")

@@ -90,6 +90,20 @@ def test_old_files_finds_each_old_entry_alone(tmp_path: Path, old: str) -> None:
     assert layout.old_layout(tmp_path, "0002-other") is None
 
 
+@pytest.mark.parametrize("change", ["1-x", "10000-x"], ids=["short", "five-digit"])
+def test_old_files_finds_an_id_of_any_width(tmp_path: Path, change: str) -> None:
+    every = {**ENTRIES, **ROLES, **LOG}
+    planted = [
+        (plant(layout.run_dir(tmp_path), change, old), new)
+        for old, new in every.items()
+    ]
+
+    assert sorted(layout.old_files(tmp_path)[change]) == sorted(planted)
+    assert layout.old_layout(tmp_path, change) == str(
+        min(planted)[0].relative_to(tmp_path)
+    )
+
+
 def test_the_table_equals_the_literals() -> None:
     roles = {f"changes/{{}}/{name}": new for name, new in layout.OLD_ROLES.items()}
     logs = {}

@@ -90,6 +90,8 @@ The fix, in its own phase after the moves:
 
 A hand-run station on a repo no run has moved, with an old worker log, now halts. Every recorded repo is already moved.
 
+Fix note (2026-11-17, S1): `OLD_ID` takes an id of any width, `\d+` and a slug, as the stations' own `CHANGE_ID` reads one, so a `1-x` or `10000-x` change's old entries halt its station rather than read as absent.
+
 ### D6
 
 The conductor's and the stations' phases are moves. A test that reaches a moved name changes the line that reaches it; no `assert` changes. The conformance check holds it on each phase's diff.
