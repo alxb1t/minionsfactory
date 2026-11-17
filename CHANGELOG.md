@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The real-sandbox tests clear `COVERAGE_PROCESS_START` and `COVERAGE_PROCESS_CONFIG`, and the two Codex checker tests
+  take `fake_codex`: CI's Linux gate no longer reads coverage or `codex` from the host (0133-host-free-tests, phase 1).
+
 ## [0.105.0] - 2026-11-16
 
 Gate: local 5m27s · CI not read under mf-ship · 0.104.0: local 5m43s · CI not read under mf-ship
