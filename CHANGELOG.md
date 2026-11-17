@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin tests hold each old-layout entry alone in every copy that reads it, converge's read of a lone `backlog.md`, the
   viewer's fingerprint of a change folder's file, and each script's run-directory finder from a linked worktree,
   before the paths move into one module (0134-run-layout, phase 1).
+- `skills/mflib/layout.py` names the run directory's paths from a primary checkout: the run directory, a change's
+  folder, and the generic entries a second script spells. The seed rule now holds `scripts/` too, where the seed adds
+  `/ "skills"` to the `parents[N]` of the file's depth (0134-run-layout, phase 2).
 
 ## [0.105.0] - 2026-11-16
 

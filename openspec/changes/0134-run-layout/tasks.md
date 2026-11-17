@@ -5,7 +5,7 @@ The phases: pin the region on today's code, born the module, move the conductor,
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The conductor follows · moderate
 - [ ] 4 — The stations follow · moderate
 - [ ] 5 — The old layout is one table · hard
@@ -38,15 +38,15 @@ Tests only: no file under `skills/` or `scripts/` changes in this phase ([D11](d
 
 ## 2 — The module
 
-- [ ] 2.1 Write `skills/mflib/layout.py` with the names of [D2](design.md#d2) but the old-layout table and its reader: each a function of a primary `Path`, public, computed when called, `os`, `pathlib` and `re` the only imports, `MINIONS = ".minions"` and `CHANGES = "changes"` the only joins' words. It runs no git ([D3](design.md#d3)).
+- [x] 2.1 Write `skills/mflib/layout.py` with the names of [D2](design.md#d2) but the old-layout table and its reader: each a function of a primary `Path`, public, computed when called, `os`, `pathlib` and `re` the only imports, `MINIONS = ".minions"` and `CHANGES = "changes"` the only joins' words. It runs no git ([D3](design.md#d3)).
   Verify: `grep -n -e "^def change_dir" -e "^def primary_of" -e "^def run_dir" skills/mflib/layout.py` prints a line for each.
-- [ ] 2.2 Write `tests/test_layout.py`: each function against the path spelled by hand under a `tmp_path` primary; `primary_of` of the common directory git answers from a linked worktree and from the primary gives one primary.
+- [x] 2.2 Write `tests/test_layout.py`: each function against the path spelled by hand under a `tmp_path` primary; `primary_of` of the common directory git answers from a linked worktree and from the primary gives one primary.
   Verify: `uv run pytest tests/test_layout.py -q` exits 0.
-- [ ] 2.3 Add the row `| skills/mflib/layout.py | home | — |` to `docs/modules.md`, between the rows of `__init__.py` and `platform.py`.
+- [x] 2.3 Add the row `| skills/mflib/layout.py | home | — |` to `docs/modules.md`, between the rows of `__init__.py` and `platform.py`.
   Verify: `git grep -n -F "skills/mflib/layout.py" -- docs/modules.md` prints a line.
-- [ ] 2.4 In `tests/test_structure.py` widen `check_seed` to `scripts/` per [D7](design.md#d7): a file under `scripts/` takes the seed with `parents[N] / "skills"`, `N` its depth. Add `test_check_seed_passes_a_scripts_seed_of_its_depth`, `test_check_seed_fails_on_no_scripts_seed` and `test_check_seed_fails_on_a_scripts_seed_of_the_wrong_depth`.
+- [x] 2.4 In `tests/test_structure.py` widen `check_seed` to `scripts/` per [D7](design.md#d7): a file under `scripts/` takes the seed with `parents[N] / "skills"`, `N` its depth. Add `test_check_seed_passes_a_scripts_seed_of_its_depth`, `test_check_seed_fails_on_no_scripts_seed` and `test_check_seed_fails_on_a_scripts_seed_of_the_wrong_depth`.
   Verify: `uv run pytest tests/test_structure.py -q -k scripts_seed` exits 0.
-- [ ] 2.5 Turn the `outside-skills` case of `test_check_seed_passes_a_seeded_or_exempt_import` into a case of `test_check_seed_fails_on_an_unseeded_import`, per the table of design's `## Tests`.
+- [x] 2.5 Turn the `outside-skills` case of `test_check_seed_passes_a_seeded_or_exempt_import` into a case of `test_check_seed_fails_on_an_unseeded_import`, per the table of design's `## Tests`.
   Verify: `git grep -n -e "outside-skills" -- tests/test_structure.py` prints no line.
 
 ## 3 — The conductor follows

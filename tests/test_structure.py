@@ -60,6 +60,9 @@ _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")
 _PORT = "skills/mflib/platform.py"
 _HOME = "skills/mflib/"
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
+SCRIPTS_SEED = (
+    'sys.path.insert(0, str(Path(__file__).resolve().parents[{}] / "skills"))'
+)
 _THREATS = "THREAT_MODEL.md"
 _PLAIN = ("self", "cls")
 
@@ -378,6 +381,17 @@ def _loads_home(node: ast.stmt) -> bool:
     )
 
 
+def seed(path: str) -> str:
+    """Return the seed line the script at `path` takes, as `ast.unparse` writes it.
+
+    e.g. `"scripts/metrics/run.py"` → `…resolve().parents[2] / 'skills'))`
+    Why: 0134-run-layout design D7.
+    """
+    if path.startswith("skills/"):
+        return SEED
+    return ast.unparse(ast.parse(SCRIPTS_SEED.format(path.count("/"))))
+
+
 def check_seed(root: Path) -> list[str]:
     """Return a breach line for each script outside the home that loads it unseeded.
 
@@ -385,11 +399,11 @@ def check_seed(root: Path) -> list[str]:
     """
     breaches: list[str] = []
     for path, tree in _parse(root).items():
-        if not path.startswith("skills/") or path.startswith(_HOME):
+        if path.startswith(_HOME):
             continue
         for index, node in enumerate(tree.body):
             if _loads_home(node):
-                if SEED not in {ast.unparse(stmt) for stmt in tree.body[:index]}:
+                if seed(path) not in {ast.unparse(stmt) for stmt in tree.body[:index]}:
                     breaches.append(
                         f"{path}: imports mflib with no seed line before it"
                     )
@@ -829,20 +843,24 @@ def test_check_seed_holds_on_the_tree() -> None:
 
 
 @pytest.mark.parametrize(
-    "source",
+    ("path", "source"),
     [
-        "import mflib.platform\n",
-        _SEEDED.replace("parents[2]", "parents[1]"),
-        "from mflib import platform\n",
-        f"import sys\nfrom pathlib import Path\n\nimport mflib.platform\n{SEED}\n",
+        (_STATION, "import mflib.platform\n"),
+        (_STATION, _SEEDED.replace("parents[2]", "parents[1]")),
+        (_STATION, "from mflib import platform\n"),
+        (
+            _STATION,
+            f"import sys\nfrom pathlib import Path\n\nimport mflib.platform\n{SEED}\n",
+        ),
+        ("scripts/x.py", "import mflib.platform\n"),
     ],
-    ids=["no-seed", "wrong-seed", "from-import", "seed-after"],
+    ids=["no-seed", "wrong-seed", "from-import", "seed-after", "scripts"],
 )
-def test_check_seed_fails_on_an_unseeded_import(tmp_path: Path, source: str) -> None:
-    root = _plant(tmp_path, {_STATION: source})
-    assert check_seed(root) == [
-        f"{_STATION}: imports mflib with no seed line before it"
-    ]
+def test_check_seed_fails_on_an_unseeded_import(
+    tmp_path: Path, path: str, source: str
+) -> None:
+    root = _plant(tmp_path, {path: source})
+    assert check_seed(root) == [f"{path}: imports mflib with no seed line before it"]
 
 
 @pytest.mark.parametrize(
@@ -850,15 +868,49 @@ def test_check_seed_fails_on_an_unseeded_import(tmp_path: Path, source: str) -> 
     [
         (_STATION, _SEEDED),
         ("skills/mflib/x.py", "import mflib.platform\n"),
-        ("scripts/x.py", "import mflib.platform\n"),
         (_STATION, "def f() -> None:\n    import mflib.platform\n"),
     ],
-    ids=["the-seed", "a-home-file", "outside-skills", "not-top-level"],
+    ids=["the-seed", "a-home-file", "not-top-level"],
 )
 def test_check_seed_passes_a_seeded_or_exempt_import(
     tmp_path: Path, path: str, source: str
 ) -> None:
     assert check_seed(_plant(tmp_path, {path: source})) == []
+
+
+def _scripts_seeded(depth: int) -> str:
+    """Return a script that imports the home after the `scripts/` seed of `depth`."""
+    line = SCRIPTS_SEED.format(depth)
+    return f"import sys\nfrom pathlib import Path\n\n{line}\nimport mflib.layout\n"
+
+
+@pytest.mark.parametrize(
+    ("path", "depth"),
+    [("scripts/x.py", 1), ("scripts/metrics/x.py", 2)],
+    ids=["scripts", "scripts-metrics"],
+)
+def test_check_seed_passes_a_scripts_seed_of_its_depth(
+    tmp_path: Path, path: str, depth: int
+) -> None:
+    assert check_seed(_plant(tmp_path, {path: _scripts_seeded(depth)})) == []
+
+
+def test_check_seed_fails_on_no_scripts_seed(tmp_path: Path) -> None:
+    path = "scripts/metrics/x.py"
+    root = _plant(tmp_path, {path: _SEEDED})
+    assert check_seed(root) == [f"{path}: imports mflib with no seed line before it"]
+
+
+@pytest.mark.parametrize(
+    ("path", "depth"),
+    [("scripts/x.py", 2), ("scripts/metrics/x.py", 1)],
+    ids=["too-deep", "too-shallow"],
+)
+def test_check_seed_fails_on_a_scripts_seed_of_the_wrong_depth(
+    tmp_path: Path, path: str, depth: int
+) -> None:
+    root = _plant(tmp_path, {path: _scripts_seeded(depth)})
+    assert check_seed(root) == [f"{path}: imports mflib with no seed line before it"]
 
 
 _SURFACES = (

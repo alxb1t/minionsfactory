@@ -57,4 +57,5 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py |
 | `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, platform.py |
 | `skills/mflib/__init__.py` | home | — |
+| `skills/mflib/layout.py` | home | — |
 | `skills/mflib/platform.py` | home | — |
