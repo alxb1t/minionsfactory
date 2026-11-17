@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: 0.105.1
 ---
 
 # Host-free tests

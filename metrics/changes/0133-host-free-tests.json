@@ -1,0 +1,236 @@
+{
+  "change": "0133-host-free-tests",
+  "version": "0.105.1",
+  "base": "e008023c",
+  "analyzed": "8ad684c5",
+  "measured_on": "local",
+  "collected_at": "2026-11-17T12:02:57+02:00",
+  "mf_version": "v0.101.1",
+  "executor": "unidentified",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 4451
+    },
+    "converge-conformance-reading-set": {
+      "value": 6143
+    },
+    "converge-adversarial-reading-set": {
+      "value": 8705
+    },
+    "shared-context": {
+      "value": 17307
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 779
+    },
+    "gate-seconds": {
+      "value": 316
+    },
+    "largest-module-lines": {
+      "value": 13825
+    },
+    "modules-over-1000-lines": {
+      "value": 9
+    },
+    "complex-functions": {
+      "value": 30
+    },
+    "suppressions": {
+      "value": 24
+    },
+    "test-to-code-lines": {
+      "value": 1.44
+    },
+    "python-lines": {
+      "value": 59948
+    },
+    "dependencies": {
+      "value": 2
+    },
+    "dev-dependencies": {
+      "value": 9
+    },
+    "test-seconds": {
+      "value": 313.04
+    },
+    "slowest-test-seconds": {
+      "value": 127.19
+    },
+    "test-seconds-summed": {
+      "value": 2811.91
+    },
+    "slow-tests": {
+      "value": 127
+    },
+    "total-coverage": {
+      "value": 99.03
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 119
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 34
+    },
+    "diff-lines": {
+      "value": 171
+    },
+    "diff-files": {
+      "value": 8
+    },
+    "lead-minutes": {
+      "value": 29.4
+    },
+    "build-minutes": {
+      "value": 12.1
+    },
+    "converge-minutes": {
+      "value": 15.5
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 0.0
+    },
+    "after-wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 1
+    },
+    "blockers-round-1": {
+      "value": 0
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 0
+    },
+    "halts-build": {
+      "value": 0
+    },
+    "halts-converge": {
+      "value": 0
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 0
+    },
+    "rescues-diagnosed": {
+      "value": 0
+    },
+    "rescues-decided": {
+      "value": 0
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 2
+    },
+    "fix-commits": {
+      "value": 1
+    },
+    "cost-usd": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-build": {
+      "value": 0.57
+    },
+    "cost-usd-converge": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "value": 2743677
+    },
+    "tokens-build": {
+      "value": 1872368
+    },
+    "tokens-converge": {
+      "value": 871309
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "codex-window-5h": {
+      "value": 3.0
+    },
+    "codex-window-week": {
+      "value": 38.0
+    },
+    "cost-per-changed-line": {
+      "status": "unavailable",
+      "why": "no price for model gpt-6.1-sol"
+    },
+    "conformance-confirmed": {
+      "value": 1
+    },
+    "adversarial-confirmed": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0133-host-free-tests/adversarial.md"
+    },
+    "conformance-refuted": {
+      "value": 2
+    },
+    "adversarial-refuted": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0133-host-free-tests/adversarial.md"
+    },
+    "conformance-tokens-per-confirmed": {
+      "value": 315275
+    },
+    "adversarial-tokens-per-confirmed": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0133-host-free-tests/adversarial.md"
+    },
+    "escapes": {
+      "status": "unavailable",
+      "why": "no ## Refuted in 0133-host-free-tests/adversarial.md"
+    },
+    "debt-added": {
+      "value": 0
+    },
+    "debt-paid": {
+      "value": 0
+    }
+  }
+}
