@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin tests spell each home-folder path by hand — the kept files and their digest, the queue's lock and `supervised/`,
   the scratch prefix, each host's skills folder, the cuts the viewer watches, the config, data and Codex fallbacks
   and the live checkout — before the paths move into one module (0135-home-layout, phase 1).
+- `skills/mflib/layout.py` names the home folder's paths too: the kept folder and its digest, each file and queue
+  folder under it, the pin's files, the config, data and state roots, the skills folders and the Codex and Claude
+  homes. Nothing calls them yet (0135-home-layout, phase 2).
 
 ## [0.106.0] - 2026-11-17
 

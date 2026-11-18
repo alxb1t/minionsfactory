@@ -5,7 +5,7 @@ The phases: pin the home's names on today's code, give them one module, move the
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The conductor and the pin · hard
 - [ ] 4 — The readers · moderate
 - [ ] 5 — The rule and the record · hard
@@ -39,19 +39,19 @@ Each case runs green on today's code and is seen red once under the change it na
 
 The home half lands in `skills/mflib/layout.py` and nothing calls it yet ([D1](design.md#d1)). Each public name has a one-line docstring that keeps the `Why:` of the def it replaces.
 
-- [ ] 2.1 In `skills/mflib/layout.py` make the module docstring say it names the run directory's paths and the home folder's, and that it reads `HOME` and the environment when asked ([D9](design.md#d9)). Add `import hashlib`, `KEPT_ORIGINS`, `kept_dir`, `digest`, `kept_file`, `released_dir`, `default_file` and `pushed_file` of [D2](design.md#d2).
+- [x] 2.1 In `skills/mflib/layout.py` make the module docstring say it names the run directory's paths and the home folder's, and that it reads `HOME` and the environment when asked ([D9](design.md#d9)). Add `import hashlib`, `KEPT_ORIGINS`, `kept_dir`, `digest`, `kept_file`, `released_dir`, `default_file` and `pushed_file` of [D2](design.md#d2).
   Verify: `git grep -n -e "^def digest" -e "^def kept_file" -e "^def pushed_file" -e "^KEPT_ORIGINS" -- skills/mflib/layout.py` prints each of them.
-- [ ] 2.2 In `skills/mflib/layout.py` add `queue_dir`, `queue_lock`, `queue_cuts`, `queue_rejoin`, `queue_briefs` and `queue_supervised`, then `gate_approval`, `live_dir`, `live_mark`, `repos_file` and `probe_mark`, as [D2](design.md#d2) gives them.
+- [x] 2.2 In `skills/mflib/layout.py` add `queue_dir`, `queue_lock`, `queue_cuts`, `queue_rejoin`, `queue_briefs` and `queue_supervised`, then `gate_approval`, `live_dir`, `live_mark`, `repos_file` and `probe_mark`, as [D2](design.md#d2) gives them.
   Verify: `git grep -n -e "^def queue_dir" -e "^def queue_supervised" -e "^def gate_approval" -e "^def probe_mark" -- skills/mflib/layout.py` prints each of them.
-- [ ] 2.3 In `skills/mflib/layout.py` add `SCRATCH_PREFIX`, `scratch_parent`, `pin_source`, `pin_pending`, `pin_hold` and `pin_checkout`, then `config_dir`, `ship_file`, `review_metrics_file`, `ui_file`, `data_dir` and `state_dir`. Each variable reads empty as unset ([D1](design.md#d1)).
+- [x] 2.3 In `skills/mflib/layout.py` add `SCRATCH_PREFIX`, `scratch_parent`, `pin_source`, `pin_pending`, `pin_hold` and `pin_checkout`, then `config_dir`, `ship_file`, `review_metrics_file`, `ui_file`, `data_dir` and `state_dir`. Each variable reads empty as unset ([D1](design.md#d1)).
   Verify: `git grep -n -e "^SCRATCH_PREFIX" -e "^def pin_checkout" -e "^def config_dir" -e "^def state_dir" -- skills/mflib/layout.py` prints each of them.
-- [ ] 2.4 In `skills/mflib/layout.py` add `SKILLS`, `skills_dir`, `codex_home` and `claude_home`, as [D2](design.md#d2) gives them.
+- [x] 2.4 In `skills/mflib/layout.py` add `SKILLS`, `skills_dir`, `codex_home` and `claude_home`, as [D2](design.md#d2) gives them.
   Verify: `git grep -n -e "^SKILLS" -e "^def skills_dir" -e "^def codex_home" -e "^def claude_home" -- skills/mflib/layout.py` prints each of them.
-- [ ] 2.5 In `tests/test_layout.py` add `test_a_kept_name_is_its_spelled_path`, parametrised over `kept_dir`, `kept_file`, `released_dir`, `default_file`, `pushed_file`, the `queue_*` names, `gate_approval`, `live_dir`, `live_mark`, `repos_file`, `probe_mark` and the `pin_*` names, each against `~/.mf-ship-origin/...` spelled by hand. Add `test_a_linked_path_has_the_primarys_digest`.
+- [x] 2.5 In `tests/test_layout.py` add `test_a_kept_name_is_its_spelled_path`, parametrised over `kept_dir`, `kept_file`, `released_dir`, `default_file`, `pushed_file`, the `queue_*` names, `gate_approval`, `live_dir`, `live_mark`, `repos_file`, `probe_mark` and the `pin_*` names, each against `~/.mf-ship-origin/...` spelled by hand. Add `test_a_linked_path_has_the_primarys_digest`.
   Verify: `uv run pytest tests/test_layout.py -q -k "a_kept_name_is_its_spelled_path or a_linked_path_has_the_primarys_digest"` exits 0.
-- [ ] 2.6 In `tests/test_layout.py` add `test_a_root_follows_its_variable`, parametrised over the config files, `data_dir`, `state_dir`, `codex_home`, `claude_home`, `skills_dir` and `scratch_parent`: each against its hand-spelled path with the variable unset and set, and its answer changes when `HOME` or the variable changes between calls. The state root's case sets `XDG_STATE_HOME` itself.
+- [x] 2.6 In `tests/test_layout.py` add `test_a_root_follows_its_variable`, parametrised over the config files, `data_dir`, `state_dir`, `codex_home`, `claude_home`, `skills_dir` and `scratch_parent`: each against its hand-spelled path with the variable unset and set, and its answer changes when `HOME` or the variable changes between calls. The state root's case sets `XDG_STATE_HOME` itself.
   Verify: `uv run pytest tests/test_layout.py -q -k a_root_follows_its_variable` exits 0.
-- [ ] 2.7 In `tests/test_layout.py` add `test_an_empty_variable_reads_as_unset`: each of `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `CODEX_HOME` and `CLAUDE_CONFIG_DIR` set to `""` gives the fallback path.
+- [x] 2.7 In `tests/test_layout.py` add `test_an_empty_variable_reads_as_unset`: each of `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `CODEX_HOME` and `CLAUDE_CONFIG_DIR` set to `""` gives the fallback path.
   Verify: `uv run pytest tests/test_layout.py -q -k an_empty_variable_reads_as_unset` exits 0.
 
 ## 3 — The conductor and the pin
