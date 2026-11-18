@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.107
 ---
 
 # Home layout

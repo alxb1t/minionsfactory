@@ -5297,7 +5297,7 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 
 ### Requirement: The gate holds the structure rules
 
-`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `bwrap`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists and in the port, `skills/mflib/platform.py`. No string constant outside `skills/mflib/layout.py` SHALL equal `.minions` or `.mf-ship-origin`, or start with `.minions/`, unless the test lists the file and the name. A script that loads the shared home SHALL load it after the seed line its folder fixes: the same line in each script under `skills/`, and under `scripts/` the one that reaches `skills/` from the file's depth. Every Python file under `skills/` SHALL match a path glob of the threat model's `## Surfaces`. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. The rules for loads, names, cycles, OS commands and state paths SHALL each carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
+`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `bwrap`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists and in the port, `skills/mflib/platform.py`. No string constant outside `skills/mflib/layout.py` SHALL equal `.minions` or start with `.minions/`, unless the test lists the file and the name. No string constant outside `skills/mflib/layout.py` SHALL contain `.mf-ship-origin` or equal `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`, and the test SHALL list no such site. A script that loads the shared home SHALL load it after the seed line its folder fixes: the same line in each script under `skills/`, and under `scripts/` the one that reaches `skills/` from the file's depth. Every Python file under `skills/` SHALL match a path glob of the threat model's `## Surfaces`. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. The rules for loads, names, cycles, OS commands and state paths SHALL each carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
 
 #### Scenario: A load the map does not declare
 - **WHEN** a script names a file of another station that its row in `docs/modules.md` does not list
@@ -5324,6 +5324,18 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 #### Scenario: A state path joined outside the layout module
 - **WHEN** a script outside `skills/mflib/layout.py` holds a string constant equal to `.minions`, or one that starts with `.minions/`, and the file is on no exception list
 - **THEN** the state-path rule fails naming the file and the name
+- **AND WHEN** `skills/mflib/layout.py` holds it
+- **THEN** the rule passes
+
+#### Scenario: The home folder's name outside the layout module
+- **WHEN** a script outside `skills/mflib/layout.py` holds a string constant that contains `.mf-ship-origin`
+- **THEN** the state-path rule fails naming the file and the name, whatever the test lists
+- **AND WHEN** `skills/mflib/layout.py` holds it
+- **THEN** the rule passes
+
+#### Scenario: An XDG variable's name outside the layout module
+- **WHEN** a script outside `skills/mflib/layout.py` holds a string constant equal to `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`
+- **THEN** the state-path rule fails naming the file and the name, whatever the test lists
 - **AND WHEN** `skills/mflib/layout.py` holds it
 - **THEN** the rule passes
 
