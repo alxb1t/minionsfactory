@@ -24,8 +24,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
 
-HOSTS = (".claude/skills", ".agents/skills")
-KEPT = ".mf-ship-origin"
 CONDUCT = Path(__file__).resolve().with_name("conduct.py")
 TAG = re.compile(r"v(\d+)\.(\d+)\.(\d+)")
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
@@ -45,26 +43,13 @@ def _conduct() -> dict[str, Any]:
     return runpy.run_path(str(CONDUCT))
 
 
-def data() -> Path:
-    """Return the data folder every release is exported into."""
-    base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-    return Path(base) / "minionsfactory"
-
-
-def _kept(name: str) -> Path:
-    """Return the file `name` in the conductor's folder in the home folder."""
-    return Path.home() / KEPT / name
-
-
-def _read(name: str) -> str | None:
-    """Return what the kept file `name` holds, or None when it is absent."""
-    file = _kept(name)
+def _read(file: Path) -> str | None:
+    """Return what the kept file holds, or None when it is absent."""
     return file.read_text().strip() if file.is_file() else None
 
 
-def _write(name: str, text: str | None) -> None:
-    """Write `text` to the kept file `name`; None removes it."""
-    file = _kept(name)
+def _write(file: Path, text: str | None) -> None:
+    """Write `text` to the kept file; None removes it."""
     if text is None:
         file.unlink(missing_ok=True)
         return
@@ -91,7 +76,7 @@ def holder(mark: Path) -> int | None:
 
 def live(mine: Path | None = None) -> list[str]:
     """Return the live marks standing, `mine` aside; one whose pid is gone is none."""
-    folder = _kept("live")
+    folder = mflib.layout.live_dir()
     marks = sorted(folder.iterdir()) if folder.is_dir() else []
     return [mark.name for mark in marks if mark != mine and holder(mark)]
 
@@ -187,10 +172,12 @@ def _export(repo: Path, tag: str) -> Path:
     The tree's root holds `VERSION`, naming the tag. e.g. "v0.55.0" →
     `<data>/v0.55.0/skills`
     """
-    root = data() / tag
+    root = mflib.layout.data_dir() / tag
     if not root.is_dir():
-        data().mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=data(), prefix=f".{tag}-") as scratch:
+        mflib.layout.data_dir().mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(
+            dir=mflib.layout.data_dir(), prefix=f".{tag}-"
+        ) as scratch:
             archive = Path(scratch) / "skills.tar"
             ref = f"refs/tags/{tag}"
             done = _git(
@@ -212,8 +199,8 @@ def _fetch(url: str, tag: str) -> Path:
     The clone shares no object with any local repo, so nothing planted there reaches
     the export.
     """
-    if (data() / tag).is_dir():
-        return data() / tag / "skills"
+    if (mflib.layout.data_dir() / tag).is_dir():
+        return mflib.layout.data_dir() / tag / "skills"
     with _scratch() as scratch:
         clone = scratch / "clone"
         done = _remote(
@@ -235,12 +222,13 @@ def _link(skills: Path) -> None:
     names = sorted(skill.name for skill in skills.glob("mf-*") if skill.is_dir())
     if not names:
         raise Refused(f"{skills} holds no mf-* skill")
-    for host in HOSTS:
+    for executor, host in mflib.layout.SKILLS.items():
         for name in names:
-            if (dest := Path.home() / host / name).exists() and not dest.is_symlink():
+            dest = mflib.layout.skills_dir(executor) / name
+            if dest.exists() and not dest.is_symlink():
                 raise Refused(f"~/{host}/{name} exists and is not a link")
-    for host in HOSTS:
-        folder = Path.home() / host
+    for executor in mflib.layout.SKILLS:
+        folder = mflib.layout.skills_dir(executor)
         folder.mkdir(parents=True, exist_ok=True)
         for name in names:
             temp = folder / f".{name}.pin-{os.getpid()}"
@@ -258,8 +246,8 @@ def trees() -> dict[Path, list[str]]:
     e.g. {Path("<data>/v0.55.0/skills"): ["~/.claude/skills/mf-build", …]}
     """
     found: dict[Path, list[str]] = {}
-    for host in HOSTS:
-        for link in sorted((Path.home() / host).glob("mf-*")):
+    for executor, host in mflib.layout.SKILLS.items():
+        for link in sorted(mflib.layout.skills_dir(executor).glob("mf-*")):
             if link.is_symlink():
                 links = found.setdefault(link.resolve().parent, [])
                 links.append(f"~/{host}/{link.name}")
@@ -300,10 +288,10 @@ def describe() -> str:
             # No `--dirty`: its index refresh runs a clean filter the checkout names.
             done = _git(root, "describe", "--tags", "--always")
             parts.append(f"mf live {done.stdout.strip() or 'unknown'}")
-    source = _read("source")
-    if pending := _read("pending"):
+    source = _read(mflib.layout.pin_source())
+    if pending := _read(mflib.layout.pin_pending()):
         parts.append(f"pending {pending}")
-    elif source and not _read("hold"):
+    elif source and not _read(mflib.layout.pin_hold()):
         try:
             if skipped := _skipped(Path(source), _linked(), None):
                 parts.append(f"skipped {skipped}: not on origin")
@@ -318,16 +306,16 @@ def move(mine: Path | None = None) -> str | None:
     Nothing moves without `source`, while a run other than `mine` is live, or under a
     hold for a newer tag; `origin` that cannot be read moves nothing.
     """
-    source = _read("source")
+    source = _read(mflib.layout.pin_source())
     if source is None or live(mine):
         return None
     try:
-        target = _read("pending")
+        target = _read(mflib.layout.pin_pending())
         if target == "live":
-            skills = Path(_read("checkout") or source) / "skills"
+            skills = Path(_read(mflib.layout.pin_checkout()) or source) / "skills"
         elif target:
-            skills = data() / target / "skills"
-        elif _read("hold") or not (url := _origin(Path(source))):
+            skills = mflib.layout.data_dir() / target / "skills"
+        elif _read(mflib.layout.pin_hold()) or not (url := _origin(Path(source))):
             return None
         else:
             linked = _linked()
@@ -338,7 +326,7 @@ def move(mine: Path | None = None) -> str | None:
         if live(mine):
             return None
         _link(skills)
-        _write("pending", None)
+        _write(mflib.layout.pin_pending(), None)
     except (Refused, *FAILURES) as error:
         return f"pin: cannot move — {error}"
     return f"pin: moved to {target}"
@@ -352,7 +340,7 @@ def install(cwd: Path, release: str | None) -> str:
     checkout = Path(_out(cwd, "rev-parse", "--show-toplevel")).resolve()
     common = _out(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
     primary = mflib.layout.primary_of(Path(common).resolve())
-    _write("source", str(primary))
+    _write(mflib.layout.pin_source(), str(primary))
     skipped = None
     if release is None:
         if not (url := _origin(primary)):
@@ -362,22 +350,22 @@ def install(cwd: Path, release: str | None) -> str:
         if not (target := _newest(held)):
             raise Refused("origin holds no version tag")
         skills = _fetch(url, target)
-        _write("hold", None)
+        _write(mflib.layout.pin_hold(), None)
         skipped = _skipped(primary, target, held)
     elif release == "live":
         target, skills = release, checkout / "skills"
-        _write("hold", release)
-        _write("checkout", str(checkout))
+        _write(mflib.layout.pin_hold(), release)
+        _write(mflib.layout.pin_checkout(), str(checkout))
     elif _version(release):
         target, skills = release, _export(checkout, release)
-        _write("hold", release)
+        _write(mflib.layout.pin_hold(), release)
     else:
         raise Refused(f"{release} is not a version tag or live")
     if live():
-        _write("pending", target)
+        _write(mflib.layout.pin_pending(), target)
         return f"pin: pending {target} — a run is live"
     _link(skills)
-    _write("pending", None)
+    _write(mflib.layout.pin_pending(), None)
     note = f" · skipped {skipped}: not on origin" if skipped else ""
     return f"pin: linked {target}{note}"
 
@@ -388,10 +376,10 @@ def uninstall(cwd: Path) -> list[str]:
     Return the links removed; a link elsewhere, and anything not a link, stays.
     """
     checkout = Path(_out(cwd, "rev-parse", "--show-toplevel")).resolve()
-    roots = (data().resolve(), checkout)
+    roots = (mflib.layout.data_dir().resolve(), checkout)
     removed = []
-    for host in HOSTS:
-        for link in sorted((Path.home() / host).glob("mf-*")):
+    for executor, host in mflib.layout.SKILLS.items():
+        for link in sorted(mflib.layout.skills_dir(executor).glob("mf-*")):
             target = link.resolve()
             if link.is_symlink() and any(target.is_relative_to(r) for r in roots):
                 link.unlink()

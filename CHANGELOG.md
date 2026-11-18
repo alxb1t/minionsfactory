@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.107.0] - 2026-11-18
+
+Gate: local 5m23s · CI not read under mf-ship · 0.106.0: local 4m58s · CI not read under mf-ship
+
+- Pin tests spell each home-folder path by hand — the kept files and their digest, the queue's lock and `supervised/`,
+  the scratch prefix, each host's skills folder, the cuts the viewer watches, the config, data and Codex fallbacks
+  and the live checkout — before the paths move into one module (0135-home-layout, phase 1).
+- `skills/mflib/layout.py` names the home folder's paths too: the kept folder and its digest, each file and queue
+  folder under it, the pin's files, the config, data and state roots, the skills folders and the Codex and Claude
+  homes. Nothing calls them yet (0135-home-layout, phase 2).
+- `conduct.py` and `pin.py` take every home path from `skills/mflib/layout.py`, so neither builds the kept folder,
+  an XDG root or a skills folder by hand; their `.mf-ship-origin` pairs leave `LAYOUT_SITES` (0135-home-layout,
+  phase 3).
+- `gate_check.py`, the viewer and `review_metrics.py` take their home paths from `skills/mflib/layout.py`, and the
+  conductor's `_queue` goes; their `.mf-ship-origin` pairs leave `LAYOUT_SITES`, the viewer's `_queue` pair
+  `PRIVATE_REACH` (0135-home-layout, phase 4).
+- The sixth structure rule refuses a string constant outside `skills/mflib/layout.py` that contains `.mf-ship-origin`
+  or equals an XDG variable's name, whatever `LAYOUT_SITES` lists, so no script spells a home path again. The
+  principles, threat model, module map and recipes name the home half (0135-home-layout, phase 5).
+
 ## [0.106.0] - 2026-11-17
 
 Gate: local 4m58s · CI not read under mf-ship · 0.105.1: local 5m16s · CI not read under mf-ship

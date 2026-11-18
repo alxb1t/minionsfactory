@@ -24,8 +24,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
 
 TIMEOUT_SECONDS = 300
-# `conduct.py`'s `KEPT_ORIGINS`: the person's records, in the home folder.
-KEPT = ".mf-ship-origin"
 # A make that runs this script passes its flags down, `-i` or `-q` among them.
 CLEARED = ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")
 # `gate_makefiles` parses make's English `Reading makefile` and directory lines.
@@ -101,11 +99,10 @@ def exports(change: str) -> Path:
 def approval(change: str) -> str | None:
     """Return the hash a person approved for the change, kept in the home folder.
 
-    The folder is `conduct.py`'s, named as its `_digest` names the primary; no worker
-    writes there. Why: 0060-gate-planning design D4.
+    The folder is `conduct.py`'s, named as `digest` of the shared home names the
+    primary; no worker writes there. Why: 0060-gate-planning design D4.
     """
-    digest = hashlib.sha256(str(_primary().resolve()).encode()).hexdigest()[:16]
-    entry = Path.home() / KEPT / f"{digest}.gate" / change
+    entry = mflib.layout.gate_approval(_primary(), change)
     try:
         return entry.read_text().partition("\n")[0]
     except OSError:

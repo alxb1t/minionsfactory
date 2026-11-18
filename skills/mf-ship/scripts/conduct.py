@@ -180,14 +180,12 @@ NON_SECURITY = (
 SMALL = ("one line", "a test", "one line and a test")
 CARD = re.compile(r"^- \*\*([^\s*]+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
-SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 SKILLS_DIR = Path(__file__).resolve().parents[2]
 # The longest one script's environment takes to build. Why: 0112-uv-race design D2.
 SYNC_SECONDS = 600
 STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
-KEPT_ORIGINS = ".mf-ship-origin"
 SCANNER = "betterleaks"
 LEAKED = 3
 SSH_COMMAND = "ssh -o ConnectTimeout=15 -o BatchMode=yes"
@@ -458,7 +456,10 @@ def primary_of(cwd: Path) -> Path:
             f" run it as uv run --script {Path(__file__)}",
         )
     primary = mflib.layout.primary_of(Path(done.stdout.strip()).resolve())
-    if not cwd.resolve().is_relative_to(primary) and not _kept_file(primary).is_file():
+    if (
+        not cwd.resolve().is_relative_to(primary)
+        and not mflib.layout.kept_file(primary).is_file()
+    ):
         raise Stop(
             1,
             "conduct: halt — git names a repo outside this folder, and no run kept its"
@@ -1774,31 +1775,9 @@ def _urls(primary: Path) -> Urls:
     return fetch.splitlines(), push.splitlines()
 
 
-def _kept_file(primary: Path) -> Path:
-    """Return the file holding the URLs a run kept for `primary`, in the home folder.
-
-    No worker can write there, and a repo's config lasts past the run that wrote it.
-    Why: 0052-security-hardening design D9.
-    """
-    return Path.home() / KEPT_ORIGINS / _digest(primary)
-
-
-def _digest(primary: Path) -> str:
-    """Return the name `primary`'s files take in the home folder, from its path."""
-    return hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
-
-
-def _ledger(primary: Path) -> Path:
-    """Return the release ledger's folder: one file per change, holding its head.
-
-    Why: 0053-sandbox-patch design D2.
-    """
-    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.released"
-
-
 def _record_release(primary: Path, change: str, head: str) -> None:
     """Record `head` as the change's in the release ledger, over an older entry."""
-    folder = _ledger(primary)
+    folder = mflib.layout.released_dir(primary)
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     entry = folder / change
     entry.unlink(missing_ok=True)
@@ -1809,7 +1788,7 @@ def _record_release(primary: Path, change: str, head: str) -> None:
 
 def _ledger_entries(primary: Path) -> list[Path]:
     """Return the release ledger's entry files."""
-    folder = _ledger(primary)
+    folder = mflib.layout.released_dir(primary)
     return list(folder.iterdir()) if folder.is_dir() else []
 
 
@@ -1832,7 +1811,7 @@ def _close_releases(primary: Path, base: str) -> None:
 
 def _kept_origin(primary: Path) -> Urls | None:
     """Return the URLs a run kept for `primary`, or None before its first."""
-    file = _kept_file(primary)
+    file = mflib.layout.kept_file(primary)
     if not file.is_file():
         return None
     fetch, push = json.loads(file.read_text())
@@ -1844,7 +1823,7 @@ def _keep_origin(primary: Path) -> str | None:
 
     Why: 0053-sandbox-patch design D2.
     """
-    file = _kept_file(primary)
+    file = mflib.layout.kept_file(primary)
     urls = _urls(primary)
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
     try:
@@ -1856,7 +1835,7 @@ def _keep_origin(primary: Path) -> str | None:
     except OSError as error:
         return error.strerror or type(error).__name__
     fetch = (_kept_origin(primary) or ([], []))[0]
-    named = _default_file(primary)
+    named = mflib.layout.default_file(primary)
     try:
         name = _origin_head(primary, fetch[0]) if fetch and not named.exists() else None
         if name is not None:
@@ -1869,23 +1848,10 @@ def _keep_origin(primary: Path) -> str | None:
     return None
 
 
-def _default_file(primary: Path) -> Path:
-    """Return the file holding the default branch's name a run kept for `primary`."""
-    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.default"
-
-
 def _kept_default(primary: Path) -> str:
     """Return the default branch's name a run kept, else the one git names."""
-    named = _default_file(primary)
+    named = mflib.layout.default_file(primary)
     return named.read_text() if named.is_file() else default_branch(primary)
-
-
-def _pushed_file(primary: Path) -> Path:
-    """Return the offline base's file: the default branch's sha origin last listed.
-
-    Why: 0062-offline-origin design D1.
-    """
-    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.pushed"
 
 
 def _keep_base(primary: Path, sha: str) -> str | None:
@@ -1894,7 +1860,7 @@ def _keep_base(primary: Path, sha: str) -> str | None:
     Owner-only, through a temp file and `os.replace`. Where the home folder refuses
     it, this process is itself in a sandbox, and nothing is kept.
     """
-    file = _pushed_file(primary)
+    file = mflib.layout.pushed_file(primary)
     try:
         file.parent.mkdir(mode=0o700, exist_ok=True)
         fd, temp = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}-")
@@ -1908,7 +1874,7 @@ def _keep_base(primary: Path, sha: str) -> str | None:
 
 def _offline_base(primary: Path) -> str | None:
     """Return the offline base's sha, or None when none stands."""
-    file = _pushed_file(primary)
+    file = mflib.layout.pushed_file(primary)
     if not file.is_file():
         return None
     return file.read_text().strip() or None
@@ -1935,10 +1901,12 @@ def _push_default(primary: Path, url: str) -> str:
     Why: 0053-sandbox-patch design D2.
     """
     name = _origin_head(primary, url)
-    file = _default_file(primary)
+    file = mflib.layout.default_file(primary)
     kept = file.read_text() if file.is_file() else None
     if kept is not None and name != kept:
-        remedy = f"a person decides, then removes ~/{KEPT_ORIGINS}/{file.name}"
+        remedy = (
+            f"a person decides, then removes ~/{mflib.layout.KEPT_ORIGINS}/{file.name}"
+        )
         raise Stop(
             1,
             f"conduct: halt — origin's HEAD names {name or 'no branch'}, and the run"
@@ -1962,7 +1930,8 @@ def _refuse_origin(primary: Path) -> Urls:
             1,
             "conduct: halt — the repo's git config points origin away from the URLs a"
             " run kept: read `git remote -v`, then repoint it, or remove"
-            f" ~/{KEPT_ORIGINS}/{_kept_file(primary).name} to keep what it reads now",
+            f" ~/{mflib.layout.KEPT_ORIGINS}/{mflib.layout.kept_file(primary).name}"
+            " to keep what it reads now",
         )
     if os.environ.get("MF_SHIP_AGENT"):
         return fetch, push
@@ -1982,7 +1951,7 @@ def _read_url(primary: Path, first_read: bool) -> str | None:
     Why: 0052-security-hardening design D9.
     """
     fetch, _ = _refuse_origin(primary)
-    readable = first_read or _kept_file(primary).is_file()
+    readable = first_read or mflib.layout.kept_file(primary).is_file()
     return fetch[0] if fetch and readable else None
 
 
@@ -1992,9 +1961,11 @@ def _scratch() -> tempfile.TemporaryDirectory[str]:
     Where the home folder refuses it, this process is itself in a sandbox, and the
     temp folder serves.
     """
-    prefix = ".mf-ship-remote-"
+    prefix = mflib.layout.SCRATCH_PREFIX
     try:
-        return tempfile.TemporaryDirectory(dir=Path.home(), prefix=prefix)
+        return tempfile.TemporaryDirectory(
+            dir=mflib.layout.scratch_parent(), prefix=prefix
+        )
     except OSError:
         return tempfile.TemporaryDirectory(prefix=prefix)
 
@@ -2401,7 +2372,7 @@ def _unread(primary: Path) -> bool:
     """
     return (
         "origin" in _git(primary, "remote").split()
-        and not _kept_file(primary).is_file()
+        and not mflib.layout.kept_file(primary).is_file()
         and any(
             TAG.fullmatch(tag)
             for tag in _git(primary, "tag", "--merged", default_branch(primary)).split()
@@ -3278,9 +3249,10 @@ def _plugins_off() -> dict[str, bool]:
     User settings merge under `--settings`, so a plugin is off only by name; a file
     it cannot read names none. Why: 0100-worker-diet design D2.
     """
-    folder = os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
     try:
-        settings = json.loads((Path(folder) / "settings.json").read_text())
+        settings = json.loads(
+            (mflib.layout.claude_home() / "settings.json").read_text()
+        )
     except (OSError, ValueError):
         return {}
     plugins = settings.get("enabledPlugins") if isinstance(settings, dict) else None
@@ -3962,11 +3934,6 @@ class Window(NamedTuple):
     resets: float
 
 
-def _codex_home() -> Path:
-    """Return Codex's home folder: `CODEX_HOME`, else `~/.codex`."""
-    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-
-
 def _thread_id(log: Path) -> str | None:
     """Return the first `thread.started` event's `thread_id`, or None if not a token.
 
@@ -3999,7 +3966,7 @@ def _rollout(thread: str | None) -> Path | None:
     )
     files = [
         path
-        for path in (_codex_home() / "sessions").glob(pattern)
+        for path in (mflib.layout.codex_home() / "sessions").glob(pattern)
         if path.is_file() and not path.is_symlink()
     ]
     return max(files, key=os.path.getmtime, default=None)
@@ -4336,7 +4303,7 @@ def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
 
     Why: 0068-pinned-release design D2.
     """
-    mark = Path.home() / KEPT_ORIGINS / "live" / _digest(primary)
+    mark = mflib.layout.live_mark(primary)
     if pin["holder"](mark) not in (None, os.getpid(), os.getppid()):
         return None
     try:
@@ -4354,7 +4321,7 @@ def _record_repo(primary: Path) -> None:
     The review metrics read it; no worker writes there. A home folder that refuses
     it records nothing. Why: 0100-worker-diet design C1, D12.
     """
-    path = Path.home() / KEPT_ORIGINS / "repos"
+    path = mflib.layout.repos_file()
     line = str(primary.resolve())
     try:
         path.parent.mkdir(mode=0o700, exist_ok=True)
@@ -4382,7 +4349,7 @@ def _unlinked(executor: str) -> None:
     if os.environ.get("MF_SHIP_AGENT"):
         return
     here = Path(__file__).resolve().parents[1].parent
-    linked = Path.home() / SKILLS[executor]
+    linked = mflib.layout.skills_dir(executor)
     for skill in sorted(here.glob("mf-*")):
         if skill.is_dir() and not (linked / skill.name).exists():
             raise Stop(
@@ -4499,7 +4466,7 @@ class Run:
         self.runs = mflib.layout.runs_dir(primary)
         # Where each worker's group is held; a converge by hand holds none.
         self.claim: Path | None = mflib.layout.claim_file(primary)
-        self.queue = _queue(primary)
+        self.queue = mflib.layout.queue_dir(primary)
         # The queued cuts the run read; None until `ship` reads the queue.
         self.seen: set[str] | None = None
         # The most versions at a station a queued cut waits for; None for no cap.
@@ -5140,7 +5107,7 @@ class Run:
         start = _opened(self.primary, tree, change) if integrating else None
         if start is not None:
             with _queue_lock(self.primary):
-                folder = _queue(self.primary) / "supervised"
+                folder = mflib.layout.queue_supervised(self.primary)
                 folder.mkdir(mode=0o700, exist_ok=True)
                 (folder / change).write_text(f"{start.merge}\n")
         before = start.head if start else _git(tree, "rev-parse", "HEAD").strip()
@@ -6065,12 +6032,12 @@ class Run:
                 why += f" · needs {change} {_cut_answer(change, entry['brief'])}"
             return why, False
         with _queue_lock(primary):
-            folder = _queue(primary) / "briefs"
+            folder = mflib.layout.queue_briefs(primary)
             folder.mkdir(mode=0o700, exist_ok=True)
             (folder / change).write_text(f"{entry['brief']}\n")
             # The entry goes last, so a reservation that cannot go keeps it to halt.
             _remove_in(mflib.layout.run_dir(primary), "cuts", name=change)
-            (_queue(primary) / "cuts" / change).unlink()
+            (mflib.layout.queue_cuts(primary) / change).unlink()
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
         return None
@@ -6500,7 +6467,7 @@ class Run:
             self.halt(who, f"{station} — {stop}")
             return
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-probe-")).resolve()
-        mark = Path.home() / KEPT_ORIGINS / f"probe-{executor}-{os.getpid()}"
+        mark = mflib.layout.probe_mark(executor, os.getpid())
         try:
             try:
                 mark.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -7088,7 +7055,7 @@ def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) ->
                 entry["halt"] is None and change not in seen
                 for change, entry in _cuts(primary).items()
             )
-            if not (unread or _requested(_queue(primary))):
+            if not (unread or _requested(mflib.layout.queue_dir(primary))):
                 return
             pid = _start_run(primary, executor)
     except Stop as stop:
@@ -7134,22 +7101,12 @@ def _log_stop(runs: Path) -> Path | None:
     return log
 
 
-def _queue(primary: Path) -> Path:
-    """Return the repo's queue in the home folder, where no worker writes.
-
-    e.g. `~/.mf-ship-origin/<digest>.queue`. Why: 0082-cut-station design D2.
-    """
-    return Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.queue"
-
-
 def _ship_file() -> tuple[Path, dict[str, Any]]:
     """Return the operator's `ship.toml` path and its data, empty for no file.
 
     e.g. `~/.config/minionsfactory/ship.toml`. Why: 0132-cloud-run design D1.
     """
-    base = os.environ.get("XDG_CONFIG_HOME")
-    config = Path(base) if base else Path.home() / ".config"
-    path = config / "minionsfactory" / "ship.toml"
+    path = mflib.layout.ship_file()
     try:
         return path, tomllib.loads(path.read_text())
     except FileNotFoundError:
@@ -7195,7 +7152,7 @@ def _brief_of(primary: Path, change: str) -> str | None:
     hand has none. Why: 0090-supervisor-merge design D1.
     """
     try:
-        named = (_queue(primary) / "briefs" / change).read_text().strip()
+        named = (mflib.layout.queue_briefs(primary) / change).read_text().strip()
     except (OSError, UnicodeDecodeError):
         return None
     return named if named and Path(named).is_file() else None
@@ -7208,7 +7165,8 @@ def _merge_tried(primary: Path, change: str, merge: str) -> bool:
     across runs. Why: 0090-supervisor-merge design D2.
     """
     try:
-        return (_queue(primary) / "supervised" / change).read_text().strip() == merge
+        record = mflib.layout.queue_supervised(primary) / change
+        return record.read_text().strip() == merge
     except (OSError, UnicodeDecodeError):
         return False
 
@@ -7229,11 +7187,11 @@ def _queue_lock(primary: Path) -> Iterator[None]:
 
     Why: 0082-cut-station design D2.
     """
-    queue = _queue(primary)
+    lock = mflib.layout.queue_lock(primary)
     try:
-        for folder in (queue.parent, queue):
+        for folder in (lock.parent.parent, lock.parent):
             folder.mkdir(mode=0o700, exist_ok=True)
-        fd = os.open(queue / "lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     except OSError as error:
         raise Stop(
             2,
@@ -7253,7 +7211,7 @@ def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     An entry that is no JSON object, or lacks one of `CUT_KEYS`, holds only its halt.
     e.g. {"0003-a": {"bump": "minor", …, "halt": None}}
     """
-    folder = _queue(primary) / "cuts"
+    folder = mflib.layout.queue_cuts(primary)
     found: dict[str, dict[str, Any]] = {}
     for name in _entries(folder, empty=False):
         if not CHANGE_ID.fullmatch(name):
@@ -7739,7 +7697,7 @@ def _write_models(primary: Path, change: str, text: str) -> None:
 
 def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
     """Write a queued cut's entry whole: to a temporary name, then moved in."""
-    folder = _queue(primary) / "cuts"
+    folder = mflib.layout.queue_cuts(primary)
     folder.mkdir(mode=0o700, exist_ok=True)
     fd, temp = tempfile.mkstemp(dir=folder, prefix=".")
     with os.fdopen(fd, "w") as file:
@@ -7892,7 +7850,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
         live = _claim(mflib.layout.claim_file(primary)) == "live"
         if change is not None and (entry := _cuts(primary).get(change)) is not None:
             if not entry.keys() >= CUT_KEYS:
-                name = _queue(primary) / "cuts" / change
+                name = mflib.layout.queue_cuts(primary) / change
                 raise Stop(
                     2,
                     f"rejoin: cannot run — the queue entry {name} is unreadable: remove"
@@ -7939,7 +7897,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
 
 def _request(primary: Path, name: str) -> None:
     """Write the rejoin request `name` for the live run, in the home folder's queue."""
-    folder = _queue(primary) / "rejoin"
+    folder = mflib.layout.queue_rejoin(primary)
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     (folder / name).touch()
 
@@ -8017,10 +7975,9 @@ def approve_gate(cwd: Path, change: str, hashed: str) -> str:
         raise Stop(2, f"approve-gate: cannot run — no version worktree holds {change}")
     if not SHA256.fullmatch(hashed):
         raise Stop(1, f"approve-gate: refused — not the hash a halt names: {hashed}")
-    folder = Path.home() / KEPT_ORIGINS / f"{_digest(primary)}.gate"
+    entry = mflib.layout.gate_approval(primary, change)
     try:
-        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-        entry = folder / change
+        entry.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         entry.unlink(missing_ok=True)
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
         with os.fdopen(os.open(entry, flags, 0o600), "w") as file:
@@ -8043,12 +8000,12 @@ def anchor(cwd: Path, yes: str | None) -> str:
     _refuse_config_commands(primary)
     if _claim(mflib.layout.claim_file(primary)) == "live":
         raise Stop(2, "anchor: cannot run — a run is live: .minions/runs/active exists")
-    file = _pushed_file(primary)
+    file = mflib.layout.pushed_file(primary)
     if file.is_file():
         raise Stop(
             2,
             f"anchor: cannot run — an offline base stands:"
-            f" ~/{KEPT_ORIGINS}/{file.name}",
+            f" ~/{mflib.layout.KEPT_ORIGINS}/{file.name}",
         )
     default = _kept_default(primary)
     tracking = f"origin/{default}"

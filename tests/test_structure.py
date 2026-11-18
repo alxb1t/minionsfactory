@@ -47,7 +47,6 @@ PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
         ("viewer.py", "_frontmatter"),
         ("viewer.py", "_maybe"),
         ("viewer.py", "_progress"),
-        ("viewer.py", "_queue"),
         ("viewer.py", "_rating"),
     }
 )
@@ -59,26 +58,23 @@ OS_NAMES: frozenset[tuple[str, str]] = frozenset(
 LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
     {
         ("codebase.py", ".minions/"),
-        ("conduct.py", ".mf-ship-origin"),
         ("conduct.py", ".minions/"),
         ("conformance.py", ".minions"),
         ("converge.py", ".minions"),
         ("converge.py", ".minions/"),
         ("cut_check.py", ".minions/"),
-        ("gate_check.py", ".mf-ship-origin"),
         ("gate_run.py", ".minions/"),
-        ("pin.py", ".mf-ship-origin"),
-        ("review_metrics.py", ".mf-ship-origin"),
         ("stamp.py", ".minions/"),
-        ("viewer.py", ".mf-ship-origin"),
         ("viewer.py", ".minions"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")
 _PORT = "skills/mflib/platform.py"
 _LAYOUT = "skills/mflib/layout.py"
-_STATE = (".minions", ".mf-ship-origin")
+_STATE = ".minions"
 _STATE_PREFIX = ".minions/"
+_KEPT = ".mf-ship-origin"
+_XDG = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME")
 _HOME = "skills/mflib/"
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
 SCRIPTS_SEED = (
@@ -397,9 +393,19 @@ def _state_name(text: str) -> str:
 
     e.g. `".minions/debt.md"` → `".minions/"`, `"no .minions"` → `""`
     """
-    if text in _STATE:
+    if text == _STATE:
         return text
     return _STATE_PREFIX if text.startswith(_STATE_PREFIX) else ""
+
+
+def _home_name(text: str) -> str:
+    """Return the home-folder name the string `text` spells, or `""` for none.
+
+    e.g. `"~/.mf-ship-origin/x"` → `".mf-ship-origin"`, `"XDG_DATA_HOME"` → itself
+    """
+    if _KEPT in text:
+        return _KEPT
+    return text if text in _XDG else ""
 
 
 def check_layout(
@@ -407,18 +413,26 @@ def check_layout(
 ) -> list[str]:
     """Return a breach line for each state name spelled outside `layout.py` — rule 6.
 
-    e.g. `["x.py spells .minions: a state path outside layout.py, not listed in …"]`
-    Why: 0134-run-layout design D8.
+    e.g. `["x.py spells XDG_DATA_HOME: a home-folder name outside layout.py"]`
+    Why: 0134-run-layout design D8; a home name, whatever is listed: 0135 design D7.
     """
-    found = {
-        f"{path.rpartition('/')[2]} spells {name}"
+    spelled = {
+        (path.rpartition("/")[2], text)
         for path, tree in _parse(root).items()
         if path != _LAYOUT
-        for name in map(_state_name, _strings(tree))
-        if name
+        for text in _strings(tree)
     }
-    shown = {f"{file} spells {name}" for file, name in listed}
-    return _against(found, shown, "a state path outside layout.py", "LAYOUT_SITES")
+    home = {
+        f"{file} spells {name}: a home-folder name outside layout.py"
+        for file, text in spelled
+        if (name := _home_name(text))
+    }
+    found = {
+        f"{file} spells {name}" for file, text in spelled if (name := _state_name(text))
+    }
+    shown = {f"{file} spells {name}" for file, name in listed if not _home_name(name)}
+    state = _against(found, shown, "a state path outside layout.py", "LAYOUT_SITES")
+    return sorted(home) + state
 
 
 def _loads_home(node: ast.stmt) -> bool:
@@ -888,13 +902,41 @@ def test_check_layout_holds_on_the_tree() -> None:
     assert check_layout(_REPO) == []
 
 
-@pytest.mark.parametrize("name", [".minions", ".mf-ship-origin"])
+@pytest.mark.parametrize("name", [".minions"])
 def test_check_layout_fails_on_a_planted_constant(tmp_path: Path, name: str) -> None:
     root = _plant(tmp_path, {"scripts/x.py": f'R = "{name}"\n'})
     assert check_layout(root, listed=frozenset()) == [
         f"x.py spells {name}: a state path outside layout.py, "
         "not listed in LAYOUT_SITES"
     ]
+
+
+@pytest.mark.parametrize("text", [".mf-ship-origin", "~/.mf-ship-origin/x"])
+def test_check_layout_fails_on_a_home_folder_name(tmp_path: Path, text: str) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": f'R = "{text}"\n'})
+    assert check_layout(root, listed=frozenset()) == [
+        "x.py spells .mf-ship-origin: a home-folder name outside layout.py"
+    ]
+
+
+@pytest.mark.parametrize("name", ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"])
+def test_check_layout_fails_on_an_xdg_name(tmp_path: Path, name: str) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": f'R = "{name}"\n'})
+    assert check_layout(root, listed=frozenset()) == [
+        f"x.py spells {name}: a home-folder name outside layout.py"
+    ]
+
+
+@pytest.mark.parametrize("name", [".mf-ship-origin", "XDG_DATA_HOME"])
+def test_check_layout_ignores_a_list_for_a_home_name(tmp_path: Path, name: str) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": f'R = "{name}"\n'})
+    assert check_layout(root, listed=frozenset({("x.py", name)})) == [
+        f"x.py spells {name}: a home-folder name outside layout.py"
+    ]
+
+
+def test_layout_sites_name_no_home_folder_name() -> None:
+    assert [pair for pair in LAYOUT_SITES if _home_name(pair[1])] == []
 
 
 def test_check_layout_fails_on_a_planted_prefix(tmp_path: Path) -> None:
@@ -906,7 +948,13 @@ def test_check_layout_fails_on_a_planted_prefix(tmp_path: Path) -> None:
 
 
 def test_check_layout_passes_the_layout_module(tmp_path: Path) -> None:
-    root = _plant(tmp_path, {_LAYOUT: 'M = ".minions"\nD = ".minions/debt.md"\n'})
+    root = _plant(
+        tmp_path,
+        {
+            _LAYOUT: 'M = ".minions"\nD = ".minions/debt.md"\n'
+            'K = ".mf-ship-origin"\nX = "XDG_STATE_HOME"\n'
+        },
+    )
     assert check_layout(root, listed=frozenset()) == []
 
 

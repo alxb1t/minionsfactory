@@ -585,7 +585,7 @@ class Reader:
         for link in (git / "worktrees").glob("*/gitdir"):
             tree = Path((read_part(link) or "").strip()).parent
             paths += tree.glob("openspec/changes/*/tasks.md")
-        paths += (self.conduct["_queue"](self.primary) / "cuts").glob("*")
+        paths += mflib.layout.queue_cuts(self.primary).glob("*")
         stats = sorted(status for status in map(_stat, paths) if status)
         return hashlib.sha256(json.dumps(stats).encode()).hexdigest()
 
@@ -611,23 +611,6 @@ def _refuse(message: str) -> NoReturn:
     """Print a refusal on stderr and exit 2."""
     print(f"viewer: {message}", file=sys.stderr)
     raise SystemExit(2)
-
-
-def config_path() -> Path:
-    """Return `ui.toml` under `$XDG_CONFIG_HOME`, else `~/.config`."""
-    base = os.environ.get("XDG_CONFIG_HOME")
-    return (Path(base) if base else Path.home() / ".config") / "minionsfactory/ui.toml"
-
-
-def state_folder() -> Path:
-    """Return the state folder under `$XDG_STATE_HOME`, else `~/.local/state`."""
-    base = os.environ.get("XDG_STATE_HOME")
-    return (Path(base) if base else Path.home() / ".local/state") / "minionsfactory"
-
-
-def recorded() -> Path:
-    """Return the list of repos a run started in, which `conduct.py run` keeps."""
-    return Path.home() / ".mf-ship-origin" / "repos"
 
 
 def read_config(path: Path) -> tuple[int, list[dict[str, Any]]]:
@@ -870,7 +853,7 @@ def serve(config: Path) -> int:  # pragma: no cover
 
     def poll() -> None:
         while True:
-            entries = projects(recorded(), rows)
+            entries = projects(mflib.layout.repos_file(), rows)
             state.publish(tick(time.monotonic(), entries, memory, read_project))
             time.sleep(POLL)
 
@@ -976,11 +959,13 @@ def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     match args:
         case ["serve"]:
-            return serve(config_path())
+            return serve(mflib.layout.ui_file())
         case ["start"]:
-            return start(state_folder(), config_path(), spawn, run_ps)
+            return start(
+                mflib.layout.state_dir(), mflib.layout.ui_file(), spawn, run_ps
+            )
         case ["stop"]:
-            return stop(state_folder(), run_ps, os.kill)
+            return stop(mflib.layout.state_dir(), run_ps, os.kill)
         case ["project", primary]:
             only = None
         case ["project", primary, "--only", ("liveness" | "fingerprint") as only]:

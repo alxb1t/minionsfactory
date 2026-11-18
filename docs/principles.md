@@ -157,9 +157,17 @@ is done on a commit and a ticked box together; a round number lives in the findi
   ([D82](decisions.md#d82--the-viewer-is-an-operator-tool));
 - `conduct.py`'s record of `origin`'s URLs, in the operator's home folder, where no worker writes — named in no repo
   ([D51](decisions.md#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)) — the offline base beside it,
+  the default branch's name a run kept, `<digest>.default`, the release ledger, `<digest>.released`,
   the list of repos a run started in, `repos`, the
-  default-branch sha a run last saw on `origin`, a person's gate approval beside it, which `gate_check.py` reads, and the
-  queue, `<digest>.queue/`: its lock, its queued cuts and its rejoin requests;
+  default-branch sha a run last saw on `origin`, a person's gate approval beside it, which `gate_check.py` reads, the
+  probe's mark, `probe-<executor>-<pid>`, and the
+  queue, `<digest>.queue/`: its lock, its queued cuts, its rejoin requests, a passed cut's brief path in `briefs/`, and
+  the merge a supervisor tried in `supervised/`;
+- `conduct.py`'s scratch folders for its remote git calls, `.mf-ship-remote-*` in the home folder, else in the temp
+  folder where the home folder refuses one;
+- `conduct.py`'s read-only reads of the operator's Claude `settings.json`, under `~/.claude` or `CLAUDE_CONFIG_DIR`, for
+  the plugins a worker turns off, and of the Codex sessions, under `~/.codex/sessions` or `CODEX_HOME`, for a Codex
+  worker's rollout file — named in no repo;
 - `conduct.py`'s read-only read of the operator's `ship.toml`, under `$XDG_CONFIG_HOME/minionsfactory/` — named in no
   repo ([D84](decisions.md#d84--a-queued-cut-waits-while-the-line-is-at-its-cap));
 - `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending`,

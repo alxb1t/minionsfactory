@@ -123,7 +123,7 @@ round. A test module stays off it: conformance judges every test edit under *Gat
 hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
-- `skills/mflib/*` — the shared home: the port to the OS and the run directory's layout, loaded by the scripts that run on the operator's machine.
+- `skills/mflib/*` — the shared home: the port to the OS, and the layout of the run directory and of the home folder, loaded by the scripts that run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.

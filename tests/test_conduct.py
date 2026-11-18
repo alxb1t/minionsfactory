@@ -38,7 +38,7 @@ from fake_worker import (
     _findings,
     _git,
 )
-from mflib import platform
+from mflib import layout, platform
 from old_layout import ENTRIES, LOG, ROLES
 from old_layout import plant as plant_old
 
@@ -869,7 +869,7 @@ def test_each_check_passes_only_on_disk_evidence(
 
     scratch = tmp_path / "scratch"
     scratch.mkdir()
-    mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
+    mark = home / layout.KEPT_ORIGINS / "probe-codex-1"
     mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
     gate_file = conduct["probe_gate"](mark, platform.arch())
@@ -3554,6 +3554,9 @@ def test_a_supervisor_settles_an_integrate_note(
     assert lines[-1].endswith(
         " · run · done — released v0.1.0 v0.2.0 · supervised 0002-marks"
     )
+    queue = Path.home() / ".mf-ship-origin" / f"{_spelled_digest(root)}.queue"
+    tried = _git(root, "rev-parse", f"{merge}^2")
+    assert (queue / "supervised" / "0002-marks").read_text() == f"{tried}\n"
 
 
 @pytest.mark.slow
@@ -3878,7 +3881,7 @@ def test_a_fixed_version_rejoins_a_live_run(
     live = threading.Thread(target=gate.wait, daemon=True)
     live.start()
     threads = {"0001-todo": live}
-    request = conduct["_queue"](base) / "rejoin" / "0001-todo"
+    request = layout.queue_dir(base) / "rejoin" / "0001-todo"
     conduct["_request"](base, "0001-todo")
     for _ in range(2):
         assert not conductor.take_requests(threads)
@@ -3932,7 +3935,7 @@ def test_a_new_executor_is_probed_mid_run(
         ) -> None:
             # A folder no unlink removes: the poll skips it, and the run goes on.
             # Why: 0063-rejoin design D2.
-            (conduct["_queue"](root) / "rejoin" / "planted").mkdir(parents=True)
+            (layout.queue_dir(root) / "rejoin" / "planted").mkdir(parents=True)
             for change in joining:
                 table = root / ".minions" / "changes" / change / "models.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
@@ -3997,7 +4000,7 @@ def test_a_new_executor_is_probed_mid_run(
             )
             assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
 
-            stale = conduct["_queue"](root) / "rejoin" / "all"
+            stale = layout.queue_dir(root) / "rejoin" / "all"
             stale.touch()
             assert (
                 _main(
@@ -4020,7 +4023,7 @@ def test_a_new_executor_is_probed_mid_run(
             (elsewhere / "kept.gate").mkdir()
             shutil.rmtree(stale.parent)
             stale.parent.symlink_to(elsewhere)
-            assert conduct["_requests"](conduct["_queue"](root)) == set()
+            assert conduct["_requests"](layout.queue_dir(root)) == set()
             assert (elsewhere / "kept-urls").is_file()
 
 
@@ -5042,7 +5045,7 @@ def test_a_request_at_a_runs_close_starts_the_next_run(
     conduct = _conduct()
     names = conduct["main"].__globals__
     root = _primary(tmp_path)
-    queue = conduct["_queue"](root)
+    queue = layout.queue_dir(root)
     active = root / ".minions" / "runs" / "active"
     starts: list[tuple[Path, str]] = []
 
@@ -5159,7 +5162,7 @@ def _queued(
     """Queue a cut as `conduct.py cut` does: its reservation, then its entry."""
     (root / ".minions" / "cuts").mkdir(parents=True, exist_ok=True)
     (root / ".minions" / "cuts" / change).touch()
-    (conduct["_queue"](root) / "cuts").mkdir(parents=True, exist_ok=True)
+    (layout.queue_dir(root) / "cuts").mkdir(parents=True, exist_ok=True)
     entry = {
         "bump": "minor",
         "brief": str(brief),
@@ -5212,7 +5215,7 @@ def test_a_queued_cut_is_cut_then_built(
     assert any(line.endswith(" · 0001-a · check — cut · pass") for line in lines)
     assert not (root / ".minions" / "cuts" / "0001-a").exists()
     assert conduct["_cuts"](root) == {}
-    record = conduct["_queue"](root) / "briefs" / "0001-a"
+    record = layout.queue_dir(root) / "briefs" / "0001-a"
     assert record.read_text() == f"{brief}\n"
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
@@ -5438,11 +5441,11 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     _queued(conduct, root, "0003-c", brief, halt="x")
     _claimed(conduct, root)
     assert conduct["rejoin"](root, "0003-c") == "rejoin: requested 0003-c"
-    assert (conduct["_queue"](root) / "rejoin" / "0003-c").is_file()
+    assert (layout.queue_dir(root) / "rejoin" / "0003-c").is_file()
     assert conduct["_cuts"](root)["0003-c"]["halt"] is None
     shutil.rmtree(root / ".minions" / "runs" / "active")
-    conduct["_requests"](conduct["_queue"](root))
-    folder = conduct["_queue"](root) / "cuts"
+    conduct["_requests"](layout.queue_dir(root))
+    folder = layout.queue_dir(root) / "cuts"
     (folder / "0003-c").write_text("{")
     (folder / ".partial").write_text("{}")
     assert said("status") == ["0003-c · cut-halted — the queue entry is unreadable"]
@@ -8106,7 +8109,7 @@ def test_a_key_set_after_the_refusal_reaches_nothing(
         conductor.push_left((0,))
         assert _git(decoy, "for-each-ref") == ""
     _git(root, "config", "--unset", f"url.{decoy}.pushInsteadOf")
-    conduct["_kept_file"](root).unlink()
+    layout.kept_file(root).unlink()
     _git(root, "remote", "set-url", "origin", str(decoy))
     conductor.git_state = conduct["_git_state"](root)
     conductor.push_left((0,))
@@ -8130,6 +8133,14 @@ def test_the_scratch_stands_outside_the_worktree(
         assert conduct["_kept_origin"](root) is None
 
 
+def test_the_scratch_folder_is_named_by_its_prefix() -> None:
+    conduct = _conduct()
+    with conduct["_scratch"]() as scratch:
+        folder = Path(scratch)
+        assert folder.parent == Path.home()
+        assert folder.name.startswith(".mf-ship-remote-")
+
+
 @pytest.mark.slow
 def test_a_local_origin_url_is_refused(
     tmp_path: Path,
@@ -8141,7 +8152,7 @@ def test_a_local_origin_url_is_refused(
     fake()
     root, _ = _left_unpushed(tmp_path, conduct, monkeypatch)
     # With no URLs kept, the URL's own form is what refuses it.
-    conduct["_kept_file"](root).unlink()
+    layout.kept_file(root).unlink()
     planted, ran = _planted(tmp_path)
     command = str(planted)
     elsewhere = _elsewhere(tmp_path)
@@ -8743,7 +8754,7 @@ def test_a_run_holds_the_machine_awake(
     # without the tool.
     monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
     root = _primary(tmp_path)
-    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept = Path.home() / layout.KEPT_ORIGINS
     kept.mkdir()
     (kept / "pending").write_text("v9.9.9\n")
     for name, field in (
@@ -8778,7 +8789,7 @@ def test_a_run_on_linux_holds_nothing_and_says_so(
 
     monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
     root = _primary(tmp_path)
-    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept = Path.home() / layout.KEPT_ORIGINS
     kept.mkdir()
     (kept / "pending").write_text("v9.9.9\n")
     conductor = conduct["Run"](root, "claude")
@@ -8832,6 +8843,60 @@ def test_cap_reads_ship_toml() -> None:
         ) as stopped:
             conduct["_cap"]()
         assert stopped.value.code == 2
+
+
+def test_ship_toml_is_read_from_its_spelled_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("XDG_CONFIG_HOME")
+    home = Path.home() / ".config" / "minionsfactory" / "ship.toml"
+    home.parent.mkdir(parents=True)
+    home.write_text("[queue]\nin_flight = 3\n")
+    assert conduct["_ship_file"]() == (home, {"queue": {"in_flight": 3}})
+    assert conduct["_cap"]() == 3
+
+    elsewhere = tmp_path / "elsewhere"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(elsewhere))
+    path = elsewhere / "minionsfactory" / "ship.toml"
+    path.parent.mkdir(parents=True)
+    path.write_text("[queue]\nin_flight = 5\n")
+    assert conduct["_ship_file"]() == (path, {"queue": {"in_flight": 5}})
+    assert conduct["_cap"]() == 5
+
+
+def _spelled_digest(primary: Path) -> str:
+    """Return the name `primary`'s files take in the home folder, spelled by hand."""
+    return hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
+
+
+@pytest.mark.parametrize("linked", [False, True], ids=["primary", "link"])
+def test_a_home_name_is_its_spelled_path(tmp_path: Path, linked: bool) -> None:
+    root = tmp_path / "main"
+    root.mkdir()
+    given = root
+    if linked:
+        given = tmp_path / "link"
+        given.symlink_to(root)
+    digest = _spelled_digest(root)
+    kept = Path.home() / ".mf-ship-origin"
+    assert layout.kept_file(given) == kept / digest
+    assert layout.released_dir(given) == kept / f"{digest}.released"
+    assert layout.default_file(given) == kept / f"{digest}.default"
+    assert layout.pushed_file(given) == kept / f"{digest}.pushed"
+
+
+def test_the_queue_names_are_their_spelled_paths(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = tmp_path / "main"
+    root.mkdir()
+    queue = Path.home() / ".mf-ship-origin" / f"{_spelled_digest(root)}.queue"
+    with conduct["_queue_lock"](root):
+        assert (queue / "lock").is_file()
+    entry = queue / "supervised" / "0001-a"
+    entry.parent.mkdir()
+    entry.write_text("abc\n")
+    assert conduct["_merge_tried"](root, "0001-a", "abc")
 
 
 def test_ship_toml_reads_tags() -> None:
@@ -9109,7 +9174,7 @@ def test_cap_writes_the_reason_into_the_entry(tmp_path: Path) -> None:
     kept = {key: value for key, value in held.items() if key != "waits"}
     assert conduct["_cuts"](root)["0003-a"] == kept
     assert written == ["0003-a"] * 3
-    (conduct["_queue"](root) / "cuts" / "0003-a").unlink()
+    (layout.queue_dir(root) / "cuts" / "0003-a").unlink()
     conductor.unwait("0003-a", held)
     assert "0003-a" not in conduct["_cuts"](root)
     assert written == ["0003-a"] * 3
@@ -9356,7 +9421,7 @@ def test_local_history_records_no_forged_release(
         (git_dir / "shallow").unlink(missing_ok=True)
         _git(root, "reset", "-q", "--hard", base)
         _git(root, "tag", "-d", tag)
-        conduct["_ledger"](root).joinpath("recorded").unlink(missing_ok=True)
+        layout.released_dir(root).joinpath("recorded").unlink(missing_ok=True)
 
 
 @pytest.mark.slow
@@ -9403,7 +9468,7 @@ def test_a_forged_release_on_an_older_default_is_not_pushed(
 
     # Origin's own HEAD leaves the name the run kept: a run's release is not pushed.
     _released(root, "v0.31.0")
-    kept = conduct["_kept_file"](root)
+    kept = layout.kept_file(root)
     named = kept.with_name(f"{kept.name}.default")
     _git(origin, "symbolic-ref", "HEAD", "refs/heads/maintenance")
     listed = _git(root, "ls-remote", "origin")
@@ -9806,7 +9871,7 @@ def test_the_kept_urls_stand_past_a_repoint(
     assert conductor.pushes == [str(origin)]
     conductor.log.path.unlink()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
-    kept = conduct["_kept_file"](root)
+    kept = layout.kept_file(root)
     assert kept.parent == Path.home() / ".mf-ship-origin"
     assert kept.stat().st_mode & 0o777 == 0o600
     kept.unlink()
@@ -9917,8 +9982,8 @@ def test_anchor_seeds_the_offline_base(
         f"anchor: {tracked} · Merge branch 'release-v0.1.0'"
     )
     assert conduct["_offline_base"](root) == tracked
-    assert conduct["_pushed_file"](root).stat().st_mode & 0o777 == 0o600
-    name = conduct["_pushed_file"](root).name
+    assert layout.pushed_file(root).stat().st_mode & 0o777 == 0o600
+    name = layout.pushed_file(root).name
     assert anchor(2) == (
         f"anchor: cannot run — an offline base stands: ~/.mf-ship-origin/{name}"
     )
@@ -10246,7 +10311,7 @@ def test_the_plan_is_read_once(
     table.write_text('[converge]\nexecutor = "codex"\n')
     changed = "conduct: halt — changes/0001-todo/models.toml changed during the run"
     conductor.halt("0001-todo", changed)
-    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
+    request = layout.queue_dir(root) / "rejoin" / "0001-todo"
     request.parent.mkdir(parents=True, exist_ok=True)
     request.touch()
     assert not conductor.take_requests({})
@@ -11026,7 +11091,7 @@ def test_a_grant_buys_one_round(
         "grant: cannot run — 0001-todo is at converge-halted"
         " with its rescue or supervisor running: grant once it ends"
     )
-    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
+    request = layout.queue_dir(root) / "rejoin" / "0001-todo"
     assert grant() == (2, rescuing)
     assert not grants.exists() and not request.exists()
     with newest.open("a") as file:
@@ -11641,12 +11706,12 @@ def test_a_missing_skill_stops_a_run(
     conduct["main"].__globals__["_executor_missing"] = lambda name: False
     names = sorted(path.name for path in (_REPO / "skills").glob("mf-*"))
     assert "mf-ship" in names
-    for folder in conduct["SKILLS"].values():
+    for folder in layout.SKILLS.values():
         (home / folder).mkdir(parents=True)
         for name in names:
             (home / folder / name).symlink_to(_REPO / "skills" / name)
 
-    (home / conduct["SKILLS"]["claude"] / "mf-ship").unlink()
+    (home / layout.SKILLS["claude"] / "mf-ship").unlink()
     capsys.readouterr()
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -11658,7 +11723,7 @@ def test_a_missing_skill_stops_a_run(
     assert not (root / ".minions" / "runs").exists()
 
     conduct["_unlinked"]("codex")
-    (home / conduct["SKILLS"]["codex"] / "mf-build").unlink()
+    (home / layout.SKILLS["codex"] / "mf-build").unlink()
     with pytest.raises(conduct["Stop"], match="mf-build is not linked"):
         conduct["_unlinked"]("codex")
     conductor = conduct["Run"](root, "claude")
@@ -11671,11 +11736,9 @@ def test_a_missing_skill_stops_a_run(
         )
     ]
 
-    (home / conduct["SKILLS"]["claude"] / "mf-ship").symlink_to(
-        _REPO / "skills/mf-ship"
-    )
+    (home / layout.SKILLS["claude"] / "mf-ship").symlink_to(_REPO / "skills/mf-ship")
     other = tmp_path / "other" / "skills" / "mf-build"
-    (home / conduct["SKILLS"]["codex"] / "mf-build").symlink_to(other)
+    (home / layout.SKILLS["codex"] / "mf-build").symlink_to(other)
     with pytest.raises(conduct["Stop"]) as stop:
         conduct["_unlinked"]("claude")
     assert str(stop.value) == (
@@ -11684,13 +11747,29 @@ def test_a_missing_skill_stops_a_run(
     )
 
 
+@pytest.mark.parametrize(
+    ("executor", "folder", "missing"),
+    [("claude", ".claude/skills", "mf-ship"), ("codex", ".agents/skills", "mf-build")],
+)
+def test_a_skill_is_looked_for_in_each_hosts_spelled_folder(
+    monkeypatch: pytest.MonkeyPatch, executor: str, folder: str, missing: str
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    for skill in (_REPO / "skills").glob("mf-*"):
+        if skill.is_dir() and skill.name != missing:
+            (Path.home() / folder / skill.name).mkdir(parents=True)
+    with pytest.raises(conduct["Stop"], match=f"— {missing} is not linked"):
+        conduct["_unlinked"](executor)
+
+
 @pytest.mark.slow
 def test_a_run_marks_itself_live(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
-    mark = Path.home() / ".mf-ship-origin" / "live" / conduct["_digest"](root)
+    mark = Path.home() / ".mf-ship-origin" / "live" / layout.digest(root)
     seen: list[str | None] = []
 
     def ship(self: object) -> int:
@@ -11763,7 +11842,7 @@ def test_the_last_run_moves_the_links(
     _commit(mf, {"skills/mf-build/SKILL.md": "2\n"}, "v2")
     _git(mf, "tag", "v0.2.0")
     data = Path(os.environ["XDG_DATA_HOME"]) / "minionsfactory"
-    links = [Path.home() / folder / "mf-build" for folder in conduct["SKILLS"].values()]
+    links = [Path.home() / folder / "mf-build" for folder in layout.SKILLS.values()]
     assert pin["install"](mf, "v0.1.0") == "pin: linked v0.1.0"
     other = Path.home() / ".mf-ship-origin" / "live" / "other"
     other.parent.mkdir()
@@ -12209,10 +12288,10 @@ def test_the_codex_limit_data_is_read_from_its_rollout(
         return log
 
     # The home: CODEX_HOME, else ~/.codex.
-    assert conduct["_codex_home"]() == home
+    assert layout.codex_home() == home
     monkeypatch.delenv("CODEX_HOME")
     monkeypatch.setenv("HOME", str(tmp_path / "operator"))
-    assert conduct["_codex_home"]() == tmp_path / "operator" / ".codex"
+    assert layout.codex_home() == tmp_path / "operator" / ".codex"
     monkeypatch.setenv("CODEX_HOME", str(home))
 
     # The thread: the first `thread.started`'s id, when it is a plain token.
@@ -12464,7 +12543,7 @@ def test_every_station_starts_lean(
 
     # The run recorded its primary in the home folder, once.
     # Why: 0100-worker-diet design D12.
-    repos = Path.home() / conduct["KEPT_ORIGINS"] / "repos"
+    repos = Path.home() / layout.KEPT_ORIGINS / "repos"
     assert repos.read_text() == f"{root}\n"
     assert repos.stat().st_mode & 0o777 == 0o600
     conduct["_record_repo"](root)
@@ -12507,7 +12586,7 @@ def test_reach_stops_at_live_worktrees(tmp_path: Path) -> None:
 
     assert conduct["reach"](root) == [root, tree]
 
-    entry = conduct["_queue"](root) / "cuts" / "0003-queued"
+    entry = layout.queue_dir(root) / "cuts" / "0003-queued"
     entry.parent.mkdir(parents=True)
     entry.write_text("{}")
     assert conduct["reach"](root) == [root, tree, queued.resolve()]
@@ -12582,7 +12661,7 @@ def test_a_probe_halts_on_a_write_out(
     calls = fake("unsandboxed")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    marks = Path.home() / conduct["KEPT_ORIGINS"]
+    marks = Path.home() / layout.KEPT_ORIGINS
 
     def run() -> int:
         return _main(
@@ -13845,7 +13924,7 @@ def test_approve_gate_records_the_hash(
     assert halt.stdout.endswith(f"/mf-ship approve-gate {change} {hashed}.\n")
 
     assert approve("--yes", "not-a-hash")[0] == 1
-    folder = home / ".mf-ship-origin" / f"{conduct['_digest'](root)}.gate"
+    folder = home / ".mf-ship-origin" / f"{layout.digest(root)}.gate"
     assert not folder.exists()
     ran.unlink()
     lapses = []
