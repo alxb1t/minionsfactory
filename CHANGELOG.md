@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `gate_check.py`, the viewer and `review_metrics.py` take their home paths from `skills/mflib/layout.py`, and the
   conductor's `_queue` goes; their `.mf-ship-origin` pairs leave `LAYOUT_SITES`, the viewer's `_queue` pair
   `PRIVATE_REACH` (0135-home-layout, phase 4).
+- The sixth structure rule refuses a string constant outside `skills/mflib/layout.py` that contains `.mf-ship-origin`
+  or equals an XDG variable's name, whatever `LAYOUT_SITES` lists, so no script spells a home path again. The
+  principles, threat model, module map and recipes name the home half (0135-home-layout, phase 5).
 
 ## [0.106.0] - 2026-11-17
 

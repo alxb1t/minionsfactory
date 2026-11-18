@@ -8,7 +8,7 @@ The phases: pin the home's names on today's code, give them one module, move the
 - [x] 2 — The module · hard
 - [x] 3 — The conductor and the pin · hard
 - [x] 4 — The readers · moderate
-- [ ] 5 — The rule and the record · hard
+- [x] 5 — The rule and the record · hard
 
 ## 1 — The pin
 
@@ -94,13 +94,13 @@ The home half lands in `skills/mflib/layout.py` and nothing calls it yet ([D1](d
 
 The sixth rule gains its new reaches after the phases that clean their sites ([D7](design.md#d7)); the record says what the code reaches ([D8](design.md#d8), [D9](design.md#d9)).
 
-- [ ] 5.1 In `tests/test_structure.py` `check_layout` reports `x.py spells <name>: a home-folder name outside layout.py` for a string constant outside `skills/mflib/layout.py` that contains `.mf-ship-origin` or equals `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`, whatever `listed` holds. The module passes.
+- [x] 5.1 In `tests/test_structure.py` `check_layout` reports `x.py spells <name>: a home-folder name outside layout.py` for a string constant outside `skills/mflib/layout.py` that contains `.mf-ship-origin` or equals `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`, whatever `listed` holds. The module passes.
   Verify: `git grep -n -F ".mf-ship-origin" -- "skills/mf-*/scripts/*.py" "scripts/*.py"` prints nothing, and `git grep -n -F XDG_ -- "skills/mf-*/scripts/*.py" "scripts/*.py"` prints nothing.
-- [ ] 5.2 In `tests/test_structure.py` add the twins: `test_check_layout_fails_on_a_home_folder_name` for `".mf-ship-origin"` and `"~/.mf-ship-origin/x"`, `test_check_layout_fails_on_an_xdg_name` for each XDG name, `test_check_layout_ignores_a_list_for_a_home_name`, and `test_layout_sites_name_no_home_folder_name`. The planted-constant case of `.mf-ship-origin` in `test_check_layout_fails_on_a_planted_constant` goes to the first.
+- [x] 5.2 In `tests/test_structure.py` add the twins: `test_check_layout_fails_on_a_home_folder_name` for `".mf-ship-origin"` and `"~/.mf-ship-origin/x"`, `test_check_layout_fails_on_an_xdg_name` for each XDG name, `test_check_layout_ignores_a_list_for_a_home_name`, and `test_layout_sites_name_no_home_folder_name`. The planted-constant case of `.mf-ship-origin` in `test_check_layout_fails_on_a_planted_constant` goes to the first.
   Verify: `uv run pytest tests/test_structure.py -q -k "home_folder_name or an_xdg_name or ignores_a_list_for_a_home_name or layout_sites_name_no_home"` exits 0.
-- [ ] 5.3 In `docs/principles.md` the closed list under *The repo reaches nothing outside itself* gains `<digest>.released`, `<digest>.default`, the probe's mark, the scratch folders `.mf-ship-remote-*`, `settings.json` under `~/.claude` or `CLAUDE_CONFIG_DIR`, the Codex sessions the conductor reads, and the queue's `briefs/` and `supervised/` ([D8](design.md#d8)).
+- [x] 5.3 In `docs/principles.md` the closed list under *The repo reaches nothing outside itself* gains `<digest>.released`, `<digest>.default`, the probe's mark, the scratch folders `.mf-ship-remote-*`, `settings.json` under `~/.claude` or `CLAUDE_CONFIG_DIR`, the Codex sessions the conductor reads, and the queue's `briefs/` and `supervised/` ([D8](design.md#d8)).
   Verify: `git grep -c -e "supervised" -- docs/principles.md` exits 0.
-- [ ] 5.4 In `THREAT_MODEL.md` and `docs/modules.md` the lines that say `the port to the OS and the run directory's layout` say `the port to the OS, and the layout of the run directory and of the home folder`. In `docs/recipes.md` the executor recipe's rows for the conductor's `SKILLS` (where its skills live) and pin's `HOSTS` (the skills folders the pin links) give way to a row for `skills/mflib/layout.py`'s `SKILLS`.
+- [x] 5.4 In `THREAT_MODEL.md` and `docs/modules.md` the lines that say `the port to the OS and the run directory's layout` say `the port to the OS, and the layout of the run directory and of the home folder`. In `docs/recipes.md` the executor recipe's rows for the conductor's `SKILLS` (where its skills live) and pin's `HOSTS` (the skills folders the pin links) give way to a row for `skills/mflib/layout.py`'s `SKILLS`.
   Verify: `git grep -n -e "the run directory's layout" -e "where its skills live" -e "skills folders the pin links" -- THREAT_MODEL.md docs` prints nothing.
-- [ ] 5.5 In `docs/recipes.md` the state-file recipe's rule line states that no string constant outside `skills/mflib/layout.py` contains `.mf-ship-origin` or equals an XDG variable's name, and that `LAYOUT_SITES` lists neither.
+- [x] 5.5 In `docs/recipes.md` the state-file recipe's rule line states that no string constant outside `skills/mflib/layout.py` contains `.mf-ship-origin` or equals an XDG variable's name, and that `LAYOUT_SITES` lists neither.
   Verify: `git grep -n -e "mf-ship-origin" -- docs/recipes.md` prints a line.

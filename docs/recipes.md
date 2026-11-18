@@ -48,7 +48,9 @@ its own git call for the primary, and `layout.primary_of` maps git's answer to i
 
 - **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
 - **Rules:** `check_layout` holds that `.minions` is joined in `skills/mflib/layout.py` alone: a string constant
-  elsewhere equal to `.minions`, or starting `.minions/`, fails unless `LAYOUT_SITES` lists the pair.
+  elsewhere equal to `.minions`, or starting `.minions/`, fails unless `LAYOUT_SITES` lists the pair. It holds the home
+  folder's names there too: a string constant elsewhere that contains `.mf-ship-origin`, or equals `XDG_CONFIG_HOME`,
+  `XDG_DATA_HOME` or `XDG_STATE_HOME`, fails whatever the list holds, and `LAYOUT_SITES` lists neither.
 
 ## An OS
 
@@ -68,9 +70,9 @@ A worker host beside `claude` and `codex`.
 
 | file | edit |
 |---|---|
-| `skills/mf-ship/scripts/conduct.py` | `EXECUTORS`; `SKILLS`, where its skills live; `argv`, its command line and sandbox flags; `_executor_missing`; its log readers beside `_codex_denied`, `_codex_limit` and `usage_limit` |
+| `skills/mf-ship/scripts/conduct.py` | `EXECUTORS`; `argv`, its command line and sandbox flags; `_executor_missing`; its log readers beside `_codex_denied`, `_codex_limit` and `usage_limit` |
+| `skills/mflib/layout.py` | `SKILLS`, each host's skills folder, which the conductor checks and the pin links |
 | `skills/mf-plan/scripts/brief_check.py` | `HOSTS`, the executors a brief may name |
-| `skills/mf-ship/scripts/pin.py` | `HOSTS`, the skills folders the pin links |
 | `skills/mf-converge/scripts/converge.py` | `fixer`, its attribution line; `Host`, when it needs a call the conductor does not give |
 | `skills/mf-review-metrics/scripts/review_metrics.py` | its session reader beside `_codex_sessions`, `_codex_spent` and `_codex_usage` |
 | `tests/escape_drill.py` | the sandbox-escape drill for it |
