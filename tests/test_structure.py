@@ -59,7 +59,6 @@ OS_NAMES: frozenset[tuple[str, str]] = frozenset(
 LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
     {
         ("codebase.py", ".minions/"),
-        ("conduct.py", ".mf-ship-origin"),
         ("conduct.py", ".minions/"),
         ("conformance.py", ".minions"),
         ("converge.py", ".minions"),
@@ -67,7 +66,6 @@ LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("cut_check.py", ".minions/"),
         ("gate_check.py", ".mf-ship-origin"),
         ("gate_run.py", ".minions/"),
-        ("pin.py", ".mf-ship-origin"),
         ("review_metrics.py", ".mf-ship-origin"),
         ("stamp.py", ".minions/"),
         ("viewer.py", ".mf-ship-origin"),

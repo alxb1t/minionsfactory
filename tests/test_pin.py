@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from fake_worker import _commit, _git
+from mflib import layout
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "pin.py"
@@ -48,7 +49,7 @@ def _mf(tmp_path: Path, pushed: tuple[str, ...] = ("v0.1.0", "v0.2.0")) -> Path:
 
 def _keep(pin: dict[str, Any], root: Path, url: str) -> None:
     """Keep `url` as `root`'s origin, as a run's first read does."""
-    file = pin["_conduct"]()["_kept_file"](root)
+    file = layout.kept_file(root)
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(json.dumps([[url], [url]]))
 

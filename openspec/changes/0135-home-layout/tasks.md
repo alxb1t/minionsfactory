@@ -6,7 +6,7 @@ The phases: pin the home's names on today's code, give them one module, move the
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The conductor and the pin · hard
+- [x] 3 — The conductor and the pin · hard
 - [ ] 4 — The readers · moderate
 - [ ] 5 — The rule and the record · hard
 
@@ -58,19 +58,19 @@ The home half lands in `skills/mflib/layout.py` and nothing calls it yet ([D1](d
 
 `conduct.py` and `pin.py` take every home path from the module, and their pairs leave the rule's lists ([D3](design.md#d3), [D5](design.md#d5), [D6](design.md#d6)). No assert changes: a test line changes only the name it reaches.
 
-- [ ] 3.1 In `skills/mf-ship/scripts/conduct.py` delete `KEPT_ORIGINS`, `_digest`, `_kept_file`, `_ledger`, `_default_file` and `_pushed_file`. Each caller, and each `Path.home() / KEPT_ORIGINS` join, takes the name [D2](design.md#d2) pairs with it: `kept_file`, `released_dir`, `default_file`, `pushed_file`, `queue_dir`, `live_mark`, `repos_file`, `probe_mark` and `gate_approval` of `mflib.layout`. The halt messages that spell `~/{KEPT_ORIGINS}/<name>` take `mflib.layout.KEPT_ORIGINS`.
+- [x] 3.1 In `skills/mf-ship/scripts/conduct.py` delete `KEPT_ORIGINS`, `_digest`, `_kept_file`, `_ledger`, `_default_file` and `_pushed_file`. Each caller, and each `Path.home() / KEPT_ORIGINS` join, takes the name [D2](design.md#d2) pairs with it: `kept_file`, `released_dir`, `default_file`, `pushed_file`, `queue_dir`, `live_mark`, `repos_file`, `probe_mark` and `gate_approval` of `mflib.layout`. The halt messages that spell `~/{KEPT_ORIGINS}/<name>` take `mflib.layout.KEPT_ORIGINS`.
   Verify: `git grep -n -w -e _digest -e _kept_file -e _ledger -e _default_file -e _pushed_file -e "Path.home() / KEPT_ORIGINS" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` each join off `_queue(primary)` or `_queue(self.primary)` takes `mflib.layout.queue_supervised`, `queue_briefs`, `queue_cuts`, `queue_rejoin` or `queue_lock`, and each other call takes `queue_dir`. `_queue` stays as the one line `return mflib.layout.queue_dir(primary)` that 3.1 left, which the viewer and the tests still reach.
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` each join off `_queue(primary)` or `_queue(self.primary)` takes `mflib.layout.queue_supervised`, `queue_briefs`, `queue_cuts`, `queue_rejoin` or `queue_lock`, and each other call takes `queue_dir`. `_queue` stays as the one line `return mflib.layout.queue_dir(primary)` that 3.1 left, which the viewer and the tests still reach.
   Verify: `git grep -n -F -e "_queue(primary)" -e "_queue(self.primary)" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.3 In `skills/mf-ship/scripts/conduct.py` `_scratch` takes `scratch_parent()` and `SCRATCH_PREFIX` of `skills/mflib/layout.py` in place of `.mf-ship-remote-`, and keeps its temp-folder fallback. `_plugins_off` takes `claude_home()` in place of `CLAUDE_CONFIG_DIR`, `_ship_file` takes `ship_file()` in place of `XDG_CONFIG_HOME`, and `_codex_home` is deleted with its caller taking `codex_home()`.
+- [x] 3.3 In `skills/mf-ship/scripts/conduct.py` `_scratch` takes `scratch_parent()` and `SCRATCH_PREFIX` of `skills/mflib/layout.py` in place of `.mf-ship-remote-`, and keeps its temp-folder fallback. `_plugins_off` takes `claude_home()` in place of `CLAUDE_CONFIG_DIR`, `_ship_file` takes `ship_file()` in place of `XDG_CONFIG_HOME`, and `_codex_home` is deleted with its caller taking `codex_home()`.
   Verify: `git grep -n -F -e _codex_home -e CLAUDE_CONFIG_DIR -e XDG_CONFIG_HOME -e mf-ship-remote- -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `SKILLS`; `_unlinked` takes `mflib.layout.skills_dir(executor)`. `_queue`'s docstring says the home folder's queue without spelling `.mf-ship-origin`.
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `SKILLS`; `_unlinked` takes `mflib.layout.skills_dir(executor)`. `_queue`'s docstring says the home folder's queue without spelling `.mf-ship-origin`.
   Verify: `git grep -n -w -e SKILLS -e mf-ship-origin -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.5 In `skills/mf-ship/scripts/pin.py` delete `KEPT`, `HOSTS`, `data` and `_kept`. `_read` and `_write` take a path of `pin_source()`, `pin_pending()`, `pin_hold()` or `pin_checkout()`; `live` lists `live_dir()`; each `data()` is `data_dir()`; each `Path.home() / host` takes `skills_dir(executor)`, the loops running over `mflib.layout.SKILLS.items()` and keeping `host` only where a message spells it. No `Path.home()`, `XDG_DATA_HOME` or `.mf-ship-origin` stands in the file.
+- [x] 3.5 In `skills/mf-ship/scripts/pin.py` delete `KEPT`, `HOSTS`, `data` and `_kept`. `_read` and `_write` take a path of `pin_source()`, `pin_pending()`, `pin_hold()` or `pin_checkout()`; `live` lists `live_dir()`; each `data()` is `data_dir()`; each `Path.home() / host` takes `skills_dir(executor)`, the loops running over `mflib.layout.SKILLS.items()` and keeping `host` only where a message spells it. No `Path.home()`, `XDG_DATA_HOME` or `.mf-ship-origin` stands in the file.
   Verify: `git grep -n -F -e "Path.home()" -e XDG_DATA_HOME -e mf-ship-origin -e KEPT -e HOSTS -- skills/mf-ship/scripts/pin.py` prints nothing.
-- [ ] 3.6 In `tests/test_conduct.py`, `tests/test_pin.py` and `tests/test_viewer.py` each line that reaches `KEPT_ORIGINS`, `SKILLS`, `_digest`, `_kept_file`, `_ledger`, `_default_file`, `_pushed_file` or `_codex_home` of the conductor takes the module's name (`from mflib import layout`). The cases of phase 1 that name them take the module's too.
+- [x] 3.6 In `tests/test_conduct.py`, `tests/test_pin.py` and `tests/test_viewer.py` each line that reaches `KEPT_ORIGINS`, `SKILLS`, `_digest`, `_kept_file`, `_ledger`, `_default_file`, `_pushed_file` or `_codex_home` of the conductor takes the module's name (`from mflib import layout`). The cases of phase 1 that name them take the module's too.
   Verify: `grep -rnE "\[.(KEPT_ORIGINS|SKILLS|_digest|_kept_file|_ledger|_default_file|_pushed_file|_codex_home).\]" tests` prints nothing.
-- [ ] 3.7 In `tests/test_structure.py` delete the pairs `("conduct.py", ".mf-ship-origin")` and `("pin.py", ".mf-ship-origin")` from `LAYOUT_SITES`.
+- [x] 3.7 In `tests/test_structure.py` delete the pairs `("conduct.py", ".mf-ship-origin")` and `("pin.py", ".mf-ship-origin")` from `LAYOUT_SITES`.
   Verify: `git grep -n -e 'conduct.py", ".mf-ship-origin' -e 'pin.py", ".mf-ship-origin' -- tests/test_structure.py` prints nothing.
 
 ## 4 — The readers

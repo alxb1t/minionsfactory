@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mflib/layout.py` names the home folder's paths too: the kept folder and its digest, each file and queue
   folder under it, the pin's files, the config, data and state roots, the skills folders and the Codex and Claude
   homes. Nothing calls them yet (0135-home-layout, phase 2).
+- `conduct.py` and `pin.py` take every home path from `skills/mflib/layout.py`, so neither builds the kept folder,
+  an XDG root or a skills folder by hand; their `.mf-ship-origin` pairs leave `LAYOUT_SITES` (0135-home-layout,
+  phase 3).
 
 ## [0.106.0] - 2026-11-17
 

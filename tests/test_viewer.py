@@ -19,6 +19,7 @@ from typing import Any
 
 import pytest
 from fake_worker import _commit, _git
+from mflib import layout
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ui" / "scripts" / "viewer.py"
@@ -115,12 +116,7 @@ def _queue(
     root: Path, entries: dict[str, str | None], waits: dict[str, str] | None = None
 ) -> None:
     """Queue a cut for each id, its halt the value, and `waits` for those it names."""
-    conduct = runpy.run_path(
-        str(_REPO / "skills" / "mf-ship" / "scripts" / "conduct.py")
-    )
-    folder = (
-        Path.home() / ".mf-ship-origin" / f"{conduct['_digest'](root)}.queue" / "cuts"
-    )
+    folder = Path.home() / ".mf-ship-origin" / f"{layout.digest(root)}.queue" / "cuts"
     for name, halt in entries.items():
         entry = {**_CUT, "halt": halt}
         if waits and name in waits:

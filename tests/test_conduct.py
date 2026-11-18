@@ -38,7 +38,7 @@ from fake_worker import (
     _findings,
     _git,
 )
-from mflib import platform
+from mflib import layout, platform
 from old_layout import ENTRIES, LOG, ROLES
 from old_layout import plant as plant_old
 
@@ -869,7 +869,7 @@ def test_each_check_passes_only_on_disk_evidence(
 
     scratch = tmp_path / "scratch"
     scratch.mkdir()
-    mark = home / conduct["KEPT_ORIGINS"] / "probe-codex-1"
+    mark = home / layout.KEPT_ORIGINS / "probe-codex-1"
     mark.touch(mode=0o600)
     _git(scratch, "init", "-q")
     gate_file = conduct["probe_gate"](mark, platform.arch())
@@ -8109,7 +8109,7 @@ def test_a_key_set_after_the_refusal_reaches_nothing(
         conductor.push_left((0,))
         assert _git(decoy, "for-each-ref") == ""
     _git(root, "config", "--unset", f"url.{decoy}.pushInsteadOf")
-    conduct["_kept_file"](root).unlink()
+    layout.kept_file(root).unlink()
     _git(root, "remote", "set-url", "origin", str(decoy))
     conductor.git_state = conduct["_git_state"](root)
     conductor.push_left((0,))
@@ -8152,7 +8152,7 @@ def test_a_local_origin_url_is_refused(
     fake()
     root, _ = _left_unpushed(tmp_path, conduct, monkeypatch)
     # With no URLs kept, the URL's own form is what refuses it.
-    conduct["_kept_file"](root).unlink()
+    layout.kept_file(root).unlink()
     planted, ran = _planted(tmp_path)
     command = str(planted)
     elsewhere = _elsewhere(tmp_path)
@@ -8754,7 +8754,7 @@ def test_a_run_holds_the_machine_awake(
     # without the tool.
     monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
     root = _primary(tmp_path)
-    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept = Path.home() / layout.KEPT_ORIGINS
     kept.mkdir()
     (kept / "pending").write_text("v9.9.9\n")
     for name, field in (
@@ -8789,7 +8789,7 @@ def test_a_run_on_linux_holds_nothing_and_says_so(
 
     monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
     root = _primary(tmp_path)
-    kept = Path.home() / conduct["KEPT_ORIGINS"]
+    kept = Path.home() / layout.KEPT_ORIGINS
     kept.mkdir()
     (kept / "pending").write_text("v9.9.9\n")
     conductor = conduct["Run"](root, "claude")
@@ -8872,7 +8872,6 @@ def _spelled_digest(primary: Path) -> str:
 
 @pytest.mark.parametrize("linked", [False, True], ids=["primary", "link"])
 def test_a_home_name_is_its_spelled_path(tmp_path: Path, linked: bool) -> None:
-    conduct = _conduct()
     root = tmp_path / "main"
     root.mkdir()
     given = root
@@ -8881,10 +8880,10 @@ def test_a_home_name_is_its_spelled_path(tmp_path: Path, linked: bool) -> None:
         given.symlink_to(root)
     digest = _spelled_digest(root)
     kept = Path.home() / ".mf-ship-origin"
-    assert conduct["_kept_file"](given) == kept / digest
-    assert conduct["_ledger"](given) == kept / f"{digest}.released"
-    assert conduct["_default_file"](given) == kept / f"{digest}.default"
-    assert conduct["_pushed_file"](given) == kept / f"{digest}.pushed"
+    assert layout.kept_file(given) == kept / digest
+    assert layout.released_dir(given) == kept / f"{digest}.released"
+    assert layout.default_file(given) == kept / f"{digest}.default"
+    assert layout.pushed_file(given) == kept / f"{digest}.pushed"
 
 
 def test_the_queue_names_are_their_spelled_paths(tmp_path: Path) -> None:
@@ -9422,7 +9421,7 @@ def test_local_history_records_no_forged_release(
         (git_dir / "shallow").unlink(missing_ok=True)
         _git(root, "reset", "-q", "--hard", base)
         _git(root, "tag", "-d", tag)
-        conduct["_ledger"](root).joinpath("recorded").unlink(missing_ok=True)
+        layout.released_dir(root).joinpath("recorded").unlink(missing_ok=True)
 
 
 @pytest.mark.slow
@@ -9469,7 +9468,7 @@ def test_a_forged_release_on_an_older_default_is_not_pushed(
 
     # Origin's own HEAD leaves the name the run kept: a run's release is not pushed.
     _released(root, "v0.31.0")
-    kept = conduct["_kept_file"](root)
+    kept = layout.kept_file(root)
     named = kept.with_name(f"{kept.name}.default")
     _git(origin, "symbolic-ref", "HEAD", "refs/heads/maintenance")
     listed = _git(root, "ls-remote", "origin")
@@ -9872,7 +9871,7 @@ def test_the_kept_urls_stand_past_a_repoint(
     assert conductor.pushes == [str(origin)]
     conductor.log.path.unlink()
     assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
-    kept = conduct["_kept_file"](root)
+    kept = layout.kept_file(root)
     assert kept.parent == Path.home() / ".mf-ship-origin"
     assert kept.stat().st_mode & 0o777 == 0o600
     kept.unlink()
@@ -9983,8 +9982,8 @@ def test_anchor_seeds_the_offline_base(
         f"anchor: {tracked} · Merge branch 'release-v0.1.0'"
     )
     assert conduct["_offline_base"](root) == tracked
-    assert conduct["_pushed_file"](root).stat().st_mode & 0o777 == 0o600
-    name = conduct["_pushed_file"](root).name
+    assert layout.pushed_file(root).stat().st_mode & 0o777 == 0o600
+    name = layout.pushed_file(root).name
     assert anchor(2) == (
         f"anchor: cannot run — an offline base stands: ~/.mf-ship-origin/{name}"
     )
@@ -11707,12 +11706,12 @@ def test_a_missing_skill_stops_a_run(
     conduct["main"].__globals__["_executor_missing"] = lambda name: False
     names = sorted(path.name for path in (_REPO / "skills").glob("mf-*"))
     assert "mf-ship" in names
-    for folder in conduct["SKILLS"].values():
+    for folder in layout.SKILLS.values():
         (home / folder).mkdir(parents=True)
         for name in names:
             (home / folder / name).symlink_to(_REPO / "skills" / name)
 
-    (home / conduct["SKILLS"]["claude"] / "mf-ship").unlink()
+    (home / layout.SKILLS["claude"] / "mf-ship").unlink()
     capsys.readouterr()
     assert (
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
@@ -11724,7 +11723,7 @@ def test_a_missing_skill_stops_a_run(
     assert not (root / ".minions" / "runs").exists()
 
     conduct["_unlinked"]("codex")
-    (home / conduct["SKILLS"]["codex"] / "mf-build").unlink()
+    (home / layout.SKILLS["codex"] / "mf-build").unlink()
     with pytest.raises(conduct["Stop"], match="mf-build is not linked"):
         conduct["_unlinked"]("codex")
     conductor = conduct["Run"](root, "claude")
@@ -11737,11 +11736,9 @@ def test_a_missing_skill_stops_a_run(
         )
     ]
 
-    (home / conduct["SKILLS"]["claude"] / "mf-ship").symlink_to(
-        _REPO / "skills/mf-ship"
-    )
+    (home / layout.SKILLS["claude"] / "mf-ship").symlink_to(_REPO / "skills/mf-ship")
     other = tmp_path / "other" / "skills" / "mf-build"
-    (home / conduct["SKILLS"]["codex"] / "mf-build").symlink_to(other)
+    (home / layout.SKILLS["codex"] / "mf-build").symlink_to(other)
     with pytest.raises(conduct["Stop"]) as stop:
         conduct["_unlinked"]("claude")
     assert str(stop.value) == (
@@ -11772,7 +11769,7 @@ def test_a_run_marks_itself_live(
 ) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
-    mark = Path.home() / ".mf-ship-origin" / "live" / conduct["_digest"](root)
+    mark = Path.home() / ".mf-ship-origin" / "live" / layout.digest(root)
     seen: list[str | None] = []
 
     def ship(self: object) -> int:
@@ -11845,7 +11842,7 @@ def test_the_last_run_moves_the_links(
     _commit(mf, {"skills/mf-build/SKILL.md": "2\n"}, "v2")
     _git(mf, "tag", "v0.2.0")
     data = Path(os.environ["XDG_DATA_HOME"]) / "minionsfactory"
-    links = [Path.home() / folder / "mf-build" for folder in conduct["SKILLS"].values()]
+    links = [Path.home() / folder / "mf-build" for folder in layout.SKILLS.values()]
     assert pin["install"](mf, "v0.1.0") == "pin: linked v0.1.0"
     other = Path.home() / ".mf-ship-origin" / "live" / "other"
     other.parent.mkdir()
@@ -12291,10 +12288,10 @@ def test_the_codex_limit_data_is_read_from_its_rollout(
         return log
 
     # The home: CODEX_HOME, else ~/.codex.
-    assert conduct["_codex_home"]() == home
+    assert layout.codex_home() == home
     monkeypatch.delenv("CODEX_HOME")
     monkeypatch.setenv("HOME", str(tmp_path / "operator"))
-    assert conduct["_codex_home"]() == tmp_path / "operator" / ".codex"
+    assert layout.codex_home() == tmp_path / "operator" / ".codex"
     monkeypatch.setenv("CODEX_HOME", str(home))
 
     # The thread: the first `thread.started`'s id, when it is a plain token.
@@ -12546,7 +12543,7 @@ def test_every_station_starts_lean(
 
     # The run recorded its primary in the home folder, once.
     # Why: 0100-worker-diet design D12.
-    repos = Path.home() / conduct["KEPT_ORIGINS"] / "repos"
+    repos = Path.home() / layout.KEPT_ORIGINS / "repos"
     assert repos.read_text() == f"{root}\n"
     assert repos.stat().st_mode & 0o777 == 0o600
     conduct["_record_repo"](root)
@@ -12664,7 +12661,7 @@ def test_a_probe_halts_on_a_write_out(
     calls = fake("unsandboxed")
     root = _primary(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    marks = Path.home() / conduct["KEPT_ORIGINS"]
+    marks = Path.home() / layout.KEPT_ORIGINS
 
     def run() -> int:
         return _main(
@@ -13927,7 +13924,7 @@ def test_approve_gate_records_the_hash(
     assert halt.stdout.endswith(f"/mf-ship approve-gate {change} {hashed}.\n")
 
     assert approve("--yes", "not-a-hash")[0] == 1
-    folder = home / ".mf-ship-origin" / f"{conduct['_digest'](root)}.gate"
+    folder = home / ".mf-ship-origin" / f"{layout.digest(root)}.gate"
     assert not folder.exists()
     ran.unlink()
     lapses = []
