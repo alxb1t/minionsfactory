@@ -37,7 +37,7 @@ review_metrics.py  review-metrics.toml (XDG config), repos, Codex home
 |---|---|---|---|
 | [D1](#d1) | The home half goes into `skills/mflib/layout.py`, beside the run directory's | one file names every path a script builds from where it runs; a file per half doubles the map and the seed | a second module `home.py` |
 | [D2](#d2) | The module's surface is the table of D2, each name public | a name that crosses a file must not start with `_` ([D83](../../../docs/decisions.md#d83--the-code-is-layered-with-named-seams-held-by-the-gate)) | a function per file name, none per folder |
-| [D3](#d3) | No script defines a finder or a join for a home path; each caller takes the module's name | a wrapper is a second spelling, and the rule cannot see it | keeping `_queue`, `_digest` and the `KEPT` constants as aliases |
+| [D3](#d3) | No script defines a finder or a join for a home path; each caller takes the module's name | a wrapper is a second spelling, and the rule cannot see it | keeping the removed `_queue`, `_digest` and `KEPT` constants as aliases |
 | [D4](#d4) | Phase 1 pins the survivors on today's code, each case seen red under its named change | a move with no test of the name is a rename no test sees | pinning after the move |
 | [D5](#d5) | A listed pair leaves `LAYOUT_SITES` or `PRIVATE_REACH` in the phase that moves its site; the conductor's `_queue` stays one line over `queue_dir` until the viewer stops reaching it | the rule fails on a listed pair the tree no longer holds, and the gate is green at every phase | removing `_queue` in phase 3 and the viewer's pair with it |
 | [D6](#d6) | Pin's `_kept_origin` and `_scratch` stay borrowed from the conductor; `_scratch` keeps the making and takes the folder and the prefix from the module | each is behaviour, a read and a parse or a making with a fallback, not a path | moving them into the module |
@@ -58,11 +58,11 @@ Each name below is a function unless it is in capitals. A primary is the path `p
 |---|---|---|
 | `KEPT_ORIGINS` | `".mf-ship-origin"` | the conductor's `KEPT_ORIGINS`, `KEPT` of `pin.py` and of `gate_check.py`, the inline copies |
 | `kept_dir()` | `Path.home() / KEPT_ORIGINS` | each `Path.home() / KEPT_ORIGINS` |
-| `digest(primary)` | the first 16 hex digits of the sha256 of `primary.resolve()` | `_digest`, and the inline copy in `gate_check.py`'s `approval` |
-| `kept_file(primary)` | `kept_dir() / digest(primary)` | `_kept_file` |
-| `released_dir(primary)` | `<digest>.released` under `kept_dir()` | `_ledger` |
-| `default_file(primary)` | `<digest>.default` | `_default_file` |
-| `pushed_file(primary)` | `<digest>.pushed` | `_pushed_file` |
+| `digest(primary)` | the first 16 hex digits of the sha256 of `primary.resolve()` | `_digest`, removed, and the inline copy in `gate_check.py`'s `approval` |
+| `kept_file(primary)` | `kept_dir() / digest(primary)` | `_kept_file`, removed |
+| `released_dir(primary)` | `<digest>.released` under `kept_dir()` | `_ledger`, removed |
+| `default_file(primary)` | `<digest>.default` | `_default_file`, removed |
+| `pushed_file(primary)` | `<digest>.pushed` | `_pushed_file`, removed |
 | `queue_dir(primary)` | `<digest>.queue` | `_queue` |
 | `queue_lock`, `queue_cuts`, `queue_rejoin`, `queue_briefs`, `queue_supervised` `(primary)` | `lock`, `cuts`, `rejoin`, `briefs`, `supervised` under `queue_dir(primary)` | the joins off `_queue` |
 | `gate_approval(primary, change)` | `<digest>.gate/<change>` under `kept_dir()` | `approve_gate`'s folder and `gate_check.py`'s entry |
@@ -72,20 +72,20 @@ Each name below is a function unless it is in capitals. A primary is the path `p
 | `SCRATCH_PREFIX`, `scratch_parent()` | `".mf-ship-remote-"`, and `Path.home()` | `_scratch`'s literals |
 | `pin_source()`, `pin_pending()`, `pin_hold()`, `pin_checkout()` | `source`, `pending`, `hold`, `checkout` under `kept_dir()` | pin's `_kept(name)` |
 | `config_dir()` | `minionsfactory` under `XDG_CONFIG_HOME`, else `~/.config` | each hand-built config root |
-| `ship_file()`, `review_metrics_file()`, `ui_file()` | `ship.toml`, `review-metrics.toml`, `ui.toml` under `config_dir()` | `_ship_file`'s path, `config_path` of `review_metrics.py`, `config_path` of `viewer.py` |
+| `ship_file()`, `review_metrics_file()`, `ui_file()` | `ship.toml`, `review-metrics.toml`, `ui.toml` under `config_dir()` | `_ship_file`'s path, and the removed `config_path` of `review_metrics.py` and of `viewer.py` |
 | `data_dir()` | `minionsfactory` under `XDG_DATA_HOME`, else `~/.local/share` | pin's `data` |
-| `state_dir()` | `minionsfactory` under `XDG_STATE_HOME`, else `~/.local/state` | the viewer's `state_folder` |
+| `state_dir()` | `minionsfactory` under `XDG_STATE_HOME`, else `~/.local/state` | the viewer's `state_folder`, removed |
 | `SKILLS`, `skills_dir(executor)` | `{"claude": ".claude/skills", "codex": ".agents/skills"}`, and `Path.home()` joined to one | the conductor's `SKILLS`, pin's `HOSTS` |
-| `codex_home()` | `CODEX_HOME`, else `~/.codex` | `_codex_home`, and the copy in `review_metrics.py` |
+| `codex_home()` | `CODEX_HOME`, else `~/.codex` | `_codex_home`, removed, and the copy in `review_metrics.py` |
 | `claude_home()` | `CLAUDE_CONFIG_DIR`, else `~/.claude` | the line in `_plugins_off` |
 
 The probe's entry is a file. The module names no path of the run directory here: those are 0134's.
 
 ### D3
 
-- The conductor loses `KEPT_ORIGINS`, `SKILLS`, `_digest`, `_kept_file`, `_ledger`, `_default_file`, `_pushed_file` and `_codex_home`, and in phase 4 `_queue`.
-- Pin loses `KEPT`, `HOSTS`, `data` and `_kept`; `gate_check.py` loses `KEPT`.
-- The viewer loses `config_path`, `state_folder` and `recorded`; `review_metrics.py` loses `config_path` and `recorded`.
+- Removed from the conductor: `KEPT_ORIGINS`, `SKILLS`, `_digest`, `_kept_file`, `_ledger`, `_default_file`, `_pushed_file` and `_codex_home`, and in phase 4 `_queue`.
+- Removed from pin: `KEPT`, `HOSTS`, `data` and `_kept`; from `gate_check.py`: `KEPT`.
+- Removed from the viewer: `config_path`, `state_folder` and `recorded`; from `review_metrics.py`: `config_path` and `recorded`.
 
 A test that reached one takes the module's name on the same line: the move changes no assert.
 
