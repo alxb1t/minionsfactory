@@ -7,7 +7,7 @@ The phases: pin the home's names on today's code, give them one module, move the
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
 - [x] 3 — The conductor and the pin · hard
-- [ ] 4 — The readers · moderate
+- [x] 4 — The readers · moderate
 - [ ] 5 — The rule and the record · hard
 
 ## 1 — The pin
@@ -77,17 +77,17 @@ The home half lands in `skills/mflib/layout.py` and nothing calls it yet ([D1](d
 
 `gate_check.py`, the viewer and `review_metrics.py` take their home paths from the module, and the conductor's `_queue` goes ([D3](design.md#d3), [D5](design.md#d5)). Each keeps its own guard and error text.
 
-- [ ] 4.1 In `skills/mf-converge/scripts/gate_check.py` delete `KEPT`, the constant for `.mf-ship-origin`, and the comment above it; `approval` reads `mflib.layout.gate_approval(_primary(), change)`. Reword `approval`'s docstring to name `digest` of the shared home in place of `_digest`.
+- [x] 4.1 In `skills/mf-converge/scripts/gate_check.py` delete `KEPT`, the constant for `.mf-ship-origin`, and the comment above it; `approval` reads `mflib.layout.gate_approval(_primary(), change)`. Reword `approval`'s docstring to name `digest` of the shared home in place of `_digest`.
   Verify: `git grep -n -F -e KEPT -e mf-ship-origin -e _digest -- skills/mf-converge/scripts/gate_check.py` prints nothing.
-- [ ] 4.2 In `skills/mf-ui/scripts/viewer.py` delete `config_path`, `state_folder` and `recorded`, which spell `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `Path.home()` and `.mf-ship-origin`; their callers take `mflib.layout.ui_file()`, `state_dir()` and `repos_file()`. `fingerprint` takes `mflib.layout.queue_cuts(self.primary)` in place of `self.conduct["_queue"]`.
+- [x] 4.2 In `skills/mf-ui/scripts/viewer.py` delete `config_path`, `state_folder` and `recorded`, which spell `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `Path.home()` and `.mf-ship-origin`; their callers take `mflib.layout.ui_file()`, `state_dir()` and `repos_file()`. `fingerprint` takes `mflib.layout.queue_cuts(self.primary)` in place of `self.conduct["_queue"]`.
   Verify: `git grep -n -F -e "Path.home()" -e XDG_ -e mf-ship-origin -e '"_queue"' -- skills/mf-ui/scripts/viewer.py` prints nothing.
-- [ ] 4.3 In `skills/mf-review-metrics/scripts/review_metrics.py` delete `config_path` and `recorded`, which spell `XDG_CONFIG_HOME`, `Path.home()` and `.mf-ship-origin`; their callers take `mflib.layout.review_metrics_file()` and `repos_file()`, and `_codex_sessions` takes `mflib.layout.codex_home()` in place of `CODEX_HOME`.
+- [x] 4.3 In `skills/mf-review-metrics/scripts/review_metrics.py` delete `config_path` and `recorded`, which spell `XDG_CONFIG_HOME`, `Path.home()` and `.mf-ship-origin`; their callers take `mflib.layout.review_metrics_file()` and `repos_file()`, and `_codex_sessions` takes `mflib.layout.codex_home()` in place of `CODEX_HOME`.
   Verify: `git grep -n -F -e "Path.home()" -e XDG_ -e CODEX_HOME -e mf-ship-origin -- skills/mf-review-metrics/scripts/review_metrics.py` prints nothing.
-- [ ] 4.4 In `skills/mf-ship/scripts/conduct.py` delete the one-line def that phase 3 left, `def _queue(primary: Path)`; it has no caller there.
+- [x] 4.4 In `skills/mf-ship/scripts/conduct.py` delete the one-line def that phase 3 left, `def _queue(primary: Path)`; it has no caller there.
   Verify: `git grep -n -F -e "def _queue(" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 4.5 In `tests/test_conduct.py`, `tests/test_viewer.py` and `tests/test_review_metrics.py` each line that reaches the conductor's `_queue`, the viewer's `config_path`, `state_folder` or `recorded`, or `review_metrics.config_path` or `review_metrics.recorded`, takes the module's name. The cases of phase 1 that name them take the module's too.
+- [x] 4.5 In `tests/test_conduct.py`, `tests/test_viewer.py` and `tests/test_review_metrics.py` each line that reaches the conductor's `_queue`, the viewer's `config_path`, `state_folder` or `recorded`, or `review_metrics.config_path` or `review_metrics.recorded`, takes the module's name. The cases of phase 1 that name them take the module's too.
   Verify: `grep -rnE "(conduct\[.?_queue.?\]|ns\[.(config_path|state_folder|recorded)|review_metrics\.(config_path|recorded))" tests` prints nothing.
-- [ ] 4.6 In `tests/test_structure.py` delete the pairs `("gate_check.py", ".mf-ship-origin")`, `("review_metrics.py", ".mf-ship-origin")` and `("viewer.py", ".mf-ship-origin")` from `LAYOUT_SITES`, and `("viewer.py", "_queue")` from `PRIVATE_REACH`.
+- [x] 4.6 In `tests/test_structure.py` delete the pairs `("gate_check.py", ".mf-ship-origin")`, `("review_metrics.py", ".mf-ship-origin")` and `("viewer.py", ".mf-ship-origin")` from `LAYOUT_SITES`, and `("viewer.py", "_queue")` from `PRIVATE_REACH`.
   Verify: `git grep -n -e 'gate_check.py", ".mf-ship-origin' -e 'review_metrics.py", ".mf-ship-origin' -e 'viewer.py", "_queue' -- tests/test_structure.py` prints nothing.
 
 ## 5 — The rule and the record

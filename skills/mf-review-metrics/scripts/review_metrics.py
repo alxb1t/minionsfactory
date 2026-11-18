@@ -148,24 +148,14 @@ class CannotRun(Exception):
     """The run cannot start; the message names what is missing."""
 
 
-def config_path() -> Path:
-    """Return where the config lives, by `XDG_CONFIG_HOME`, else in `~/.config`."""
-    home = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
-    return Path(home) / "minionsfactory" / "review-metrics.toml"
-
-
-def recorded() -> Path:
-    """Return the list of repos a run started in, which `conduct.py run` keeps.
+def _recorded_repos() -> list[Path]:
+    """Return each repo the record names that holds `.minions/`, resolved.
 
     Why: 0100-worker-diet design C1, D12.
     """
-    return Path.home() / ".mf-ship-origin" / "repos"
-
-
-def _recorded_repos() -> list[Path]:
-    """Return each repo the record names that holds `.minions/`, resolved."""
+    record = mflib.layout.repos_file()
     try:
-        lines = recorded().read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = record.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return []
     found = (Path(line.strip()).resolve() for line in lines if line.strip())
@@ -201,7 +191,7 @@ def settings(
 
     Why: 0100-worker-diet design D12.
     """
-    path = config or config_path()
+    path = config or mflib.layout.review_metrics_file()
     data = _read_config(path)
     named = _strings(path, "repos", data.get("repos", []))
     page = data.get("out")
@@ -224,7 +214,7 @@ def session_folders(config: Path | None) -> list[Path]:
 
     Why: 0115-plan-metrics design D1.
     """
-    path = config or config_path()
+    path = config or mflib.layout.review_metrics_file()
     named = _strings(path, "sessions", _read_config(path).get("sessions", []))
     return [_inside(path, text) for text in named]
 
@@ -592,8 +582,7 @@ def _codex_sessions(repo: Path) -> list[Record]:
 
     Why: 0077-run-metrics design D5.
     """
-    home = os.environ.get("CODEX_HOME") or Path.home() / ".codex"
-    everything = _all_sessions(Path(home) / "sessions")
+    everything = _all_sessions(mflib.layout.codex_home() / "sessions")
     origin = _git_lines(repo, "remote", "get-url", "origin")
     trees = {
         str(Path(line.removeprefix("worktree ")).resolve())

@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py` and `pin.py` take every home path from `skills/mflib/layout.py`, so neither builds the kept folder,
   an XDG root or a skills folder by hand; their `.mf-ship-origin` pairs leave `LAYOUT_SITES` (0135-home-layout,
   phase 3).
+- `gate_check.py`, the viewer and `review_metrics.py` take their home paths from `skills/mflib/layout.py`, and the
+  conductor's `_queue` goes; their `.mf-ship-origin` pairs leave `LAYOUT_SITES`, the viewer's `_queue` pair
+  `PRIVATE_REACH` (0135-home-layout, phase 4).
 
 ## [0.106.0] - 2026-11-17
 

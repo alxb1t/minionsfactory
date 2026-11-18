@@ -14,6 +14,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+from mflib import layout
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-review-metrics" / "scripts" / "review_metrics.py"
@@ -112,7 +113,7 @@ def test_every_repo_a_run_started_in(tmp_path: Path) -> None:
         (repo / ".minions").mkdir(parents=True)
     bare.mkdir()
     config.write_text('repos = ["named"]\nout = "page.html"\n', encoding="utf-8")
-    record = review_metrics.recorded()
+    record = layout.repos_file()
     record.parent.mkdir()
     # A repo the config names is read once; one with no `.minions/`, not at all.
     record.write_text(f"{named}\n{started}\n{bare}\n\n{started}\n", encoding="utf-8")
@@ -135,8 +136,8 @@ def test_the_config_and_the_record_stand_at_their_spelled_paths(
 ) -> None:
     monkeypatch.delenv("XDG_CONFIG_HOME")
     config = Path.home() / ".config" / "minionsfactory" / "review-metrics.toml"
-    assert review_metrics.config_path() == config
-    assert review_metrics.recorded() == Path.home() / ".mf-ship-origin" / "repos"
+    assert layout.review_metrics_file() == config
+    assert layout.repos_file() == Path.home() / ".mf-ship-origin" / "repos"
 
 
 def test_each_era_parses_with_gaps(tmp_path: Path) -> None:

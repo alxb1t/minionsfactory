@@ -1044,9 +1044,9 @@ def test_main_runs_serve_start_and_stop(
     monkeypatch.delenv("XDG_CONFIG_HOME")
     monkeypatch.delenv("XDG_STATE_HOME")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    assert ns["config_path"]() == tmp_path / "home/.config/minionsfactory/ui.toml"
-    assert ns["state_folder"]() == tmp_path / "home/.local/state/minionsfactory"
-    assert ns["recorded"]() == tmp_path / "home/.mf-ship-origin/repos"
+    assert layout.ui_file() == tmp_path / "home/.config/minionsfactory/ui.toml"
+    assert layout.state_dir() == tmp_path / "home/.local/state/minionsfactory"
+    assert layout.repos_file() == tmp_path / "home/.mf-ship-origin/repos"
 
 
 _SINK = re.compile(

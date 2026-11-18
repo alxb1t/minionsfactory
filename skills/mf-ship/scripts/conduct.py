@@ -7101,14 +7101,6 @@ def _log_stop(runs: Path) -> Path | None:
     return log
 
 
-def _queue(primary: Path) -> Path:
-    """Return the repo's queue in the home folder's kept folder, where no worker writes.
-
-    Why: 0082-cut-station design D2.
-    """
-    return mflib.layout.queue_dir(primary)
-
-
 def _ship_file() -> tuple[Path, dict[str, Any]]:
     """Return the operator's `ship.toml` path and its data, empty for no file.
 

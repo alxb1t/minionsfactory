@@ -47,7 +47,6 @@ PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
         ("viewer.py", "_frontmatter"),
         ("viewer.py", "_maybe"),
         ("viewer.py", "_progress"),
-        ("viewer.py", "_queue"),
         ("viewer.py", "_rating"),
     }
 )
@@ -64,11 +63,8 @@ LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("converge.py", ".minions"),
         ("converge.py", ".minions/"),
         ("cut_check.py", ".minions/"),
-        ("gate_check.py", ".mf-ship-origin"),
         ("gate_run.py", ".minions/"),
-        ("review_metrics.py", ".mf-ship-origin"),
         ("stamp.py", ".minions/"),
-        ("viewer.py", ".mf-ship-origin"),
         ("viewer.py", ".minions"),
     }
 )

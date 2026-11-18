@@ -3881,7 +3881,7 @@ def test_a_fixed_version_rejoins_a_live_run(
     live = threading.Thread(target=gate.wait, daemon=True)
     live.start()
     threads = {"0001-todo": live}
-    request = conduct["_queue"](base) / "rejoin" / "0001-todo"
+    request = layout.queue_dir(base) / "rejoin" / "0001-todo"
     conduct["_request"](base, "0001-todo")
     for _ in range(2):
         assert not conductor.take_requests(threads)
@@ -3935,7 +3935,7 @@ def test_a_new_executor_is_probed_mid_run(
         ) -> None:
             # A folder no unlink removes: the poll skips it, and the run goes on.
             # Why: 0063-rejoin design D2.
-            (conduct["_queue"](root) / "rejoin" / "planted").mkdir(parents=True)
+            (layout.queue_dir(root) / "rejoin" / "planted").mkdir(parents=True)
             for change in joining:
                 table = root / ".minions" / "changes" / change / "models.toml"
                 table.parent.mkdir(parents=True, exist_ok=True)
@@ -4000,7 +4000,7 @@ def test_a_new_executor_is_probed_mid_run(
             )
             assert lines[-1].endswith(" · run · done — released v0.1.0 v0.2.0")
 
-            stale = conduct["_queue"](root) / "rejoin" / "all"
+            stale = layout.queue_dir(root) / "rejoin" / "all"
             stale.touch()
             assert (
                 _main(
@@ -4023,7 +4023,7 @@ def test_a_new_executor_is_probed_mid_run(
             (elsewhere / "kept.gate").mkdir()
             shutil.rmtree(stale.parent)
             stale.parent.symlink_to(elsewhere)
-            assert conduct["_requests"](conduct["_queue"](root)) == set()
+            assert conduct["_requests"](layout.queue_dir(root)) == set()
             assert (elsewhere / "kept-urls").is_file()
 
 
@@ -5045,7 +5045,7 @@ def test_a_request_at_a_runs_close_starts_the_next_run(
     conduct = _conduct()
     names = conduct["main"].__globals__
     root = _primary(tmp_path)
-    queue = conduct["_queue"](root)
+    queue = layout.queue_dir(root)
     active = root / ".minions" / "runs" / "active"
     starts: list[tuple[Path, str]] = []
 
@@ -5162,7 +5162,7 @@ def _queued(
     """Queue a cut as `conduct.py cut` does: its reservation, then its entry."""
     (root / ".minions" / "cuts").mkdir(parents=True, exist_ok=True)
     (root / ".minions" / "cuts" / change).touch()
-    (conduct["_queue"](root) / "cuts").mkdir(parents=True, exist_ok=True)
+    (layout.queue_dir(root) / "cuts").mkdir(parents=True, exist_ok=True)
     entry = {
         "bump": "minor",
         "brief": str(brief),
@@ -5215,7 +5215,7 @@ def test_a_queued_cut_is_cut_then_built(
     assert any(line.endswith(" · 0001-a · check — cut · pass") for line in lines)
     assert not (root / ".minions" / "cuts" / "0001-a").exists()
     assert conduct["_cuts"](root) == {}
-    record = conduct["_queue"](root) / "briefs" / "0001-a"
+    record = layout.queue_dir(root) / "briefs" / "0001-a"
     assert record.read_text() == f"{brief}\n"
     assert lines[-1].endswith(" · run · done — released v0.1.0")
 
@@ -5441,11 +5441,11 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     _queued(conduct, root, "0003-c", brief, halt="x")
     _claimed(conduct, root)
     assert conduct["rejoin"](root, "0003-c") == "rejoin: requested 0003-c"
-    assert (conduct["_queue"](root) / "rejoin" / "0003-c").is_file()
+    assert (layout.queue_dir(root) / "rejoin" / "0003-c").is_file()
     assert conduct["_cuts"](root)["0003-c"]["halt"] is None
     shutil.rmtree(root / ".minions" / "runs" / "active")
-    conduct["_requests"](conduct["_queue"](root))
-    folder = conduct["_queue"](root) / "cuts"
+    conduct["_requests"](layout.queue_dir(root))
+    folder = layout.queue_dir(root) / "cuts"
     (folder / "0003-c").write_text("{")
     (folder / ".partial").write_text("{}")
     assert said("status") == ["0003-c · cut-halted — the queue entry is unreadable"]
@@ -9174,7 +9174,7 @@ def test_cap_writes_the_reason_into_the_entry(tmp_path: Path) -> None:
     kept = {key: value for key, value in held.items() if key != "waits"}
     assert conduct["_cuts"](root)["0003-a"] == kept
     assert written == ["0003-a"] * 3
-    (conduct["_queue"](root) / "cuts" / "0003-a").unlink()
+    (layout.queue_dir(root) / "cuts" / "0003-a").unlink()
     conductor.unwait("0003-a", held)
     assert "0003-a" not in conduct["_cuts"](root)
     assert written == ["0003-a"] * 3
@@ -10311,7 +10311,7 @@ def test_the_plan_is_read_once(
     table.write_text('[converge]\nexecutor = "codex"\n')
     changed = "conduct: halt — changes/0001-todo/models.toml changed during the run"
     conductor.halt("0001-todo", changed)
-    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
+    request = layout.queue_dir(root) / "rejoin" / "0001-todo"
     request.parent.mkdir(parents=True, exist_ok=True)
     request.touch()
     assert not conductor.take_requests({})
@@ -11091,7 +11091,7 @@ def test_a_grant_buys_one_round(
         "grant: cannot run — 0001-todo is at converge-halted"
         " with its rescue or supervisor running: grant once it ends"
     )
-    request = conduct["_queue"](root) / "rejoin" / "0001-todo"
+    request = layout.queue_dir(root) / "rejoin" / "0001-todo"
     assert grant() == (2, rescuing)
     assert not grants.exists() and not request.exists()
     with newest.open("a") as file:
@@ -12586,7 +12586,7 @@ def test_reach_stops_at_live_worktrees(tmp_path: Path) -> None:
 
     assert conduct["reach"](root) == [root, tree]
 
-    entry = conduct["_queue"](root) / "cuts" / "0003-queued"
+    entry = layout.queue_dir(root) / "cuts" / "0003-queued"
     entry.parent.mkdir(parents=True)
     entry.write_text("{}")
     assert conduct["reach"](root) == [root, tree, queued.resolve()]
