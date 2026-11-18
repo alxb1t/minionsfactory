@@ -663,6 +663,16 @@ def test_the_fingerprint_changes_when_a_change_folders_file_is_written(
     assert not (root / ".minions" / "runs").exists()
 
 
+def test_the_fingerprint_changes_when_a_cut_is_queued(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    first = _tree(root, "fingerprint")["fingerprint"]
+    assert _tree(root, "fingerprint")["fingerprint"] == first
+
+    _queue(root, {"0003-c": None})
+
+    assert _tree(root, "fingerprint")["fingerprint"] != first
+
+
 def _snapshot(top: Path) -> dict[str, tuple[int, int]]:
     """Return the mtime and size of every path under `top`."""
     found = {}

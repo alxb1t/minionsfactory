@@ -4,7 +4,7 @@ The phases: pin the home's names on today's code, give them one module, move the
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The conductor and the pin · hard
 - [ ] 4 — The readers · moderate
@@ -14,25 +14,25 @@ The phases: pin the home's names on today's code, give them one module, move the
 
 Each case runs green on today's code and is seen red once under the change it names, which the worker reverts ([D4](design.md#d4)). No file under `skills/` changes.
 
-- [ ] 1.1 In `tests/test_conduct.py` beside `test_cap_reads_ship_toml`, add `test_ship_toml_is_read_from_its_spelled_path`: with `XDG_CONFIG_HOME` unset it reads `~/.config/minionsfactory/ship.toml`, spelled by hand; set elsewhere, it reads that file and not the home's. Red under `".config"` renamed at `conduct.py:7151`.
+- [x] 1.1 In `tests/test_conduct.py` beside `test_cap_reads_ship_toml`, add `test_ship_toml_is_read_from_its_spelled_path`: with `XDG_CONFIG_HOME` unset it reads `~/.config/minionsfactory/ship.toml`, spelled by hand; set elsewhere, it reads that file and not the home's. Red under `".config"` renamed at `conduct.py:7151`.
   Verify: `uv run pytest tests/test_conduct.py -q -k ship_toml_is_read_from_its_spelled_path` exits 0.
-- [ ] 1.2 In `tests/test_conduct.py` add `test_a_home_name_is_its_spelled_path`, run for a primary and for a symlink to it. It spells the kept file, `.released`, `.default` and `.pushed` under `~/.mf-ship-origin` by hand, the digest by `hashlib` over `root.resolve()`. Red under `.resolve()` dropped at `conduct.py:1788` and a suffix renamed at `:1796`, `:1874` and `:1888`.
+- [x] 1.2 In `tests/test_conduct.py` add `test_a_home_name_is_its_spelled_path`, run for a primary and for a symlink to it. It spells the kept file, `.released`, `.default` and `.pushed` under `~/.mf-ship-origin` by hand, the digest by `hashlib` over `root.resolve()`. Red under `.resolve()` dropped at `conduct.py:1788` and a suffix renamed at `:1796`, `:1874` and `:1888`.
   Verify: `uv run pytest tests/test_conduct.py -q -k a_home_name_is_its_spelled_path` exits 0.
-- [ ] 1.3 In `tests/test_conduct.py` add `test_the_queue_names_are_their_spelled_paths`: `_queue_lock` makes `<digest>.queue/lock`, and `_merge_tried` reads a file planted at `<digest>.queue/supervised/<change>`, both spelled by hand. Extend `test_a_supervisor_settles_an_integrate_note` to assert the entry its run wrote stands at that path. Red under `"lock"` at `:7236`, `"supervised"` at `:7211` and at `:5143`.
+- [x] 1.3 In `tests/test_conduct.py` add `test_the_queue_names_are_their_spelled_paths`: `_queue_lock` makes `<digest>.queue/lock`, and `_merge_tried` reads a file planted at `<digest>.queue/supervised/<change>`, both spelled by hand. Extend `test_a_supervisor_settles_an_integrate_note` to assert the entry its run wrote stands at that path. Red under `"lock"` at `:7236`, `"supervised"` at `:7211` and at `:5143`.
   Verify: `uv run pytest tests/test_conduct.py -q -k the_queue_names_are_their_spelled_paths` exits 0.
-- [ ] 1.4 In `tests/test_conduct.py` add `test_the_scratch_folder_is_named_by_its_prefix`: a folder `_scratch` makes has the parent `Path.home()` and a name starting `.mf-ship-remote-`, spelled by hand. Red under the prefix renamed at `conduct.py:1995`.
+- [x] 1.4 In `tests/test_conduct.py` add `test_the_scratch_folder_is_named_by_its_prefix`: a folder `_scratch` makes has the parent `Path.home()` and a name starting `.mf-ship-remote-`, spelled by hand. Red under the prefix renamed at `conduct.py:1995`.
   Verify: `uv run pytest tests/test_conduct.py -q -k scratch_folder_is_named_by_its_prefix` exits 0.
-- [ ] 1.5 In `tests/test_conduct.py` add `test_a_skill_is_looked_for_in_each_hosts_spelled_folder`: `_unlinked` stops for `claude` while `~/.claude/skills/mf-ship` is missing and for `codex` while `~/.agents/skills/mf-build` is missing, both spelled by hand. Red under either folder renamed at `conduct.py:183`.
+- [x] 1.5 In `tests/test_conduct.py` add `test_a_skill_is_looked_for_in_each_hosts_spelled_folder`: `_unlinked` stops for `claude` while `~/.claude/skills/mf-ship` is missing and for `codex` while `~/.agents/skills/mf-build` is missing, both spelled by hand. Red under either folder renamed at `conduct.py:183`.
   Verify: `uv run pytest tests/test_conduct.py -q -k skill_is_looked_for_in_each_hosts_spelled_folder` exits 0.
-- [ ] 1.6 In `tests/test_viewer.py` add `test_the_fingerprint_changes_when_a_cut_is_queued`, beside the fingerprint tests, queueing through its `_queue` helper. Red under `"cuts"` renamed at `viewer.py:588`.
+- [x] 1.6 In `tests/test_viewer.py` add `test_the_fingerprint_changes_when_a_cut_is_queued`, beside the fingerprint tests, queueing through its `_queue` helper. Red under `"cuts"` renamed at `viewer.py:588`.
   Verify: `uv run pytest tests/test_viewer.py -q -k fingerprint_changes_when_a_cut_is_queued` exits 0.
-- [ ] 1.7 In `tests/test_review_metrics.py` add `test_the_config_and_the_record_stand_at_their_spelled_paths`: with `XDG_CONFIG_HOME` unset, `config_path()` is `~/.config/minionsfactory/review-metrics.toml` and `recorded()` is `~/.mf-ship-origin/repos`, spelled by hand. Red under `".config"` renamed at `review_metrics.py:153` and the folder at `:162`.
+- [x] 1.7 In `tests/test_review_metrics.py` add `test_the_config_and_the_record_stand_at_their_spelled_paths`: with `XDG_CONFIG_HOME` unset, `config_path()` is `~/.config/minionsfactory/review-metrics.toml` and `recorded()` is `~/.mf-ship-origin/repos`, spelled by hand. Red under `".config"` renamed at `review_metrics.py:153` and the folder at `:162`.
   Verify: `uv run pytest tests/test_review_metrics.py -q -k config_and_the_record_stand_at_their_spelled_paths` exits 0.
-- [ ] 1.8 In `tests/test_review_metrics.py` add `test_the_codex_sessions_fall_back_to_their_spelled_folder`: with `CODEX_HOME` unset, `_codex_sessions` reads `~/.codex/sessions`, spelled by hand. Red under `".codex"` renamed at `review_metrics.py:595`.
+- [x] 1.8 In `tests/test_review_metrics.py` add `test_the_codex_sessions_fall_back_to_their_spelled_folder`: with `CODEX_HOME` unset, `_codex_sessions` reads `~/.codex/sessions`, spelled by hand. Red under `".codex"` renamed at `review_metrics.py:595`.
   Verify: `uv run pytest tests/test_review_metrics.py -q -k codex_sessions_fall_back_to_their_spelled_folder` exits 0.
-- [ ] 1.9 In `tests/test_pin.py` add `test_the_data_folder_follows_its_variable`: with `XDG_DATA_HOME` unset an install exports under `~/.local/share/minionsfactory`, set elsewhere under that folder, both spelled by hand and reached through `install` alone. Red under `".local"` renamed at `pin.py:50`.
+- [x] 1.9 In `tests/test_pin.py` add `test_the_data_folder_follows_its_variable`: with `XDG_DATA_HOME` unset an install exports under `~/.local/share/minionsfactory`, set elsewhere under that folder, both spelled by hand and reached through `install` alone. Red under `".local"` renamed at `pin.py:50`.
   Verify: `uv run pytest tests/test_pin.py -q -k data_folder_follows_its_variable` exits 0.
-- [ ] 1.10 In `tests/test_pin.py` add `test_a_live_install_keeps_its_checkout_under_the_home_folder`: `install(root, "live")` writes `~/.mf-ship-origin/checkout`, and `move` links the `skills` of the path that file holds, both spelled by hand. Red under `"checkout"` renamed at `pin.py:327` and at `:370`.
+- [x] 1.10 In `tests/test_pin.py` add `test_a_live_install_keeps_its_checkout_under_the_home_folder`: `install(root, "live")` writes `~/.mf-ship-origin/checkout`, and `move` links the `skills` of the path that file holds, both spelled by hand. Red under `"checkout"` renamed at `pin.py:327` and at `:370`.
   Verify: `uv run pytest tests/test_pin.py -q -k live_install_keeps_its_checkout_under_the_home_folder` exits 0.
 
 ## 2 — The module

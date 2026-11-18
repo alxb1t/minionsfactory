@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin tests spell each home-folder path by hand — the kept files and their digest, the queue's lock and `supervised/`,
+  the scratch prefix, each host's skills folder, the cuts the viewer watches, the config, data and Codex fallbacks
+  and the live checkout — before the paths move into one module (0135-home-layout, phase 1).
+
 ## [0.106.0] - 2026-11-17
 
 Gate: local 4m58s · CI not read under mf-ship · 0.105.1: local 5m16s · CI not read under mf-ship

@@ -3554,6 +3554,9 @@ def test_a_supervisor_settles_an_integrate_note(
     assert lines[-1].endswith(
         " · run · done — released v0.1.0 v0.2.0 · supervised 0002-marks"
     )
+    queue = Path.home() / ".mf-ship-origin" / f"{_spelled_digest(root)}.queue"
+    tried = _git(root, "rev-parse", f"{merge}^2")
+    assert (queue / "supervised" / "0002-marks").read_text() == f"{tried}\n"
 
 
 @pytest.mark.slow
@@ -8130,6 +8133,14 @@ def test_the_scratch_stands_outside_the_worktree(
         assert conduct["_kept_origin"](root) is None
 
 
+def test_the_scratch_folder_is_named_by_its_prefix() -> None:
+    conduct = _conduct()
+    with conduct["_scratch"]() as scratch:
+        folder = Path(scratch)
+        assert folder.parent == Path.home()
+        assert folder.name.startswith(".mf-ship-remote-")
+
+
 @pytest.mark.slow
 def test_a_local_origin_url_is_refused(
     tmp_path: Path,
@@ -8832,6 +8843,61 @@ def test_cap_reads_ship_toml() -> None:
         ) as stopped:
             conduct["_cap"]()
         assert stopped.value.code == 2
+
+
+def test_ship_toml_is_read_from_its_spelled_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("XDG_CONFIG_HOME")
+    home = Path.home() / ".config" / "minionsfactory" / "ship.toml"
+    home.parent.mkdir(parents=True)
+    home.write_text("[queue]\nin_flight = 3\n")
+    assert conduct["_ship_file"]() == (home, {"queue": {"in_flight": 3}})
+    assert conduct["_cap"]() == 3
+
+    elsewhere = tmp_path / "elsewhere"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(elsewhere))
+    path = elsewhere / "minionsfactory" / "ship.toml"
+    path.parent.mkdir(parents=True)
+    path.write_text("[queue]\nin_flight = 5\n")
+    assert conduct["_ship_file"]() == (path, {"queue": {"in_flight": 5}})
+    assert conduct["_cap"]() == 5
+
+
+def _spelled_digest(primary: Path) -> str:
+    """Return the name `primary`'s files take in the home folder, spelled by hand."""
+    return hashlib.sha256(str(primary.resolve()).encode()).hexdigest()[:16]
+
+
+@pytest.mark.parametrize("linked", [False, True], ids=["primary", "link"])
+def test_a_home_name_is_its_spelled_path(tmp_path: Path, linked: bool) -> None:
+    conduct = _conduct()
+    root = tmp_path / "main"
+    root.mkdir()
+    given = root
+    if linked:
+        given = tmp_path / "link"
+        given.symlink_to(root)
+    digest = _spelled_digest(root)
+    kept = Path.home() / ".mf-ship-origin"
+    assert conduct["_kept_file"](given) == kept / digest
+    assert conduct["_ledger"](given) == kept / f"{digest}.released"
+    assert conduct["_default_file"](given) == kept / f"{digest}.default"
+    assert conduct["_pushed_file"](given) == kept / f"{digest}.pushed"
+
+
+def test_the_queue_names_are_their_spelled_paths(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = tmp_path / "main"
+    root.mkdir()
+    queue = Path.home() / ".mf-ship-origin" / f"{_spelled_digest(root)}.queue"
+    with conduct["_queue_lock"](root):
+        assert (queue / "lock").is_file()
+    entry = queue / "supervised" / "0001-a"
+    entry.parent.mkdir()
+    entry.write_text("abc\n")
+    assert conduct["_merge_tried"](root, "0001-a", "abc")
 
 
 def test_ship_toml_reads_tags() -> None:
@@ -11682,6 +11748,22 @@ def test_a_missing_skill_stops_a_run(
         "run: cannot run — the mf-* links point into more than one tree:"
         " ~/.agents/skills/mf-build; make install-skills"
     )
+
+
+@pytest.mark.parametrize(
+    ("executor", "folder", "missing"),
+    [("claude", ".claude/skills", "mf-ship"), ("codex", ".agents/skills", "mf-build")],
+)
+def test_a_skill_is_looked_for_in_each_hosts_spelled_folder(
+    monkeypatch: pytest.MonkeyPatch, executor: str, folder: str, missing: str
+) -> None:
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    for skill in (_REPO / "skills").glob("mf-*"):
+        if skill.is_dir() and skill.name != missing:
+            (Path.home() / folder / skill.name).mkdir(parents=True)
+    with pytest.raises(conduct["Stop"], match=f"— {missing} is not linked"):
+        conduct["_unlinked"](executor)
 
 
 @pytest.mark.slow

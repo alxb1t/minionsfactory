@@ -414,3 +414,38 @@ def test_uninstall_removes_the_links_into_the_release_or_the_checkout(
     assert (agents / "mf-real").is_dir()
     assert pin["main"](["uninstall"]) == 0
     assert capsys.readouterr().out.strip() == "pin: no link to remove"
+
+
+def test_the_data_folder_follows_its_variable(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pin = _pin()
+    root = _mf(tmp_path)
+    monkeypatch.delenv("XDG_DATA_HOME")
+    assert pin["install"](root, "v0.1.0") == "pin: linked v0.1.0"
+    home = isolated_home / ".local" / "share" / "minionsfactory"
+    assert (home / "v0.1.0" / "VERSION").read_text() == "v0.1.0\n"
+
+    elsewhere = tmp_path / "elsewhere"
+    monkeypatch.setenv("XDG_DATA_HOME", str(elsewhere))
+    assert pin["install"](root, "v0.2.0") == "pin: linked v0.2.0"
+    tree = elsewhere / "minionsfactory" / "v0.2.0"
+    assert (tree / "VERSION").read_text() == "v0.2.0\n"
+    assert not (home / "v0.2.0").exists()
+
+
+def test_a_live_install_keeps_its_checkout_under_the_home_folder(
+    tmp_path: Path, isolated_home: Path
+) -> None:
+    pin = _pin()
+    root = _mf(tmp_path)
+    kept = isolated_home / ".mf-ship-origin"
+    assert pin["install"](root, "live") == "pin: linked live"
+    assert (kept / "checkout").read_text() == f"{root}\n"
+
+    other = tmp_path / "other"
+    (other / "skills" / "mf-build").mkdir(parents=True)
+    (kept / "checkout").write_text(f"{other}\n")
+    (kept / "pending").write_text("live\n")
+    assert pin["move"]() == "pin: moved to live"
+    assert _links(isolated_home) == _into(isolated_home, other / "skills", ("build",))

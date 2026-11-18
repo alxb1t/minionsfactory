@@ -130,6 +130,15 @@ def test_every_repo_a_run_started_in(tmp_path: Path) -> None:
     assert repos == [named.resolve(), started.resolve()]
 
 
+def test_the_config_and_the_record_stand_at_their_spelled_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("XDG_CONFIG_HOME")
+    config = Path.home() / ".config" / "minionsfactory" / "review-metrics.toml"
+    assert review_metrics.config_path() == config
+    assert review_metrics.recorded() == Path.home() / ".mf-ship-origin" / "repos"
+
+
 def test_each_era_parses_with_gaps(tmp_path: Path) -> None:
     bullets = "- **severity:** blocking\n- **severity:** `nit`\n- **severity:** nit\n"
     _findings(
@@ -451,6 +460,25 @@ def _worked(model: str, effort: str, *totals: int) -> list[object]:
         for t in ({"total_tokens": total} for total in totals)
     ]
     return [context, *counts]
+
+
+def test_the_codex_sessions_fall_back_to_their_spelled_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CODEX_HOME")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    url = "git@example.invalid:o/r.git"
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "remote", "add", "origin", url], cwd=repo, check=True)
+    folder = Path.home() / ".codex" / "sessions" / "2026" / "11" / "05"
+    folder.mkdir(parents=True)
+    meta = _meta("2026-11-05T10:00:00Z", str(repo), url, agent="conformance")
+    (folder / "a.jsonl").write_text(json.dumps(meta) + "\n")
+
+    found = review_metrics._codex_sessions(repo)
+
+    assert [session["id"] for session in found] == ["conformance"]
 
 
 def test_codex_sessions_fill_the_rounds(
