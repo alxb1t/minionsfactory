@@ -904,6 +904,34 @@ def test_each_check_passes_only_on_disk_evidence(
     assert conduct["check_probe"](scratch, mark) == escaped
 
 
+def test_report_with_tags_false_reads_not_pushed_today(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge the release", "0001-todo")
+    _git(root, "tag", "-a", "-m", "v0.1.0", "v0.1.0", "0001-todo")
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    monkeypatch.setenv("MF_SHIP_AGENT", "true")
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    (runs / "1.md").write_text("10:00:00 · 0001-todo · spawn — release\n")
+    ship = layout.ship_file()
+    ship.parent.mkdir(parents=True, exist_ok=True)
+    ship.write_text("[push]\ntags = false\n")
+    assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
+    assert _git(origin, "tag") == ""
+
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out.split(" · ")[3] == "not pushed"
+
+
 def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

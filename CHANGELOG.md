@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A pin test holds today's `report` under `tags = false`: `main` and its merge on `origin`, the tag local, and the
+  word reads `not pushed`, before `report` learns to name the default branch (0137-cloud-session, phase 1).
+
 ## [0.107.0] - 2026-11-18
 
 Gate: local 5m23s · CI not read under mf-ship · 0.106.0: local 4m58s · CI not read under mf-ship

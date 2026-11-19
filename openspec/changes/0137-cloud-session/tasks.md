@@ -4,7 +4,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The worker · moderate
 - [ ] 3 — The report · moderate
 - [ ] 4 — The wait · hard
@@ -14,7 +14,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## 1 — The pin
 
-- [ ] 1.1 In `tests/test_conduct.py`, add `test_report_with_tags_false_reads_not_pushed_today`, built on a bare `origin` as the
+- [x] 1.1 In `tests/test_conduct.py`, add `test_report_with_tags_false_reads_not_pushed_today`, built on a bare `origin` as the
   release check's `pushed()` is: `main` and the merge on `origin`, the tag local, `[push]` `tags = false` in `layout.ship_file()`.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_report_with_tags_false_reads_not_pushed_today` passes.
 
