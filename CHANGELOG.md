@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the threat model and `mf-ship`'s table gain the script, `wait` and `report`'s words (0137-cloud-session, phase 6).
 - `scripts/cloud_setup.py` holds the SHA-256 of the pinned `uv` tarball, so the setup checks it before it unpacks
   (0137-cloud-session, phase 7).
+- Converge's fixes: `wait` prints the lines a run's close wrote before `wait: ended`; the setup script installs the
+  skills again where the tag's export stands but a host lacks its links; the setup test that runs the script as a
+  program sets the OS it refuses; D85 says a refusal for a clone on no tag reads git first (0137-cloud-session).
 
 ## [0.107.0] - 2026-11-18
 

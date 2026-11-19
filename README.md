@@ -154,7 +154,7 @@ in the background, and report its last lines when it ends.
 ```
 
 `wait` prints the run log's new lines and `wait: live · +<n> lines` at every poll, which keeps the VM up, then
-`wait: ended` and `status`'s lines.
+the lines the run's close wrote, `wait: ended` and `status`'s lines.
 
 - **The tag:** the cloud pushes the default branch and no tag, so `report` reads `default pushed, tag local`. The next
   run on a machine that pushes tags makes the tag of each release commit `origin`'s default branch holds, and pushes it.

@@ -48,6 +48,21 @@ def _tarball(files: dict[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
+def _export(tag: str) -> Path:
+    """Return the skills tree of `tag`, exported as `make install-skills` does."""
+    skills = layout.data_dir() / tag / "skills"
+    (skills / "mf-ship").mkdir(parents=True, exist_ok=True)
+    return skills
+
+
+def _link(skills: Path, executor: str) -> None:
+    """Link the executor's host's `mf-ship` into `skills`, as the installer does."""
+    link = layout.skills_dir(executor) / "mf-ship"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.unlink(missing_ok=True)
+    link.symlink_to(skills / "mf-ship")
+
+
 class Machine:
     """A fake Linux machine: its packages, its programs and each command it ran."""
 
@@ -86,7 +101,9 @@ class Machine:
                 (self.bin / "openspec").write_text(spec.rpartition("@")[2])
                 code = 0
             case ["make", "-C", _, "install-skills", tag]:
-                (layout.data_dir() / tag.removeprefix("TAG=")).mkdir(parents=True)
+                skills = _export(tag.removeprefix("TAG="))
+                for executor in layout.SKILLS:
+                    _link(skills, executor)
                 code = 0
             case _ if program.is_file():
                 return subprocess.CompletedProcess(argv, 0, program.read_text(), "")
@@ -184,6 +201,7 @@ def test_the_script_as_a_program_refuses_off_linux(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(sys, "path", list(sys.path))
+    monkeypatch.setattr(platform, "OS", "macos")
     with pytest.raises(SystemExit) as stopped:
         runpy.run_path(str(_SCRIPT), run_name="__main__")
     assert stopped.value.code == 2
@@ -235,6 +253,16 @@ def test_a_second_run_skips_each_step(
         "skills: stand",
     ]
     assert [sandbox, ready] == ["sandbox: applies", "cloud_setup: ready"]
+
+
+def test_an_export_a_host_lacks_the_links_of_installs_again(
+    machine: Machine, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _link(_export(_TAG), "claude")
+    assert setup.main() == 0
+    make = ["make", "-C", str(setup.ROOT), "install-skills", f"TAG={_TAG}"]
+    assert make in machine.installs()
+    assert f"skills: installed {_TAG}" in _report(capsys)
 
 
 def test_a_ship_toml_that_stands_is_kept(

@@ -1079,7 +1079,7 @@ def test_wait_ends_on_a_halted_run(
     _waiting(conduct, monkeypatch, ["live", "none"], [_gain(log, halt)])
 
     assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
-    assert capsys.readouterr().out == "wait: ended\n0001-todo · build\n"
+    assert capsys.readouterr().out == f"{halt}wait: ended\n0001-todo · build\n"
 
 
 def test_wait_reads_no_origin_at_a_poll(

@@ -100,6 +100,8 @@ not live (gone or stale)  ──▶  wait: ended, then status(cwd), exit 0
 - Every print flushes: the session reads a pipe.
 - `WAIT_SECONDS` is 60.
 
+Fix note (2026-11-19, S3): a poll reads the claim before the log, and the poll that finds it not live prints the lines the log gained before `wait: ended`, so a close written during the last sleep is not lost.
+
 ### D6
 
 **The script is a module of functions behind one runner.** `run(argv)` is the one function that starts a command, and a test replaces it. `fetch(url)` is the one download, and a test replaces it. The script has the PEP 723 header the standards ask for, and the VM's `python3` runs it.
@@ -118,6 +120,8 @@ not live (gone or stale)  ──▶  wait: ended, then status(cwd), exit 0
 The tag is `git describe --tags --exact-match` of the clone. The versions are constants of the script. A case reads the lowest `uv` from `pyproject.toml`, `uv` and the `betterleaks` tarball URL and digest from `.github/workflows/ci.yml`, and `betterleaks` and `openspec` from `AGENTS.md`, and fails where one differs. The script names no OS command of the structure rule's list, and no `.minions/` or home-folder name outside `layout.py`.
 
 `fetch(url)` opens the URL with `urllib.request.urlopen` after it checks the scheme is `https`, and returns the bytes. Its one `noqa: S310` carries a `# why:` line. The apt step lists the packages of the table above and no more: a VM that lacks `make` fails the install step, the report names it, and the fifth probe reads it.
+
+Fix note (2026-11-19, S4): the export stands for the install only where both hosts link each `mf-*` skill of `layout.data_dir() / <tag> / skills` into it; an export a stopped install or an uninstall left runs `make install-skills` again, which reuses it.
 
 ### D7
 

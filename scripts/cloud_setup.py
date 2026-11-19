@@ -206,12 +206,27 @@ def write_ship_toml() -> list[str]:
     return [f"ship.toml: written {path}"]
 
 
+def _linked(skills: Path) -> bool:
+    """Return whether each `mf-*` skill of the tree `skills` is linked on both hosts."""
+    names = [skill.name for skill in skills.glob("mf-*") if skill.is_dir()]
+    return bool(names) and all(
+        (link := mflib.layout.skills_dir(executor) / name).is_symlink()
+        and link.resolve() == (skills / name).resolve()
+        for executor in mflib.layout.SKILLS
+        for name in names
+    )
+
+
 def install_skills() -> list[str]:
-    """Install MF's skills at the clone's tag; return the report line."""
+    """Install MF's skills at the clone's tag; return the report line.
+
+    The tag's export alone does not stand for the install: one stopped before it
+    linked, or the links removed, installs again. Why: 0137-cloud-session design D6.
+    """
     tag = clone_tag()
     if tag is None:
         raise Failed("skills: the clone stands on no tag")
-    if (mflib.layout.data_dir() / tag).is_dir():
+    if _linked(mflib.layout.data_dir() / tag / "skills"):
         return ["skills: stand"]
     _ok(run(["make", "-C", str(ROOT), "install-skills", f"TAG={tag}"]), "skills")
     return [f"skills: installed {tag}"]

@@ -920,8 +920,9 @@ Linux machine ready for a run: `bubblewrap`, `socat` and `procps` by `apt-get`; 
 release tarballs, each checked against a SHA-256 the script holds before it is unpacked, a mismatch installing nothing;
 `openspec` by `npm` at its version; the folder `mf-tmp` under the home; `ship.toml` with `tags = false` where none
 stands; `make install-skills` at the clone's tag; and a read-back that the OS sandbox applies. It refuses with exit 2,
-running no command, where the OS is not Linux, the user is not root or the clone stands on no tag, and a second run skips
-each step whose result stands. A test holds its versions and `betterleaks`'s URL and digest to `pyproject.toml`, the CI
+running no command, where the OS is not Linux or the user is not root, and running no command but `git describe`, which
+finds it, where the clone stands on no tag; a second run skips each step whose result stands, the skills where the
+tag's export stands and both hosts link each of its skills. A test holds its versions and `betterleaks`'s URL and digest to `pyproject.toml`, the CI
 workflow and `AGENTS.md`; `uv`'s digest is a person's, copied from the release's `.sha256` asset.**
 
 - **Why:** an environment's setup script runs as root before the session and is cached. The gate asks every changed line

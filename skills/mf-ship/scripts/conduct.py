@@ -8179,7 +8179,8 @@ def status(cwd: Path) -> str:
 def wait_run(cwd: Path) -> int:
     """Print the newest run log's new lines at each poll, then `status`; return 0.
 
-    A poll reads no `origin`. Why: 0137-cloud-session design D5.
+    A poll reads no `origin`, and the claim before the log, so the last poll prints the
+    lines the run's close wrote. Why: 0137-cloud-session design D5.
     """
     primary = primary_of(cwd)
     active = mflib.layout.claim_file(primary)
@@ -8191,8 +8192,7 @@ def wait_run(cwd: Path) -> int:
     offset = held.stat().st_size if held else 0
     while True:
         time.sleep(WAIT_SECONDS)
-        if _claim(active) != "live":
-            break
+        live = _claim(active) == "live"
         if (newest := last_log(runs)) != held:
             held, offset = newest, 0
         gained = held.read_bytes()[offset:] if held else b""
@@ -8201,6 +8201,8 @@ def wait_run(cwd: Path) -> int:
         lines = whole.decode(errors="replace").splitlines()
         for line in lines:
             print(line, flush=True)
+        if not live:
+            break
         print(f"wait: live · +{len(lines)} lines", flush=True)
     print("wait: ended", flush=True)
     print(status(cwd), flush=True)
