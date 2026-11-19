@@ -9,7 +9,7 @@ The phases: pin the region, write the modules, move the stations, give the helpe
 - [x] 3 — The stations · hard
 - [x] 4 — The helpers · moderate
 - [x] 5 — The fix · hard
-- [ ] 6 — The rule and the record · hard
+- [x] 6 — The rule and the record · hard
 
 ## 1 — The pin
 
@@ -102,13 +102,13 @@ Each copy to one side, in the order of [D4](design.md#d4) to [D8](design.md#d8);
 
 The format rule, then the record where each fact lives ([D9](design.md#d9), [D12](design.md#d12)).
 
-- [ ] 6.1 In `tests/test_structure.py` add `FORMAT_SITES`, holding `status_log.md` and `## Run` each for `viewer.py`, `review_metrics.py` and `run.py`, a `_format_name` that returns `status_log.md` for an equal string and `## Run` for a string that contains it, and `check_formats`, held by the structure test. Its cases, each with `format` in its name: a planted `status_log.md`; a planted `## Run` in a longer string; a listed site that is gone; the module passing; a docstring passing.
+- [x] 6.1 In `tests/test_structure.py` add `FORMAT_SITES`, holding `status_log.md` and `## Run` each for `viewer.py`, `review_metrics.py` and `run.py`, a `_format_name` that returns `status_log.md` for an equal string and `## Run` for a string that contains it, and `check_formats`, held by the structure test. Its cases, each with `format` in its name: a planted `status_log.md`; a planted `## Run` in a longer string; a listed site that is gone; the module passing; a docstring passing.
   Verify: `uv run pytest tests/test_structure.py -q -k format` exits 0.
-- [ ] 6.2 In `docs/decisions.md` amend D78 to say its status log is written through `skills/mflib/statuslog.py`; D83 to count the format names spelled outside `skills/mflib/` among what the gate holds; D57 to say `status_log.md` is written and parsed by `statuslog.py`, found through `change_dir`.
+- [x] 6.2 In `docs/decisions.md` amend D78 to say its status log is written through `skills/mflib/statuslog.py`; D83 to count the format names spelled outside `skills/mflib/` among what the gate holds; D57 to say `status_log.md` is written and parsed by `statuslog.py`, found through `change_dir`.
   Verify: `git grep -n -e "statuslog" -- docs/decisions.md` prints a line.
-- [ ] 6.3 In `THREAT_MODEL.md` make the sentence on a conductor's writes true to what remains: the status log is written by `skills/mflib/statuslog.py` through a descriptor held across its read and its write; the other in-process writes of a change's folder follow no link by their own checks until their formats move. Add the formats to the shared home's surface sentence.
+- [x] 6.3 In `THREAT_MODEL.md` make the sentence on a conductor's writes true to what remains: the status log is written by `skills/mflib/statuslog.py` through a descriptor held across its read and its write; the other in-process writes of a change's folder follow no link by their own checks until their formats move. Add the formats to the shared home's surface sentence.
   Verify: `git grep -n -e "statuslog" -- THREAT_MODEL.md` prints a line.
-- [ ] 6.4 In `docs/recipes.md` add to the state-file recipe's rule line `check_formats` and `FORMAT_SITES`, and a paragraph on writing a staged file through `statefile` and the status log through `statuslog`.
+- [x] 6.4 In `docs/recipes.md` add to the state-file recipe's rule line `check_formats` and `FORMAT_SITES`, and a paragraph on writing a staged file through `statefile` and the status log through `statuslog`.
   Verify: `git grep -n -e "check_formats" -- docs/recipes.md` prints a line.
-- [ ] 6.5 In `docs/modules.md` say in the `home` layer's line that the home holds the formats of the state files.
+- [x] 6.5 In `docs/modules.md` say in the `home` layer's line that the home holds the formats of the state files.
   Verify: `git grep -n -e "formats of the state files" -- docs/modules.md` prints a line.

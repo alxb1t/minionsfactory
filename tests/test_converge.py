@@ -2576,3 +2576,19 @@ def test_case_p_a_refused_stamp_is_cannot_and_runs_are_counted_by_heading(
         converge["stamp"](context, "start — base a")
     assert str(linked.value) == cannot
     assert outside.read_text() == "# t\n\n## Run 1 — d\n"
+
+
+def test_a_change_folder_that_is_a_link_cannot_be_stamped(tmp_path: Path) -> None:
+    # Why: card 0109·S1; 0136-status-log design D7.
+    converge = _converge()
+    context = _bare(converge, tmp_path)
+    cannot = f"converge: cannot run — {context.log} cannot be stamped"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    context.folder.rmdir()
+    context.folder.symlink_to(outside)
+    for act in (converge["open_run"], converge["stamp"]):
+        with pytest.raises(converge["Cannot"]) as refused:
+            act(context)
+        assert str(refused.value) == cannot
+    assert list(outside.iterdir()) == []

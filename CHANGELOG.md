@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a green gate whose record cannot be written is green and unrecorded; a run reads to the next heading; the
   conductor halts on a linked log; the stamp holds the change folder's descriptor (card 0109·S1) and flattens a
   detail's line breaks (0136-status-log, phase 5).
+- The sixth structure rule gains `check_formats`: outside `skills/mflib/` no string constant equals `status_log.md` or
+  contains `## Run` unless `FORMAT_SITES` lists it. D78, D83, D57, the threat model, the recipe and the map name the
+  format modules (0136-status-log, phase 6).
 
 ## [0.107.0] - 2026-11-18
 

@@ -5,6 +5,7 @@ agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
 import datetime
+import errno
 import fnmatch
 import hashlib
 import io
@@ -12321,6 +12322,38 @@ def test_case_s_a_restamp_keeps_a_two_digit_round_or_takes_round_1(
         top = log.read_text().splitlines()[3]
         assert top.endswith(f" · {round_} · done — re-stamped by the run"), top
         capsys.readouterr()
+
+
+def test_a_restamp_through_a_linked_change_folder_stamps_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: card 0109·S1; 0136-status-log design D7.
+    restamp = _conduct()["_restamp"]
+    runs, change = tmp_path / ".minions", "0001-todo"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (runs / "changes").mkdir(parents=True)
+    (runs / "changes" / change).symlink_to(outside)
+    assert restamp(runs, change, "10:00:00 · round 1 · done — ok") == 2
+    printed = capsys.readouterr().out
+    assert printed.startswith("stamp: cannot stamp — "), printed
+    assert "status_log.md: " in printed
+    assert list(outside.iterdir()) == []
+
+
+def test_a_status_log_read_error_other_than_a_link_is_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0136-status-log design D5.
+    conduct = _conduct()
+    _status_log(tmp_path, "# t\n")
+
+    def denied(path: Path) -> str:
+        raise PermissionError(errno.EACCES, "denied", str(path))
+
+    monkeypatch.setattr(conduct["mflib"].statefile, "read", denied)
+    with pytest.raises(PermissionError):
+        conduct["_log_text"](tmp_path / ".minions", "0001-todo")
 
 
 @pytest.mark.slow
