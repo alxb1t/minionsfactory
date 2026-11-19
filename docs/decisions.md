@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
-  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84
+  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86
 ```
 
 ## The shape
@@ -371,10 +371,13 @@ deletes them.**
 one `Gate:` line of the gate's times, and tags. Then it asks once; on yes — or `merge=yes`, the yes the person
 gave by starting `mf-ship` — it merges into the default branch with `--no-ff` and pushes the default branch and the
 tag, save where the machine's `ship.toml` sets `tags = false`; under `merge=yes`, `conduct.py` pushes. It never forces,
-never pushes the version branch, never edits feature code. Fold and archive land in one commit.**
+never pushes the version branch, never edits feature code. Fold and archive land in one commit. Under a run the release
+commit, its tag and the merge are a worker's, made in its sandbox, and unsigned; the conductor's own merges are
+signed where the machine signs.**
 
 - **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
-  leaves the spec tree and the change disagreeing.
+  leaves the spec tree and the change disagreeing. A worker's sandbox cannot reach the machine's signer, so a worker's
+  git signs nothing.
 - **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit · a
   separate merge skill: one more invocation · a merge nobody said yes to: `merge=yes` comes only from a run the
   person started.
@@ -695,7 +698,8 @@ Example: `0011-cut-and-gate`, on the branch `0011-cut-and-gate`.
 ### D21 · Every commit names its change
 
 **A commit ends with `Change: <change-id>`, in the trailer block, contiguous with `Co-Authored-By:`. The
-bootstrap commit, made before any change exists, is the one without it.**
+bootstrap commit, made before any change exists, is the one without it. A worker's commit under a run holds no
+`Claude-Session:` line: the run starts each Claude worker with `attribution.sessionUrl` false.**
 
 ```
 Co-Authored-By: <the session's attribution line>
@@ -703,7 +707,7 @@ Change: 0011-cut-and-gate
 ```
 
 - **Why:** from a commit you find the change; from a change, `git log --grep` finds every commit. A blank line
-  inside the block silently breaks it.
+  inside the block silently breaks it. A session link names the operator's session in pushed history.
 
 ### D22 · Authentication and deployment terms belong to the operator
 
@@ -909,6 +913,36 @@ key mean no cap; a file that cannot be read, or a value that is no whole number 
 - **Accepts:** a count that passes the cap after a rejoin or a grant, until it falls · a version stacked on its dependency
   builds with the CPU and uses no slot · the cap read once, so a change of the file takes effect at the next run · a stale
   reason in the entry of a cut a killed run left waiting, until the next run's start.
+
+### D85 · A cloud environment's setup script is a script of this repository
+
+**`scripts/cloud_setup.py`, run as root by the machine's `python3` in a clone of MinionsFactory at a tag, makes a cloud
+Linux machine ready for a run: `bubblewrap`, `socat` and `procps` by `apt-get`; `uv` and `betterleaks` from their
+release tarballs, each checked against a SHA-256 the script holds before it is unpacked, a mismatch installing nothing;
+`openspec` by `npm` at its version; the folder `mf-tmp` under the home; `ship.toml` with `tags = false` where none
+stands; `make install-skills` at the clone's tag; and a read-back that the OS sandbox applies. It refuses with exit 2,
+running no command, where the OS is not Linux or the user is not root, and running no command but `git describe`, which
+finds it, where the clone stands on no tag; a second run skips each step whose result stands, the skills where the
+tag's export stands and both hosts link each of its skills. A test holds its versions and `betterleaks`'s URL and digest to `pyproject.toml`, the CI
+workflow and `AGENTS.md`; `uv`'s digest is a person's, copied from the release's `.sha256` asset.**
+
+- **Why:** an environment's setup script runs as root before the session and is cached. The gate asks every changed line
+  covered, which a shell script escapes. The conductor stops where `TMPDIR` lies in a repository, so the README has the
+  operator set `TMPDIR` to `mf-tmp` in the environment's variables, which are not set while the script runs.
+- **Accepts:** a wrong `uv` digest, which fails the check closed · a machine that restricts user namespaces, or lacks
+  `make`, fails its step and the report names it · the release commit, its tag and merge stay unsigned
+  ([D17](#d17--the-release-verifies-folds-archives-tags-and-on-the-persons-yes-merges-and-pushes)).
+- **Rejected:** a shell script · a session start hook written into a target repository, which puts MF's files in every
+  target · trusting `/tmp` for a whole run · a digest a worker invents.
+
+### D86 · One line of MF a repository at a time
+
+**A repository runs one line of MF at a time, across machines: while one machine's run ships its versions, no other
+machine cuts, builds or releases one. The README states it; nothing enforces it.**
+
+- **Why:** change numbers and tags come from local state, and a run fetches `origin` at its start alone, so a second
+  machine cuts the same number, and a cloud machine's tags never reach `origin`.
+- **Rejected:** building the two-line case.
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 

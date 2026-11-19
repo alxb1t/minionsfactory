@@ -116,6 +116,11 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   with no shell, as the build ran them; a card's **Still true?** command, which a checker writes and `converge.py` runs at
   the debt write, its backtick span `shlex`-split, no shell, under `sandboxed()`; and `make corpus`, an operator target outside the gate, which runs the readers
   over the run directory and the operator's Codex sessions and writes only under `.minions/corpus/`.
+- `scripts/cloud_setup.py`, which a cloud environment's setup runs as root, outside any sandbox
+  ([D85](docs/decisions.md#d85--a-cloud-environments-setup-script-is-a-script-of-this-repository)): each download is
+  held to a SHA-256 the repository holds before it is unpacked, a mismatch installing nothing, and a clone at no tag is
+  refused. A worker's git signs nothing, its sandbox cannot reach the signer, and the signer signs the conductor's own
+  merges, made outside a sandbox.
 
 ## Surfaces
 
@@ -126,7 +131,7 @@ hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
 - `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write and the status log — loaded by the scripts that run on the operator's machine.
-- `scripts/*` — the metric scripts the gate and the collector run.
+- `scripts/*` — the metric scripts the gate and the collector run, and the setup script a cloud environment runs as root.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
 - `skills/mf-release/SKILL.md` — the merge and push on the person's yes.

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.109.0] - 2026-11-19
+
+Gate: local 6m40s · CI not read under mf-ship · 0.108.0: local 6m7s · CI not read under mf-ship
+
+- A pin test holds today's `report` under `tags = false`: `main` and its merge on `origin`, the tag local, and the
+  word reads `not pushed`, before `report` learns to name the default branch (0137-cloud-session, phase 1).
+- A worker's commit names no session and its git signs nothing: each Claude worker's settings set
+  `attribution.sessionUrl` false, and `HOOKS_OFF` sets `commit.gpgsign` and `tag.gpgsign` false, since a sandbox cannot
+  reach the signer. The conductor's own merges keep the machine's signing (0137-cloud-session, phase 2).
+- `report` names the default branch under `tags = false`: `default pushed, tag local` or `default pushed` when
+  `origin`'s default branch holds the merge, else `not pushed`, so a release on `origin` no longer reads as a failure.
+  A bad `tags` value exits 2 (0137-cloud-session, phase 3).
+- `conduct.py wait` blocks until the live run ends: every 60 s it prints the run log's new lines and
+  `wait: live · +<n> lines`, reading no `origin`, so a cloud VM stays up; at the end, `wait: ended` and `status`'s
+  lines (0137-cloud-session, phase 4).
+- `scripts/cloud_setup.py` makes a cloud Linux VM ready for a run, as root, from a clone at a tag: `bubblewrap`, `socat`
+  and `procps`, `uv` and `betterleaks` checked against their digests, `openspec`, `mf-tmp`, `ship.toml`, the skills at
+  the tag, then the sandbox read back. A second run skips what stands (0137-cloud-session, phase 5).
+- The record of the cloud: the README's `## The cloud` gives the environment, its setup script and the session's prompt;
+  D85 records the setup script and D86 one line a repository at a time; D17 and D21 name signing and the session link;
+  the threat model and `mf-ship`'s table gain the script, `wait` and `report`'s words (0137-cloud-session, phase 6).
+- `scripts/cloud_setup.py` holds the SHA-256 of the pinned `uv` tarball, so the setup checks it before it unpacks
+  (0137-cloud-session, phase 7).
+- Converge's fixes: `wait` prints the lines a run's close wrote before `wait: ended`; the setup script installs the
+  skills again where the tag's export stands but a host lacks its links; the setup test that runs the script as a
+  program sets the OS it refuses; D85 says a refusal for a clone on no tag reads git first (0137-cloud-session).
+
 ## [0.108.0] - 2026-11-19
 
 Gate: local 6m7s · CI not read under mf-ship · 0.107.0: local 5m23s · CI not read under mf-ship

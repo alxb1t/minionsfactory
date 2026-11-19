@@ -122,6 +122,45 @@ cut:
 A version whose base moved is brought onto the default branch by `mf-integrate`, run in the primary
 ([D45](docs/decisions.md#d45--one-station-merges-the-default-branch-into-the-next-version)).
 
+## The cloud
+
+A cloud session ships a version with `mf-ship`, once its environment's setup script has made the machine ready
+([D85](docs/decisions.md#d85--a-cloud-environments-setup-script-is-a-script-of-this-repository)).
+
+The environment:
+
+- **Network:** Limited, with package managers allowed.
+- **Variables:** `TMPDIR=<home>/mf-tmp`, the session user's home. The conductor stops where `TMPDIR` lies in a
+  repository, and the setup script cannot set it.
+- **Setup script:** clone MinionsFactory at a tag, then run `python3 scripts/cloud_setup.py` in the clone. It runs as
+  root:
+
+  ```bash
+  git clone --depth 1 --branch <tag> <MinionsFactory's URL> mf
+  cd mf && python3 scripts/cloud_setup.py
+  ```
+
+The script installs `bubblewrap`, `socat` and `procps`, `uv`, `betterleaks` and `openspec`, makes `mf-tmp`, writes
+`ship.toml` with `tags = false`, installs the skills at the tag, and reads back that the OS sandbox applies. Its last
+line is `cloud_setup: ready`; `cloud_setup: failed — <step>: …` exits 1, and `cloud_setup: refused — <reason>` exits 2
+for a machine that is not Linux, a user that is not root or a clone at no tag. A second run says each step stands.
+
+The session's prompt cuts the version, then waits on the run in the background:
+
+```
+Queue the brief <path>: run `uv run --script ~/.claude/skills/mf-ship/scripts/conduct.py cut <slug> <bump>
+brief=<path> --executor claude`. Then run `uv run --script ~/.claude/skills/mf-ship/scripts/conduct.py wait`
+in the background, and report its last lines when it ends.
+```
+
+`wait` prints the run log's new lines and `wait: live · +<n> lines` at every poll, which keeps the VM up, then
+the lines the run's close wrote, `wait: ended` and `status`'s lines.
+
+- **The tag:** the cloud pushes the default branch and no tag, so `report` reads `default pushed, tag local`. The next
+  run on a machine that pushes tags makes the tag of each release commit `origin`'s default branch holds, and pushes it.
+- **One line a repository at a time**, across machines: while a cloud session ships a repository, no other machine
+  runs MF's line on it ([D86](docs/decisions.md#d86--one-line-of-mf-a-repository-at-a-time)).
+
 ## This repo's gate
 
 **`make gate`**: lock sync · format · lint (`D` docstrings + `ANN` annotations) · strict type-check · tests. The

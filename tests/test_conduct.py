@@ -905,6 +905,216 @@ def test_each_check_passes_only_on_disk_evidence(
     assert conduct["check_probe"](scratch, mark) == escaped
 
 
+def _released_on_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, Any], Path, Path]:
+    """Return the conductor, a primary whose release merge is on a bare origin, and it.
+
+    The tag is local; `ship.toml` sets `tags = false`.
+    """
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
+    _git(root, "merge", "-q", "--no-ff", "-m", "Merge the release", "0001-todo")
+    _git(root, "tag", "-a", "-m", "v0.1.0", "v0.1.0", "0001-todo")
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(origin))
+    monkeypatch.setenv("MF_SHIP_AGENT", "true")
+    _git(root, "remote", "add", "origin", str(origin))
+    _git(root, "push", "-q", "origin", "main")
+    conduct["_keep_origin"](root)
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    (runs / "1.md").write_text("10:00:00 · 0001-todo · spawn — release\n")
+    ship = layout.ship_file()
+    ship.parent.mkdir(parents=True, exist_ok=True)
+    ship.write_text("[push]\ntags = false\n")
+    return conduct, root, origin
+
+
+def _push_word(
+    conduct: dict[str, Any],
+    root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> str:
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    return capsys.readouterr().out.split(" · ")[3]
+
+
+def test_report_with_tags_false_names_the_default_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, origin = _released_on_origin(tmp_path, monkeypatch)
+    assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
+    assert _git(origin, "tag") == ""
+
+    assert _push_word(conduct, root, monkeypatch, capsys) == "default pushed, tag local"
+    _git(root, "tag", "-d", "v0.1.0")
+    assert _push_word(conduct, root, monkeypatch, capsys) == "default pushed"
+    _git(root, "push", "-q", "-f", "origin", "main~1:main")
+    assert _push_word(conduct, root, monkeypatch, capsys) == "not pushed"
+    _git(root, "push", "-q", "-f", "origin", "main")
+    assert conduct["_on_default"](root, None) is False
+    _git(root, "remote", "remove", "origin")
+    assert _push_word(conduct, root, monkeypatch, capsys) == "no origin"
+
+
+def test_report_with_tags_false_reads_not_pushed_for_a_tip_the_primary_lacks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, origin = _released_on_origin(tmp_path, monkeypatch)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _git(other, "commit", "-q", "--allow-empty", "-m", "a commit the primary lacks")
+    _git(other, "push", "-q", "origin", "main")
+    tip = _git(origin, "rev-parse", "main").strip()
+    assert conduct["_maybe"](root, "cat-file", "-e", tip) is None
+
+    assert _push_word(conduct, root, monkeypatch, capsys) == "not pushed"
+
+
+def test_report_with_a_bad_tags_value_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, _ = _released_on_origin(tmp_path, monkeypatch)
+    path = _ship_toml('[push]\ntags = "no"\n')
+
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out.strip() == f"{path}: `tags` is not true or false"
+
+
+def _waiting(
+    conduct: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    claims: list[str],
+    polls: list[Callable[[], object]],
+) -> list[int]:
+    """Answer `_claim` from `claims`, its last kept; run `polls` at each wait's sleep.
+
+    Return the number of the poll the sleep is at, which grows as the wait sleeps.
+    """
+    module = conduct["main"].__globals__
+    answers = iter(claims)
+    monkeypatch.setitem(module, "_claim", lambda active: next(answers, claims[-1]))
+    steps = iter(polls)
+    poll = [0]
+    real = time.sleep
+
+    def sleep(seconds: float) -> None:
+        if seconds != conduct["WAIT_SECONDS"]:
+            real(seconds)
+            return
+        poll[0] += 1
+        next(steps, lambda: None)()
+
+    monkeypatch.setattr(time, "sleep", sleep)
+    return poll
+
+
+def _gain(log: Path, text: str) -> Callable[[], object]:
+    """Return a step that appends `text` to `log`."""
+
+    def step() -> None:
+        with log.open("a") as handle:
+            handle.write(text)
+
+    return step
+
+
+def test_wait_with_no_run_exits_0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    poll = _waiting(conduct, monkeypatch, ["none"], [])
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == "wait: none — no run is live\n"
+    assert poll == [0]
+
+
+def test_wait_prints_each_poll_until_the_run_ends(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    log = runs / "20261119-100000.md"
+    log.write_text("10:00:00 · run · start — executor claude\n")
+    spawn = "10:01:00 · 0001-todo · spawn — build · model default\n"
+    finish = "10:01:30 · 0001-todo · finish — build · exit 0 · 30s\n"
+    newer = "10:03:00 · run · start — executor claude\n"
+    polls = [
+        _gain(log, spawn + finish + "10:02:00 · 0001-todo · spa"),
+        lambda: None,
+        _gain(runs / "20261119-100000-2.md", newer),
+    ]
+    poll = _waiting(conduct, monkeypatch, ["live"] * 4 + ["none"], polls)
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == (
+        f"{spawn}{finish}wait: live · +2 lines\n"
+        "wait: live · +0 lines\n"
+        f"{newer}wait: live · +1 lines\n"
+        "wait: ended\n"
+        "status: none — no open version\n"
+    )
+    assert poll == [4]
+
+
+def test_wait_ends_on_a_halted_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — One\n")
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    log = runs / "20261119-100000.md"
+    log.write_text("10:00:00 · 0001-todo · spawn — build · model default\n")
+    halt = "10:00:09 · 0001-todo · halt — build: phase 1 unticked\n"
+    _waiting(conduct, monkeypatch, ["live", "none"], [_gain(log, halt)])
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == f"{halt}wait: ended\n0001-todo · build\n"
+
+
+def test_wait_reads_no_origin_at_a_poll(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, _ = _released_on_origin(tmp_path, monkeypatch)
+    log = layout.runs_dir(root) / "1.md"
+    claims = ["live"] * 3 + ["none"]
+    poll = _waiting(conduct, monkeypatch, claims, [_gain(log, "10:00:01 · run · x\n")])
+    module = conduct["main"].__globals__
+    calls: list[tuple[str, int]] = []
+    for name in ("_remote", "_outside"):
+        real: Callable[..., subprocess.CompletedProcess[str]] = module[name]
+
+        def spy(
+            *args: Path | str,
+            real: Callable[..., subprocess.CompletedProcess[str]] = real,
+            name: str = name,
+            **rest: int,
+        ) -> subprocess.CompletedProcess[str]:
+            calls.append((name, poll[0]))
+            return real(*args, **rest)
+
+        monkeypatch.setitem(module, name, spy)
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out.startswith(
+        "10:00:01 · run · x\nwait: live · +1 lines\n"
+        "wait: live · +0 lines\nwait: ended\n"
+    )
+    assert calls
+    assert {at for _, at in calls} == {3}
+
+
 def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1412,6 +1622,45 @@ def test_a_merge_in_refuses_a_planted_hook(
         held_run.merge_in(waiting, "0002-marks", "main")
     assert _git(waiting, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
     assert "chore(integrate)" not in _git(hooked, "log", "--format=%s", "0002-marks")
+
+
+def test_the_conductor_merges_with_no_signing_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0137-cloud-session design D3 — the machine's own config decides.
+    conduct = _conduct()
+    fake()
+    keyed = re.compile(r"GIT_CONFIG_(COUNT|KEY_|VALUE_)")
+    for name in [name for name in os.environ if keyed.match(name)]:
+        monkeypatch.delenv(name)
+    root = _primary(tmp_path)
+    waiting = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    module = conduct["main"].__globals__
+    real = module["_run"]
+    commits: list[tuple[tuple[str, ...], dict[str, str]]] = []
+
+    def spy(
+        cwd: Path, *args: str, env: dict[str, str] | None = None, **rest: int
+    ) -> subprocess.CompletedProcess[str]:
+        if args and args[0] == "commit":
+            commits.append((args, dict(os.environ if env is None else env)))
+        return real(cwd, *args, env=env, **rest)
+
+    monkeypatch.setitem(module, "_run", spy)
+    held_run = conduct["Run"](root, "claude")
+    held_run.git_state = conduct["_git_state"](root)
+    held_run.delta = lambda tree: "delta: none"
+    held_run.merge_in(waiting, "0002-marks", "main")
+
+    assert "chore(integrate): merge main into 0002-marks" in _git(
+        root, "log", "--format=%s", "0002-marks"
+    )
+    [(args, env)] = commits
+    assert not [arg for arg in args if "gpgsign" in arg]
+    assert not [name for name in env if keyed.match(name)]
+    # Twin: a commit run with the worker's keys would match.
+    assert all(keyed.match(pair) for pair in conduct["HOOKS_OFF"])
 
 
 @pytest.mark.slow
@@ -12656,6 +12905,7 @@ def test_a_claude_worker_starts_in_the_sandbox(
         "enabledPlugins": {},
         "outputStyle": "default",
         "autoMemoryEnabled": False,
+        "attribution": {"sessionUrl": False},
     }
     # A plain-text store is a credential, and a registry that takes writes is a way out.
     assert "~/.git-credentials" in conduct["SECRETS"]
@@ -12710,6 +12960,38 @@ def test_a_claude_worker_starts_in_the_sandbox(
             settings()
         assert stop.value.code == 1
         assert value in str(stop.value)
+
+
+def test_a_worker_git_signs_nothing_over_a_host_that_signs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0137-cloud-session design D3.
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    repo = (root, root / ".git")
+    prefixes: dict[str, list[str]] = {}
+    for executor in ("claude", "codex"):
+        command = conduct["argv"](executor, "Do it.", root, None, None, repo)
+        prefixes[executor] = command[: command.index(executor)]
+    keys = ("commit.gpgsign", "tag.gpgsign")
+    signing = "".join(f"[{key.split('.')[0]}]\n\tgpgsign = true\n" for key in keys)
+    with Path(os.environ["GIT_CONFIG_GLOBAL"]).open("a") as config:
+        config.write(signing)
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "commit.gpgsign")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "true")
+
+    def read(prefix: list[str], key: str) -> str:
+        get = ["git", "-C", str(root), "config", "--get", key]
+        return subprocess.run(
+            [*prefix, *get], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    # Twin: the host signs both, so a prefix without the keys reads `true`.
+    assert [read([], key) for key in keys] == ["true", "true"]
+    for executor, prefix in prefixes.items():
+        assert [read(prefix, key) for key in keys] == ["false", "false"], executor
 
 
 @pytest.mark.slow
