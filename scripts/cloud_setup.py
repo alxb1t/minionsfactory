@@ -37,7 +37,7 @@ UV_URL = (
     "https://github.com/astral-sh/uv/releases/download/"
     f"{UV}/uv-x86_64-unknown-linux-gnu.tar.gz"
 )
-UV_SHA256 = "UNSET"
+UV_SHA256 = "23bf5552d220e0842b65c862097b2ebaeba0064b74eda5e565e77fd25969d8c8"
 BETTERLEAKS_URL = (
     "https://github.com/betterleaks/betterleaks/releases/download/"
     f"v{BETTERLEAKS}/betterleaks_{BETTERLEAKS}_linux_x64.tar.gz"

@@ -10,7 +10,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 - [x] 4 — The wait · hard
 - [x] 5 — The setup · hard
 - [x] 6 — The record · moderate
-- [ ] 7 — The digest of uv **HUMAN**
+- [x] 7 — The digest of uv **HUMAN**
 
 ## 1 — The pin
 
@@ -140,6 +140,6 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## 7 — The digest of uv
 
-- [ ] 7.1 Run `curl -fsSL https://github.com/astral-sh/uv/releases/download/0.12.19/uv-x86_64-unknown-linux-gnu.tar.gz.sha256`.
+- [x] 7.1 Run `curl -fsSL https://github.com/astral-sh/uv/releases/download/0.12.19/uv-x86_64-unknown-linux-gnu.tar.gz.sha256`.
   In `scripts/cloud_setup.py` add the digest it prints in place of the `UV_SHA256 = "UNSET"`, as [D8](design.md#d8) says.
   Verify: `grep -c -F -e 'UV_SHA256 = "UNSET"' scripts/cloud_setup.py` prints `0`.
