@@ -5,6 +5,7 @@ agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
 import datetime
+import errno
 import fnmatch
 import hashlib
 import io
@@ -12419,6 +12420,222 @@ def test_bounded_reads_only_a_regular_file_of_the_cap(tmp_path: Path) -> None:
     full = tmp_path / "full"
     full.write_text("a" * cap)
     assert bounded(full) == "a" * cap
+
+
+def test_case_j_bounded_reads_a_relative_path_in_the_folder_held(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    bounded = _conduct()["_bounded"]
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    (folder / "a.txt").write_text("the folder's\n")
+    (tmp_path / "a.txt").write_text("the cwd's\n")
+    monkeypatch.chdir(tmp_path)
+    fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        assert bounded("a.txt", fd) == "the folder's\n"
+    finally:
+        os.close(fd)
+    assert bounded("a.txt") == "the cwd's\n"
+
+
+def test_case_o_only_a_halt_on_the_run_folders_lock_is_the_lock_stage(
+    tmp_path: Path,
+) -> None:
+    # Why: 0136-status-log design, the pin; the twin of the stale-lock test's line.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True)
+    version = conduct["find_version"](root, "0001-todo")
+    for why, stage in (
+        ("waited 2 minutes for .minions/debt.lock", "converge"),
+        ("waited 2 minutes for debt.lock", "converge-halted"),
+    ):
+        log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 1 · halt — {why}\n")
+        assert conduct["stage_of"](root, version)[0] == stage, why
+
+
+def test_a_status_log_link_or_fifo_halts_the_stage_and_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design D5.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True)
+    version = conduct["find_version"](root, "0001-todo")
+    missing = conduct["stage_of"](root, version)
+    said = "conduct: halt — .minions/changes/0001-todo/status_log.md is a link"
+    outside = tmp_path / "outside.md"
+    outside.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
+    for plant in (lambda: log.symlink_to(outside), lambda: os.mkfifo(log)):
+        plant()
+        with pytest.raises(conduct["Stop"]) as stopped:
+            conduct["stage_of"](root, version)
+        assert (stopped.value.code, str(stopped.value)) == (1, said)
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+        assert capsys.readouterr().out.strip() == said
+        log.unlink()
+
+    assert conduct["stage_of"](root, version) == missing
+
+
+@pytest.mark.slow
+def test_a_refused_status_log_at_the_start_halts_its_version_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # No lower layer reaches `Run.ship()`'s start scan, and no run test plants a log.
+    # Why: 0136-status-log converge card S2.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    marks = root / ".minions" / "changes" / "0002-marks"
+    marks.mkdir(parents=True)
+    (marks / "models.toml").write_text("[converge]\nskip = true\n")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True)
+    outside = tmp_path / "outside.md"
+    outside.write_text("# t\n")
+    log.symlink_to(outside)
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+
+    seen = _calls(calls)
+    assert "release 0002-marks" in seen
+    assert not any(call.endswith(" 0001-todo") for call in seen)
+    lines = _log(root)
+    said = "conduct: halt — .minions/changes/0001-todo/status_log.md is a link"
+    assert any(line.endswith(f" · 0001-todo · halt — {said}") for line in lines)
+    closing = " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
+    assert closing in lines[-1]
+    assert outside.read_text() == "# t\n"
+
+
+def _status_log(tmp_path: Path, text: str) -> Path:
+    log = tmp_path / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(text)
+    return log
+
+
+def test_case_q_the_readers_of_the_status_log_as_they_stand(tmp_path: Path) -> None:
+    # Why: 0136-status-log design, the pin.
+    conduct = _conduct()
+    runs, change = tmp_path / ".minions", "0001-todo"
+    end, marked = conduct["_run_end"], conduct["_run_marked"]
+    started, is_event = conduct["_run_started"], conduct["_is_event"]
+    assert (end(runs, change), marked(runs, change, "grant")) == (None, False)
+    assert not started(runs, change)
+
+    halt = "10:00:00 · round 1 · halt — x"
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d · grant  \n\n  {halt}  \n")
+    assert end(runs, change) == halt
+    assert marked(runs, change, "grant")
+    for heading in ("## Run 2 — d · regrant", "## Run 2 — d · grant · x"):
+        _status_log(tmp_path, f"# t\n\n{heading}\n{halt}\n")
+        assert not marked(runs, change, "grant"), heading
+
+    start = "10:00:00 · round 1 · start — base a"
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{halt}\n\n{start}\n")
+    assert started(runs, change)
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{halt}\n## Run 1 — d\n{start}\n")
+    assert not started(runs, change)
+    # A run just opened over an older one is a run of no event: its own heading.
+    _status_log(tmp_path, f"# t\n\n## Run 3 — d\n\n## Run 2 — d\n{halt}\n")
+    assert end(runs, change) == "## Run 3 — d"
+
+    log = _status_log(tmp_path, "")
+    outside = tmp_path / "outside.md"
+    outside.write_text(f"# t\n\n## Run 3 — d · grant\n{start}\n")
+    log.unlink()
+    log.symlink_to(outside)
+    for reader in (end, started):
+        with pytest.raises(conduct["Stop"], match=r"status_log\.md is a link"):
+            reader(runs, change)
+    with pytest.raises(conduct["Stop"], match=r"status_log\.md is a link"):
+        marked(runs, change, "grant")
+
+    for line, name, holds in (
+        ("10:00:00 · round 1 · done — ok", "done", True),
+        ("10:00:00 · round 1 · done", "done", True),
+        ("10:00:00 · round 1 · predone — ok", "done", False),
+        ("10:00:00 · round 1 · halt — a · done — b", "done", False),
+    ):
+        assert is_event(line, name) == holds, line
+
+
+def test_case_r_a_buried_done_is_read_to_the_next_heading_past_blank_lines(
+    tmp_path: Path,
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    buried = _conduct()["_buried_done"]
+    runs, change = tmp_path / ".minions", "0001-todo"
+    debt, done = "10:01:00 · round 1 · debt — d", "10:00:00 · round 1 · done — ok"
+    old = "## Run 1 — d\n10:00:00 · round 3 · done — old\n"
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{debt}\n\n{done}\n\n{old}")
+    assert buried(runs, change) == done
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{debt}\n{old}")
+    assert buried(runs, change) is None
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{done}\n{debt}\n")
+    assert buried(runs, change) is None
+
+
+def test_case_s_a_restamp_keeps_a_two_digit_round_or_takes_round_1(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    restamp = _conduct()["_restamp"]
+    runs, change = tmp_path / ".minions", "0001-todo"
+    for buried, round_ in (
+        ("10:00:00 · round 12 · done — ok", "round 12"),
+        ("10:00:00 · done — ok", "round 1"),
+    ):
+        log = _status_log(
+            tmp_path, f"# t\n\n## Run 1 — d\n10:01:00 · round 12 · debt — d\n{buried}\n"
+        )
+        assert restamp(runs, change, buried) == 0
+        top = log.read_text().splitlines()[3]
+        assert top.endswith(f" · {round_} · done — re-stamped by the run"), top
+        capsys.readouterr()
+
+
+def test_a_restamp_through_a_linked_change_folder_stamps_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: card 0109·S1; 0136-status-log design D7.
+    restamp = _conduct()["_restamp"]
+    runs, change = tmp_path / ".minions", "0001-todo"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (runs / "changes").mkdir(parents=True)
+    (runs / "changes" / change).symlink_to(outside)
+    assert restamp(runs, change, "10:00:00 · round 1 · done — ok") == 2
+    printed = capsys.readouterr().out
+    assert printed.startswith("stamp: cannot stamp — "), printed
+    assert "status_log.md: " in printed
+    assert list(outside.iterdir()) == []
+
+
+def test_a_status_log_read_error_other_than_a_link_is_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0136-status-log design D5.
+    conduct = _conduct()
+    _status_log(tmp_path, "# t\n")
+
+    def denied(path: Path) -> str:
+        raise PermissionError(errno.EACCES, "denied", str(path))
+
+    monkeypatch.setattr(conduct["mflib"].statefile, "read", denied)
+    with pytest.raises(PermissionError):
+        conduct["_log_text"](tmp_path / ".minions", "0001-todo")
 
 
 @pytest.mark.slow

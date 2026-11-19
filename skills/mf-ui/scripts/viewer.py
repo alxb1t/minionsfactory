@@ -32,6 +32,7 @@ from typing import Any, NamedTuple, NoReturn, Protocol
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
 import mflib.platform
+import mflib.statefile
 
 SELF = Path(__file__).resolve()
 SKILLS = SELF.parents[2]
@@ -127,18 +128,9 @@ def read_part(path: Path, tail: bool = False) -> str | None:
     e.g. a pipe, a link or a missing file → None
     """
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        return mflib.statefile.read(path, limit=PART, tail=tail)
     except OSError:
         return None
-    try:
-        status = os.fstat(fd)
-        if not stat.S_ISREG(status.st_mode):
-            return None
-        if tail and status.st_size > PART:
-            os.lseek(fd, status.st_size - PART, os.SEEK_SET)
-        return os.read(fd, PART).decode(errors="replace")
-    finally:
-        os.close(fd)
 
 
 def read_lines(path: Path) -> Iterator[str]:

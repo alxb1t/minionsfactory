@@ -12,12 +12,14 @@ import subprocess
 import sys
 import threading
 import time
+import types
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol, TextIO
 
 import pytest
+from mflib import statuslog
 from old_layout import ENTRIES, LOG, ROLES, plant
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "mf-converge" / "scripts"
@@ -2484,3 +2486,109 @@ def test_a_halt_on_an_ended_log_is_printed_not_stamped(host: Host) -> None:
     converge["open_run"](context)
     converge["halt"](context, "git failed")
     assert events(host)[-1] == f"round 1 · halt — git failed · head {_head(host)}"
+
+
+class Logged(Protocol):
+    """The fields of `converge.py`'s `Context` a status-log test reads."""
+
+    @property
+    def folder(self) -> Path: ...
+
+    @property
+    def log(self) -> Path: ...
+
+
+def _bare(converge: dict[str, Any], primary: Path) -> Logged:
+    """Return a converge `Context` over `primary`, its change folder made."""
+    host = types.SimpleNamespace(primary=primary)
+    context = converge["Context"](host, _CHANGE, primary, _WORKERS, 1e12)
+    context.folder.mkdir(parents=True)
+    return context
+
+
+def test_case_m_latest_reads_the_newest_run_to_a_blank_line_or_a_heading(
+    tmp_path: Path,
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    converge = _converge()
+    latest, event = converge["latest"], statuslog.Event
+    context = _bare(converge, tmp_path)
+    context.log.write_text(
+        "# t\n\n## Run 3 — d\n10:00:02 · round 12 · verify — \n"
+        "10:00:01 · round 12 · start — base a\n\n10:00:00 · round 1 · halt — old\n"
+    )
+    assert latest(context) == (
+        None,
+        [
+            event(12, "verify", ""),
+            event(12, "start", "base a"),
+            event(1, "halt", "old"),
+        ],
+    )
+    context.log.write_text(
+        "# t\n\n## Run 3 — d · catch-up\n10:00:01 · round 2 · fix — R1\n"
+        "## Run 2 — d\n10:00:00 · round 1 · halt — old\n"
+    )
+    assert latest(context) == ("catch-up", [event(2, "fix", "R1")])
+
+    context.log.unlink()
+    context.log.symlink_to(tmp_path / "gone.md")
+    with pytest.raises(statuslog.Refused):
+        latest(context)
+
+
+def test_case_n_halted_is_anchored_at_the_end_and_locked_needs_the_run_folder() -> None:
+    # Why: 0136-status-log design, the pin.
+    converge = _converge()
+    halted, locked = converge["HALTED"], statuslog.names_lock
+    assert halted.sub("", "red · head abc123") == "red"
+    assert halted.sub("", "red · head abc123 · more") == "red · head abc123 · more"
+    assert locked("waited 2 minutes for .minions/debt.lock")
+    assert locked("waited 2 minutes for .minions/backlog.lock")
+    assert not locked("waited 2 minutes for debt.lock")
+
+
+def test_case_p_a_refused_stamp_is_cannot_and_runs_are_counted_by_heading(
+    tmp_path: Path,
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    converge = _converge()
+    context = _bare(converge, tmp_path)
+    cannot = f"converge: cannot run — {context.log} cannot be stamped"
+    context.log.write_text("# t\n")
+    with pytest.raises(converge["Cannot"]) as refused:
+        converge["stamp"](context, "start — base a")
+    assert str(refused.value) == cannot
+
+    context.log.write_text(
+        "# t\n\n## Run 1 — d\n10:00:00 · round 1 · halt — x ## Run 7\n"
+    )
+    converge["open_run"](context)
+    assert context.log.read_text().splitlines()[2].startswith("## Run 2 — ")
+
+    outside = tmp_path / "outside.md"
+    outside.write_text("# t\n\n## Run 1 — d\n")
+    context.log.unlink()
+    context.log.symlink_to(outside)
+    with pytest.raises(statuslog.Refused):
+        converge["open_run"](context)
+    with pytest.raises(converge["Cannot"]) as linked:
+        converge["stamp"](context, "start — base a")
+    assert str(linked.value) == cannot
+    assert outside.read_text() == "# t\n\n## Run 1 — d\n"
+
+
+def test_a_change_folder_that_is_a_link_cannot_be_stamped(tmp_path: Path) -> None:
+    # Why: card 0109·S1; 0136-status-log design D7.
+    converge = _converge()
+    context = _bare(converge, tmp_path)
+    cannot = f"converge: cannot run — {context.log} cannot be stamped"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    context.folder.rmdir()
+    context.folder.symlink_to(outside)
+    for act in (converge["open_run"], converge["stamp"]):
+        with pytest.raises(converge["Cannot"]) as refused:
+            act(context)
+        assert str(refused.value) == cannot
+    assert list(outside.iterdir()) == []

@@ -27,6 +27,9 @@ from pathlib import Path
 from types import FrameType
 from typing import Any, NamedTuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.statefile
+
 TIMEOUT_SECONDS = 600
 DRAIN_SECONDS = 5
 CPUS = os.cpu_count() or 1
@@ -501,14 +504,10 @@ def keep(tree: str, key: str, result: Result) -> None:
     if folder.is_symlink() or folder.parent.is_symlink():
         return
     path = folder / hashlib.sha256(key.encode()).hexdigest()
-    staged = path.with_name(f"{path.name}.tmp")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-    with contextlib.suppress(OSError):
+    text = json.dumps({"exit": result.code, "output": result.output})
+    with contextlib.suppress(OSError, mflib.statefile.WriteFailed):
         folder.mkdir(parents=True, exist_ok=True)
-        staged.unlink(missing_ok=True)
-        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
-            json.dump({"exit": result.code, "output": result.output}, file)
-        staged.replace(path)
+        mflib.statefile.write(path, text)
 
 
 def load(tree: str, key: str) -> Result | None:

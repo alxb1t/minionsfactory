@@ -8,12 +8,15 @@ skip_stub.py <findings-file> <round>
 """
 
 import argparse
-import os
+import errno
 import re
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.statefile
 
 TIMEOUT_SECONDS = 600
 ROLES = ("conformance", "adversarial")
@@ -107,26 +110,22 @@ def uncleared(text: str) -> bool:
 
 
 def write(path: Path, text: str) -> None:
-    """Replace the file with `text`, through a staged file that refuses a link.
-
-    The staged `.tmp` is removed, created anew with `O_NOFOLLOW`, then renamed over the
-    file, so nothing is written through a link a worker planted.
-    """
-    staged = path.with_name(f"{path.name}.tmp")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    """Replace the file with `text` through a staged file; a link is refused."""
     try:
         # why: a skip added after a round keeps its cards; 0105-converge-switches D3
-        if path.is_file() and uncleared(path.read_text(errors="replace")):
+        if path.is_file() and uncleared(mflib.statefile.read(path)):
             raise Stop(
                 f"{path} holds a checker's round not cleared:"
                 " clearing it is the person's act"
             )
-        staged.unlink(missing_ok=True)
-        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
-            file.write(text)
-        staged.replace(path)
-    except OSError as error:
-        raise Stop(f"{path.name} could not be written") from error
+        mflib.statefile.write(path, text, refuse_link=True)
+    except (OSError, mflib.statefile.WriteFailed) as failed:
+        error = (
+            failed.error if isinstance(failed, mflib.statefile.WriteFailed) else failed
+        )
+        if error.errno == errno.ELOOP:
+            raise Stop(f"{path} is a link") from failed
+        raise Stop(f"{path.name} could not be written") from failed
 
 
 def main(argv: list[str] | None = None) -> int:

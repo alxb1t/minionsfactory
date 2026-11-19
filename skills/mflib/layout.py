@@ -14,6 +14,7 @@ SCRATCH_PREFIX = ".mf-ship-remote-"
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 MINIONS = ".minions"
 CHANGES = "changes"
+STATUS_LOG = "status_log.md"
 # Each old-layout path of a change, by its name in the change's folder.
 # Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D2.
 OLD_LAYOUT = {
@@ -64,6 +65,14 @@ def change_dir(primary: Path, change: str) -> Path:
     e.g. "0001-todo" → <primary>/.minions/changes/0001-todo
     """
     return run_dir(primary) / CHANGES / change
+
+
+def status_log(primary: Path, change: str) -> Path:
+    """Return the change's status log.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo/status_log.md
+    """
+    return change_dir(primary, change) / STATUS_LOG
 
 
 def runs_dir(primary: Path) -> Path:

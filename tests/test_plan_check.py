@@ -589,6 +589,33 @@ def test_a_result_is_kept_by_tree_and_reused(
     assert list(elsewhere.iterdir()) == []
 
 
+def test_case_f_a_linked_store_takes_nothing_and_a_file_store_is_swallowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    result = plan_check.Result(0, "out")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    linked = tmp_path / "linked"
+    linked.symlink_to(elsewhere)
+    under = tmp_path / "under"
+    under.symlink_to(elsewhere)
+    for folder in (linked, under / "tree"):
+        monkeypatch.setattr(plan_check, "store", lambda tree, folder=folder: folder)
+        plan_check.keep("tree", "key", result)
+        assert list(elsewhere.iterdir()) == []
+
+    store = tmp_path / "store"
+    store.write_text("a file\n")
+    monkeypatch.setattr(plan_check, "store", lambda tree: store)
+    plan_check.keep("tree", "key", result)
+    assert store.read_text() == "a file\n"
+    # Twin: a store folder that is a folder takes the result.
+    monkeypatch.setattr(plan_check, "store", lambda tree: tmp_path / "kept")
+    plan_check.keep("tree", "key", result)
+    assert len(list((tmp_path / "kept").iterdir())) == 1
+
+
 def _gone(pid: int) -> bool:
     """Return whether a process is gone, waiting up to 5 s for it to be."""
     for _ in range(100):

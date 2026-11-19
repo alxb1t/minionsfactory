@@ -42,6 +42,8 @@ if TYPE_CHECKING:
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
 import mflib.platform
+import mflib.statefile
+import mflib.statuslog
 
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
@@ -65,7 +67,6 @@ HEADROOM = 90
 WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
-STAMP_SCRIPT = Path(__file__).resolve().parents[2] / "mf-converge/scripts/stamp.py"
 # The brief's checker, and the runner of its `--models`.
 # Why: 0106-cut-scripts design D7.
 BRIEF_CHECK = Path(__file__).resolve().parents[2] / "mf-plan/scripts/brief_check.py"
@@ -658,21 +659,7 @@ def _folder_fd(root: Path, *parts: str) -> int:
     A link at any of `parts` raises `OSError`; `root` itself is followed.
     Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
     """
-    root.mkdir(parents=True, exist_ok=True)
-    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        for part in parts:
-            with contextlib.suppress(FileExistsError):
-                os.mkdir(part, dir_fd=fd)
-            inner = os.open(
-                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
-            )
-            os.close(fd)
-            fd = inner
-    except BaseException:
-        os.close(fd)
-        raise
-    return fd
+    return mflib.statefile.folder(root, *parts)
 
 
 def _write_in_change(
@@ -882,26 +869,35 @@ def _npm_unapproved(tree: Path, change: str, default: str) -> str | None:
 
 
 def _run_end(runs: Path, change: str) -> str | None:
-    """Return the newest converge run's top event line, or None with no run."""
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), None
-    )
-    if heading is None:
-        return None
-    return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
+    """Return the newest converge run's top line, its heading with none, or None."""
+    block = mflib.statuslog.newest(_log_text(runs, change))
+    return None if block is None else next(iter(block.lines), block.heading).strip()
+
+
+def _log_text(runs: Path, change: str) -> str:
+    """Return the text of `change`'s status log, or "" with none; a link halts.
+
+    A FIFO halts as a link does. Why: 0136-status-log design D5.
+    """
+    log = mflib.layout.status_log(runs.parent, change)
+    try:
+        return mflib.statefile.read(log)
+    except (FileNotFoundError, NotADirectoryError):
+        return ""
+    except OSError as error:
+        if error.errno not in (errno.ELOOP, errno.EINVAL):
+            raise
+        name = log.relative_to(runs.parent)
+        raise Stop(1, f"conduct: halt — {name} is a link") from None
 
 
 def _run_marked(runs: Path, change: str, mark: str) -> bool:
-    """Return whether the newest converge run's heading ends ` · <mark>`.
+    """Return whether the newest converge run's heading is marked `mark`.
 
     e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next((line for line in lines if line.startswith("## Run")), "")
-    return heading.rstrip().endswith(f" · {mark}")
+    block = mflib.statuslog.newest(_log_text(runs, change))
+    return mflib.statuslog.marked("" if block is None else block.heading, mark)
 
 
 def _granted_run(runs: Path, change: str) -> bool:
@@ -1066,7 +1062,7 @@ def _is_event(line: str, event: str) -> bool:
 
     e.g. "10:00:00 · round 1 · done — ok", "done" → True
     """
-    return line.split(" — ", maxsplit=1)[0].endswith(f" · {event}")
+    return mflib.statuslog.is_event(line, event)
 
 
 def _clear_stale_lock(primary: Path, name: str) -> int | None:
@@ -1180,14 +1176,8 @@ def _run_started(runs: Path, change: str) -> bool:
 
     e.g. "## Run 2 — d", "… · halt — red", "… · start — base a" → True
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
-    )
-    run = itertools.takewhile(
-        lambda line: not line.startswith("## Run"), lines[heading + 1 :]
-    )
+    block = mflib.statuslog.newest(_log_text(runs, change))
+    run = [] if block is None else block.lines
     return any(_is_event(line, "start") for line in run)
 
 
@@ -1310,19 +1300,9 @@ def _buried_done(runs: Path, change: str) -> str | None:
 
     e.g. "… · debt — d" over "… · round 2 · done — ok" → the `done` line
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
-    )
-    run = [
-        line
-        for line in itertools.takewhile(
-            lambda line: not line.startswith("## Run"), lines[heading + 1 :]
-        )
-        if line.strip()
-    ]
-    if not run or _is_event(run[0], "halt") or _is_event(run[0], "done"):
+    block = mflib.statuslog.newest(_log_text(runs, change))
+    run = [] if block is None else block.lines
+    if not run or mflib.statuslog.ends(run[0]):
         return None
     return next((line for line in run if _is_event(line, "done")), None)
 
@@ -1331,11 +1311,20 @@ def _restamp(runs: Path, change: str, buried: str) -> int:
     """Stamp `done` on top of the status log, as the run's own; return the exit code.
 
     e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
+    Why: card 0109·S1; 0136-status-log design D7.
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
+    log = mflib.layout.status_log(runs.parent, change)
     found = re.search(r"· (round \d+) · done\b", buried)
     event = f"{found[1] if found else 'round 1'} · done — re-stamped by the run"
-    return int(runpy.run_path(str(STAMP_SCRIPT))["main"]([str(log), event]))
+    try:
+        fd = mflib.statefile.folder(runs, mflib.layout.CHANGES, change)
+    except OSError as error:
+        print(f"stamp: cannot stamp — {log}: {error.strerror}")
+        return 2
+    try:
+        return mflib.statuslog.command(log, [event], None, None, fd)
+    finally:
+        os.close(fd)
 
 
 def _unjudged(
@@ -1587,8 +1576,7 @@ def stage_of(
     # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
     skipped = "converge" in (_skips(runs, change) if skips is None else skips)
     if halt := None if skipped else _converge_halt(runs, change):
-        locks = (mflib.layout.debt_lock(primary), mflib.layout.backlog_lock(primary))
-        if any(str(lock.relative_to(primary)) in halt for lock in locks):
+        if mflib.statuslog.names_lock(halt):
             return "converge", "halted on the debt lock: resumes at Step 9"
         if _rerun(runs, tree, change, halt):
             return "converge", RERUN
@@ -3129,18 +3117,11 @@ def _bounded(path: Path | str, fd: int | None = None) -> str | None:
     A relative `path` is read in the folder `fd` holds. None when it is a link, no
     file or unreadable. Why: 0097-cross-model design D4.
     """
-    text = None
-    with contextlib.suppress(OSError):
-        file = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-        try:
-            if stat.S_ISREG(os.fstat(file).st_mode):
-                with os.fdopen(file, "rb", closefd=False) as handle:
-                    data = handle.read(READ_BYTES + 1)
-                if len(data) <= READ_BYTES:
-                    text = data.decode(errors="replace")
-        finally:
-            os.close(file)
-    return text
+    try:
+        data = mflib.statefile.read_bytes(path, limit=READ_BYTES + 1, folder=fd)
+    except OSError:
+        return None
+    return data.decode(errors="replace") if len(data) <= READ_BYTES else None
 
 
 def _place(fd: int, name: str, text: str) -> None:
@@ -6889,12 +6870,18 @@ class Run:
             self.halt("run", str(stop))
             self.log.event("run", "halt", self.closing())
             return 1
-        stages = {
-            version.change: stage_of(
-                self.primary, version, self.skips_of(version.change)
-            )
-            for version in versions
-        }
+        stages: dict[str, tuple[str, str]] = {}
+        # A version whose read halts, its log a link, halts alone after the probe.
+        # Why: 0136-status-log converge card S2.
+        unread: dict[str, str] = {}
+        for version in versions:
+            try:
+                stages[version.change] = stage_of(
+                    self.primary, version, self.skips_of(version.change)
+                )
+            except Stop as stop:
+                unread[version.change] = str(stop)
+        versions = [version for version in versions if version.change in stages]
         # A cap the run grants is not stuck. Why: 0070-cap-policy design D2, D3.
         takes = {
             version.change: self._would_grant(version, *stages[version.change])
@@ -6929,6 +6916,8 @@ class Run:
                 if self.halts:
                     break
         halted = bool(self.halts)
+        for change, why in unread.items():
+            self.halt(change, why)
         cut_held: set[str] = set()
         if not halted:
             changes = [version.change for version in versions]

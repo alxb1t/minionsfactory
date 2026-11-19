@@ -70,7 +70,7 @@ it loads `converge.py` ([D78](#d78--the-converge-conductor-is-a-script)); no sta
 conductor. The world is reached through named seams — the platform, whose file is `skills/mflib/platform.py`, the
 executor, the host and the tooling. `docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds
 the map, the loads, the private names, the cycles, the OS commands, the state paths spelled outside
-`skills/mflib/layout.py`, the seed line its folder fixes before a script's first `mflib` import, and a threat-model
+`skills/mflib/layout.py`, the format names spelled outside `skills/mflib/`, the seed line its folder fixes before a script's first `mflib` import, and a threat-model
 surface for each Python file under `skills/`, in `make gate` and `make check`.**
 
 - **Why:** the refactoring series moves code one region at a time, and a shape no gate holds drifts back with the next
@@ -583,7 +583,8 @@ pre-fills the line in `mf-plan` and the cut; `conduct.py` reads `models.toml` al
 thread; `conduct.py converge` runs it by hand, and `skills/mf-converge/SKILL.md` is its front. The checkers, the fixer and the
 verify workers are the only LLMs, each a fresh process the run starts, one log each; the gate, the check scripts and a card's
 **Still true?** command run under the sandbox runner. A script goes on where it can: one retry, one rewrite worker, one more fix
-pass; only the environment, a loop outcome, a red gate and a security card halt. The fixer runs on `fix=`'s model always.**
+pass; only the environment, a loop outcome, a red gate and a security card halt. The fixer runs on `fix=`'s model always.
+Its status log is written through `skills/mflib/statuslog.py`.**
 
 - **Why:** the conductor was 17–24% of a converge and judged six things; a script reads fields.
 - **Accepts:** one implementation with two fronts · a card's **Still true?** prose is never checked · a command that exits 1 is
@@ -1144,7 +1145,8 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 `status_log.md`, `diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`, the cutter's `cut.halt` and `cut-notes.md`,
 `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,discarded.patch}`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
-`logs/<stamp>-<station>[-<n>].log`, each script finding it through `change_dir` of `skills/mflib/layout.py`. `grants/`,
+`logs/<stamp>-<station>[-<n>].log`, each script finding it through `change_dir` of `skills/mflib/layout.py`;
+`status_log.md` is written and parsed by `skills/mflib/statuslog.py`, found through `change_dir`. `grants/`,
 `runs/`, `gate/`, `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
 old `review.md` and `security.md` among it — and a file beside its new one or a link halts it; a hand-run station or

@@ -90,7 +90,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `changes/` or a change's folder halts the run or that version, and one at an old-layout folder the start-of-run move
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
-  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)). Among them `build-notes.md`, which any worker of
+  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)). The status log is written by
+  `skills/mflib/statuslog.py` through a descriptor held across its read and its write; the other in-process writes of a
+  change's folder follow no link by their own checks until their formats move. Among the worker output, `build-notes.md`, which any worker of
   the run can write, the next phase reads as evidence, and the conductor counts and trims through a descriptor that
   follows no link and refuses a file that is not a regular file of one name: a hard link, a folder or a pipe halts the
   version. A design's `Fix note` lines, which the converge fixer appends and the run reads as no decision change: a note
@@ -128,7 +130,7 @@ round. A test module stays off it: conformance judges every test edit under *Gat
 hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
-- `skills/mflib/*` — the shared home: the port to the OS, and the layout of the run directory and of the home folder, loaded by the scripts that run on the operator's machine.
+- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write and the status log — loaded by the scripts that run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run, and the setup script a cloud environment runs as root.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.

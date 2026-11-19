@@ -166,3 +166,21 @@ def test_a_stub_it_cannot_write_exits_2(
     unborn = bare / "changes" / _CHANGE / "conformance.md"
     refused([str(unborn), "1"], "no repository with a commit here")
     assert not unborn.exists()
+
+
+def test_case_g_the_file_replaced_is_read_with_a_bad_byte_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    folder = _repo(tmp_path / "proj", monkeypatch)
+    stub = folder / "adversarial.md"
+    stub.write_bytes(b"---\nmode: skipped\n---\n\xff\n")
+    assert skip_stub.main([str(stub), "1"]) == 0
+    assert "\nmode: skipped\n" in stub.read_text()
+    capsys.readouterr()
+    # Twin: the text past the bad byte is read, so a round not cleared is kept.
+    held = b"---\nmode: parallel\nverdict: changes-requested\n---\n\xff\n"
+    stub.write_bytes(held)
+    assert skip_stub.main([str(stub), "1"]) == 2
+    assert "holds a checker's round not cleared" in capsys.readouterr().out
+    assert stub.read_bytes() == held

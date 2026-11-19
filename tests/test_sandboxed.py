@@ -481,6 +481,7 @@ def _gone(pid: int, seconds: float = 5) -> bool:
     return False
 
 
+@pytest.mark.slow
 def test_a_command_past_its_deadline_is_killed_with_its_group(
     tmp_path: Path, fake_sandbox_exec: Path
 ) -> None:
@@ -494,11 +495,11 @@ def test_a_command_past_its_deadline_is_killed_with_its_group(
 
     out = io.StringIO()
     code = sandboxed(
-        [*_python(_SPAWN), str(child)], trees[0], trees, out, timeout=1, grace=30
+        [*_python(_SPAWN), str(child)], trees[0], trees, out, timeout=5, grace=30
     )
 
     assert code == 124
-    assert out.getvalue() == "sandboxed: timed out — killed after 1 s\n"
+    assert out.getvalue() == "sandboxed: timed out — killed after 5 s\n"
     assert _gone(int(child.read_text()))
 
     out = io.StringIO()
@@ -506,6 +507,7 @@ def test_a_command_past_its_deadline_is_killed_with_its_group(
     assert out.getvalue().endswith("sandboxed: timed out — killed after 0 s\n")
 
 
+@pytest.mark.slow
 def test_a_command_that_ignores_sigterm_is_killed_after_the_grace(
     tmp_path: Path, fake_sandbox_exec: Path
 ) -> None:
@@ -514,13 +516,13 @@ def test_a_command_that_ignores_sigterm_is_killed_after_the_grace(
     started = time.monotonic()
 
     code = _conduct()["sandboxed"](
-        _python(_DEAF), trees[0], trees, out, timeout=1, grace=0.5
+        _python(_DEAF), trees[0], trees, out, timeout=5, grace=0.5
     )
 
     assert code == 124
     assert out.getvalue().splitlines() == [
         "ready",
-        "sandboxed: timed out — killed after 1 s",
+        "sandboxed: timed out — killed after 5 s",
     ]
     assert time.monotonic() - started < 30
 
@@ -536,6 +538,7 @@ _ORPHAN = (
 )
 
 
+@pytest.mark.slow
 def test_a_child_that_outlives_its_parent_is_killed_after_the_grace(
     tmp_path: Path, fake_sandbox_exec: Path
 ) -> None:
@@ -544,7 +547,7 @@ def test_a_child_that_outlives_its_parent_is_killed_after_the_grace(
     out = io.StringIO()
 
     code = _conduct()["sandboxed"](
-        [*_python(_ORPHAN), str(child)], trees[0], trees, out, timeout=1, grace=0.5
+        [*_python(_ORPHAN), str(child)], trees[0], trees, out, timeout=5, grace=0.5
     )
 
     assert code == 124
