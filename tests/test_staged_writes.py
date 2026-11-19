@@ -3,6 +3,7 @@
 Cases A–D of 0136-status-log design's pin, each over every row, under `tmp_path`.
 """
 
+import errno
 import hashlib
 import importlib.util
 import json
@@ -231,6 +232,26 @@ def test_case_c_the_target_is_a_new_file_of_mode_0644(tmp_path: Path, row: Row) 
     assert target.stat().st_ino != hard.stat().st_ino
     assert target.read_text() == row.holds(_TEXT)
     assert hard.read_text() == _OLD
+
+
+# The converge writers that word a failed write as `<path>: <reason>`.
+_WORDED = {"bundle.py", "debt_match.py", "open_cards.py"}
+_ADAPTERS = [row for row in ROWS if row.name in _WORDED]
+
+
+@pytest.mark.parametrize("row", _ADAPTERS, ids=[row.name for row in _ADAPTERS])
+def test_a_parent_that_is_a_file_is_the_writers_own_refusal(
+    tmp_path: Path, row: Row
+) -> None:
+    # Why: 0136-status-log converge card S1.
+    parent = tmp_path / "parent"
+    parent.write_text(_OLD)
+    target = parent / row.target
+
+    said = row.write(target, _TEXT)
+
+    assert said == f"{target}: {os.strerror(errno.ENOTDIR)}"
+    assert parent.read_text() == _OLD
 
 
 @pytest.mark.parametrize("row", ROWS, ids=_IDS)

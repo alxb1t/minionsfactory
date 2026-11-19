@@ -12236,6 +12236,39 @@ def test_a_status_log_link_or_fifo_halts_the_stage_and_status(
     assert conduct["stage_of"](root, version) == missing
 
 
+@pytest.mark.slow
+def test_a_refused_status_log_at_the_start_halts_its_version_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # No lower layer reaches `Run.ship()`'s start scan, and no run test plants a log.
+    # Why: 0136-status-log converge card S2.
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    marks = root / ".minions" / "changes" / "0002-marks"
+    marks.mkdir(parents=True)
+    (marks / "models.toml").write_text("[converge]\nskip = true\n")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True)
+    outside = tmp_path / "outside.md"
+    outside.write_text("# t\n")
+    log.symlink_to(outside)
+
+    assert _run_claude(conduct, root, monkeypatch) == 1
+
+    seen = _calls(calls)
+    assert "release 0002-marks" in seen
+    assert not any(call.endswith(" 0001-todo") for call in seen)
+    lines = _log(root)
+    said = "conduct: halt — .minions/changes/0001-todo/status_log.md is a link"
+    assert any(line.endswith(f" · 0001-todo · halt — {said}") for line in lines)
+    closing = " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
+    assert closing in lines[-1]
+    assert outside.read_text() == "# t\n"
+
+
 def _status_log(tmp_path: Path, text: str) -> Path:
     log = tmp_path / ".minions" / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True, exist_ok=True)

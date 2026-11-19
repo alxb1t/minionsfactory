@@ -8,6 +8,7 @@ import os
 import stat
 import threading
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from mflib import statefile
@@ -83,6 +84,27 @@ def test_refuse_link_true_refuses_a_link_at_the_target(tmp_path: Path) -> None:
     assert target.is_symlink()
     assert outside.read_text() == _OLD
     assert not os.path.lexists(_staged(target))
+
+
+@pytest.mark.parametrize("code", [errno.ENOTDIR, errno.EACCES])
+def test_refuse_link_true_raises_a_failed_link_check_as_a_create_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int
+) -> None:
+    # Why: 0136-status-log converge card S1: a parent a file, or one not searched.
+    parent = tmp_path / "parent"
+    parent.write_text(_OLD)
+    if code == errno.EACCES:
+        parent.unlink()
+        parent.mkdir()
+        denied = OSError(code, os.strerror(code))
+        monkeypatch.setattr(statefile.os, "stat", mock.Mock(side_effect=denied))
+
+    with pytest.raises(statefile.WriteFailed) as failed:
+        statefile.write(parent / "state.md", _TEXT, refuse_link=True)
+
+    assert failed.value.step == "create"
+    assert failed.value.error.errno == code
+    assert not os.path.lexists(parent / "state.md.tmp")
 
 
 def test_refuse_link_true_writes_a_missing_target(tmp_path: Path) -> None:

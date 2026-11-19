@@ -41,12 +41,18 @@ def write(
     """Replace `path` with `text` through `<name>.tmp`, cleared, made anew and renamed.
 
     A failure removes the staged file. A link at `path` is a `replace` failure under
-    `refuse_link`.
+    `refuse_link`, and any other error of its check a `create` failure.
     """
     staged = path.with_name(f"{path.name}.tmp")
     if refuse_link:
-        with contextlib.suppress(FileNotFoundError):
+        try:
             held = os.stat(path, dir_fd=folder, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            # why: the callers word `WriteFailed` alone; 0136-status-log card S1
+            raise WriteFailed("create", error) from error
+        else:
             if stat.S_ISLNK(held.st_mode):
                 link = OSError(errno.ELOOP, os.strerror(errno.ELOOP), str(path))
                 raise WriteFailed("replace", link)

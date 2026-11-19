@@ -6839,12 +6839,18 @@ class Run:
             self.halt("run", str(stop))
             self.log.event("run", "halt", self.closing())
             return 1
-        stages = {
-            version.change: stage_of(
-                self.primary, version, self.skips_of(version.change)
-            )
-            for version in versions
-        }
+        stages: dict[str, tuple[str, str]] = {}
+        # A version whose read halts, its log a link, halts alone after the probe.
+        # Why: 0136-status-log converge card S2.
+        unread: dict[str, str] = {}
+        for version in versions:
+            try:
+                stages[version.change] = stage_of(
+                    self.primary, version, self.skips_of(version.change)
+                )
+            except Stop as stop:
+                unread[version.change] = str(stop)
+        versions = [version for version in versions if version.change in stages]
         # A cap the run grants is not stuck. Why: 0070-cap-policy design D2, D3.
         takes = {
             version.change: self._would_grant(version, *stages[version.change])
@@ -6879,6 +6885,8 @@ class Run:
                 if self.halts:
                     break
         halted = bool(self.halts)
+        for change, why in unread.items():
+            self.halt(change, why)
         cut_held: set[str] = set()
         if not halted:
             changes = [version.change for version in versions]
