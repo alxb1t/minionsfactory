@@ -157,7 +157,7 @@ Each case is a test named `…_case_<letter>_…`, green on today's code and red
 | K | `stamp.py --run` on an empty log exits 2; a heading right under the title is kept | `tests/test_stamp.py` |
 | L | the stamp's run end: the top event is found past a blank line; a `done` that names the lock refuses, a `halt` that names it does not; `predone` ends nothing | `tests/test_stamp.py` |
 | M | converge's `latest`: round 12, an empty detail, a blank line or a heading ends the run, no mark is `None`, a dangling link raises the stamp's `Stop` | `tests/test_converge.py` |
-| N | converge's `HALTED` is anchored at the end; `LOCKED` needs `.minions/` | `tests/test_converge.py` |
+| N | converge's `HALTED` is anchored at the end; `statuslog.names_lock` needs `.minions/` | `tests/test_converge.py` |
 | O | `stage_of`: `.minions/debt.lock` gives the lock stage, a bare `debt.lock` stays halted — a twin line of the existing `stage_of` test | `tests/test_conduct.py` |
 | P | converge's `stamp` and `open_run`: a refused stamp raises `Cannot` with today's message; runs are counted by heading line; a linked log raises the stamp's `Stop` | `tests/test_converge.py` |
 | Q | the conductor's readers: the line stripped, a link followed, a missing log `False`, the exact ` · mark` with trailing blanks dropped, ` · event`, a run read past blank lines | `tests/test_conduct.py` |
