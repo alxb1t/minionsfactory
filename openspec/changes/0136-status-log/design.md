@@ -136,6 +136,8 @@ Each row is an argument of a module until phase 5. A value not named in a row's 
 
 Pairs of functions hold the other differences, and phase 5 makes one answer of each. `mark_of` takes the text after the first ` · ` as it stands, and `marked` tests the heading's end after dropping trailing blanks. `parse_event` needs a round and a ` — `, and `is_event` and `ends` split the line at its first ` — ` and test the name's end.
 
+`skip_stub.py`'s read of the file it replaces is no row: it stays its plain read, which follows a link, until phase 5 moves it to `statefile.read`. Every value of `guard` opens with `O_NOFOLLOW`, so no argument keeps case A's link row in the move.
+
 ## The pin
 
 Each case is a test named `…_case_<letter>_…`, green on today's code and red on every mutant it names. A case over the staged writes is a table over `stamp.py`'s `write`, `bundle.py`'s, `debt_match.py`'s, `open_cards.py`'s, `skip_stub.py`'s, `gate_run.py`'s `write_record` and `plan_check.py`'s `keep`.

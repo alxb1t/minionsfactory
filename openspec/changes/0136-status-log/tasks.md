@@ -68,7 +68,7 @@ The writers and readers outside the log take `statefile`, each keeping its check
 
 - [ ] 4.1 In `skills/mf-converge/scripts/bundle.py`, `debt_match.py` and `open_cards.py` add the seed line and make `write` call `statefile.write(refuse_link=True, remove="any")`, word each `WriteFailed` as its own `Stop` text, and drop the no-follow flag from the write's flags.
   Verify: `git grep -n -e "statefile.write" -- skills/mf-converge/scripts/bundle.py skills/mf-converge/scripts/debt_match.py skills/mf-converge/scripts/open_cards.py` prints a line of each file.
-- [ ] 4.2 In `skills/mf-converge/scripts/skip_stub.py` add the seed line; make `write` call `statefile.write(remove="never")` after its own check, with its `could not be written` text, and its read of the file it replaces, still after `path.is_file()`, call `statefile.read` with `guard` left true.
+- [ ] 4.2 In `skills/mf-converge/scripts/skip_stub.py` add the seed line; make `write` call `statefile.write(remove="never")` after its own check, with its `could not be written` text. Its read of the file it replaces stays `path.read_text(errors="replace")` after `path.is_file()`: every `statefile.read` refuses a link, which turns case A's link row, and that row turns in phase 5.
   Verify: `git grep -n -e "statefile" -- skills/mf-converge/scripts/skip_stub.py` prints a line.
 - [ ] 4.3 In `skills/mf-converge/scripts/gate_run.py` make `write_record` call `statefile.write(remove="never")`: a `create` failure keeps its `could not be created` text, a `replace` failure raises the `OSError` as today. In `skills/mf-converge/scripts/plan_check.py` add the seed line and make `keep` call it under its `suppress`.
   Verify: `git grep -n -e "statefile.write" -- skills/mf-converge/scripts/gate_run.py skills/mf-converge/scripts/plan_check.py` prints a line of each file.
@@ -85,7 +85,7 @@ The writers and readers outside the log take `statefile`, each keeping its check
 
 Each copy to one side, in the order of [D4](design.md#d4) to [D8](design.md#d8); the phase 1 cases whose copies differed turn to the one side.
 
-- [ ] 5.1 In `skills/mflib/statefile.py` delete `remove` and `guard`: the staged file is removed on any failure and every read is guarded. Pass `refuse_link=True` from `statuslog.stamp` and `skip_stub.py`. Turn the rows of `tests/test_staged_writes.py`, `tests/test_statefile.py` and `tests/test_log_reads.py` that held a second value.
+- [ ] 5.1 In `skills/mflib/statefile.py` delete `remove` and `guard`: the staged file is removed on any failure and every read is guarded. Pass `refuse_link=True` from `statuslog.stamp` and `skip_stub.py`, and make `skip_stub.py`'s read of the file it replaces, still after `path.is_file()`, call `statefile.read`; a link at its target, met by the read or the write, stops as `<path> is a link`, as the other change-folder writers word it. Turn the rows of `tests/test_staged_writes.py`, `tests/test_statefile.py` and `tests/test_log_reads.py` that held a second value.
   Verify: `uv run pytest tests/test_staged_writes.py tests/test_statefile.py tests/test_log_reads.py tests/test_skip_stub.py -q` exits 0.
 - [ ] 5.2 In `skills/mf-converge/scripts/gate_run.py` make a failed record print `gate: green — unrecorded, <name>.tmp could not be created` for a create, or `gate: green — unrecorded, <name> could not be replaced` for a rename, `<name>` the record's file name, and exit 0. Turn case D's `gate_run.py` row and case E.
   Verify: `uv run pytest tests/test_gate_run.py tests/test_staged_writes.py -q` exits 0.
