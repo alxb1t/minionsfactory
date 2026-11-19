@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A worker's commit names no session and its git signs nothing: each Claude worker's settings set
   `attribution.sessionUrl` false, and `HOOKS_OFF` sets `commit.gpgsign` and `tag.gpgsign` false, since a sandbox cannot
   reach the signer. The conductor's own merges keep the machine's signing (0137-cloud-session, phase 2).
+- `report` names the default branch under `tags = false`: `default pushed, tag local` or `default pushed` when
+  `origin`'s default branch holds the merge, else `not pushed`, so a release on `origin` no longer reads as a failure.
+  A bad `tags` value exits 2 (0137-cloud-session, phase 3).
 
 ## [0.107.0] - 2026-11-18
 

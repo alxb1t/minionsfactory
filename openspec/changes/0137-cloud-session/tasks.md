@@ -6,7 +6,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The worker · moderate
-- [ ] 3 — The report · moderate
+- [x] 3 — The report · moderate
 - [ ] 4 — The wait · hard
 - [ ] 5 — The setup · hard
 - [ ] 6 — The record · moderate
@@ -39,19 +39,19 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## 3 — The report
 
-- [ ] 3.1 In `skills/mf-ship/scripts/conduct.py`, add `_on_default(primary, merge: str | None) -> bool | None` after `_pushed`, per
+- [x] 3.1 In `skills/mf-ship/scripts/conduct.py`, add `_on_default(primary, merge: str | None) -> bool | None` after `_pushed`, per
   [D4](design.md#d4): `None` with no `origin`; else `False` for no merge or a tip the primary lacks, as that section lists.
   Verify: `git grep -n -e "def _on_default(" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.2 In `report`, ask `_pushes_tags()`; with `tags = false` print `default pushed, tag local`, `default pushed` or
+- [x] 3.2 In `report`, ask `_pushes_tags()`; with `tags = false` print `default pushed, tag local`, `default pushed` or
   `not pushed` from `_on_default`, and `no origin` as before.
   Verify: `git grep -n -F -e "default pushed, tag local" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.3 In `tests/test_conduct.py`, rename the pin of 1.1 to `test_report_with_tags_false_names_the_default_branch` and flip it:
+- [x] 3.3 In `tests/test_conduct.py`, rename the pin of 1.1 to `test_report_with_tags_false_names_the_default_branch` and flip it:
   the merge on `origin` reads `default pushed, tag local`; no tag, `default pushed`; the merge off `origin`, `not pushed`.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_report_with_tags_false_names_the_default_branch` passes.
-- [ ] 3.4 In `tests/test_conduct.py`, add `test_report_with_tags_false_reads_not_pushed_for_a_tip_the_primary_lacks`: `origin`'s
+- [x] 3.4 In `tests/test_conduct.py`, add `test_report_with_tags_false_reads_not_pushed_for_a_tip_the_primary_lacks`: `origin`'s
   default branch holds a commit the primary does not, and `report` prints `not pushed` and exits 0.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_report_with_tags_false_reads_not_pushed_for_a_tip_the_primary_lacks` passes.
-- [ ] 3.5 In `tests/test_conduct.py`, add `test_report_with_a_bad_tags_value_exits_2`: `tags = "no"` makes `report` exit 2.
+- [x] 3.5 In `tests/test_conduct.py`, add `test_report_with_a_bad_tags_value_exits_2`: `tags = "no"` makes `report` exit 2.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_report_with_a_bad_tags_value_exits_2` passes.
 
 ## 4 — The wait

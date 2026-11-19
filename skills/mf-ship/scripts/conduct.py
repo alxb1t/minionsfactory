@@ -2114,6 +2114,30 @@ def _pushed(
     return f"{tip}\t{ref}" in lines or f"{tip}\t{ref}^{{}}" in lines
 
 
+def _on_default(primary: Path, merge: str | None) -> bool | None:
+    """Return whether origin's default branch holds `merge`, or None with no origin.
+
+    No merge, an `origin` this may not or cannot read, and a tip the primary lacks
+    give False. Why: 0137-cloud-session design D4.
+    """
+    if "origin" not in _git(primary, "remote").split():
+        return None
+    url = _read_url(primary, first_read=False)
+    if merge is None or url is None:
+        return False
+    ref = f"refs/heads/{default_branch(primary)}"
+    done = _remote(primary, "ls-remote", "--", url, ref)
+    tips = [
+        line.split("\t")[0]
+        for line in done.stdout.splitlines()
+        if done.returncode == 0 and line.endswith(f"\t{ref}")
+    ]
+    # why: `merge-base` exits 2 on an object the primary lacks.
+    if not tips or _outside(primary, "cat-file", "-e", tips[0]).returncode != 0:
+        return False
+    return _history_ancestor(primary, merge, tips[0])
+
+
 def _history(primary: Path, *args: str) -> str:
     """Read raw object history in the conductor's clean scratch repo.
 
@@ -8222,6 +8246,7 @@ def report(cwd: Path) -> str:
     Why: 0067-rescue design D6; 0085-self-healing-ship design D4.
     """
     primary = primary_of(cwd)
+    push_tags = _pushes_tags()
     if (log := last_log(mflib.layout.runs_dir(primary))) is None:
         return "report: none — no run yet"
     events = [
@@ -8258,7 +8283,16 @@ def report(cwd: Path) -> str:
         tag = _tag_of(primary, change)
         if tag is not None and not _tagged(primary, tag):
             tag = None
-        pushed = _pushed(primary, change, tag) if tag is not None else False
+        merge = _merge_commit(primary, version)
+        if push_tags:
+            pushed = _pushed(primary, change, tag) if tag is not None else False
+            word = {None: "no origin", True: "pushed", False: "not pushed"}[pushed]
+        else:
+            # why: 0137-cloud-session design D4
+            on = {True: "default pushed, tag local" if tag else "default pushed"}
+            word = {None: "no origin", False: "not pushed", **on}[
+                _on_default(primary, merge)
+            ]
         conformance = mflib.layout.change_dir(primary, change) / "conformance.md"
         round_ = (
             _frontmatter(conformance.read_text(), "round")
@@ -8272,8 +8306,8 @@ def report(cwd: Path) -> str:
                 [
                     change,
                     tag or "no tag",
-                    f"merge {_merge_commit(primary, version) or 'none'}",
-                    {None: "no origin", True: "pushed", False: "not pushed"}[pushed],
+                    f"merge {merge or 'none'}",
+                    word,
                     f"round {round_ or 'none'}",
                     f"cards {' '.join(cards) or 'none'}",
                     f"denied {', '.join(denied.get(change, [])) or 'none'}",

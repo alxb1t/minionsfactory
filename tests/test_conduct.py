@@ -904,9 +904,13 @@ def test_each_check_passes_only_on_disk_evidence(
     assert conduct["check_probe"](scratch, mark) == escaped
 
 
-def test_report_with_tags_false_reads_not_pushed_today(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def _released_on_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, Any], Path, Path]:
+    """Return the conductor, a primary whose release merge is on a bare origin, and it.
+
+    The tag is local; `ship.toml` sets `tags = false`.
+    """
     conduct = _conduct()
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — One\n")
@@ -925,11 +929,60 @@ def test_report_with_tags_false_reads_not_pushed_today(
     ship = layout.ship_file()
     ship.parent.mkdir(parents=True, exist_ok=True)
     ship.write_text("[push]\ntags = false\n")
+    return conduct, root, origin
+
+
+def _push_word(
+    conduct: dict[str, Any],
+    root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> str:
+    capsys.readouterr()
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
+    return capsys.readouterr().out.split(" · ")[3]
+
+
+def test_report_with_tags_false_names_the_default_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, origin = _released_on_origin(tmp_path, monkeypatch)
     assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
     assert _git(origin, "tag") == ""
 
-    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
-    assert capsys.readouterr().out.split(" · ")[3] == "not pushed"
+    assert _push_word(conduct, root, monkeypatch, capsys) == "default pushed, tag local"
+    _git(root, "tag", "-d", "v0.1.0")
+    assert _push_word(conduct, root, monkeypatch, capsys) == "default pushed"
+    _git(root, "push", "-q", "-f", "origin", "main~1:main")
+    assert _push_word(conduct, root, monkeypatch, capsys) == "not pushed"
+    _git(root, "push", "-q", "-f", "origin", "main")
+    assert conduct["_on_default"](root, None) is False
+    _git(root, "remote", "remove", "origin")
+    assert _push_word(conduct, root, monkeypatch, capsys) == "no origin"
+
+
+def test_report_with_tags_false_reads_not_pushed_for_a_tip_the_primary_lacks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, origin = _released_on_origin(tmp_path, monkeypatch)
+    other = tmp_path / "other"
+    _git(tmp_path, "clone", "-q", str(origin), str(other))
+    _git(other, "commit", "-q", "--allow-empty", "-m", "a commit the primary lacks")
+    _git(other, "push", "-q", "origin", "main")
+    tip = _git(origin, "rev-parse", "main").strip()
+    assert conduct["_maybe"](root, "cat-file", "-e", tip) is None
+
+    assert _push_word(conduct, root, monkeypatch, capsys) == "not pushed"
+
+
+def test_report_with_a_bad_tags_value_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, _ = _released_on_origin(tmp_path, monkeypatch)
+    path = _ship_toml('[push]\ntags = "no"\n')
+
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out.strip() == f"{path}: `tags` is not true or false"
 
 
 def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
