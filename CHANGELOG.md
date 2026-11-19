@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Every reader of a findings file reads the same card: a card runs through a blank line, a field reads either colon,
   `Open` and a bold grade count, an unread category is security, a card off `R<n>` and `S<n>` or a stray Status makes
   the file malformed, and every read follows no link. The stamp no longer unlinks the file first (0138-findings, phase 4).
+- The structure rules refuse a card head, `- **` or `- \*\*`, spelled outside `skills/mflib/`, each remaining site
+  listed by kind, so a new copy of the card's format fails the gate. D57, D78, D83, the threat model and the state-file recipe name
+  `skills/mflib/findings.py` (0138-findings, phase 5).
 
 ## [0.109.0] - 2026-11-19
 

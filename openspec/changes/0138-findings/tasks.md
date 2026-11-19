@@ -8,7 +8,7 @@ Pin each copy of the findings format as it stands, build the module, move the st
 - [x] 2 — The module · hard
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
-- [ ] 5 — The rule and the record · moderate
+- [x] 5 — The rule and the record · moderate
 
 ## 1 — The pin
 
@@ -96,11 +96,11 @@ Each task moves the rows of [the cases](design.md#the-cases) marked `turns` that
 
 ## 5 — The rule and the record
 
-- [ ] 5.1 In `tests/test_structure.py` make `_format_name` return `- **` for a string that contains `- **` or `- \*\*`, list each remaining site in `FORMAT_SITES`, each with its kind in a comment, as the table of [D13](design.md#d13) names them, and add `test_check_formats_card_head_*`: a planted `- **` constant and a planted `- \*\*` constant fail, a listed site that is gone fails, `skills/mflib/findings.py` passes.
+- [x] 5.1 In `tests/test_structure.py` make `_format_name` return `- **` for a string that contains `- **` or `- \*\*`, list each remaining site in `FORMAT_SITES`, each with its kind in a comment, as the table of [D13](design.md#d13) names them, and add `test_check_formats_card_head_*`: a planted `- **` constant and a planted `- \*\*` constant fail, a listed site that is gone fails, `skills/mflib/findings.py` passes.
   Verify: `uv run pytest tests/test_structure.py -q -k "test_check_formats_card_head or test_check_formats_holds_on_the_tree"` passes.
-- [ ] 5.2 Amend D57, D78 and D83 in `docs/decisions.md` as [D15](design.md#d15) says, each decision edited where it lives.
+- [x] 5.2 Amend D57, D78 and D83 in `docs/decisions.md` as [D15](design.md#d15) says, each decision edited where it lives.
   Verify: `git grep -c -e "findings.py" -- docs/decisions.md` exits 0.
-- [ ] 5.3 In `THREAT_MODEL.md` name `skills/mflib/findings.py` in the sentence on the conductor's stamp, the sentence on findings files, the surface of the shared home and the sentence on a security card, which now reads an unread category as security in converge too.
+- [x] 5.3 In `THREAT_MODEL.md` name `skills/mflib/findings.py` in the sentence on the conductor's stamp, the sentence on findings files, the surface of the shared home and the sentence on a security card, which now reads an unread category as security in converge too.
   Verify: `git grep -c -e "findings.py" -- THREAT_MODEL.md` exits 0.
-- [ ] 5.4 In `docs/recipes.md` add to the state-file recipe that the findings files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
+- [x] 5.4 In `docs/recipes.md` add to the state-file recipe that the findings files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
   Verify: `git grep -c -e "findings.py" -- docs/recipes.md` exits 0.
