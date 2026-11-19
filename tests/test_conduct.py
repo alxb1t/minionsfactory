@@ -12172,6 +12172,124 @@ def test_bounded_reads_only_a_regular_file_of_the_cap(tmp_path: Path) -> None:
     assert bounded(full) == "a" * cap
 
 
+def test_case_j_bounded_reads_a_relative_path_in_the_folder_held(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    bounded = _conduct()["_bounded"]
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    (folder / "a.txt").write_text("the folder's\n")
+    (tmp_path / "a.txt").write_text("the cwd's\n")
+    monkeypatch.chdir(tmp_path)
+    fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        assert bounded("a.txt", fd) == "the folder's\n"
+    finally:
+        os.close(fd)
+    assert bounded("a.txt") == "the cwd's\n"
+
+
+def test_case_o_only_a_halt_on_the_run_folders_lock_is_the_lock_stage(
+    tmp_path: Path,
+) -> None:
+    # Why: 0136-status-log design, the pin; the twin of the stale-lock test's line.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True)
+    version = conduct["find_version"](root, "0001-todo")
+    for why, stage in (
+        ("waited 2 minutes for .minions/debt.lock", "converge"),
+        ("waited 2 minutes for debt.lock", "converge-halted"),
+    ):
+        log.write_text(f"# t\n\n## Run 1 — d\n10:00:00 · round 1 · halt — {why}\n")
+        assert conduct["stage_of"](root, version)[0] == stage, why
+
+
+def _status_log(tmp_path: Path, text: str) -> Path:
+    log = tmp_path / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(text)
+    return log
+
+
+def test_case_q_the_readers_of_the_status_log_as_they_stand(tmp_path: Path) -> None:
+    # Why: 0136-status-log design, the pin.
+    conduct = _conduct()
+    runs, change = tmp_path / ".minions", "0001-todo"
+    end, marked = conduct["_run_end"], conduct["_run_marked"]
+    started, is_event = conduct["_run_started"], conduct["_is_event"]
+    assert (end(runs, change), marked(runs, change, "grant")) == (None, False)
+    assert not started(runs, change)
+
+    halt = "10:00:00 · round 1 · halt — x"
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d · grant  \n\n  {halt}  \n")
+    assert end(runs, change) == halt
+    assert marked(runs, change, "grant")
+    for heading in ("## Run 2 — d · regrant", "## Run 2 — d · grant · x"):
+        _status_log(tmp_path, f"# t\n\n{heading}\n{halt}\n")
+        assert not marked(runs, change, "grant"), heading
+
+    start = "10:00:00 · round 1 · start — base a"
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{halt}\n\n{start}\n")
+    assert started(runs, change)
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{halt}\n## Run 1 — d\n{start}\n")
+    assert not started(runs, change)
+
+    log = _status_log(tmp_path, "")
+    outside = tmp_path / "outside.md"
+    outside.write_text(f"# t\n\n## Run 3 — d · grant\n{start}\n")
+    log.unlink()
+    log.symlink_to(outside)
+    assert (end(runs, change), marked(runs, change, "grant")) == (start, True)
+    assert started(runs, change)
+
+    for line, name, holds in (
+        ("10:00:00 · round 1 · done — ok", "done", True),
+        ("10:00:00 · round 1 · done", "done", True),
+        ("10:00:00 · round 1 · predone — ok", "done", False),
+        ("10:00:00 · round 1 · halt — a · done — b", "done", False),
+    ):
+        assert is_event(line, name) == holds, line
+
+
+def test_case_r_a_buried_done_is_read_to_the_next_heading_past_blank_lines(
+    tmp_path: Path,
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    buried = _conduct()["_buried_done"]
+    runs, change = tmp_path / ".minions", "0001-todo"
+    debt, done = "10:01:00 · round 1 · debt — d", "10:00:00 · round 1 · done — ok"
+    old = "## Run 1 — d\n10:00:00 · round 3 · done — old\n"
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{debt}\n\n{done}\n\n{old}")
+    assert buried(runs, change) == done
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{debt}\n{old}")
+    assert buried(runs, change) is None
+    _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{done}\n{debt}\n")
+    assert buried(runs, change) is None
+
+
+def test_case_s_a_restamp_keeps_a_two_digit_round_or_takes_round_1(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    restamp = _conduct()["_restamp"]
+    runs, change = tmp_path / ".minions", "0001-todo"
+    for buried, round_ in (
+        ("10:00:00 · round 12 · done — ok", "round 12"),
+        ("10:00:00 · done — ok", "round 1"),
+    ):
+        log = _status_log(
+            tmp_path, f"# t\n\n## Run 1 — d\n10:01:00 · round 12 · debt — d\n{buried}\n"
+        )
+        assert restamp(runs, change, buried) == 0
+        top = log.read_text().splitlines()[3]
+        assert top.endswith(f" · {round_} · done — re-stamped by the run"), top
+        capsys.readouterr()
+
+
 @pytest.mark.slow
 def test_a_usage_limit_is_named(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]

@@ -163,3 +163,45 @@ def test_a_log_out_of_shape_is_not_stamped(
     )
     assert (log / "kept.md").read_text() == _TITLE
     assert not staged.exists()
+
+
+def test_case_k_a_run_on_an_empty_log_exits_2_and_a_heading_under_the_title_stays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    monkeypatch.setattr(stamp, "_now", lambda: datetime(2026, 11, 7, 10, 2, 3))
+    log = tmp_path / "status_log.md"
+    log.write_text("")
+    assert stamp.main([str(log), "--run", "1"]) == 2
+    assert capsys.readouterr().out == "stamp: cannot stamp — no # title\n"
+    assert log.read_text() == ""
+
+    log.write_text(f"{_TITLE}{_RUN_1}")
+    assert stamp.main([str(log), "--run", "2"]) == 0
+    run_2 = "## Run 2 — 2026-11-07 10:02"
+    assert capsys.readouterr().out == f"{run_2}\n"
+    assert log.read_text() == f"{_TITLE}\n{run_2}\n\n{_RUN_1}"
+
+
+def test_case_l_the_run_end_is_the_top_event_past_a_blank_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design, the pin.
+    monkeypatch.setattr(stamp, "_now", lambda: datetime(2026, 11, 7, 10, 2, 3))
+    log = tmp_path / "status_log.md"
+    head, rest = _RUN_1.split("\n", 1)
+    ends = "stamp: cannot stamp — the run ends on {}: open a ## Run for a new event\n"
+    for text, code, said in (
+        (f"{head}\n\n09:00:09 · round 1 · done — x\n{rest}", 2, ends.format("done")),
+        (_ended("done — .minions/debt.lock"), 2, ends.format("done")),
+        (_ended("halt — debt.lock held"), 2, ends.format("halt")),
+        (
+            _ended("halt — .minions/debt.lock held"),
+            0,
+            "10:02:03 · round 1 · debt — x\n",
+        ),
+        (_ended("predone — x"), 0, "10:02:03 · round 1 · debt — x\n"),
+    ):
+        log.write_text(f"{_TITLE}\n{text}")
+        assert stamp.main([str(log), "round 1 · debt — x"]) == code, text
+        assert capsys.readouterr().out == said, text

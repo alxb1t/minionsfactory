@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin tests hold the staged writes, the no-follow reads and the status log's writer and readers as they stand —
+  each copy's link, `.tmp`, rename, bad-byte, bound, FIFO and run-end answer — before they move into one module
+  (0136-status-log, phase 1).
+
 ## [0.107.0] - 2026-11-18
 
 Gate: local 5m23s · CI not read under mf-ship · 0.106.0: local 4m58s · CI not read under mf-ship

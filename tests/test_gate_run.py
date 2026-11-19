@@ -3,6 +3,7 @@
 Real git and make in a scratch repository. Why: 0064-lighter-catch-up design D1.
 """
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -12,6 +13,10 @@ import pytest
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-converge" / "scripts" / "gate_run.py"
+_SPEC = importlib.util.spec_from_file_location("gate_run", _SCRIPT)
+assert _SPEC and _SPEC.loader
+gate_run = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(gate_run)
 
 
 def _git(root: Path, *args: str) -> str:
@@ -241,6 +246,17 @@ def test_fresh_runs_whatever_stands_and_records(tmp_path: Path) -> None:
     assert linked.returncode == 0, linked.stdout
     assert "gate: green — unrecorded, .minions/gate is a link" in linked.stdout
     assert list(elsewhere.iterdir()) == []
+
+
+def test_case_e_a_staged_record_that_cannot_be_made_is_named(tmp_path: Path) -> None:
+    # Why: 0136-status-log design, the pin.
+    record = tmp_path / "gate" / "tree"
+    record.parent.mkdir()
+    record.with_name("tree.tmp").mkdir()
+
+    assert gate_run.write_record(record, "d", 1) == "tree.tmp could not be created"
+
+    assert not record.exists()
 
 
 def test_records_go_under_the_primary_run_directory(tmp_path: Path) -> None:

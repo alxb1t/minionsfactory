@@ -4,7 +4,7 @@ The phases: pin the region, write the modules, move the stations, give the helpe
 
 ## Progress
 
-- [ ] 1 — The pin · hard
+- [x] 1 — The pin · hard
 - [ ] 2 — The modules · hard
 - [ ] 3 — The stations · hard
 - [ ] 4 — The helpers · moderate
@@ -15,19 +15,19 @@ The phases: pin the region, write the modules, move the stations, give the helpe
 
 Tests only, each green on the code as it stands ([D2](design.md#d2)).
 
-- [ ] 1.1 **HALT CHECK** The FIFO cases need the guards' `O_NONBLOCK` to stand in converge's `_text` and the viewer's `read_part`.
+- [x] 1.1 **HALT CHECK** The FIFO cases need the guards' `O_NONBLOCK` to stand in converge's `_text` and the viewer's `read_part`.
   Verify: `git grep -n -e "O_NONBLOCK" -- skills/mf-converge/scripts/converge.py skills/mf-ui/scripts/viewer.py` prints a line of each file.
-- [ ] 1.2 Add `tests/test_staged_writes.py`: a table of the staged writes of `stamp.py`, `bundle.py`, `debt_match.py`, `open_cards.py`, `skip_stub.py`, `gate_run.py` and `plan_check.py`, each row an adapter, and cases A, B, C and D over it.
+- [x] 1.2 Add `tests/test_staged_writes.py`: a table of the staged writes of `stamp.py`, `bundle.py`, `debt_match.py`, `open_cards.py`, `skip_stub.py`, `gate_run.py` and `plan_check.py`, each row an adapter, and cases A, B, C and D over it.
   Verify: `uv run pytest tests/test_staged_writes.py -q` exits 0.
-- [ ] 1.3 Add case E to `tests/test_gate_run.py` and case F to `tests/test_plan_check.py`.
+- [x] 1.3 Add case E to `tests/test_gate_run.py` and case F to `tests/test_plan_check.py`.
   Verify: `uv run pytest tests/test_gate_run.py tests/test_plan_check.py -q -k "case_e or case_f"` exits 0.
-- [ ] 1.4 Add case G to `tests/test_skip_stub.py`. Add cases H and I, and one test with `fifo` in its name for each of converge's `_text` and the viewer's `read_part`, to a new `tests/test_log_reads.py`; each FIFO test runs its read in a thread it joins with a ten-second timeout.
+- [x] 1.4 Add case G to `tests/test_skip_stub.py`. Add cases H and I, and one test with `fifo` in its name for each of converge's `_text` and the viewer's `read_part`, to a new `tests/test_log_reads.py`; each FIFO test runs its read in a thread it joins with a ten-second timeout.
   Verify: `uv run pytest tests/test_skip_stub.py tests/test_log_reads.py -q -k "case_g or case_h or case_i or fifo"` exits 0.
-- [ ] 1.5 Add cases K and L to `tests/test_stamp.py`, and cases M, N and P to `tests/test_converge.py`.
+- [x] 1.5 Add cases K and L to `tests/test_stamp.py`, and cases M, N and P to `tests/test_converge.py`.
   Verify: `uv run pytest tests/test_stamp.py tests/test_converge.py -q -k "case_k or case_l or case_m or case_n or case_p"` exits 0.
-- [ ] 1.6 Add cases J, O, Q, R and S to `tests/test_conduct.py`; case O is a twin line of the existing `stage_of` lock test.
+- [x] 1.6 Add cases J, O, Q, R and S to `tests/test_conduct.py`; case O is a twin line of the existing `stage_of` lock test.
   Verify: `uv run pytest tests/test_conduct.py -q -k "case_j or case_o or case_q or case_r or case_s"` exits 0.
-- [ ] 1.7 Add `tests/test_status_log_copies.py`: a link at the log, an event outside the spec's form, a missing log, each in the stamp, converge and the conductor as they stand, and a halt whose detail holds a line break.
+- [x] 1.7 Add `tests/test_status_log_copies.py`: a link at the log, an event outside the spec's form, a missing log, each in the stamp, converge and the conductor as they stand, and a halt whose detail holds a line break.
   Verify: `uv run pytest tests/test_status_log_copies.py -q` exits 0.
 
 ## 2 — The modules
