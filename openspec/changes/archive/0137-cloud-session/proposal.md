@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.109
 beside: [0136-status-log]
 ---
 
