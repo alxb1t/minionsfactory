@@ -16,7 +16,8 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 - [x] 1.1 In `tests/test_conduct.py`, add `test_report_with_tags_false_reads_not_pushed_today`, built on a bare `origin` as the
   release check's `pushed()` is: `main` and the merge on `origin`, the tag local, `[push]` `tags = false` in `layout.ship_file()`.
-  Verify: `uv run pytest tests/test_conduct.py -q -k test_report_with_tags_false_reads_not_pushed_today` passes.
+  Task 3.3 renames this pin to `test_report_with_tags_false_names_the_default_branch` and flips it; the Verify names it so.
+  Verify: `uv run pytest tests/test_conduct.py -q -k test_report_with_tags_false_names_the_default_branch` passes.
 
 ## 2 — The worker
 
