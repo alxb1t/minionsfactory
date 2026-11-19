@@ -10,11 +10,14 @@ Why: 0095-converge-roles design D8; 0101-cut-converge-diet design D4.
 """
 
 import argparse
-import contextlib
+import errno
 import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.statefile
 
 HEADING = "# Debt cards on the diff's files"
 DIFF = re.compile(r"^diff --git a/(\S+) b/(\S+)$", re.MULTILINE)
@@ -77,19 +80,12 @@ def page(found: list[str]) -> str:
 
 def write(path: Path, text: str) -> None:
     """Replace `path` with `text` through a staged file; a link is refused."""
-    if path.is_symlink():
-        raise Stop(f"{path} is a link")
-    staged = path.with_name(f"{path.name}.tmp")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     try:
-        staged.unlink(missing_ok=True)
-        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
-            file.write(text)
-        staged.replace(path)
-    except OSError as error:
-        with contextlib.suppress(OSError):
-            staged.unlink()
-        raise Stop(f"{path}: {error.strerror}") from error
+        mflib.statefile.write(path, text, refuse_link=True, remove="any")
+    except mflib.statefile.WriteFailed as failed:
+        if failed.error.errno == errno.ELOOP:
+            raise Stop(f"{path} is a link") from failed
+        raise Stop(f"{path}: {failed.error.strerror}") from failed
 
 
 def main(argv: list[str] | None = None) -> int:

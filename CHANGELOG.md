@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `stamp.py` becomes a command over `statuslog.py`; converge's `stamp`, `open_run`, `latest` and amend walk and the
   conductor's log readers and `_restamp` call the module, and `Event` and `Run` move into it. No answer changes
   (0136-status-log, phase 3).
+- The staged writes of `bundle.py`, `debt_match.py`, `open_cards.py`, `skip_stub.py`, `gate_run.py` and
+  `plan_check.py`, and the reads of converge's `_text`, the viewer's `read_part` and the conductor's `_bounded`
+  and `_folder_fd`, call `statefile.py`, each keeping its check, its bound and its error text (0136-status-log, phase 4).
 
 ## [0.107.0] - 2026-11-18
 

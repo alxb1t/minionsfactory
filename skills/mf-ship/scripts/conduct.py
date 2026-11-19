@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
 import mflib.platform
+import mflib.statefile
 import mflib.statuslog
 
 TIMEOUT = 10800
@@ -654,21 +655,7 @@ def _folder_fd(root: Path, *parts: str) -> int:
     A link at any of `parts` raises `OSError`; `root` itself is followed.
     Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
     """
-    root.mkdir(parents=True, exist_ok=True)
-    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        for part in parts:
-            with contextlib.suppress(FileExistsError):
-                os.mkdir(part, dir_fd=fd)
-            inner = os.open(
-                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
-            )
-            os.close(fd)
-            fd = inner
-    except BaseException:
-        os.close(fd)
-        raise
-    return fd
+    return mflib.statefile.folder(root, *parts)
 
 
 def _write_in_change(
@@ -3082,18 +3069,11 @@ def _bounded(path: Path | str, fd: int | None = None) -> str | None:
     A relative `path` is read in the folder `fd` holds. None when it is a link, no
     file or unreadable. Why: 0097-cross-model design D4.
     """
-    text = None
-    with contextlib.suppress(OSError):
-        file = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-        try:
-            if stat.S_ISREG(os.fstat(file).st_mode):
-                with os.fdopen(file, "rb", closefd=False) as handle:
-                    data = handle.read(READ_BYTES + 1)
-                if len(data) <= READ_BYTES:
-                    text = data.decode(errors="replace")
-        finally:
-            os.close(file)
-    return text
+    try:
+        data = mflib.statefile.read_bytes(path, limit=READ_BYTES + 1, folder=fd)
+    except OSError:
+        return None
+    return data.decode(errors="replace") if len(data) <= READ_BYTES else None
 
 
 def _place(fd: int, name: str, text: str) -> None:

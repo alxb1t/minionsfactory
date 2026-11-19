@@ -14,7 +14,6 @@ import os
 import re
 import runpy
 import shlex
-import stat
 import subprocess
 import sys
 import time
@@ -28,6 +27,7 @@ from typing import Any, NamedTuple, NoReturn, Protocol, TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
+import mflib.statefile
 import mflib.statuslog
 
 HERE = Path(__file__).resolve().parent
@@ -547,13 +547,9 @@ def _text(path: Path) -> str | None:
     A link or a file that is no regular file raises OSError.
     """
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        return mflib.statefile.read(path)
     except FileNotFoundError:
         return None
-    with os.fdopen(fd, "rb") as file:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise OSError(errno.EINVAL, "it is not a file")
-        return file.read().decode(errors="replace")
 
 
 def _cards(body: str, role: str) -> list[Card]:

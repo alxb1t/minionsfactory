@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
+import mflib.statefile
 
 TIMEOUT_SECONDS = 600
 GATE_SECONDS = 3600
@@ -126,15 +127,13 @@ def write_record(path: Path, dry: str, seconds: int) -> str | None:
         return ".minions/gate is a link"
     path.parent.mkdir(parents=True, exist_ok=True)
     date = datetime.now(UTC).isoformat(timespec="seconds")
-    staged = path.with_name(f"{path.name}.tmp")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    text = f"dry: {dry}\ndate: {date}\nseconds: {seconds}\n"
     try:
-        staged.unlink(missing_ok=True)
-        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
-            file.write(f"dry: {dry}\ndate: {date}\nseconds: {seconds}\n")
-    except OSError:
-        return f"{staged.name} could not be created"
-    staged.replace(path)
+        mflib.statefile.write(path, text, remove="never")
+    except mflib.statefile.WriteFailed as failed:
+        if failed.step == "create":
+            return f"{path.name}.tmp could not be created"
+        raise failed.error from None
     return None
 
 

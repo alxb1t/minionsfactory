@@ -8,12 +8,14 @@ skip_stub.py <findings-file> <round>
 """
 
 import argparse
-import os
 import re
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.statefile
 
 TIMEOUT_SECONDS = 600
 ROLES = ("conformance", "adversarial")
@@ -112,8 +114,6 @@ def write(path: Path, text: str) -> None:
     The staged `.tmp` is removed, created anew with `O_NOFOLLOW`, then renamed over the
     file, so nothing is written through a link a worker planted.
     """
-    staged = path.with_name(f"{path.name}.tmp")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     try:
         # why: a skip added after a round keeps its cards; 0105-converge-switches D3
         if path.is_file() and uncleared(path.read_text(errors="replace")):
@@ -121,11 +121,8 @@ def write(path: Path, text: str) -> None:
                 f"{path} holds a checker's round not cleared:"
                 " clearing it is the person's act"
             )
-        staged.unlink(missing_ok=True)
-        with os.fdopen(os.open(staged, flags, 0o644), "w") as file:
-            file.write(text)
-        staged.replace(path)
-    except OSError as error:
+        mflib.statefile.write(path, text, remove="never")
+    except (OSError, mflib.statefile.WriteFailed) as error:
         raise Stop(f"{path.name} could not be written") from error
 
 

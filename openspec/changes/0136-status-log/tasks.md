@@ -7,7 +7,7 @@ The phases: pin the region, write the modules, move the stations, give the helpe
 - [x] 1 — The pin · hard
 - [x] 2 — The modules · hard
 - [x] 3 — The stations · hard
-- [ ] 4 — The helpers · moderate
+- [x] 4 — The helpers · moderate
 - [ ] 5 — The fix · hard
 - [ ] 6 — The rule and the record · hard
 
@@ -66,19 +66,19 @@ The move: no assert changes, only the line by which a test reaches a name ([D3](
 
 The writers and readers outside the log take `statefile`, each keeping its check before the write, its bound and its error text ([D3](design.md#d3)).
 
-- [ ] 4.1 In `skills/mf-converge/scripts/bundle.py`, `debt_match.py` and `open_cards.py` add the seed line and make `write` call `statefile.write(refuse_link=True, remove="any")`, word each `WriteFailed` as its own `Stop` text, and drop the no-follow flag from the write's flags.
+- [x] 4.1 In `skills/mf-converge/scripts/bundle.py`, `debt_match.py` and `open_cards.py` add the seed line and make `write` call `statefile.write(refuse_link=True, remove="any")`, word each `WriteFailed` as its own `Stop` text, and drop the no-follow flag from the write's flags.
   Verify: `git grep -n -e "statefile.write" -- skills/mf-converge/scripts/bundle.py skills/mf-converge/scripts/debt_match.py skills/mf-converge/scripts/open_cards.py` prints a line of each file.
-- [ ] 4.2 In `skills/mf-converge/scripts/skip_stub.py` add the seed line; make `write` call `statefile.write(remove="never")` after its own check, with its `could not be written` text. Its read of the file it replaces stays `path.read_text(errors="replace")` after `path.is_file()`: every `statefile.read` refuses a link, which turns case A's link row, and that row turns in phase 5.
+- [x] 4.2 In `skills/mf-converge/scripts/skip_stub.py` add the seed line; make `write` call `statefile.write(remove="never")` after its own check, with its `could not be written` text. Its read of the file it replaces stays `path.read_text(errors="replace")` after `path.is_file()`: every `statefile.read` refuses a link, which turns case A's link row, and that row turns in phase 5.
   Verify: `git grep -n -e "statefile" -- skills/mf-converge/scripts/skip_stub.py` prints a line.
-- [ ] 4.3 In `skills/mf-converge/scripts/gate_run.py` make `write_record` call `statefile.write(remove="never")`: a `create` failure keeps its `could not be created` text, a `replace` failure raises the `OSError` as today. In `skills/mf-converge/scripts/plan_check.py` add the seed line and make `keep` call it under its `suppress`.
+- [x] 4.3 In `skills/mf-converge/scripts/gate_run.py` make `write_record` call `statefile.write(remove="never")`: a `create` failure keeps its `could not be created` text, a `replace` failure raises the `OSError` as today. In `skills/mf-converge/scripts/plan_check.py` add the seed line and make `keep` call it under its `suppress`.
   Verify: `git grep -n -e "statefile.write" -- skills/mf-converge/scripts/gate_run.py skills/mf-converge/scripts/plan_check.py` prints a line of each file.
-- [ ] 4.4 In `skills/mf-converge/scripts/converge.py` make `_text` call `statefile.read`, a missing file `None`; in `skills/mf-ui/scripts/viewer.py`, which already carries the seed line, make `read_part` call `statefile.read(limit=PART, tail=tail)`, any `OSError` `None`.
+- [x] 4.4 In `skills/mf-converge/scripts/converge.py` make `_text` call `statefile.read`, a missing file `None`; in `skills/mf-ui/scripts/viewer.py`, which already carries the seed line, make `read_part` call `statefile.read(limit=PART, tail=tail)`, any `OSError` `None`.
   Verify: `git grep -n -e "statefile.read" -- skills/mf-converge/scripts/converge.py skills/mf-ui/scripts/viewer.py` prints a line of each file.
-- [ ] 4.5 In `skills/mf-ship/scripts/conduct.py` make `_bounded` call `statefile.read_bytes(limit=READ_BYTES + 1, folder=fd)`, `None` over `READ_BYTES`, and `_folder_fd` call `statefile.folder`.
+- [x] 4.5 In `skills/mf-ship/scripts/conduct.py` make `_bounded` call `statefile.read_bytes(limit=READ_BYTES + 1, folder=fd)`, `None` over `READ_BYTES`, and `_folder_fd` call `statefile.folder`.
   Verify: `git grep -n -e "statefile" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 4.6 In `docs/modules.md` add `statefile.py` to the `names` cell of each script that now imports it, and in `skills/mf-converge/SKILL.md` name `../../mflib/statefile.py` beside the module.
+- [x] 4.6 In `docs/modules.md` add `statefile.py` to the `names` cell of each script that now imports it, and in `skills/mf-converge/SKILL.md` name `../../mflib/statefile.py` beside the module.
   Verify: `uv run pytest tests/test_structure.py tests/test_skills.py -q` exits 0.
-- [ ] 4.7 In `skills/mf-converge/scripts/bundle.py`, `debt_match.py` and `open_cards.py` no `O_NOFOLLOW` stands.
+- [x] 4.7 In `skills/mf-converge/scripts/bundle.py`, `debt_match.py` and `open_cards.py` no `O_NOFOLLOW` stands.
   Verify: `git grep -n -e "O_NOFOLLOW" -- skills/mf-converge/scripts/bundle.py skills/mf-converge/scripts/debt_match.py skills/mf-converge/scripts/open_cards.py` prints nothing.
 
 ## 5 — The fix
