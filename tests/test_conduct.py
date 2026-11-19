@@ -985,6 +985,135 @@ def test_report_with_a_bad_tags_value_exits_2(
     assert capsys.readouterr().out.strip() == f"{path}: `tags` is not true or false"
 
 
+def _waiting(
+    conduct: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    claims: list[str],
+    polls: list[Callable[[], object]],
+) -> list[int]:
+    """Answer `_claim` from `claims`, its last kept; run `polls` at each wait's sleep.
+
+    Return the number of the poll the sleep is at, which grows as the wait sleeps.
+    """
+    module = conduct["main"].__globals__
+    answers = iter(claims)
+    monkeypatch.setitem(module, "_claim", lambda active: next(answers, claims[-1]))
+    steps = iter(polls)
+    poll = [0]
+    real = time.sleep
+
+    def sleep(seconds: float) -> None:
+        if seconds != conduct["WAIT_SECONDS"]:
+            real(seconds)
+            return
+        poll[0] += 1
+        next(steps, lambda: None)()
+
+    monkeypatch.setattr(time, "sleep", sleep)
+    return poll
+
+
+def _gain(log: Path, text: str) -> Callable[[], object]:
+    """Return a step that appends `text` to `log`."""
+
+    def step() -> None:
+        with log.open("a") as handle:
+            handle.write(text)
+
+    return step
+
+
+def test_wait_with_no_run_exits_0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    poll = _waiting(conduct, monkeypatch, ["none"], [])
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == "wait: none — no run is live\n"
+    assert poll == [0]
+
+
+def test_wait_prints_each_poll_until_the_run_ends(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    log = runs / "20261119-100000.md"
+    log.write_text("10:00:00 · run · start — executor claude\n")
+    spawn = "10:01:00 · 0001-todo · spawn — build · model default\n"
+    finish = "10:01:30 · 0001-todo · finish — build · exit 0 · 30s\n"
+    newer = "10:03:00 · run · start — executor claude\n"
+    polls = [
+        _gain(log, spawn + finish + "10:02:00 · 0001-todo · spa"),
+        lambda: None,
+        _gain(runs / "20261119-100000-2.md", newer),
+    ]
+    poll = _waiting(conduct, monkeypatch, ["live"] * 4 + ["none"], polls)
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == (
+        f"{spawn}{finish}wait: live · +2 lines\n"
+        "wait: live · +0 lines\n"
+        f"{newer}wait: live · +1 lines\n"
+        "wait: ended\n"
+        "status: none — no open version\n"
+    )
+    assert poll == [4]
+
+
+def test_wait_ends_on_a_halted_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — One\n")
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    log = runs / "20261119-100000.md"
+    log.write_text("10:00:00 · 0001-todo · spawn — build · model default\n")
+    halt = "10:00:09 · 0001-todo · halt — build: phase 1 unticked\n"
+    _waiting(conduct, monkeypatch, ["live", "none"], [_gain(log, halt)])
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == "wait: ended\n0001-todo · build\n"
+
+
+def test_wait_reads_no_origin_at_a_poll(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct, root, _ = _released_on_origin(tmp_path, monkeypatch)
+    log = layout.runs_dir(root) / "1.md"
+    claims = ["live"] * 3 + ["none"]
+    poll = _waiting(conduct, monkeypatch, claims, [_gain(log, "10:00:01 · run · x\n")])
+    module = conduct["main"].__globals__
+    calls: list[tuple[str, int]] = []
+    for name in ("_remote", "_outside"):
+        real: Callable[..., subprocess.CompletedProcess[str]] = module[name]
+
+        def spy(
+            *args: Path | str,
+            real: Callable[..., subprocess.CompletedProcess[str]] = real,
+            name: str = name,
+            **rest: int,
+        ) -> subprocess.CompletedProcess[str]:
+            calls.append((name, poll[0]))
+            return real(*args, **rest)
+
+        monkeypatch.setitem(module, name, spy)
+
+    assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out.startswith(
+        "10:00:01 · run · x\nwait: live · +1 lines\n"
+        "wait: live · +0 lines\nwait: ended\n"
+    )
+    assert calls
+    assert {at for _, at in calls} == {3}
+
+
 def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

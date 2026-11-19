@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `report` names the default branch under `tags = false`: `default pushed, tag local` or `default pushed` when
   `origin`'s default branch holds the merge, else `not pushed`, so a release on `origin` no longer reads as a failure.
   A bad `tags` value exits 2 (0137-cloud-session, phase 3).
+- `conduct.py wait` blocks until the live run ends: every 60 s it prints the run log's new lines and
+  `wait: live · +<n> lines`, reading no `origin`, so a cloud VM stays up; at the end, `wait: ended` and `status`'s
+  lines (0137-cloud-session, phase 4).
 
 ## [0.107.0] - 2026-11-18
 

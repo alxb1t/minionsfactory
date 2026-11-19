@@ -7,7 +7,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 - [x] 1 — The pin · moderate
 - [x] 2 — The worker · moderate
 - [x] 3 — The report · moderate
-- [ ] 4 — The wait · hard
+- [x] 4 — The wait · hard
 - [ ] 5 — The setup · hard
 - [ ] 6 — The record · moderate
 - [ ] 7 — The digest of uv **HUMAN**
@@ -56,20 +56,20 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## 4 — The wait
 
-- [ ] 4.1 In `skills/mf-ship/scripts/conduct.py`, add `WAIT_SECONDS = 60` beside `CLAIM_SECONDS` and `wait_run(cwd)`, per
+- [x] 4.1 In `skills/mf-ship/scripts/conduct.py`, add `WAIT_SECONDS = 60` beside `CLAIM_SECONDS` and `wait_run(cwd)`, per
   [D5](design.md#d5): it prints, flushing, and returns 0.
   Verify: `git grep -n -e "^def wait_run(" -e "^WAIT_SECONDS = 60" -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 4.2 In `main`, call `commands.add_parser("wait", help="block until the live run ends")` and add its branch,
+- [x] 4.2 In `main`, call `commands.add_parser("wait", help="block until the live run ends")` and add its branch,
   `return wait_run(cwd)`.
   Verify: `git grep -n -F -e 'add_parser("wait"' -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 4.3 In `tests/test_conduct.py`, add `test_wait_with_no_run_exits_0`: it prints `wait: none — no run is live`.
+- [x] 4.3 In `tests/test_conduct.py`, add `test_wait_with_no_run_exits_0`: it prints `wait: none — no run is live`.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_wait_with_no_run_exits_0` passes.
-- [ ] 4.4 In `tests/test_conduct.py`, add `test_wait_prints_each_poll_until_the_run_ends`: `_claim` and the sleep are replaced,
+- [x] 4.4 In `tests/test_conduct.py`, add `test_wait_prints_each_poll_until_the_run_ends`: `_claim` and the sleep are replaced,
   the log gains lines, then none; it prints each poll's `wait: live · +<n> lines`, then `wait: ended` and `status`'s lines.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_wait_prints_each_poll_until_the_run_ends` passes.
-- [ ] 4.5 In `tests/test_conduct.py`, add `test_wait_ends_on_a_halted_run`: a log ending in a halt and a cleared claim exit 0.
+- [x] 4.5 In `tests/test_conduct.py`, add `test_wait_ends_on_a_halted_run`: a log ending in a halt and a cleared claim exit 0.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_wait_ends_on_a_halted_run` passes.
-- [ ] 4.6 In `tests/test_conduct.py`, add `test_wait_reads_no_origin_at_a_poll`: a spy on `_remote` and `_outside` sees no call
+- [x] 4.6 In `tests/test_conduct.py`, add `test_wait_reads_no_origin_at_a_poll`: a spy on `_remote` and `_outside` sees no call
   before the last poll.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_wait_reads_no_origin_at_a_poll` passes.
 

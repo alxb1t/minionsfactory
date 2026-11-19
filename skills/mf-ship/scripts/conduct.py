@@ -95,6 +95,7 @@ UNAPPROVED_NPM = "a package.json holds a direct npm package no row approves"
 MANIFEST = "package.json"
 DIRECT = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 CLAIM_SECONDS = 30
+WAIT_SECONDS = 60
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
@@ -8175,6 +8176,37 @@ def status(cwd: Path) -> str:
     return "\n".join(lines) or "status: none — no open version"
 
 
+def wait_run(cwd: Path) -> int:
+    """Print the newest run log's new lines at each poll, then `status`; return 0.
+
+    A poll reads no `origin`. Why: 0137-cloud-session design D5.
+    """
+    primary = primary_of(cwd)
+    active = mflib.layout.claim_file(primary)
+    if _claim(active) != "live":
+        print("wait: none — no run is live", flush=True)
+        return 0
+    runs = mflib.layout.runs_dir(primary)
+    held = last_log(runs)
+    offset = held.stat().st_size if held else 0
+    while True:
+        time.sleep(WAIT_SECONDS)
+        if _claim(active) != "live":
+            break
+        if (newest := last_log(runs)) != held:
+            held, offset = newest, 0
+        gained = held.read_bytes()[offset:] if held else b""
+        whole = gained[: gained.rfind(b"\n") + 1]
+        offset += len(whole)
+        lines = whole.decode(errors="replace").splitlines()
+        for line in lines:
+            print(line, flush=True)
+        print(f"wait: live · +{len(lines)} lines", flush=True)
+    print("wait: ended", flush=True)
+    print(status(cwd), flush=True)
+    return 0
+
+
 def _cut_line(change: str, entry: dict[str, Any]) -> str:
     """Return a queued cut's status line: its halt, else why it waits, else `cut`.
 
@@ -8385,6 +8417,7 @@ def main(argv_: list[str] | None = None) -> int:
     )
     converging.add_argument("--executor", default="claude", choices=EXECUTORS)
     commands.add_parser("report", help="the last run's close-out lines")
+    commands.add_parser("wait", help="block until the live run ends")
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
     approving.add_argument("--yes", required=True, metavar="hash")
@@ -8432,6 +8465,8 @@ def main(argv_: list[str] | None = None) -> int:
             return agent(cwd, args.executor, args.prompt)
         elif args.command == "converge":
             return converge_by_hand(cwd, args.change_id, args.given, args.executor)
+        elif args.command == "wait":
+            return wait_run(cwd)
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":
