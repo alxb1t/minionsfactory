@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin tests hold each copy of the findings format as it stands: converge, `conduct.py`, `integrate.py`, `open_cards.py`,
+  `overlap.py` and `skip_stub.py`, each reader also given a linked file and a file still malformed after its rewrite,
+  before the copies move into one module (0138-findings, phase 1).
+
 ## [0.109.0] - 2026-11-19
 
 Gate: local 6m40s · CI not read under mf-ship · 0.108.0: local 6m7s · CI not read under mf-ship

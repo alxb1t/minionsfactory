@@ -140,3 +140,65 @@ def test_open_cards_refuse_what_they_cannot_read(
         findings.write_text(_FRONT + _OPEN + card)
         assert _run(capsys, findings, out) == (2, f"open cards: cannot read — {why}\n")
         assert not out.exists()
+
+
+# The pin: `open_cards.py`'s copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its case k.
+
+
+def test_pin_k_open_cards_card_runs_to_a_title_or_heading() -> None:
+    first = "- **R1 — a**\n  - **Status:** open\n\n  - **Fix:** f\n"
+    second = "- **A4 — b**\n  - **Status:** fixed\n"
+
+    found = open_cards.cards(f"{first}## Refuted\n  - **Fix:** g\n{second}")
+
+    assert found == [first, second]
+
+
+def test_pin_k_open_cards_read_the_status_word() -> None:
+    for status, judged in (
+        ("`**Fixed**`. — a note", True),
+        ("Verified-held", False),
+        ("WONTFIX", True),
+    ):
+        assert open_cards.judged(_card("R1", status)) is judged, status
+    twice = _card("R1", "open") + "  - **Status:** verified\n"
+    assert open_cards.judged(twice)
+    assert not open_cards.judged(_card("R1", "verified") + "  - **Status:** open\n")
+
+
+def test_pin_k_open_cards_stop_on_a_status_off_the_form() -> None:
+    for card, why in (
+        (_card("R1", "_wontfix_"), "card R1: Status _wontfix_"),
+        (_card("R1", ""), "card R1: Status empty"),
+        ("- **R1 — a**\n  - **Status**: open\n", "card R1: no Status"),
+        ("- **R1 — a**\n- **Status:** open\n", "card R1: no Status"),
+    ):
+        with pytest.raises(open_cards.Stop) as stopped:
+            open_cards.judged(card)
+        assert str(stopped.value) == why
+
+
+def test_pin_k_open_cards_stop_on_a_bad_byte(tmp_path: Path) -> None:
+    findings = tmp_path / "conformance.md"
+    findings.write_bytes(_FRONT.encode() + b"\xff\n")
+
+    with pytest.raises(open_cards.Stop, match="invalid start byte"):
+        open_cards.open_page(findings, tmp_path / "conformance.open.md")
+
+
+def test_pin_link_open_cards_open_page_follows_a_link(tmp_path: Path) -> None:
+    target = tmp_path / "target.md"
+    target.write_text(_FRONT + _OPEN)
+    findings = tmp_path / "conformance.md"
+    findings.symlink_to(target)
+
+    assert open_cards.open_page(findings, tmp_path / "conformance.open.md") == 1
+
+
+def test_pin_malformed_open_cards_open_page_writes_the_card(tmp_path: Path) -> None:
+    findings, out = tmp_path / "adversarial.md", tmp_path / "adversarial.open.md"
+    findings.write_text(_FRONT + _card("S-1", "open"))
+
+    assert open_cards.open_page(findings, out) == 1
+    assert _card("S-1", "open") in out.read_text()

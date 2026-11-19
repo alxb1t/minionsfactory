@@ -4,7 +4,7 @@ Pin each copy of the findings format as it stands, build the module, move the st
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
@@ -14,25 +14,25 @@ Pin each copy of the findings format as it stands, build the module, move the st
 
 Each case is green on the tree as it stands ([D2](design.md#d2)). The worker sees it red once under the change its row of [the cases](design.md#the-cases) names, and never commits that change.
 
-- [ ] 1.1 Add `test_pin_a_*`, `test_pin_b_*`, `test_pin_c_*` and `test_pin_d_*` to `tests/test_converge.py`: cases a to d of [the cases](design.md#the-cases), each asserting what converge holds now.
+- [x] 1.1 Add `test_pin_a_*`, `test_pin_b_*`, `test_pin_c_*` and `test_pin_d_*` to `tests/test_converge.py`: cases a to d of [the cases](design.md#the-cases), each asserting what converge holds now.
   Verify: `uv run pytest tests/test_converge.py -q -k "test_pin_a_ or test_pin_b_ or test_pin_c_ or test_pin_d_"` passes.
-- [ ] 1.2 Add `test_pin_f_*` and `test_pin_g_converge_*` to `tests/test_converge.py`: case f, and case g's rows for converge's `Card.small` and open-blocker count.
+- [x] 1.2 Add `test_pin_f_*` and `test_pin_g_converge_*` to `tests/test_converge.py`: case f, and case g's rows for converge's `Card.small` and open-blocker count.
   Verify: `uv run pytest tests/test_converge.py -q -k "test_pin_f_ or test_pin_g_converge_"` passes.
-- [ ] 1.3 Add `test_pin_e_conduct_*`, `test_pin_g_conduct_*` and `test_pin_h_*` to `tests/test_conduct.py`, reaching the conductor through `tests/conduct_load.py`: case e's conductor row, case g's conductor rows, case h.
+- [x] 1.3 Add `test_pin_e_conduct_*`, `test_pin_g_conduct_*` and `test_pin_h_*` to `tests/test_conduct.py`, reaching the conductor through `tests/conduct_load.py`: case e's conductor row, case g's conductor rows, case h.
   Verify: `uv run pytest tests/test_conduct.py -q -k "test_pin_e_conduct_ or test_pin_g_conduct_ or test_pin_h_"` passes.
-- [ ] 1.4 Add `test_pin_i_*`, `test_pin_j_*` and `test_pin_o_*` to `tests/test_conduct.py`: cases i, j and o, each on a file written under `tmp_path`.
+- [x] 1.4 Add `test_pin_i_*`, `test_pin_j_*` and `test_pin_o_*` to `tests/test_conduct.py`: cases i, j and o, each on a file written under `tmp_path`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "test_pin_i_ or test_pin_j_ or test_pin_o_"` passes.
-- [ ] 1.5 Add `test_pin_e_integrate_*` and `test_pin_n_*` to `tests/test_integrate.py`: case e's integrate row, and case n.
+- [x] 1.5 Add `test_pin_e_integrate_*` and `test_pin_n_*` to `tests/test_integrate.py`: case e's integrate row, and case n.
   Verify: `uv run pytest tests/test_integrate.py -q -k "test_pin_e_integrate_ or test_pin_n_"` passes.
-- [ ] 1.6 Add `test_pin_k_*` to `tests/test_open_cards.py`, `test_pin_l_*` to `tests/test_overlap.py` and `test_pin_m_*` to `tests/test_skip_stub.py`: cases k, l and m.
+- [x] 1.6 Add `test_pin_k_*` to `tests/test_open_cards.py`, `test_pin_l_*` to `tests/test_overlap.py` and `test_pin_m_*` to `tests/test_skip_stub.py`: cases k, l and m.
   Verify: `uv run pytest tests/test_open_cards.py tests/test_overlap.py tests/test_skip_stub.py -q -k "test_pin_k_ or test_pin_l_ or test_pin_m_"` passes.
-- [ ] 1.7 Add `test_pin_link_*` for each reader, in its own test file: `read_findings`, `_unjudged`, `unready`, `open_page`, `overlap.line` and `skip_stub.write`, each given a findings file that is a link.
+- [x] 1.7 Add `test_pin_link_*` for each reader, in its own test file: `read_findings`, `_unjudged`, `unready`, `open_page`, `overlap.line` and `skip_stub.write`, each given a findings file that is a link.
   Verify: `uv run pytest tests/test_converge.py tests/test_conduct.py tests/test_integrate.py tests/test_open_cards.py tests/test_overlap.py tests/test_skip_stub.py -q -k test_pin_link` passes.
-- [ ] 1.8 Add `test_pin_malformed_*` for each reader, in its own test file, each given a file the rewrite left malformed ([D10](design.md#d10)): converge reads the role clean, `_unjudged` and `unready` read the file's own `verdict:`, `open_cards.py`, `overlap.py` and `skip_stub.py` answer as they do.
+- [x] 1.8 Add `test_pin_malformed_*` for each reader, in its own test file, each given a file the rewrite left malformed ([D10](design.md#d10)): converge reads the role clean, `_unjudged` and `unready` read the file's own `verdict:`, `open_cards.py`, `overlap.py` and `skip_stub.py` answer as they do.
   Verify: `uv run pytest tests/test_converge.py tests/test_conduct.py tests/test_integrate.py tests/test_open_cards.py tests/test_overlap.py tests/test_skip_stub.py -q -k test_pin_malformed` passes.
-- [ ] 1.9 Add `test_pin_extent_converge_*` to `tests/test_converge.py`: where a card ends in converge's `_cards` — at a blank line, at an unindented line, at the next title, and at a `## Refuted` heading — the row of case b that the cases table names.
+- [x] 1.9 Add `test_pin_extent_converge_*` to `tests/test_converge.py`: where a card ends in converge's `_cards` — at a blank line, at an unindented line, at the next title, and at a `## Refuted` heading — the row of case b that the cases table names.
   Verify: `uv run pytest tests/test_converge.py -q -k test_pin_extent_converge` passes.
-- [ ] 1.10 Add `test_pin_amend_*` to `tests/test_converge.py`: an amend card whose qualified id is already in the debt file is skipped alone and the next amend card's check still runs; `unlocked` halts naming the role when a file is not clean at `HEAD`.
+- [x] 1.10 Add `test_pin_amend_*` to `tests/test_converge.py`: an amend card whose qualified id is already in the debt file is skipped alone and the next amend card's check still runs; `unlocked` halts naming the role when a file is not clean at `HEAD`.
   Verify: `uv run pytest tests/test_converge.py -q -k test_pin_amend` passes.
 
 ## 2 — The module

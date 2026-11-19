@@ -184,3 +184,83 @@ def test_case_g_the_file_replaced_is_read_with_a_bad_byte_replaced(
     assert skip_stub.main([str(stub), "1"]) == 2
     assert "holds a checker's round not cleared" in capsys.readouterr().out
     assert stub.read_bytes() == held
+
+
+# The pin: `skip_stub.py`'s copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its case m.
+
+_PIN_CLEAN = "---\nverdict: clean\n---\n\n"
+
+
+def _pin_status(status: str) -> str:
+    return f"- **S1 — a**\n  - **Status:** {status}\n"
+
+
+def test_pin_m_uncleared_reads_its_keys_to_the_first_rule() -> None:
+    open_card = _pin_status("open")
+    assert not skip_stub.uncleared("mode: skipped\n---\n" + open_card)
+    assert skip_stub.uncleared("mode: parallel\n---\n" + open_card)
+    assert not skip_stub.uncleared(
+        "---\nmode: skipped\nverdict: changes-requested\n---\n" + open_card
+    )
+
+
+def test_pin_m_uncleared_sees_no_card_off_the_form() -> None:
+    assert skip_stub.uncleared(_PIN_CLEAN + _pin_status("open"))
+    for card in (
+        _pin_status("`open`"),
+        _pin_status("**open**"),
+        "- **S1 — a**\n  - **Status**: open\n",
+    ):
+        assert not skip_stub.uncleared(_PIN_CLEAN + card), card
+
+
+def test_pin_m_uncleared_clears_on_verified_alone() -> None:
+    assert not skip_stub.uncleared(_PIN_CLEAN + _pin_status("verified"))
+    for status in ("accepted", "fixed", "wontfix"):
+        assert skip_stub.uncleared(_PIN_CLEAN + _pin_status(status)), status
+
+
+def test_pin_m_uncleared_reads_every_status_line() -> None:
+    twice = _pin_status("verified") + "  - **Status:** open\n"
+    assert skip_stub.uncleared(_PIN_CLEAN + twice)
+
+
+def test_pin_m_role_of_refuses_a_path_off_the_form(tmp_path: Path) -> None:
+    folder = tmp_path / "changes" / _CHANGE
+    folder.mkdir(parents=True)
+    assert skip_stub.role_of(folder / "conformance.md") == "conformance"
+    for path in (
+        folder / "conformance.txt",
+        folder / "review.md",
+        tmp_path / "other" / _CHANGE / "conformance.md",
+    ):
+        with pytest.raises(skip_stub.Stop, match="is not …/changes/"):
+            skip_stub.role_of(path)
+    (folder / "adversarial.md").symlink_to(tmp_path / "target.md")
+    with pytest.raises(skip_stub.Stop, match=r"is a link$"):
+        skip_stub.role_of(folder / "adversarial.md")
+    (tmp_path / "changes" / "0002-b").symlink_to(folder)
+    with pytest.raises(skip_stub.Stop, match=r"is a link$"):
+        skip_stub.role_of(tmp_path / "changes" / "0002-b" / "conformance.md")
+
+
+def test_pin_link_skip_stub_write_refuses_a_link(tmp_path: Path) -> None:
+    target = tmp_path / "target.md"
+    target.write_text(_PIN_CLEAN + _pin_status("verified"))
+    stub = tmp_path / "adversarial.md"
+    stub.symlink_to(target)
+
+    with pytest.raises(skip_stub.Stop, match=r"is a link$"):
+        skip_stub.write(stub, "stub\n")
+
+    assert target.read_text() == _PIN_CLEAN + _pin_status("verified")
+
+
+def test_pin_malformed_skip_stub_write_replaces_the_file(tmp_path: Path) -> None:
+    stub = tmp_path / "adversarial.md"
+    stub.write_text(_PIN_CLEAN + "- **S-1 — a**\n  - **Status:** verified\n")
+
+    skip_stub.write(stub, "stub\n")
+
+    assert stub.read_text() == "stub\n"

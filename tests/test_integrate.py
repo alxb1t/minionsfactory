@@ -796,3 +796,81 @@ def test_delta_keeps_a_delta_that_only_inserts(tmp_path: Path) -> None:
         1,
         "delta: changed on the default branch: sdd: Second\n",
     )
+
+
+# The pin: integrate's copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its cases e and n.
+
+_PIN_FRONTMATTER = (
+    ("---\nverdict:\nclean\n---\n", "clean"),
+    ("---\nverdict: clean # note\n---\n", "clean"),
+    ("---\nverdict: clean\n", "clean"),
+    ("---\nhead: a\n---\nverdict: clean\n", None),
+    ("verdict: clean\n", None),
+)
+_PIN_CLEAN = "---\nverdict: clean\n---\n"
+
+
+def _pin_ready(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Return a primary checkout, its ticked version's tree and its change folder."""
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    tree = _version(root, "0001-todo")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    return root, tree, folder
+
+
+def test_pin_e_integrate_frontmatter_reads_the_first_word() -> None:
+    frontmatter = runpy.run_path(str(_SCRIPT))["_frontmatter"]
+    for text, value in _PIN_FRONTMATTER:
+        assert frontmatter(text, "verdict") == value, text
+
+
+def test_pin_n_unready_reads_the_findings_files(tmp_path: Path) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+
+    assert unready(root, "0001-todo", tree) is None
+    (folder / "diff.patch").write_text("x\n")
+    assert unready(root, "0001-todo", tree) == (
+        "converge ran, and a findings file is missing"
+    )
+    (folder / "conformance.md").write_text("---\nhead: a\n---\n")
+    (folder / "adversarial.md").write_text(_PIN_CLEAN)
+    assert unready(root, "0001-todo", tree) == "conformance.md is not clean"
+    (folder / "conformance.md").write_text(_PIN_CLEAN)
+    assert unready(root, "0001-todo", tree) is None
+
+
+def test_pin_n_unready_raises_on_a_bad_byte(tmp_path: Path) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+    for role in ("conformance", "adversarial"):
+        (folder / f"{role}.md").write_bytes(_PIN_CLEAN.encode() + b"\xff\n")
+
+    with pytest.raises(UnicodeDecodeError):
+        unready(root, "0001-todo", tree)
+
+
+def test_pin_link_integrate_unready_follows_a_link(tmp_path: Path) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+    (folder / "conformance.md").write_text(_PIN_CLEAN)
+    target = tmp_path / "target.md"
+    target.write_text(_PIN_CLEAN)
+    (folder / "adversarial.md").symlink_to(target)
+
+    assert unready(root, "0001-todo", tree) is None
+
+
+def test_pin_malformed_integrate_unready_reads_the_files_own_verdict(
+    tmp_path: Path,
+) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+    (folder / "conformance.md").write_text(_PIN_CLEAN)
+    (folder / "adversarial.md").write_text(
+        _PIN_CLEAN + "\n- **S-1 — a finding**\n  - **Status:** open\n"
+    )
+
+    assert unready(root, "0001-todo", tree) is None

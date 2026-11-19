@@ -178,3 +178,78 @@ def test_the_overlap_refuses_what_it_cannot_read(
     assert overlap.main([str(folder)]) == 2
     unreadable = folder / "conformance.md"
     assert capsys.readouterr().out == f"overlap: cannot read — {unreadable}\n"
+
+
+# The pin: `overlap.py`'s copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its case l.
+
+
+def test_pin_l_overlap_card_runs_to_a_title_or_heading() -> None:
+    first = "- **R1 — a**\n  - **Status:** open\n\n  - **Fix:** f\n"
+    second = "- **A4 — b**\n  - **Status:** fixed\n"
+
+    found = overlap.cards(f"{first}## Refuted\n  - **Fix:** g\n{second}")
+
+    assert found == [first, second]
+
+
+def test_pin_l_overlap_reads_a_field_with_its_colon_inside() -> None:
+    title = "- **R1 — a**\n"
+    assert overlap.anchors(f"{title}  - **What it affects:** `a.py:1`\n") == [
+        ("a.py", 1, 1)
+    ]
+    assert overlap.anchors(f"{title}  - **What it affects**: `a.py:1`\n") == []
+    assert overlap.anchors(f"{title}- **What it affects:** `a.py:1`\n") == []
+    assert overlap.blocks(f"{title}  - **Priority:** blocking · c\n", ("blocking",))
+    assert not overlap.blocks(f"{title}  - **Priority**: blocking · c\n", ("blocking",))
+    assert not overlap.first_round(f"{title}  - **Round:** 2\n")
+    assert overlap.first_round(f"{title}  - **Round**: 2\n")
+    assert overlap.first_round(title)
+
+
+def test_pin_l_overlap_reads_a_grade_raw() -> None:
+    for grade, blocking in (
+        ("blocking", True),
+        ("**blocking**", False),
+        ("Blocking", False),
+    ):
+        card = f"- **R1 — a**\n  - **Priority:** {grade} · c\n"
+        assert overlap.blocks(card, ("blocking",)) is blocking, grade
+
+
+def test_pin_l_overlap_reads_executor_alone_on_its_line() -> None:
+    for text, executor in (
+        ("---\nexecutor: codex\n---\n", "codex"),
+        ("---\nexecutor:  codex  \n---\n", "codex"),
+        ("---\nexecutor: codex # x\n---\n", "unknown"),
+        ("executor: codex\n", "unknown"),
+        ("---\nhead: a\n---\nexecutor: codex\n", "unknown"),
+    ):
+        assert overlap.executor(text) == executor, text
+
+
+def test_pin_l_overlap_raises_on_a_bad_byte(tmp_path: Path) -> None:
+    folder = _folder(tmp_path)
+    (folder / "adversarial.md").write_bytes(b"---\nexecutor: codex\n---\n\xff\n")
+
+    with pytest.raises(overlap.Unread):
+        overlap.line(folder)
+
+
+def test_pin_link_overlap_line_follows_a_link(tmp_path: Path) -> None:
+    folder = _folder(tmp_path)
+    counted = overlap.line(folder)
+    target = tmp_path / "target.md"
+    (folder / "conformance.md").rename(target)
+    (folder / "conformance.md").symlink_to(target)
+
+    assert overlap.line(folder) == counted
+
+
+def test_pin_malformed_overlap_line_counts_the_card(tmp_path: Path) -> None:
+    folder = _folder(tmp_path)
+    counted = overlap.line(folder)
+    held = folder / "conformance.md"
+    held.write_text(held.read_text().replace("- **R1 — ", "- **R-1 — "))
+
+    assert overlap.line(folder) == counted
