@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, NoReturn, Protocol, TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
 import mflib.layout
 import mflib.statefile
 import mflib.statuslog
@@ -43,8 +44,6 @@ INTEGRATE = runpy.run_path(str(HERE.parents[1] / "mf-integrate/scripts/integrate
 ROLES = ("conformance", "adversarial")
 CAP = 3
 TIMEOUT_SECONDS = 600
-SMALL = ("one line", "a test", "one line and a test")
-SIZE = re.compile(r"size:([^:]*)$")
 SPAN = re.compile(r"(\w+)\.\.(\w+) · (\d+) commits? · (\d+) files?")
 HALTED = re.compile(r" · head (\w+)$")
 NO_COMMAND = ("is up to date", "Nothing to be done")
@@ -60,13 +59,6 @@ PLACEHOLDERS = (
 )
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
-FRONT = re.compile(r"\A---\n(.*?\n)---\n", re.DOTALL)
-TITLE = re.compile(r"^- \*\*([^\s*]+) — ")
-FIELD = re.compile(r"^[ \t]+- \*\*(.+?):?\*\*:?[ \t]*(.*)$")
-BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
-INTEGERS = ("round", "open_blocking", "files", "commits")
-LISTS = ("passes", "inconclusive")
-VERDICTS = ("clean", "changes-requested")
 FALLBACK = "fallback: codex usage limit"
 REWRITE = (
     "role: {role}\nchange: {change}\nround: {round}\n\n"
@@ -205,57 +197,6 @@ class SendBack(Exception):
         self.subjects = subjects
 
 
-@dataclass(frozen=True)
-class Card:
-    """One finding of a findings file: its id, its role, its fields and its lines."""
-
-    id: str
-    role: str
-    fields: dict[str, str]
-    lines: list[str] = field(default_factory=list)
-
-    def word(self, field: str) -> str:
-        """Return the field's first word, case folded, its backticks and bold dropped.
-
-        e.g. "**Fixed** — a note" → "fixed"
-        """
-        words = self.fields.get(field, "").replace("`", "").replace("*", "").split()
-        return words[0].rstrip(".,;:").casefold() if words else ""
-
-    @property
-    def severity(self) -> str:
-        """Return the grade its Priority opens with."""
-        return self.word("Priority")
-
-    @property
-    def blocking(self) -> bool:
-        """Return whether its grade blocks on its role's scale."""
-        return self.severity in BLOCKS.get(self.role, ())
-
-    @property
-    def status(self) -> str:
-        """Return its Status word: open, fixed, verified, wontfix or accepted."""
-        return self.word("Status")
-
-    @property
-    def amend(self) -> bool:
-        """Return whether it is an amend card."""
-        return self.word("Amend") == "yes"
-
-    @property
-    def small(self) -> bool:
-        """Return whether its Fix size is one of `SMALL`, read literally."""
-        sized = SIZE.search(self.fields.get("Fix", ""))
-        return bool(sized) and sized[1].strip(" `.") in SMALL
-
-    @property
-    def security(self) -> bool:
-        """Return whether it is an adversarial card of category `security`."""
-        parts = self.fields.get("Priority", "").split(" · ")
-        category = parts[2].split(" — ")[0].strip() if len(parts) > 2 else ""
-        return self.role == "adversarial" and category == "security"
-
-
 class Verdict(NamedTuple):
     """A findings file as converge reads it: its fields, its cards and its faults.
 
@@ -269,7 +210,7 @@ class Verdict(NamedTuple):
     open_blocking: int = 0
     stub: bool = False
     inconclusive: tuple[str, ...] = ()
-    cards: tuple[Card, ...] = ()
+    cards: tuple[mflib.findings.Card, ...] = ()
     malformed: str | None = None
     unclean: str | None = None
 
@@ -573,51 +514,6 @@ def _text(path: Path) -> str | None:
         return None
 
 
-def _cards(body: str, role: str) -> list[Card]:
-    """Return the cards of a findings file's body, each with its fields."""
-    cards: list[Card] = []
-    current: Card | None = None
-    for line in body.splitlines():
-        if title := TITLE.match(line):
-            current = Card(title[1], role, {}, [line])
-            cards.append(current)
-        elif current is None or not line.startswith((" ", "\t")):
-            current = None
-        else:
-            current.lines.append(line)
-            if found := FIELD.match(line):
-                current.fields.setdefault(found[1], found[2].strip())
-    return cards
-
-
-def _fault(front: dict[str, str], role: str, stub: bool) -> str | None:
-    """Return why the frontmatter breaks the contract's fields, else None."""
-    keys = ["head", "round", "open_blocking", "verdict"]
-    if not stub:
-        keys += ["files", "commits", "inconclusive"]
-        keys += ["passes"] if role == "conformance" else []
-    for key in keys:
-        value = front.get(key)
-        if value is None:
-            return f"{key} is missing"
-        if key in INTEGERS and not (value.isascii() and value.isdigit()):
-            return f"{key} is not an integer"
-        if key in LISTS and not (value.startswith("[") and value.endswith("]")):
-            return f"{key} is not a list"
-    if front["verdict"] not in VERDICTS:
-        return "verdict is neither clean nor changes-requested"
-    return None
-
-
-def _listed(value: str) -> tuple[str, ...]:
-    """Return a frontmatter list's items.
-
-    e.g. "[stale-claim, test-cost]" → ("stale-claim", "test-cost"); "[]" → ()
-    """
-    items = (item.strip().strip("'\"") for item in value[1:-1].split(","))
-    return tuple(item for item in items if item)
-
-
 def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
     """Return a findings file read by its fields against `freeze`; None when missing.
 
@@ -626,18 +522,18 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
     """
     name = path.name
     try:
-        text = _text(path)
+        text = mflib.findings.read(path)
     except OSError as error:
         why = "it is a link" if error.errno == errno.ELOOP else error.strerror
         return Verdict(role, malformed=f"{name} is malformed: {why}")
     if text is None:
         return None
-    found = FRONT.match(text)
-    pairs = (line.partition(":") for line in (found[1] if found else "").splitlines())
-    front = {key.strip(): value.strip() for key, colon, value in pairs if colon}
+    front, body = mflib.findings.front(text)
     stub = front.get("mode") == "skipped"
-    cards = _cards(text[found.end() :] if found else text, role)
-    fault = _fault(front, role, stub)
+    cards = mflib.findings.cards(body, role)
+    fault = mflib.findings.fault(front, role, stub) or mflib.findings.malformed(
+        body, role
+    )
     unmarked = (card for card in cards if card.word("Amend") not in ("yes", "no"))
     if fault is None and (card := next(unmarked, None)):
         fault = f"card {card.id} has no Amend line"
@@ -650,7 +546,7 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
         int(front["round"]),
         int(front["open_blocking"]),
         stub,
-        () if stub else _listed(front["inconclusive"]),
+        () if stub else mflib.findings.listed(front["inconclusive"]),
         tuple(cards),
     )
     if stub:
@@ -665,7 +561,7 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
         return verdict._replace(unclean=f"{name} is not clean: {why}")
     if role != "conformance":
         return verdict
-    passes = set(_listed(front["passes"]))
+    passes = set(mflib.findings.listed(front["passes"]))
     lacking = [
         needed for needed in ("stale-claim", "test-cost") if needed not in passes
     ]
@@ -903,7 +799,7 @@ def _files(context: Context) -> list[Verdict]:
     return [verdict for verdict in read if verdict and verdict.malformed is None]
 
 
-def blockers(read: dict[str, Verdict]) -> list[Card]:
+def blockers(read: dict[str, Verdict]) -> list[mflib.findings.Card]:
     """Return each blocking card neither `verified` nor `accepted`, file by file."""
     return [
         card
@@ -919,7 +815,7 @@ def converged(read: dict[str, Verdict]) -> bool:
     return clean and not blockers(read)
 
 
-def pick(read: dict[str, Verdict]) -> list[Card]:
+def pick(read: dict[str, Verdict]) -> list[mflib.findings.Card]:
     """Return Step 8's pick: each open small card, and each open `drift` card."""
     return [
         card
@@ -1318,7 +1214,9 @@ def answered_amends(context: Context) -> set[str]:
     return ids
 
 
-def amends(context: Context, cards: list[Card], holds: set[str]) -> dict[str, str]:
+def amends(
+    context: Context, cards: list[mflib.findings.Card], holds: set[str]
+) -> dict[str, str]:
     """Run each amend card's check before the debt; return the moot ones' commands.
 
     An amend card's check that is not exit 1 halts `amend needed`; no check goes
@@ -1353,7 +1251,10 @@ def spoiled(context: Context) -> list[str]:
     number, unscoped = context.change.partition("-")[0], Freeze("", "", 0, 0)
     found = []
     for role in dispatched(context):
-        read = read_findings(context.folder / f"{role}.md", role, unscoped)
+        path = mflib.layout.findings_file(
+            Path(context.host.primary), context.change, role
+        )
+        read = read_findings(path, role, unscoped)
         if read is None or read.malformed is None:
             continue
         where = f".minions/changes/{context.change}/{role}.md"
@@ -1404,15 +1305,16 @@ def _section_end(lines: list[str], at: int) -> int:
 
 
 def _unfiled(text: str, ident: str) -> str:
-    """Return the debt without the card `ident`, and its heading when left empty."""
+    """Return the debt without the card `ident`, and its heading when left empty.
+
+    The card's extent is the one the shared reader reads, blanks inside it included.
+    """
     lines = text.splitlines(keepends=True)
     start = next(
         i for i, line in enumerate(lines) if line.startswith(f"- **{ident} — ")
     )
-    end = start + 1
-    while end < len(lines) and lines[end].startswith((" ", "\t")):
-        end += 1
-    del lines[start:end]
+    card = next(c for c in mflib.findings.cards(text, "") if c.id == ident)
+    del lines[start : start + len(card.lines)]
     tops = [i for i in range(start) if lines[i].startswith("## ")]
     if tops and not "".join(lines[tops[-1] + 1 : _section_end(lines, start)]).strip():
         del lines[tops[-1] : _section_end(lines, start)]
@@ -1461,7 +1363,12 @@ def debt(context: Context) -> Debt:
         for card in (c for v in files for c in v.cards if c.status == "verified"):
             repeat = REPEAT.search(card.fields.get("Related", ""))
             old = next(
-                (c for c in _cards(text, "") if repeat and c.id == repeat[1]), None
+                (
+                    c
+                    for c in mflib.findings.cards(text, "")
+                    if repeat and c.id == repeat[1]
+                ),
+                None,
             )
             if old is None:
                 continue
@@ -1788,17 +1695,14 @@ def by_rule(context: Context, chosen: list[tuple[str, list[str]]]) -> bool:
 
 def ruled(path: Path, now: str, round_: int, today: str, lines: str) -> None:
     """Set a findings file clean by rule at `now`: frontmatter, `## By rule`, log."""
-    text = _text(path) or ""
-    for key, value in (
-        ("head", now),
-        ("round", round_),
-        ("reviewed", today),
-        ("mode", "by-rule"),
-        ("workers", 0),
-    ):
-        text = re.sub(
-            rf"^{key}:.*$", f"{key}: {value}", text, count=1, flags=re.MULTILINE
-        )
+    keys = {
+        "head": now,
+        "round": round_,
+        "reviewed": today,
+        "mode": "by-rule",
+        "workers": 0,
+    }
+    text = mflib.findings.keyed(mflib.findings.read(path) or "", keys)
     before, log, after = text.partition("## Resolution log\n")
     text = f"{before}## By rule\n\n{lines}\n{log}{after}"
     BUNDLE["write"](
@@ -1972,7 +1876,9 @@ def stubs(context: Context) -> None:
     """
     now = head(context)
     for role in (role for role in ROLES if role not in dispatched(context)):
-        path = context.folder / f"{role}.md"
+        path = mflib.layout.findings_file(
+            Path(context.host.primary), context.change, role
+        )
         try:
             SKIP_STUB["role_of"](path)
             text = SKIP_STUB["stub"](path, role, context.round, now, context.tree)

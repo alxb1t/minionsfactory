@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol, TextIO
 
+import mflib.findings
 import pytest
 from mflib import statuslog
 from old_layout import ENTRIES, LOG, ROLES, plant
@@ -2173,7 +2174,10 @@ def test_an_amend_card_halts_the_debt(host: Host) -> None:
 def test_a_fixed_repeats_old_card_is_cleared(
     host: Host, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    gone = _filed(_card("R1 nit", still="`true`"), "0000")
+    # A blank line inside the paid card does not end it: its later fields go too.
+    gone = _filed(_card("R1 nit", still="`true`"), "0000").replace(
+        "  - **Still true?**", "\n  - **Still true?**"
+    )
     kept = _filed(_card("R2 nit", still="`false`"), "0000")
     sibling = _filed(_card("R6 nit", still="`false`"), "0000")
     debt = _debt(host)
@@ -2592,3 +2596,367 @@ def test_a_change_folder_that_is_a_link_cannot_be_stamped(tmp_path: Path) -> Non
             act(context)
         assert str(refused.value) == cannot
     assert list(outside.iterdir()) == []
+
+
+# The pin: converge's copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its cases a, b, c, d, f and g.
+
+
+def _pin_read(converge: dict[str, Any], path: Path, text: str) -> Read:
+    path.write_text(text)
+    return converge["read_findings"](
+        path, path.stem, converge["Freeze"]("b" * 40, "h", 1, 1)
+    )
+
+
+def _pin_context(converge: dict[str, Any], host: Host, **workers: object) -> Logged:
+    host.folder().mkdir(parents=True, exist_ok=True)
+    context = converge["Context"](
+        host, _CHANGE, host.tree, {**_WORKERS, **workers}, 1e12
+    )
+    converge["open_run"](context)
+    return context
+
+
+def test_pin_a_card_word_drops_marks_and_folds_case() -> None:
+    card = mflib.findings.Card
+    for value, word in (
+        ("`**Fixed**` — a note", "fixed"),
+        ("verified held", "verified"),
+        ("open.", "open"),
+        ("open,", "open"),
+        ("open;", "open"),
+        ("open:", "open"),
+        ("OPEN", "open"),
+        ("", ""),
+    ):
+        assert card("R1", "conformance", {"Status": value}).word("Status") == word
+    assert card("R1", "conformance", {}).word("Status") == ""
+    assert card("R1", "conformance", {"Amend": "`Yes`."}).amend
+
+
+def test_pin_b_converge_reads_each_field_line() -> None:
+    body = (
+        "- **R1 — a title**\n"
+        "  - **Priority**: blocking · conformance · stability — why.\n"
+        "  - **Fix:**   a fix · size: one line.   \n"
+        "  - **Still true?** `true`\n"
+        "\t- **Round:** 1\n"
+        "    - **Amend:** no\n"
+        "  - **Status:** open\n"
+        "  - **Status:** verified\n"
+    )
+
+    (card,) = mflib.findings.cards(body, "conformance")
+
+    assert card.fields == {
+        "Priority": "blocking · conformance · stability — why.",
+        "Fix": "a fix · size: one line.",
+        "Still true?": "`true`",
+        "Round": "1",
+        "Amend": "no",
+        "Status": "open",
+    }
+
+
+def test_pin_b_converge_reads_no_title_off_the_form() -> None:
+    cards = mflib.findings.cards
+    for title in (
+        "  - **R1 — nested**",
+        "- **R 1 — spaced**",
+        "- **R1 – en dash**",
+        "- **R1 - hyphen**",
+        "- **R1 no dash**",
+    ):
+        assert cards(f"{title}\n  - **Status:** open\n", "conformance") == [], title
+
+
+def _pin_extent(between: str) -> dict[str, dict[str, str]]:
+    body = (
+        "- **R1 — a title**\n  - **Status:** open\n"
+        f"{between}  - **Fix:** a fix · size: one line.\n"
+    )
+    return {card.id: card.fields for card in mflib.findings.cards(body, "conformance")}
+
+
+def test_pin_extent_converge_an_unindented_line_ends_a_card() -> None:
+    assert _pin_extent("a line\n") == {"R1": {"Status": "open"}}
+
+
+def test_pin_extent_converge_the_next_title_ends_a_card() -> None:
+    assert _pin_extent("- **R2 — next**\n") == {
+        "R1": {"Status": "open"},
+        "R2": {"Fix": "a fix · size: one line."},
+    }
+
+
+def test_pin_extent_converge_a_refuted_heading_ends_a_card() -> None:
+    assert _pin_extent("## Refuted\n") == {"R1": {"Status": "open"}}
+
+
+def test_pin_c_converge_reads_the_frontmatter_block(tmp_path: Path) -> None:
+    converge = _converge()
+    path = tmp_path / "conformance.md"
+    clean = findings("conformance", "h")
+
+    # A block at the start alone, ended by its first `---` line.
+    late = _pin_read(converge, path, "\n" + clean)
+    assert late.malformed == "conformance.md is malformed: head is missing"
+    body = "---\nverdict: changes-requested\n---\n"
+    ruled_in_body = _pin_read(converge, path, findings("conformance", "h", body=body))
+    assert ruled_in_body.verdict == "clean"
+    # Keys and values stripped, a bare key ignored, a value keeping its colons.
+    spaced = clean.replace("\nverdict: clean\n", "\n verdict :  clean  \nnotes\n")
+    read = _pin_read(converge, path, spaced.replace("head: h\n", "head: a:b\n"))
+    assert (read.malformed, read.verdict, read.head) == (None, "clean", "a:b")
+    # `mode: skipped` alone is a stub.
+    for mode, stub in (("skipped", True), ("Skipped", False), ("skipped-ish", False)):
+        keys = {"mode": mode, "files": None, "commits": None, "inconclusive": None}
+        read = _pin_read(converge, path, findings("conformance", "h", **keys))
+        assert read.stub is stub, mode
+        assert read.malformed == (
+            None if stub else "conformance.md is malformed: files is missing"
+        )
+
+
+def test_pin_c_converge_names_each_fault(tmp_path: Path) -> None:
+    converge = _converge()
+    path = tmp_path / "conformance.md"
+    headless = findings("conformance", "h").replace("head: h\n", "")
+    assert _pin_read(converge, path, headless).malformed == (
+        "conformance.md is malformed: head is missing"
+    )
+    for keys, why in (
+        ({"round": "1.0"}, "round is not an integer"),
+        ({"open_blocking": None}, "open_blocking is missing"),
+        ({"files": "\N{FULLWIDTH DIGIT ONE}"}, "files is not an integer"),
+        ({"inconclusive": "none"}, "inconclusive is not a list"),
+        ({"verdict": "Clean"}, "verdict is neither clean nor changes-requested"),
+        # A key's fault is named before a card's.
+        ({"files": None, "body": _card("R1 drift", amend=None)}, "files is missing"),
+    ):
+        read = _pin_read(converge, path, findings("conformance", "h", **keys))
+        assert read.malformed == f"conformance.md is malformed: {why}"
+
+
+def test_pin_f_a_rewrite_keeps_a_good_files_cards(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    frozen = converge["Freeze"]("b" * 40, _head(host), 1, 1)
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    read = converge["rewrite"](context, "conformance", frozen, "files is missing")
+
+    assert (read.malformed, [card.id for card in read.cards]) == (None, ["R1"])
+
+
+def test_pin_f_a_spoiled_card_is_open_for_each_dispatched_role(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host, adversarial="skip")
+    for role in ("conformance", "adversarial"):
+        host.write(role, findings(role, _head(host), files=None))
+
+    (spoiled,) = converge["spoiled"](context)
+
+    (card,) = mflib.findings.cards(spoiled, "conformance")
+    assert spoiled.startswith("- **0001·M1 — conformance's findings file was malformed")
+    assert (card.status, card.word("Amend"), card.amend) == ("open", "no", False)
+
+
+def test_pin_f_ruled_edits_the_frontmatter_and_keeps_the_log(tmp_path: Path) -> None:
+    converge = _converge()
+    path = tmp_path / "conformance.md"
+    path.write_text(
+        "---\nhead: a\nround: 1\nreviewed: d\nmode: parallel\nworkers: 1\n---\n\n"
+        "round: 7\n## Resolution log\n- d · round 1 · R1 fixed\n"
+    )
+
+    converge["ruled"](path, "b" * 40, 2, "2026-11-19", "- a rule.\n")
+
+    assert path.read_text() == (
+        f"---\nhead: {'b' * 40}\nround: 2\nreviewed: 2026-11-19\nmode: by-rule\n"
+        "workers: 0\n---\n\nround: 7\n## By rule\n\n- a rule.\n\n## Resolution log\n"
+        "- d · round 1 · R1 fixed\n2026-11-19 · round 2 · by rule — clean\n"
+    )
+    target = tmp_path / "target.md"
+    target.write_text("---\nhead: a\n---\n")
+    linked = tmp_path / "adversarial.md"
+    linked.symlink_to(target)
+    with pytest.raises(OSError, match="Too many levels of symbolic links"):
+        converge["ruled"](linked, "b" * 40, 2, "2026-11-19", "- a rule.\n")
+    assert target.read_text() == "---\nhead: a\n---\n"
+
+
+def test_pin_f_stubs_halt_on_a_link(host: Host, tmp_path: Path) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host, adversarial="skip")
+    target = tmp_path / "target.md"
+    target.write_text("kept\n")
+    (host.folder() / "adversarial.md").symlink_to(target)
+
+    with pytest.raises(converge["Halt"], match=r"^skip_stub: cannot stub — .* link$"):
+        converge["stubs"](context)
+
+    assert target.read_text() == "kept\n"
+
+
+def test_pin_g_converge_reads_the_fix_size() -> None:
+    card = mflib.findings.Card
+
+    def small(fix: str) -> bool:
+        return card("R1", "conformance", {"Fix": fix}).small
+
+    for fix in (
+        "a fix · size: one line.",
+        "a fix · size: `a test`.",
+        "a fix · size: one line and a test",
+        "a size: big · size: a test.",
+    ):
+        assert small(fix), fix
+    for fix in ("a fix · size: a design change.", "a fix · size: a test. note: x", ""):
+        assert not small(fix), fix
+
+
+def test_pin_g_converge_counts_an_open_blocker() -> None:
+    converge = _converge()
+
+    def counted(status: str, grade: str = "blocking") -> bool:
+        priority = f"{grade} · conformance · stability — why."
+        held = mflib.findings.Card(
+            "R1", "conformance", {"Priority": priority, "Status": status}
+        )
+        read = converge["Verdict"]("conformance", cards=(held,))
+        return converge["blockers"]({"conformance": read}) == [held]
+
+    for status in (
+        "open",
+        "`open` — x",
+        "open, then fixed",
+        "Open",
+        "**open**",
+        "opened",
+        "fixed — was open",
+    ):
+        assert counted(status), status
+    for status in ("verified — held", "accepted", "`Verified`"):
+        assert not counted(status), status
+    assert counted("open", "**blocking**")
+    assert not counted("open", "nit")
+
+
+def test_pin_amend_a_held_card_is_skipped_alone(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    host.exits["false"] = 1
+    body = _card(
+        "R2 nit", amend="yes", status="wontfix", size=_DESIGN, still="`true`"
+    ) + _card("R3 nit", amend="yes", status="wontfix", size=_DESIGN, still="`false`")
+    cards = mflib.findings.cards(body, "conformance")
+
+    assert converge["amends"](context, cards, {"0001·R2"}) == {"R3": "false"}
+
+    assert [argv for argv in host.ran if argv[0] in ("true", "false")] == [["false"]]
+
+
+def test_pin_amend_unlocked_halts_naming_the_role(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    run_ = statuslog.Run(None, [statuslog.Event(1, "halt", "debt lock")])
+    for role, other in (("adversarial", "conformance"), ("conformance", "adversarial")):
+        host.write(other, findings(other, _head(host)))
+        host.write(role, findings(role, "a" * 40))
+        with pytest.raises(converge["Halt"]) as halted:
+            converge["unlocked"](context, run_)
+        assert str(halted.value) == (
+            f"{role}.md is not clean at HEAD: the debt write cannot go on"
+        )
+
+
+def test_pin_link_converge_read_findings_refuses_a_link(tmp_path: Path) -> None:
+    converge = _converge()
+    target = tmp_path / "target.md"
+    target.write_text(findings("conformance", "h"))
+    linked = tmp_path / "conformance.md"
+    linked.symlink_to(target)
+
+    read = converge["read_findings"](
+        linked, "conformance", converge["Freeze"]("b" * 40, "h", 1, 1)
+    )
+
+    assert read.malformed == "conformance.md is malformed: it is a link"
+
+
+def test_pin_malformed_converge_reads_the_role_clean_at_head(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    frozen = converge["Freeze"]("b" * 40, _head(host), 1, 1)
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1, files=None
+    )
+
+    read = converge["rewrite"](context, "conformance", frozen, "files is missing")
+
+    assert read == converge["Verdict"]("conformance", "clean", _head(host), 1)
+
+
+# The fix: converge's reads on the module's one form.
+# Why: 0138-findings design D4, D6, D7 and D8.
+
+
+def test_fix_extent_converge_a_blank_line_does_not_end_a_card() -> None:
+    assert _pin_extent("\n") == {
+        "R1": {"Status": "open", "Fix": "a fix · size: one line."}
+    }
+
+
+def test_fix_security_converge_fails_closed_on_an_unread_category() -> None:
+    card = mflib.findings.Card
+
+    def security(role: str, priority: str) -> bool:
+        return card("S1", role, {"Priority": priority}).security
+
+    assert security("adversarial", "high · adversarial · security — why.")
+    assert security("adversarial", "high · adversarial · Security — why.")
+    assert security("adversarial", "high · adversarial")
+    assert not security("adversarial", "high · adversarial · stability — why.")
+    assert not security("conformance", "blocking · conformance · security — why.")
+
+
+def test_fix_ids_converge_reads_a_card_off_the_ids_as_malformed(
+    tmp_path: Path,
+) -> None:
+    converge = _converge()
+    path = tmp_path / "adversarial.md"
+    for title, why in (
+        ("A6 blocking", "card A6 is not R<n> or S<n>"),
+        ("S-1 blocking", "card S-1 is not R<n> or S<n>"),
+    ):
+        read = _pin_read(
+            converge, path, findings("adversarial", "h", body=_card(title))
+        )
+        assert read.malformed == f"adversarial.md is malformed: {why}", title
+    stray = "## Findings\n\n  - **Status:** open\n"
+    read = _pin_read(converge, path, findings("adversarial", "h", body=stray))
+    assert (
+        read.malformed == "adversarial.md is malformed: a Status under no card: unnamed"
+    )
+    # Twin: the same card titled on the contract's ids is read.
+    read = _pin_read(
+        converge, path, findings("adversarial", "h", body=_card("S1 blocking"))
+    )
+    assert (read.malformed, [card.id for card in read.cards]) == (None, ["S1"])
+
+
+def test_fix_frontmatter_converge_ruled_edits_the_block_alone(tmp_path: Path) -> None:
+    converge = _converge()
+    path = tmp_path / "conformance.md"
+    path.write_text("---\n head : a\nmode: parallel\n---\n\nround: 7\nworkers: 3\n")
+
+    converge["ruled"](path, "b" * 40, 2, "2026-11-19", "- a rule.\n")
+
+    assert path.read_text() == (
+        f"---\nhead: {'b' * 40}\nmode: by-rule\n---\n\nround: 7\nworkers: 3\n"
+        "## By rule\n\n- a rule.\n2026-11-19 · round 2 · by rule — clean\n"
+    )

@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from markdown_it.token import Token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
 import mflib.layout
 import mflib.platform
 import mflib.statefile
@@ -170,17 +171,8 @@ AMENDS = ("tasks.md", "design.md")
 # decision change. Why: 0103-fewer-rounds design D3.
 FIX_NOTE = re.compile(r"Fix note \(\d{4}-\d{2}-\d{2}, [RS]\d+\): \S.*")
 ROLES = ("conformance", "adversarial")
-# A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
-BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
-NON_SECURITY = (
-    "stability",
-    "data integrity",
-    "functional correctness",
-    "performance",
-    "maintainability",
-)
-SMALL = ("one line", "a test", "one line and a test")
-CARD = re.compile(r"^- \*\*([^\s*]+) — ", re.MULTILINE)
+# The Status words that leave a security card unheld. Why: 0138-findings design D5.
+CLOSED = ("fixed", "verified", "wontfix", "accepted")
 EXECUTORS = ("claude", "codex")
 SKILLS_DIR = Path(__file__).resolve().parents[2]
 # The longest one script's environment takes to build. Why: 0112-uv-race design D2.
@@ -490,11 +482,35 @@ def _frontmatter(text: str, key: str) -> str | None:
 
     e.g. a findings file opening `verdict: clean` in its block, "verdict" → "clean"
     """
-    if not text.startswith("---\n"):
+    return mflib.findings.frontmatter(text, key)
+
+
+def _findings(runs: Path, change: str, role: str) -> str | None:
+    """Return a role's findings file's text; None when it is missing or unread.
+
+    Why: 0138-findings design D9.
+    """
+    file = mflib.layout.findings_file(runs.parent, change, role)
+    try:
+        return mflib.findings.read(file)
+    except OSError:
         return None
-    block = text[4:].split("\n---", 1)[0]
-    found = re.search(rf"^{key}:\s*(\S+)", block, re.MULTILINE)
-    return found[1] if found else None
+
+
+def _read_cards(runs: Path, change: str, role: str) -> list[mflib.findings.Card] | None:
+    """Return a role's findings file's cards; None if missing, unread or malformed.
+
+    A file with no frontmatter, as a bad byte alone, is malformed: its cards are unread.
+    Why: 0138-findings design D7 and D9.
+    """
+    text = _findings(runs, change, role)
+    if (
+        text is None
+        or not mflib.findings.front(text)[0]
+        or mflib.findings.malformed(text, role)
+    ):
+        return None
+    return mflib.findings.cards(text, role)
 
 
 def _after(text: str) -> list[str]:
@@ -1219,12 +1235,10 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
         _run_marked(runs, change, "catch-up") or _run_marked(runs, change, "amend")
     ):
         return False
-    files = (
-        mflib.layout.change_dir(runs.parent, change) / f"{role}.md" for role in ROLES
-    )
+    texts = (_findings(runs, change, role) for role in ROLES)
     return all(
-        file.is_file() and _frontmatter(file.read_text(), "verdict") == "clean"
-        for file in files
+        text is not None and mflib.findings.frontmatter(text, "verdict") == "clean"
+        for text in texts
     )
 
 
@@ -1280,8 +1294,8 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
     if any(_amends(tree, change, halted)):
         return True
     for role in ROLES:
-        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
-        judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
+        text = _findings(runs, change, role)
+        judged = mflib.findings.frontmatter(text, "head") if text is not None else None
         resolved = judged and _maybe(
             tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
         )
@@ -1342,14 +1356,18 @@ def _unjudged(
     if "converge" in (_skips(runs, change) if skips is None else skips):
         return None
     head = _git(tree, "rev-parse", rev).strip()
+    front = mflib.findings.frontmatter
     for role in ROLES:
-        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
-        if not file.is_file():
+        file = mflib.layout.findings_file(runs.parent, change, role)
+        try:
+            text = mflib.findings.read(file)
+        except OSError as error:
+            return f"{file.name} cannot be read: {error.strerror}"
+        if text is None:
             return f"no {role} findings file"
-        text = file.read_text()
-        if (verdict := _frontmatter(text, "verdict")) != "clean":
+        if (verdict := front(text, "verdict")) != "clean":
             return f"{role}: verdict {verdict}"
-        judged = _frontmatter(text, "head") or ""
+        judged = front(text, "head") or ""
         resolved = _maybe(tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}")
         if not judged or (resolved or "").strip() != head:
             return f"{role}: judged {judged or 'no head'}, not {rev}"
@@ -2787,43 +2805,6 @@ def _is_cap(stage: str, halt: str) -> bool:
     return stage == "converge-halted" and "cap reached" in halt
 
 
-def _field(card: str, name: str) -> str:
-    """Return a card's `- **<name>:** <value>` value, or "" with none."""
-    found = re.search(rf"^[ \t]+- \*\*{name}:\*\*[ \t]*(.*)$", card, re.MULTILINE)
-    return found[1].strip() if found else ""
-
-
-def _cards_in(text: str) -> Iterator[tuple[str, str]]:
-    r"""Yield each findings card's id and its text, to the next card.
-
-    e.g. "- **R1 — a finding**\n  - **Status:** open\n" → ("R1", that text)
-    """
-    starts = list(CARD.finditer(text))
-    ends = [card.start() for card in starts[1:]] + [len(text)]
-    for title, end in zip(starts, ends[: len(starts)], strict=True):
-        yield title[1], text[title.start() : end]
-
-
-def _severity(card: str) -> str:
-    """Return a card's severity: its `Priority`'s first part, in lower case."""
-    # A station may wrap a field's value in backticks.
-    return _field(card, "Priority").split(" · ")[0].strip(" `").lower()
-
-
-def _category(card: str) -> str:
-    """Return a card's category: its `Priority`'s third part, in lower case, or "".
-
-    e.g. "high · adversarial · security — why" → "security"
-    """
-    parts = _field(card, "Priority").split(" · ")
-    return parts[2].split(" — ")[0].strip(" `").lower() if len(parts) > 2 else ""
-
-
-def _status(card: str) -> str:
-    """Return a card's `Status`, its backticks dropped, as `_severity` drops them."""
-    return _field(card, "Status").strip(" `")
-
-
 def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """Return each open blocking card's id and fix size; None when a file is unread.
 
@@ -2832,19 +2813,14 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """
     found = []
     for role in ROLES:
-        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
-        if not file.is_file():
+        cards = _read_cards(runs, change, role)
+        if cards is None:
             return None
-        try:
-            text = file.read_text()
-        except (OSError, UnicodeDecodeError):
-            return None
-        for name, card in _cards_in(text):
-            blocking = _severity(card) in BLOCKS[role]
-            if blocking and re.match(r"open\b", _status(card)):
-                sized = re.search(r"size:([^:]*)$", _field(card, "Fix"))
-                size = sized[1].strip(" `.") if sized else ""
-                found.append((name, size or "a design change"))
+        found += [
+            (card.id, card.size or "a design change")
+            for card in cards
+            if card.blocking and card.status == "open"
+        ]
     return found
 
 
@@ -2854,42 +2830,30 @@ def _security_blocks(runs: Path, change: str, halt: str) -> bool:
     Why: 0085-self-healing-ship design D2;
     0095-converge-roles design D2.
     """
-    ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
-    try:
-        text = (
-            mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
-        ).read_text()
-    except (OSError, UnicodeDecodeError):
-        return True
-    return any(name in ids and _security_card(card) for name, card in _cards_in(text))
+    ids = mflib.findings.halt_ids(halt)
+    cards = _read_cards(runs, change, "adversarial")
+    return cards is None or any(card.id in ids and card.security for card in cards)
 
 
 def _security_card(card: str) -> bool:
-    """Return whether an adversarial card blocks, in a security or unread category.
+    """Return whether a card's text is a blocking adversarial card not named safe.
 
     Why: 0095-converge-roles design D2; 0119-debt-paydown-3b design D3.
     """
-    return (
-        _severity(card) in BLOCKS["adversarial"] and _category(card) not in NON_SECURITY
-    )
+    return any(found.security for found in mflib.findings.cards(card, "adversarial"))
 
 
 def _security_held(runs: Path, change: str, halt: str) -> bool:
     """Return whether a blocking security card bars the supervisor at a converge halt.
 
-    Why: 0089-supervisor design D6;
-    0095-converge-roles design D2.
+    A Status none of `CLOSED`, or none at all, holds it. Why: 0089-supervisor design D6;
+    0095-converge-roles design D2; 0138-findings design D5.
     """
-    ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
-    try:
-        text = (
-            mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
-        ).read_text()
-    except (OSError, UnicodeDecodeError):
-        return True
-    return any(
-        _security_card(card) and (name in ids or _status(card).startswith("open"))
-        for name, card in _cards_in(text)
+    ids = mflib.findings.halt_ids(halt)
+    cards = _read_cards(runs, change, "adversarial")
+    return cards is None or any(
+        card.security and (card.id in ids or card.status not in CLOSED)
+        for card in cards
     )
 
 
@@ -3122,21 +3086,6 @@ def _bounded(path: Path | str, fd: int | None = None) -> str | None:
     except OSError:
         return None
     return data.decode(errors="replace") if len(data) <= READ_BYTES else None
-
-
-def _place(fd: int, name: str, text: str) -> None:
-    """Write `name` whole through `fd`: made as `.<name>`, then renamed over the old.
-
-    Each is made `O_EXCL`, following no link; a failure raises `OSError`.
-    """
-    part = f".{name}"
-    for old in (name, part):
-        with contextlib.suppress(OSError):
-            os.unlink(old, dir_fd=fd)
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
-    with os.fdopen(os.open(part, flags, 0o600, dir_fd=fd), "w") as handle:
-        handle.write(text)
-    os.rename(part, name, src_dir_fd=fd, dst_dir_fd=fd)
 
 
 def _granted(runs: Path, change: str, take: bool) -> bool:
@@ -4107,53 +4056,13 @@ def tokens_of(log: Path) -> int | None:
     return codex if codex is not None else claude
 
 
-def _stamped(text: str, model: str | None, tokens: int | None) -> str | None:
-    """Return a findings file with its frontmatter's `model:` and `tokens:` set.
-
-    None when it has no frontmatter. e.g. `model: x` → `model: m`, then `tokens: 5`
-    """
-    found = re.match(r"---\n(.*?\n)---\n", text, re.DOTALL)
-    if found is None:
-        return None
-    kept = [
-        line
-        for line in found[1].splitlines(keepends=True)
-        if not line.startswith("tokens:")
-    ]
-    stamp = [f"model: {model or 'default'}\n"]
-    stamp += [] if tokens is None else [f"tokens: {tokens}\n"]
-    at = next((i for i, line in enumerate(kept) if line.startswith("model:")), None)
-    if at is None:
-        kept += stamp
-    else:
-        kept[at : at + 1] = stamp
-    return f"---\n{''.join(kept)}---\n{text[found.end() :]}"
-
-
 def _stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
     """Set a findings file's `model:` and `tokens:`, following no link; else leave it.
 
     A file that is no regular file, or has no frontmatter, is left as it is.
-    Why: 0104-codex-limits design D5.
+    Why: 0104-codex-limits design D5; 0138-findings design D12.
     """
-    try:
-        fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    except OSError:
-        return
-    try:
-        with contextlib.suppress(OSError):
-            file = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-            try:
-                if not stat.S_ISREG(os.fstat(file).st_mode):
-                    return
-                with os.fdopen(file, "rb", closefd=False) as handle:
-                    text = handle.read().decode(errors="replace")
-            finally:
-                os.close(file)
-            if (stamped := _stamped(text, model, tokens)) is not None:
-                _place(fd, name, stamped)
-    finally:
-        os.close(fd)
+    mflib.findings.stamp(folder, name, model, tokens)
 
 
 def _quota(log: Path, before: dict[str, Window]) -> None:
@@ -5285,7 +5194,7 @@ class Run:
             first = change not in self.capped
             allowed = self.grants_auto.get(change, True)
         first = first and not _granted_run(runs, change)
-        small = all(size in SMALL for _, size in blockers)
+        small = all(size in mflib.findings.SMALL for _, size in blockers)
         return first and allowed and small, " ".join(card for card, _ in blockers)
 
     def auto_grant(self, version: Version, stage: str, halt: str) -> tuple[bool, str]:

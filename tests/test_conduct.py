@@ -28,6 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import mflib.findings
 import pytest
 from conduct_load import conduct as _conduct
 from fake_worker import (
@@ -3681,6 +3682,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
     halt = "10:00:00 · round 3 · halt — cap reached · head abc1234"
     assert held(minions, "0001-todo", halt)
     card = (
+        "---\nverdict: changes-requested\n---\n\n"
         "- **S1 — a finding**\n"
         "  - **Priority:** high · adversarial · security — why.\n"
         "  - **Fix:** a fix · size: one line.\n"
@@ -10984,8 +10986,6 @@ def test_a_small_cap_is_granted_automatically(
     conformance.symlink_to(os.devnull)
     assert blockers(minions, "0001-todo") is None
     conformance.unlink()
-    conformance.write_bytes(b"\xff")
-    assert blockers(minions, "0001-todo") is None
     conformance.write_text(plain)
     # A file with no card, as a station that found nothing writes it, holds none.
     adversarial.write_text("---\nverdict: clean\n---\n\n## Refuted\n\n## Summary\n")
@@ -14457,3 +14457,390 @@ def test_approve_gate_records_the_hash(
     if not checked.stdout.startswith(f"gate: approved — {hashed}\n"):
         lapses.append(f"the staged check: {checked.stdout.splitlines()[0]}")
     assert not lapses, lapses
+
+
+# The pin: the conductor's copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its cases e, g, h, i, j and o.
+
+
+def _pin_card(
+    ident: str,
+    grade: str,
+    status: str = "open",
+    fix: str = "a fix · size: a test.",
+    category: str = "stability",
+) -> str:
+    role = "adversarial" if ident.startswith(("S", "A")) else "conformance"
+    return (
+        f"- **{ident} — a finding**\n"
+        f"  - **Priority:** {grade} · {role} · {category} — why.\n"
+        f"  - **Fix:** {fix}\n"
+        f"  - **Status:** {status}\n"
+    )
+
+
+def _pin_runs(tmp_path: Path, conformance: str = "", adversarial: str = "") -> Path:
+    """Return a run directory whose change `0001-a` holds both files, these cards."""
+    runs = tmp_path / ".minions"
+    folder = runs / "changes" / "0001-a"
+    folder.mkdir(parents=True, exist_ok=True)
+    for role, body in (("conformance", conformance), ("adversarial", adversarial)):
+        front = "---\nverdict: changes-requested\nhead: a\n---\n\n"
+        (folder / f"{role}.md").write_text(front + body)
+    return runs
+
+
+def test_pin_g_conduct_reads_the_fix_size(tmp_path: Path) -> None:
+    fixes = (
+        "a fix · size: one line.",
+        "a fix · size: `a test`.",
+        "a fix · size: one line and a test",
+        "a size: big · size: a test.",
+        "a fix · size: a test. note: x",
+        "a fix",
+    )
+    body = "".join(
+        _pin_card(f"R{n}", "blocking", fix=fix) for n, fix in enumerate(fixes, 1)
+    )
+
+    assert _conduct()["_open_blockers"](_pin_runs(tmp_path, body), "0001-a") == [
+        ("R1", "one line"),
+        ("R2", "a test"),
+        ("R3", "one line and a test"),
+        ("R4", "a test"),
+        ("R5", "a design change"),
+        ("R6", "a design change"),
+    ]
+
+
+def test_pin_g_conduct_counts_an_open_blocker(tmp_path: Path) -> None:
+    statuses = ("open", "`open` — x", "open, then fixed", "opened", "fixed — was open")
+    body = "".join(
+        _pin_card(f"R{n}", "blocking", status) for n, status in enumerate(statuses, 1)
+    )
+
+    assert _conduct()["_open_blockers"](_pin_runs(tmp_path, body), "0001-a") == [
+        ("R1", "a test"),
+        ("R2", "a test"),
+        ("R3", "a test"),
+    ]
+
+
+def test_pin_i_conduct_a_security_card_fails_closed() -> None:
+    conduct = _conduct()
+    security = conduct["_security_card"]
+
+    def card(priority: str) -> str:
+        return f"- **S1 — a**\n  - **Priority:** {priority}\n"
+
+    assert security(card("high · adversarial · injection — why."))
+    assert security(card("critical · adversarial"))
+    for named in mflib.findings.NON_SECURITY:
+        assert not security(card(f"high · adversarial · {named} — why.")), named
+    assert not security(card("medium · adversarial · security — why."))
+
+
+def test_pin_i_conduct_security_blocks_and_holds(tmp_path: Path) -> None:
+    conduct = _conduct()
+    blocks, held = conduct["_security_blocks"], conduct["_security_held"]
+    adversarial = _pin_card(
+        "S1", "high", "wontfix — x", category="security"
+    ) + _pin_card("S2", "high", category="stability")
+    runs = _pin_runs(tmp_path, adversarial=adversarial)
+
+    assert blocks(runs, "0001-a", "halt — amend needed — R1, S1 · head a")
+    assert not blocks(runs, "0001-a", "halt — amend needed — S2 · head a")
+    assert not blocks(runs, "0001-a", "halt — S1 · amend needed — R1")
+    assert blocks(runs, "0002-b", "halt — amend needed — R1")
+    assert held(runs, "0001-a", "halt — amend needed — S1 · head a")
+    assert not held(runs, "0001-a", "halt — cap reached")
+    assert held(runs, "0002-b", "halt — cap reached")
+    opened = adversarial.replace("wontfix — x", "open — x")
+    (runs / "changes" / "0001-a" / "adversarial.md").write_text(opened)
+    assert held(runs, "0001-a", "halt — cap reached")
+
+
+def _pin_judged(tmp_path: Path) -> tuple[Path, Path, str]:
+    """Return a primary checkout, its run directory's change folder, and `HEAD`."""
+    root = _primary(tmp_path)
+    folder = root / ".minions" / "changes" / "0001-a"
+    folder.mkdir(parents=True)
+    return root, folder, _git(root, "rev-parse", "HEAD")
+
+
+def test_pin_j_conduct_unjudged_names_why(tmp_path: Path) -> None:
+    unjudged = _conduct()["_unjudged"]
+    root, folder, head = _pin_judged(tmp_path)
+    (folder / "conformance.md").write_text(f"---\nhead: {head}\nverdict: clean\n---\n")
+
+    def why() -> str | None:
+        return unjudged(root / ".minions", root, "0001-a", skips=frozenset())
+
+    assert why() == "no adversarial findings file"
+    (folder / "adversarial.md").write_text(f"---\nhead: {head}\n---\n")
+    assert why() == "adversarial: verdict None"
+    (folder / "adversarial.md").write_text("---\nhead: abc1234\nverdict: clean\n---\n")
+    assert why() == "adversarial: judged abc1234, not HEAD"
+    (folder / "adversarial.md").write_text(f"---\nhead: {head}\nverdict: clean\n---\n")
+    assert why() is None
+
+
+def test_pin_j_conduct_amendable_needs_both_files_clean(tmp_path: Path) -> None:
+    amendable = _conduct()["_amendable"]
+    runs = _pin_runs(tmp_path)
+    folder = runs / "changes" / "0001-a"
+    (folder / "status_log.md").write_text(
+        "# t\n\n## Run 2 — d · catch-up\n10:00:00 · round 1 · halt — cap reached\n"
+    )
+    halt = "halt — cap reached"
+
+    assert amendable(runs, "0001-a", "halt — amend needed — R1")
+    assert not amendable(runs, "0001-a", halt)
+    (folder / "conformance.md").write_text("---\nverdict: clean\n---\n")
+    assert not amendable(runs, "0001-a", halt)
+    (folder / "adversarial.md").write_text("---\nverdict: clean\n---\n")
+    assert amendable(runs, "0001-a", halt)
+    (folder / "adversarial.md").unlink()
+    assert not amendable(runs, "0001-a", halt)
+
+
+def test_pin_j_conduct_answered_needs_each_head(tmp_path: Path) -> None:
+    answered = _conduct()["_answered"]
+    root, folder, halted = _pin_judged(tmp_path)
+    _commit(root, {"x.txt": "x\n"}, "x")
+    (folder / "status_log.md").write_text(
+        "# t\n\n## Run 1 — d\n"
+        f"10:00:01 · round 1 · halt — amend needed — R1 · head {halted}\n"
+        "10:00:00 · round 1 · start — base a · head b\n"
+    )
+    halt = f"halt — amend needed — R1 · head {halted}"
+    runs = root / ".minions"
+    (folder / "conformance.md").write_text(f"---\nhead: {halted}\n---\n")
+
+    assert not answered(runs, root, "0001-a", halt)
+    (folder / "adversarial.md").write_text("---\nverdict: clean\n---\n")
+    assert not answered(runs, root, "0001-a", halt)
+    (folder / "adversarial.md").write_text(f"---\nhead: {halted}\n---\n")
+    assert answered(runs, root, "0001-a", halt)
+
+
+def test_pin_o_conduct_stamped_sets_the_model_in_place() -> None:
+    stamped = mflib.findings.stamped
+    assert stamped(
+        "---\ntype: c\nmodel: x\nround: 1\ntokens: 3\n---\nmodel: y\n", "m", 5
+    ) == ("---\ntype: c\nmodel: m\ntokens: 5\nround: 1\n---\nmodel: y\n")
+    assert stamped("\n---\nmodel: x\n---\n", "m", 5) is None
+    assert stamped("---\ntype: c\n---\nbody\n---\nmodel: x\n---\n", "m", None) == (
+        "---\ntype: c\nmodel: m\n---\nbody\n---\nmodel: x\n---\n"
+    )
+
+
+def test_pin_o_conduct_stamp_keeps_mode_0600(tmp_path: Path) -> None:
+    stamp = _conduct()["_stamp"]
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    findings = folder / "conformance.md"
+    findings.write_bytes(b"---\nmodel: x\n---\n\xff\n")
+    findings.chmod(0o644)
+
+    stamp(folder, "conformance.md", "m", 5)
+
+    assert (
+        findings.read_text()
+        == "---\nmodel: m\ntokens: 5\n---\n\N{REPLACEMENT CHARACTER}\n"
+    )
+    assert findings.stat().st_mode & 0o777 == 0o600
+    target = tmp_path / "target.md"
+    target.write_text("---\nmodel: x\n---\n")
+    findings.unlink()
+    findings.symlink_to(target)
+    stamp(folder, "conformance.md", "m", 5)
+    assert target.read_text() == "---\nmodel: x\n---\n"
+    linked = tmp_path / "linked"
+    linked.symlink_to(folder)
+    stamp(linked, "conformance.md", "m", 5)
+    assert target.read_text() == "---\nmodel: x\n---\n"
+
+
+def test_fix_stamp_conduct_keeps_the_file_when_its_write_fails(tmp_path: Path) -> None:
+    stamp = _conduct()["_stamp"]
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    findings = folder / "conformance.md"
+    findings.write_text("---\nmodel: x\n---\n")
+    # Neither staged name can be made, so the write fails before its rename.
+    (folder / "conformance.md.tmp").mkdir()
+    (folder / ".conformance.md").mkdir()
+
+    stamp(folder, "conformance.md", "m", 5)
+
+    assert findings.read_text() == "---\nmodel: x\n---\n"
+
+
+def test_pin_malformed_conduct_unjudged_reads_the_files_own_verdict(
+    tmp_path: Path,
+) -> None:
+    unjudged = _conduct()["_unjudged"]
+    root, folder, head = _pin_judged(tmp_path)
+    clean = f"---\nhead: {head}\nverdict: clean\n---\n\n"
+    (folder / "conformance.md").write_text(clean)
+    (folder / "adversarial.md").write_text(clean + _pin_card("S-1", "high"))
+
+    assert unjudged(root / ".minions", root, "0001-a", skips=frozenset()) is None
+
+
+# The fix: the conductor's readers on the module's one form.
+# Why: 0138-findings design D4 to D9.
+
+
+def test_fix_extent_conduct_a_card_ends_at_a_heading(tmp_path: Path) -> None:
+    grade = "  - **Priority:** blocking · conformance · stability — why.\n"
+    body = (
+        f"- **R1 — a finding**\n{grade}  - **Status:** open\n\n"
+        "  - **Fix:** a fix · size: one line.\n"
+        f"- **R2 — a finding**\n{grade}  - **Status:** open\n"
+        "## Refuted\n\n  - **Fix:** a fix · size: a test.\n"
+    )
+
+    assert _conduct()["_open_blockers"](_pin_runs(tmp_path, body), "0001-a") == [
+        ("R1", "one line"),
+        ("R2", "a design change"),
+    ]
+
+
+def test_fix_field_conduct_reads_a_colon_outside(tmp_path: Path) -> None:
+    body = (
+        "- **R1 — a finding**\n"
+        "  - **Priority**: blocking · conformance · stability — why.\n"
+        "  - **Fix**: a fix · size: a test.\n"
+        "  - **Status**: open\n"
+    )
+
+    assert _conduct()["_open_blockers"](_pin_runs(tmp_path, body), "0001-a") == [
+        ("R1", "a test")
+    ]
+
+
+def test_fix_word_conduct_counts_a_blocker_in_capitals(tmp_path: Path) -> None:
+    body = (
+        _pin_card("R1", "blocking", "Open")
+        + _pin_card("R2", "blocking", "**open**")
+        + _pin_card("R3", "**blocking**")
+    )
+    adversarial = _pin_card("S1", "**high**")
+    runs = _pin_runs(tmp_path, body, adversarial)
+
+    assert _conduct()["_open_blockers"](runs, "0001-a") == [
+        ("R1", "a test"),
+        ("R2", "a test"),
+        ("R3", "a test"),
+        ("S1", "a test"),
+    ]
+
+
+def test_fix_word_conduct_holds_a_security_card_on_a_status_it_does_not_know(
+    tmp_path: Path,
+) -> None:
+    held = _conduct()["_security_held"]
+    for status, holds in (
+        ("reopened", True),
+        ("", True),
+        ("**Open**", True),
+        ("`Wontfix` — x", False),
+        ("fixed", False),
+    ):
+        card = _pin_card("S1", "high", status, category="`Security`")
+        runs = _pin_runs(tmp_path, adversarial=card)
+        assert held(runs, "0001-a", "halt — cap reached") is holds, status
+
+
+def test_fix_security_conduct_reads_a_card_as_converge_does() -> None:
+    security = _conduct()["_security_card"]
+    for priority in (
+        "high · adversarial · `Security` — why.",
+        "**critical** · adversarial · injection — why.",
+        "high · adversarial · `Stability` — why.",
+        "high · adversarial",
+        "medium · adversarial · security — why.",
+    ):
+        card = mflib.findings.Card("S1", "adversarial", {"Priority": priority})
+        text = f"- **S1 — a**\n  - **Priority:** {priority}\n"
+        assert security(text) is card.security, priority
+
+
+def test_fix_ids_conduct_reads_a_card_off_the_ids_as_malformed(tmp_path: Path) -> None:
+    conduct = _conduct()
+    halt = "halt — amend needed — A1 · head a"
+    for ident in ("A1", "S-1"):
+        card = _pin_card(ident, "high", "wontfix — x", category="stability")
+        runs = _pin_runs(tmp_path, adversarial=card)
+        assert conduct["_security_blocks"](runs, "0001-a", halt), ident
+        assert conduct["_security_held"](runs, "0001-a", "halt — cap reached"), ident
+        assert conduct["_open_blockers"](runs, "0001-a") is None, ident
+    runs = _pin_runs(tmp_path, adversarial="## Findings\n\n  - **Status:** open\n")
+    assert conduct["_security_held"](runs, "0001-a", "halt — cap reached")
+    # Twin: the same card on the contract's ids bars nothing.
+    card = _pin_card("S1", "high", "wontfix — x", category="stability")
+    runs = _pin_runs(tmp_path, adversarial=card)
+    assert not conduct["_security_held"](runs, "0001-a", "halt — cap reached")
+    assert conduct["_open_blockers"](runs, "0001-a") == []
+
+
+def test_fix_frontmatter_conduct_reads_the_whole_value() -> None:
+    frontmatter = _conduct()["_frontmatter"]
+    for text, value in (
+        ("---\nverdict:\nclean\n---\n", ""),
+        ("---\nverdict: clean # note\n---\n", "clean # note"),
+        ("---\nverdict: clean\n", None),
+        ("---\nhead: a\n---\nverdict: clean\n", None),
+        ("verdict: clean\n", None),
+    ):
+        assert frontmatter(text, "verdict") == value, text
+
+
+def test_fix_read_conduct_replaces_a_bad_byte(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root, folder, head = _pin_judged(tmp_path)
+    runs = root / ".minions"
+    for role in ("conformance", "adversarial"):
+        (folder / f"{role}.md").write_bytes(
+            f"---\nhead: {head}\nverdict: clean\n---\n".encode() + b"\xff\n"
+        )
+
+    assert conduct["_unjudged"](runs, root, "0001-a", skips=frozenset()) is None
+    blocker = f"---\nverdict: x\n---\n\n{_pin_card('R1', 'blocking')}"
+    (folder / "conformance.md").write_bytes(blocker.encode() + b"\xff\n")
+    assert conduct["_open_blockers"](runs, "0001-a") == [("R1", "a test")]
+    # A file of a bad byte alone holds no frontmatter: it is malformed, a security card.
+    (folder / "adversarial.md").write_bytes(b"\xff")
+    halt = "halt — amend needed — S1 · head a"
+    assert conduct["_security_blocks"](runs, "0001-a", halt)
+    assert conduct["_security_held"](runs, "0001-a", "halt — cap reached")
+    assert conduct["_open_blockers"](runs, "0001-a") is None
+
+
+def test_fix_read_conduct_refuses_a_link(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root, folder, head = _pin_judged(tmp_path)
+    runs = root / ".minions"
+    clean = f"---\nhead: {head}\nverdict: clean\n---\n"
+    (folder / "conformance.md").write_text(clean)
+    (folder / "status_log.md").write_text(
+        "# t\n\n## Run 2 — d · catch-up\n10:00:00 · round 1 · halt — cap reached\n"
+    )
+    target = tmp_path / "target.md"
+    target.write_text(clean)
+    (folder / "adversarial.md").symlink_to(target)
+
+    assert conduct["_unjudged"](runs, root, "0001-a", skips=frozenset()) == (
+        "adversarial.md cannot be read: Too many levels of symbolic links"
+    )
+    assert not conduct["_amendable"](runs, "0001-a", "halt — cap reached")
+    assert conduct["_open_blockers"](runs, "0001-a") is None
+    assert conduct["_security_blocks"](runs, "0001-a", "halt — amend needed — S1")
+    # Twin: the same text in a regular file is read.
+    (folder / "adversarial.md").unlink()
+    (folder / "adversarial.md").write_text(clean)
+    assert conduct["_unjudged"](runs, root, "0001-a", skips=frozenset()) is None
+    assert conduct["_amendable"](runs, "0001-a", "halt — cap reached")
+    assert conduct["_open_blockers"](runs, "0001-a") == []

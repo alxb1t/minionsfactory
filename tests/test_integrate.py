@@ -796,3 +796,87 @@ def test_delta_keeps_a_delta_that_only_inserts(tmp_path: Path) -> None:
         1,
         "delta: changed on the default branch: sdd: Second\n",
     )
+
+
+# The pin: integrate's copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its cases e and n.
+
+_PIN_CLEAN = "---\nverdict: clean\n---\n"
+
+
+def _pin_ready(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Return a primary checkout, its ticked version's tree and its change folder."""
+    root = _primary(tmp_path, {"README.md": "x\n"})
+    tree = _version(root, "0001-todo")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    return root, tree, folder
+
+
+def test_pin_n_unready_reads_the_findings_files(tmp_path: Path) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+
+    assert unready(root, "0001-todo", tree) is None
+    (folder / "diff.patch").write_text("x\n")
+    assert unready(root, "0001-todo", tree) == (
+        "converge ran, and a findings file is missing"
+    )
+    (folder / "conformance.md").write_text("---\nhead: a\n---\n")
+    (folder / "adversarial.md").write_text(_PIN_CLEAN)
+    assert unready(root, "0001-todo", tree) == "conformance.md is not clean"
+    (folder / "conformance.md").write_text(_PIN_CLEAN)
+    assert unready(root, "0001-todo", tree) is None
+
+
+def test_pin_malformed_integrate_unready_reads_the_files_own_verdict(
+    tmp_path: Path,
+) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+    (folder / "conformance.md").write_text(_PIN_CLEAN)
+    (folder / "adversarial.md").write_text(
+        _PIN_CLEAN + "\n- **S-1 — a finding**\n  - **Status:** open\n"
+    )
+
+    assert unready(root, "0001-todo", tree) is None
+
+
+# The fix: integrate's read on the module's one form.
+# Why: 0138-findings design D8 and D9.
+
+
+def test_fix_frontmatter_integrate_reads_the_whole_value(tmp_path: Path) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+    (folder / "adversarial.md").write_text(_PIN_CLEAN)
+    for text, why in (
+        ("---\nverdict:\nclean\n---\n", "conformance.md is not clean"),
+        ("---\nverdict: clean # note\n---\n", "conformance.md is not clean"),
+        ("---\nverdict: clean\n", "conformance.md is not clean"),
+        (_PIN_CLEAN, None),
+    ):
+        (folder / "conformance.md").write_text(text)
+        assert unready(root, "0001-todo", tree) == why, text
+
+
+def test_fix_read_integrate_unready_replaces_a_bad_byte(tmp_path: Path) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+    for role in ("conformance", "adversarial"):
+        (folder / f"{role}.md").write_bytes(_PIN_CLEAN.encode() + b"\xff\n")
+
+    assert unready(root, "0001-todo", tree) is None
+
+
+def test_fix_read_integrate_unready_refuses_a_link(tmp_path: Path) -> None:
+    unready = runpy.run_path(str(_SCRIPT))["unready"]
+    root, tree, folder = _pin_ready(tmp_path)
+    (folder / "conformance.md").write_text(_PIN_CLEAN)
+    target = tmp_path / "target.md"
+    target.write_text(_PIN_CLEAN)
+    (folder / "adversarial.md").symlink_to(target)
+
+    assert unready(root, "0001-todo", tree) == (
+        "adversarial.md cannot be read: Too many levels of symbolic links"
+    )

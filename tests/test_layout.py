@@ -31,6 +31,27 @@ def test_the_layout_names_the_log_of_a_change(tmp_path: Path) -> None:
     assert layout.STATUS_LOG == "status_log.md"
 
 
+@pytest.mark.parametrize("role", ["conformance", "adversarial"])
+def test_layout_findings_name_is_the_roles_file(role: str) -> None:
+    assert layout.findings_name(role) == f"{role}.md"
+
+
+@pytest.mark.parametrize("role", ["conformance", "adversarial"])
+def test_layout_findings_shadow_name_is_the_roles_shadow(role: str) -> None:
+    assert layout.shadow_name(role) == f"shadow-{role}.md"
+
+
+@pytest.mark.parametrize("role", ["conformance", "adversarial"])
+def test_layout_findings_open_name_is_the_roles_open_page(role: str) -> None:
+    assert layout.open_name(role) == f"{role}.open.md"
+
+
+def test_layout_findings_file_is_in_the_change_folder(tmp_path: Path) -> None:
+    assert layout.findings_file(tmp_path, "0001-todo", "adversarial") == (
+        tmp_path / ".minions" / "changes" / "0001-todo" / "adversarial.md"
+    )
+
+
 @pytest.mark.parametrize(
     ("name", "spelled"),
     [

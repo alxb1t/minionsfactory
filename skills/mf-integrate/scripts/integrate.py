@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
 import mflib.layout
 
 TIMEOUT_SECONDS = 60
@@ -101,18 +102,6 @@ def default_branch(cwd: Path) -> str:
     return ref.strip().removeprefix("origin/") if ref else "main"
 
 
-def _frontmatter(text: str, key: str) -> str | None:
-    """Return a key's value in the text's leading `---` block.
-
-    e.g. a findings file opening `verdict: clean` in its block, "verdict" → "clean"
-    """
-    if not text.startswith("---\n"):
-        return None
-    block = text[4:].split("\n---", 1)[0]
-    found = re.search(rf"^{key}:\s*(\S+)", block, re.MULTILINE)
-    return found[1] if found else None
-
-
 def _after(text: str) -> list[str]:
     r"""Return the change ids a proposal's `after:` names.
 
@@ -187,17 +176,26 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
     for dependency in _after(proposal):
         if not _shipped(cwd, change, dependency):
             return f"after {dependency}"
-    folder = mflib.layout.change_dir(_primary(cwd), change)
-    files = [folder / f"{role}.md" for role in ("conformance", "adversarial")]
-    patch = folder / "diff.patch"
-    present = [file for file in files if file.is_file()]
+    primary = _primary(cwd)
+    files = [
+        mflib.layout.findings_file(primary, change, role)
+        for role in ("conformance", "adversarial")
+    ]
+    patch = mflib.layout.change_dir(primary, change) / "diff.patch"
+    present: list[tuple[str, str]] = []
+    for file in files:
+        try:
+            text = mflib.findings.read(file)
+        except OSError as error:
+            return f"{file.name} cannot be read: {error.strerror}"
+        present += [] if text is None else [(file.name, text)]
     if not present and not patch.is_file():
         return None
     if len(present) != len(files):
         return "converge ran, and a findings file is missing"
-    for file in files:
-        if _frontmatter(file.read_text(), "verdict") != "clean":
-            return f"{file.name} is not clean"
+    for name, text in present:
+        if mflib.findings.frontmatter(text, "verdict") != "clean":
+            return f"{name} is not clean"
     return None
 
 

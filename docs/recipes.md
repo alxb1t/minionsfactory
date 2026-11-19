@@ -48,7 +48,8 @@ its own git call for the primary, and `layout.primary_of` maps git's answer to i
 
 A writer stages the file through `write` of `skills/mflib/statefile.py`, which renames `<name>.tmp` over it and raises
 `WriteFailed` for the writer to word; a reader takes `statefile.read`, which follows no link. The status log is
-written and parsed through `skills/mflib/statuslog.py`, its path `layout.status_log(primary, change)`.
+written and parsed through `skills/mflib/statuslog.py`, its path `layout.status_log(primary, change)`. The findings
+files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
 
 - **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
 - **Rules:** `check_layout` holds that `.minions` is joined in `skills/mflib/layout.py` alone: a string constant
@@ -56,7 +57,7 @@ written and parsed through `skills/mflib/statuslog.py`, its path `layout.status_
   folder's names there too: a string constant elsewhere that contains `.mf-ship-origin`, or equals `XDG_CONFIG_HOME`,
   `XDG_DATA_HOME` or `XDG_STATE_HOME`, fails whatever the list holds, and `LAYOUT_SITES` lists neither.
   `check_formats` holds the format names in `skills/mflib/`: a string constant elsewhere equal to `status_log.md`, or
-  containing `## Run`, fails unless `FORMAT_SITES` lists the pair.
+  containing `## Run`, or the card head `- **` or `- \*\*`, fails unless `FORMAT_SITES` lists the pair.
 
 ## An OS
 

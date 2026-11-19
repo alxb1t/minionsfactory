@@ -43,7 +43,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   misstating a reset or a quota share: a wait is bounded by `LIMIT_WAIT`, but a far reset keeps Codex limited, and its
   checkers on Claude, for the run. Within converge, each checker, on either host, writes its findings file, which
   `converge.py` reads as evidence. `conduct.py` stamps a checker's findings file's `model:` and `tokens:`
-  and appends a Codex log's `mf.quota` line, following no link.
+  through `skills/mflib/findings.py`, which stages `<name>.tmp` at mode `0600` and renames it over the file, never
+  unlinking it first, and appends a Codex log's `mf.quota` line, following no link.
 - **A stacked build runs on code no converge has judged**
   ([D72](docs/decisions.md#d72--a-dependent-builds-on-its-dependencys-built-head)): a dependent builds on its dependency's
   built head, and never converges or releases before that dependency's converge and release. A worker can write
@@ -91,8 +92,10 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
   ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)). The status log is written by
-  `skills/mflib/statuslog.py` through a descriptor held across its read and its write; the other in-process writes of a
-  change's folder follow no link by their own checks until their formats move. Among the worker output, `build-notes.md`, which any worker of
+  `skills/mflib/statuslog.py` through a descriptor held across its read and its write. The findings files are read and
+  written by `skills/mflib/findings.py`, through the read and the staged write of `skills/mflib/statefile.py`, which
+  follow no link; a malformed one reads, to the conductor's security readers, as a blocking security card. The other
+  in-process writes of a change's folder follow no link by their own checks until their formats move. Among the worker output, `build-notes.md`, which any worker of
   the run can write, the next phase reads as evidence, and the conductor counts and trims through a descriptor that
   follows no link and refuses a file that is not a regular file of one name: a hard link, a folder or a pipe halts the
   version. A design's `Fix note` lines, which the converge fixer appends and the run reads as no decision change: a note
@@ -130,7 +133,7 @@ round. A test module stays off it: conformance judges every test edit under *Gat
 hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
-- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write and the status log — loaded by the scripts that run on the operator's machine.
+- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write, the status log and the findings files, `findings.py` — loaded by the scripts that run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run, and the setup script a cloud environment runs as root.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
@@ -197,7 +200,7 @@ hooks reshape the whole run, is on it.
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the
   status log's ` · grant` mark, which a worker writes, so a forged size or a dropped mark buys a converge round past a cap, at most
   one a version a run.
-- **A security card is the category its checker writes.** C4 of `0095-converge-roles`, confirmed by the person on 2026-11-11: the rescue and the supervisor are barred from a card whose Priority's category is `security`, so a security harm graded under another category reaches them under the version's switch ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts), [D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)).
+- **A security card is the category its checker writes.** C4 of `0095-converge-roles`, confirmed by the person on 2026-11-11: the rescue and the supervisor are barred from a blocking adversarial card whose Priority's category is none of `stability`, `data integrity`, `functional correctness`, `performance` and `maintainability`, an unread one among them; `skills/mflib/findings.py` reads it so in converge as in `conduct.py`. A security harm graded under one of those categories reaches them under the version's switch ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts), [D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)).
 - **A planted skip.** `models.toml` is worker-writable, so a worker can write `skip = true` under `[converge]` or a checker's
   table and skip the check that would catch it ([D75](docs/decisions.md#d75--a-person-may-skip-converge-or-a-checker-per-version)).
   Accepted, as the `decide` switch is. The fix is moving the switches where no worker writes.

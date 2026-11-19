@@ -184,3 +184,102 @@ def test_case_g_the_file_replaced_is_read_with_a_bad_byte_replaced(
     assert skip_stub.main([str(stub), "1"]) == 2
     assert "holds a checker's round not cleared" in capsys.readouterr().out
     assert stub.read_bytes() == held
+
+
+# The pin: `skip_stub.py`'s copy of the findings format, as it stands.
+# Why: 0138-findings design D2, its case m.
+
+_PIN_CLEAN = "---\nverdict: clean\n---\n\n"
+
+
+def _pin_status(status: str) -> str:
+    return f"- **S1 — a**\n  - **Status:** {status}\n"
+
+
+def test_pin_m_uncleared_clears_on_verified_alone() -> None:
+    assert not skip_stub.uncleared(_PIN_CLEAN + _pin_status("verified"))
+    for status in ("accepted", "fixed", "wontfix"):
+        assert skip_stub.uncleared(_PIN_CLEAN + _pin_status(status)), status
+
+
+def test_pin_m_role_of_refuses_a_path_off_the_form(tmp_path: Path) -> None:
+    folder = tmp_path / "changes" / _CHANGE
+    folder.mkdir(parents=True)
+    assert skip_stub.role_of(folder / "conformance.md") == "conformance"
+    for path in (
+        folder / "conformance.txt",
+        folder / "review.md",
+        tmp_path / "other" / _CHANGE / "conformance.md",
+    ):
+        with pytest.raises(skip_stub.Stop, match="is not …/changes/"):
+            skip_stub.role_of(path)
+    (folder / "adversarial.md").symlink_to(tmp_path / "target.md")
+    with pytest.raises(skip_stub.Stop, match=r"is a link$"):
+        skip_stub.role_of(folder / "adversarial.md")
+    (tmp_path / "changes" / "0002-b").symlink_to(folder)
+    with pytest.raises(skip_stub.Stop, match=r"is a link$"):
+        skip_stub.role_of(tmp_path / "changes" / "0002-b" / "conformance.md")
+
+
+def test_pin_link_skip_stub_write_refuses_a_link(tmp_path: Path) -> None:
+    target = tmp_path / "target.md"
+    target.write_text(_PIN_CLEAN + _pin_status("verified"))
+    stub = tmp_path / "adversarial.md"
+    stub.symlink_to(target)
+
+    with pytest.raises(skip_stub.Stop, match=r"is a link$"):
+        skip_stub.write(stub, "stub\n")
+
+    assert target.read_text() == _PIN_CLEAN + _pin_status("verified")
+
+
+# The fix: `skip_stub.py` on the module's one form; its case m turns, but `verified`.
+# Why: 0138-findings design D2, D4, D5, D7, D8 and D11.
+
+
+def test_fix_frontmatter_skip_stub_reads_the_leading_block() -> None:
+    open_card = _pin_status("open")
+    assert skip_stub.uncleared("mode: skipped\n---\n" + open_card)
+    assert skip_stub.uncleared("mode: parallel\n---\n" + open_card)
+    assert not skip_stub.uncleared(
+        "---\nmode: skipped\nverdict: changes-requested\n---\n" + open_card
+    )
+
+
+def test_fix_field_skip_stub_reads_a_colon_outside() -> None:
+    assert skip_stub.uncleared(_PIN_CLEAN + "- **S1 — a**\n  - **Status**: open\n")
+    assert not skip_stub.uncleared(
+        _PIN_CLEAN + "- **S1 — a**\n  - **Status**: verified\n"
+    )
+
+
+def test_fix_word_skip_stub_reads_the_status_word() -> None:
+    for status in ("`open`", "**open**", "reopened", ""):
+        assert skip_stub.uncleared(_PIN_CLEAN + _pin_status(status)), status
+    for status in ("`Verified`", "**verified** — held"):
+        assert not skip_stub.uncleared(_PIN_CLEAN + _pin_status(status)), status
+
+
+def test_fix_first_skip_stub_reads_the_first_status() -> None:
+    twice = _pin_status("verified") + "  - **Status:** open\n"
+    assert not skip_stub.uncleared(_PIN_CLEAN + twice)
+    assert skip_stub.uncleared(
+        _PIN_CLEAN + _pin_status("open") + "  - **Status:** verified\n"
+    )
+
+
+def test_fix_ids_skip_stub_keeps_a_malformed_file(tmp_path: Path) -> None:
+    stub = tmp_path / "adversarial.md"
+    for body, why in (
+        ("- **S-1 — a**\n  - **Status:** verified\n", "card S-1 is not R<n> or S<n>"),
+        ("## Notes\n\n  - **Status:** verified\n", "a Status under no card: unnamed"),
+    ):
+        stub.write_text(_PIN_CLEAN + body)
+        with pytest.raises(skip_stub.Stop) as stopped:
+            skip_stub.write(stub, "stub\n")
+        assert str(stopped.value) == f"{stub} is malformed: {why}"
+        assert stub.read_text() == _PIN_CLEAN + body
+    # Twin: the same card on the contract's ids is replaced.
+    stub.write_text(_PIN_CLEAN + _pin_status("verified"))
+    skip_stub.write(stub, "stub\n")
+    assert stub.read_text() == "stub\n"

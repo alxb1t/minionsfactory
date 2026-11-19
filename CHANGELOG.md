@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.110.0] - 2026-11-20
+
+Gate: local 5m37s · CI not read under mf-ship · 0.109.0: local 6m40s · CI not read under mf-ship
+
+- Pin tests hold each copy of the findings format as it stands: converge, `conduct.py`, `integrate.py`, `open_cards.py`,
+  `overlap.py` and `skip_stub.py`, each reader also given a linked file and a file still malformed after its rewrite,
+  before the copies move into one module (0138-findings, phase 1).
+- `skills/mflib/findings.py` writes and parses a findings file in converge's form, and holds each other script's
+  differing copy as a `_legacy` function, so the stations can move onto it unchanged; `skills/mflib/layout.py` names
+  the findings files (0138-findings, phase 2).
+- Converge, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py` and `skip_stub.py` read and write a findings
+  file through `skills/mflib/findings.py`, each through its `_legacy` form where its rule differs, so no behaviour
+  moves yet; the module map and `mf-converge`'s `SKILL.md` name it (0138-findings, phase 3).
+- Every reader of a findings file reads the same card: a card runs through a blank line, a field reads either colon,
+  `Open` and a bold grade count, an unread category is security, a card off `R<n>` and `S<n>` or a stray Status makes
+  the file malformed, and every read follows no link. The stamp no longer unlinks the file first (0138-findings, phase 4).
+- The structure rules refuse a card head, `- **` or `- \*\*`, spelled outside `skills/mflib/`, each remaining site
+  listed by kind, so a new copy of the card's format fails the gate. D57, D78, D83, the threat model and the state-file recipe name
+  `skills/mflib/findings.py` (0138-findings, phase 5).
+
 ## [0.109.0] - 2026-11-19
 
 Gate: local 6m40s · CI not read under mf-ship · 0.108.0: local 6m7s · CI not read under mf-ship

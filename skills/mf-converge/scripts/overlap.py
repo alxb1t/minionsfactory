@@ -13,42 +13,52 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
+
 NEAR = 5
 ROLES = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
-# `debt_match.py`'s card split and `What it affects` spans, copied.
-TITLE = re.compile(r"^- \*\*[^\s*]+ — ")
-AFFECTS = re.compile(r"^[ \t]+- \*\*What it affects:\*\*(.*)$", re.MULTILINE)
+# `debt_match.py`'s `What it affects` spans, copied.
 SPAN = re.compile(r"`([^`]+)`")
 LINES = re.compile(r":\d+(?:-\d+)?$")
 # A bare file path: a `/` or a named suffix, so `main()`, `os.O_RDONLY` and `Run.ship`
 # are not one; a span with a line is a path whatever its shape, so `Makefile:12` is.
 SUFFIXES = "py|md|toml|json|jsonl|yaml|yml|txt|sh|cfg|ini|lock|log|patch|html|css|js|ts"
 PATH = re.compile(rf"[\w.-]*(?:/[\w.-]*)+|[\w.-]*\.(?:{SUFFIXES})")
-PRIORITY = re.compile(r"^[ \t]+- \*\*Priority:\*\*\s*(\S+)", re.MULTILINE)
-ROUND = re.compile(r"^[ \t]+- \*\*Round:\*\*\s*(\d+)", re.MULTILINE)
-EXECUTOR = re.compile(r"^executor:\s*(\S+)\s*$", re.MULTILINE)
 
 type Anchor = tuple[str, int | None, int | None]
 
 
 class Unread(Exception):
-    """A findings file that cannot be read; its path is the message."""
+    """Name a findings file `line` cannot read, and why when it is malformed."""
 
 
-# `debt_match.py`'s `cards`.
+def _card(card: str) -> mflib.findings.Card:
+    """Return the card a card's text holds; one with no field when it holds none."""
+    found = mflib.findings.cards(card, "")
+    return found[0] if found else mflib.findings.Card("", "", {})
+
+
+# `review_metrics.py` takes `cards`, `first_round` and `executor`: 0138 design D3.
 def cards(text: str) -> list[str]:
-    """Return each card, its title to the line before the next title or heading."""
-    found: list[list[str]] = []
-    current: list[str] | None = None
-    for line in text.splitlines():
-        if TITLE.match(line):
-            current = [line]
-            found.append(current)
-        elif line.startswith("#"):
-            current = None
-        elif current is not None:
-            current.append(line)
-    return ["\n".join(card).rstrip() + "\n" for card in found]
+    """Return each card's text: its title and its indented lines."""
+    return ["\n".join(card.lines) + "\n" for card in mflib.findings.cards(text, "")]
+
+
+def first_round(card: str) -> bool:
+    """Return whether a card's **Round** is 1 or absent."""
+    found = re.match(r"\d+", _card(card).fields.get("Round", ""))
+    return found is None or found[0] == "1"
+
+
+def executor(text: str) -> str:
+    """Return a findings file's frontmatter `executor:`, else `unknown`."""
+    return mflib.findings.frontmatter(text, "executor") or "unknown"
+
+
+def _blocks(card: str, blocking: tuple[str, ...]) -> bool:
+    """Return whether a card's grade is one of its role's blocking grades."""
+    return _card(card).severity in blocking
 
 
 def anchors(card: str) -> list[Anchor]:
@@ -56,9 +66,9 @@ def anchors(card: str) -> list[Anchor]:
 
     e.g. "`f()` in `a.py:12-14`, `b.py`" → [("a.py", 12, 14), ("b.py", None, None)]
     """
-    affects = AFFECTS.search(card)
+    affects = _card(card).fields.get("What it affects", "")
     found: list[Anchor] = []
-    for span in SPAN.findall(affects[1]) if affects else []:
+    for span in SPAN.findall(affects):
         path = LINES.sub("", span)
         if not path or (path == span and not PATH.fullmatch(path)):
             continue
@@ -82,12 +92,6 @@ def matches(one: list[Anchor], other: list[Anchor]) -> bool:
             if max(start - high, low - end) <= NEAR:
                 return True
     return False
-
-
-def blocks(card: str, blocking: tuple[str, ...]) -> bool:
-    """Return whether a card's Priority opens with one of its role's blocking grades."""
-    found = PRIORITY.search(card)
-    return found is not None and found[1] in blocking
 
 
 def overlap(
@@ -121,32 +125,24 @@ def overlap(
         "primary_alone": len(left),
         "shadow_alone": len(alone),
         "shared_blockers": sum(
-            blocks(one, blocking) or blocks(other, blocking) for one, other in shared
+            _blocks(one, blocking) or _blocks(other, blocking) for one, other in shared
         ),
-        "primary_blockers": sum(blocks(card, blocking) for card in left),
-        "shadow_blockers": sum(blocks(card, blocking) for card in alone),
+        "primary_blockers": sum(_blocks(card, blocking) for card in left),
+        "shadow_blockers": sum(_blocks(card, blocking) for card in alone),
     }
 
 
 def _read(path: Path) -> str:
-    """Return a findings file's text; one that cannot be read raises `Unread`."""
+    """Return a findings file's text; missing, unread or malformed raises `Unread`."""
     try:
-        return path.read_text()
-    except (OSError, UnicodeDecodeError) as error:
+        text = mflib.findings.read(path)
+    except OSError as error:
         raise Unread(str(path)) from error
-
-
-def executor(text: str) -> str:
-    """Return a findings file's frontmatter `executor:`, else `unknown`."""
-    front = text.split("\n---", 1)[0] if text.startswith("---\n") else ""
-    found = EXECUTOR.search(front)
-    return found[1] if found else "unknown"
-
-
-def first_round(card: str) -> bool:
-    """Return whether a card's **Round** is 1 or absent."""
-    found = ROUND.search(card)
-    return found is None or found[1] == "1"
+    if text is None:
+        raise Unread(str(path))
+    if why := mflib.findings.malformed(text, ""):
+        raise Unread(f"{path}: {why}")
+    return text
 
 
 def line(folder: Path) -> str:

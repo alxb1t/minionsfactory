@@ -69,8 +69,23 @@ LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
 )
 FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
     {
+        # the Acceptance pattern, no card
+        ("brief_check.py", "- **"),
+        # the debt's, the integrate note, the probe's `- **WHEN**`
+        ("conduct.py", "- **"),
+        # the debt's
+        ("converge.py", "- **"),
+        # the debt's, and the spec template, no card
+        ("cut_context.py", "- **"),
+        # the debt's
+        ("debt.py", "- **"),
+        ("debt_match.py", "- **"),
+        # the card's reader
+        ("review_metrics.py", "- **"),
         ("review_metrics.py", "## Run"),
         ("review_metrics.py", "status_log.md"),
+        # the card's reader
+        ("run.py", "- **"),
         ("run.py", "## Run"),
         ("run.py", "status_log.md"),
         ("viewer.py", "## Run"),
@@ -87,6 +102,8 @@ _XDG = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME")
 _HOME = "skills/mflib/"
 _LOG = "status_log.md"
 _RUN = "## Run"
+_CARD = "- **"
+_CARD_PATTERN = r"- \*\*"
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
 SCRIPTS_SEED = (
     'sys.path.insert(0, str(Path(__file__).resolve().parents[{}] / "skills"))'
@@ -449,10 +466,13 @@ def check_layout(
 def _format_name(text: str) -> str:
     """Return the format name the string `text` spells, or `""` for none.
 
-    e.g. `"status_log.md"` → itself, `"^(## Run\\b.*)$"` → `"## Run"`
+    e.g. `"status_log.md"` → itself, `"^(## Run\\b.*)$"` → `"## Run"`,
+    `"^- \\*\\*"` → `"- **"`
     """
     if text == _LOG:
         return text
+    if _CARD in text or _CARD_PATTERN in text:
+        return _CARD
     return _RUN if _RUN in text else ""
 
 
@@ -1052,6 +1072,38 @@ def test_check_formats_passes_the_home_modules(tmp_path: Path) -> None:
             _LAYOUT: 'LOG = "status_log.md"\n',
             "skills/mflib/statuslog.py": 'HEADING = "## Run"\n',
         },
+    )
+    assert check_formats(root, listed=frozenset()) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    ['TITLE = "- **R1 — a title**"\n', 'TITLE = r"^- \\*\\*(R\\d+) — "\n'],
+    ids=["plain", "escaped"],
+)
+def test_check_formats_card_head_fails_when_planted(
+    tmp_path: Path, source: str
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": source})
+    assert check_formats(root, listed=frozenset()) == [
+        "x.py spells - **: a format name outside skills/mflib/, "
+        "not listed in FORMAT_SITES"
+    ]
+
+
+def test_check_formats_card_head_fails_on_a_listed_site_that_is_gone(
+    tmp_path: Path,
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": ""})
+    assert check_formats(root, listed=frozenset({("x.py", "- **")})) == [
+        "x.py spells - **: listed in FORMAT_SITES, not found"
+    ]
+
+
+def test_check_formats_card_head_passes_the_findings_module(tmp_path: Path) -> None:
+    root = _plant(
+        tmp_path,
+        {"skills/mflib/findings.py": 'HEAD = "- **"\nTITLE = r"^- \\*\\*(R\\d+)"\n'},
     )
     assert check_formats(root, listed=frozenset()) == []
 
