@@ -107,12 +107,17 @@ numbered from `P1` with no gap.
 
 `skills/mf-converge/references/worker.md`, converge's worker reference, SHALL own the card: a `## The card` section whose
 table rows are the card's fields, one per row, the first cell holding the field's label in bold (`**Why it's a problem**`). No
-other shipped skill SHALL carry a `## The card` section.
+other shipped skill SHALL carry a `## The card` section. `skills/mflib/findings.py` SHALL write and parse the card as that
+section defines it, and no other script SHALL carry a parser of a findings file's card.
 
 #### Scenario: Only converge carries the card
 - **WHEN** every `skills/*/SKILL.md` and converge's worker reference are scanned for a `## The card` section
 - **THEN** the worker reference carries one, with at least one label
 - **AND** no other skill carries one
+
+#### Scenario: One parser reads the card
+- **WHEN** converge, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py` and `skip_stub.py` read a findings file
+- **THEN** each reads it through `skills/mflib/findings.py`
 
 ### Requirement: The release ships only a reviewed head
 
@@ -2934,8 +2939,8 @@ hold and name none. `skills/mf-ship/SKILL.md` SHALL say that a closed lid sleeps
 ### Requirement: A run grants one round at a small cap, and halts a large one for a re-plan
 
 When a version's converge halts with `cap reached` in a run, `conduct.py` SHALL read the open blocking findings in its
-conformance and adversarial findings files — conformance's `blocking`, adversarial's `critical` and `high`, each
-`Status: open` — and, when every one's fix is
+conformance and adversarial findings files, through `skills/mflib/findings.py` — conformance's `blocking`, adversarial's `critical` and `high`, each
+`Status: open`, a Status or grade read as converge reads it — and, when every one's fix is
 sized `one line`, `a test` or `one line and a test`, no granted round reached the cap — its converge run is not marked `· grant`,
 and the run has not granted the version already — and its models
 file's `[converge]` table does not say `auto_grant = false`, SHALL spawn converge with `grant=yes` itself, writing no grant file and
@@ -2966,6 +2971,10 @@ halt. `mf-converge` run by hand grants nothing on its own.
 #### Scenario: Turned off
 - **WHEN** the version's models file says `[converge] auto_grant = false`
 - **THEN** its cap halts as `re-plan` with no automatic grant
+
+#### Scenario: A blocker written in capitals
+- **WHEN** a version caps with a blocking card whose Status reads `Open` and whose grade is bold, sized `a test`
+- **THEN** the run reads it as an open blocker, as converge counts it, and grants the round
 
 ### Requirement: The integrate station renumbers the branch's changelog entries
 
@@ -4477,11 +4486,12 @@ stub: the findings contract's frontmatter with `head:` the commit `git rev-parse
 today, `open_blocking: 0`, `verdict: clean`, `mode: skipped`, `workers: 0`, `model: none`, `executor: none` and `packet:
 skipped: all`, and no card. It SHALL print the line it wrote, exit 0, and exit 2 with `skip_stub: cannot stub — <why>` when the
 path is a link, is not of the form `changes/<change-id>/conformance.md` or `changes/<change-id>/adversarial.md`, no repository
-holds the working directory, or the path holds a checker's file that is not clean or holds a card other than `verified`. `converge.py`
+holds the working directory, or the path holds a checker's file that is not clean, is malformed or holds a card other than `verified`, the file read
+through `skills/mflib/findings.py`, a card's Status read as converge reads it, and an unknown or empty Status not cleared. `converge.py`
 SHALL start no worker for a role it is given `<role>=skip` for, and SHALL run `skip_stub.py` for that role after the freeze of
 round 1, each re-freeze, a catch-up round's freeze and its by-rule write, and before its `done`, so that the stub's `head:` is
 `HEAD` whenever converge ends. The script SHALL read a stub for `verdict: clean` and its `head:` alone, with no `verdicts` line. A
-pickup check SHALL need the checker the plan did not skip. `conduct.py`'s readers of a findings file SHALL stay as they were: a
+pickup check SHALL need the checker the plan did not skip. `conduct.py`'s readers of a findings file SHALL read through the same module: a
 stub is clean at `HEAD`, holds no card, and bars no rescue or supervisor.
 
 #### Scenario: A stub is written
@@ -4496,6 +4506,14 @@ stub is clean at `HEAD`, holds no card, and bars no rescue or supervisor.
 #### Scenario: A stub over a judged file
 - **WHEN** the findings path holds a checker's file that is not clean, or holds a card whose Status is not `verified`
 - **THEN** `skip_stub.py` exits 2, the file is kept, and the line names what it holds
+
+#### Scenario: A stub over a card whose Status is written in backticks
+- **WHEN** the findings path holds a card whose Status reads `` `open` `` or `**open**`
+- **THEN** `skip_stub.py` exits 2 and keeps the file, as it does for `open`
+
+#### Scenario: A stub over a malformed file
+- **WHEN** the findings path holds a card titled `- **S-1 — a title**`
+- **THEN** `skip_stub.py` exits 2 and keeps the file
 
 #### Scenario: A version with adversarial skipped
 - **WHEN** converge runs for a version whose plan skips adversarial, and conformance finds nothing
@@ -4817,10 +4835,12 @@ No converge worker that conducts SHALL start: the workers are the checkers, the 
 process the run starts through its own worker and checker calls, with a prompt the script fills from the `## Prompt` section of the
 role's reference. The script SHALL run the gate, `gate_check.py`, `plan_check.py` and each `Verify:` and **Still true?** command
 under `conduct.py`'s sandbox runner, never bare. It SHALL read a findings file's frontmatter keys `files`, `commits`, `passes` and
-`inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them SHALL be
-malformed. `converge.py`, `open_cards.py`, `debt_match.py`, `overlap.py`, `conduct.py` and `cut_context.py` SHALL read a card's
-title as a line that starts `- **<id> — ` with an id holding no `*`, so a bullet that closes its bold after its first word,
-as `- **stale-claim** — ran.`, is no card. The status log's events and their text SHALL stay as before.
+`inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them, or with a card
+whose id is outside `R<n>` and `S<n>`, SHALL be malformed. `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py`
+and `skip_stub.py` SHALL read a findings file's cards and frontmatter through `skills/mflib/findings.py`, a card's title a line that
+starts `- **<id> — ` with an id holding no `*`, so a bullet that closes its bold after its first word, as `- **stale-claim** — ran.`,
+is no card; `debt_match.py` and `cut_context.py` SHALL read a debt card's title by that rule. The status log's events and their text
+SHALL stay as before.
 
 The script SHALL go on where it can: a worker that exits non-zero or leaves no file SHALL get one fresh retry; a malformed
 findings file SHALL get one rewrite worker, then a debt card for it, and the run SHALL go on; a fixer whose gate is red or whose tree
@@ -4837,6 +4857,10 @@ stays red and a security card SHALL still halt.
 #### Scenario: A malformed findings file
 - **WHEN** a checker's findings file lacks `passes`, or holds a card with no `Amend:` field
 - **THEN** one rewrite worker is started for it, and a file still malformed becomes one debt card and no halt
+
+#### Scenario: A card titled outside the contract's ids
+- **WHEN** a checker's findings file holds a card titled `- **S-1 — a title**`
+- **THEN** one rewrite worker is started for it, as for a file that lacks `passes`
 
 #### Scenario: A bold-led bullet that is no card
 - **WHEN** a findings file holds `- **stale-claim** — ran.` under a `## Passes` heading and `- **Spec** — none.` in its Summary, beside cards that carry their `Amend:` fields
@@ -5316,7 +5340,7 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 
 ### Requirement: The gate holds the structure rules
 
-`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `bwrap`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists and in the port, `skills/mflib/platform.py`. No string constant outside `skills/mflib/layout.py` SHALL equal `.minions` or start with `.minions/`, unless the test lists the file and the name. No string constant outside `skills/mflib/layout.py` SHALL contain `.mf-ship-origin` or equal `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`, and the test SHALL list no such site. No string constant outside `skills/mflib/` SHALL equal `status_log.md` or contain `## Run`, unless the test lists the file and the name. A script that loads the shared home SHALL load it after the seed line its folder fixes: the same line in each script under `skills/`, and under `scripts/` the one that reaches `skills/` from the file's depth. Every Python file under `skills/` SHALL match a path glob of the threat model's `## Surfaces`. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. The rules for loads, names, cycles, OS commands, state paths and formats SHALL each carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
+`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `bwrap`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists and in the port, `skills/mflib/platform.py`. No string constant outside `skills/mflib/layout.py` SHALL equal `.minions` or start with `.minions/`, unless the test lists the file and the name. No string constant outside `skills/mflib/layout.py` SHALL contain `.mf-ship-origin` or equal `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`, and the test SHALL list no such site. No string constant outside `skills/mflib/` SHALL equal `status_log.md`, contain `## Run`, or contain `- **` or `- \*\*`, the head of a card, unless the test lists the file and the name. A script that loads the shared home SHALL load it after the seed line its folder fixes: the same line in each script under `skills/`, and under `scripts/` the one that reaches `skills/` from the file's depth. Every Python file under `skills/` SHALL match a path glob of the threat model's `## Surfaces`. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. The rules for loads, names, cycles, OS commands, state paths and formats SHALL each carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
 
 #### Scenario: A load the map does not declare
 - **WHEN** a script names a file of another station that its row in `docs/modules.md` does not list
@@ -5362,6 +5386,12 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 - **WHEN** a script outside `skills/mflib/` holds a string constant equal to `status_log.md`, or one that contains `## Run`, and the file and the name are on no exception list
 - **THEN** the format rule fails naming the file and the name
 - **AND WHEN** a file of `skills/mflib/` holds it
+- **THEN** the rule passes
+
+#### Scenario: A card head outside the home
+- **WHEN** a script outside `skills/mflib/` holds a string constant that contains `- **` or `- \*\*`, and the file and the name are on no exception list
+- **THEN** the format rule fails naming the file and the name
+- **AND WHEN** `skills/mflib/findings.py` holds it
 - **THEN** the rule passes
 
 #### Scenario: A load of the home with no seed
@@ -5709,3 +5739,51 @@ With `tags` `false` under `[push]` in `ship.toml`, `conduct.py report` SHALL rea
 #### Scenario: The sandbox does not apply
 - **WHEN** the read-back finds that the OS sandbox does not apply
 - **THEN** the report names it and the script exits 1
+
+### Requirement: One module writes and parses a findings file
+
+`skills/mflib/findings.py` SHALL be the one writer and parser of a findings file: its card, its fields, its frontmatter, the read of the file, a halt's card ids, the stub and the stamp. `converge.py`, `conduct.py` and `integrate.py` SHALL read and write a findings file through it, and `open_cards.py`, `overlap.py` and `skip_stub.py` SHALL be commands over it with their arguments, output and exits as they were.
+
+A **card** SHALL be its title line `- **<id> — <title>**` and the indented lines after it, a blank line not ending it; a **field line** SHALL be `- **<Name>:**`, `- **<Name>**:` or a bare `- **Still true?**`, the first of a repeated field read. A field's **word** SHALL be its first word with backticks and `*` dropped, a trailing `.,;:` stripped and case folded, read the same for a Status, a grade and a category; a Status word no reader knows, and an empty Status, SHALL read as not cleared. A card id outside `R<n>` and `S<n>`, and a Status or Priority line under no card, SHALL make the file malformed at its read, in every reader.
+
+The **frontmatter** SHALL be the block at the start of the file, closed by its first `---` line, a key and its whole value stripped. Every reader SHALL follow no link and replace a byte that is not UTF-8, a missing file keeping each caller's answer; a malformed file SHALL reach `conduct.py`'s security readers as a blocking security card. The conductor's stamp of a checker's `model:` and `tokens:` SHALL write through the staged write of `skills/mflib/statefile.py` at mode `0600`, renaming over the file, and SHALL NOT unlink it first.
+
+#### Scenario: A Status read the same everywhere
+- **WHEN** a blocking card's Status reads `Open` and its grade is bold
+- **THEN** converge, the conductor's automatic grant and `open_cards.py` each count it open and blocking
+
+#### Scenario: A card runs through a blank line
+- **WHEN** a card's Fix field follows a blank line after its Status
+- **THEN** every reader reads the Fix as the card's own, and its size is the one it names
+
+#### Scenario: A field written either way
+- **WHEN** a card holds `- **Status**: fixed` and another holds `- **Status:** fixed`
+- **THEN** every reader reads `fixed` for each
+
+#### Scenario: A security card in an unread category
+- **WHEN** an adversarial card blocks and its category is none of the named non-security ones
+- **THEN** converge and `conduct.py` each read it as a security card
+
+#### Scenario: A card titled outside the contract's ids
+- **WHEN** a findings file holds a card titled `- **S-1 — a title**`
+- **THEN** every reader reads the file as malformed, and `conduct.py`'s security readers read it as a blocking security card
+
+#### Scenario: A frontmatter value that crosses a line break
+- **WHEN** a findings file's `verdict:` is followed by a blank value and a word on the next line
+- **THEN** the conductor and integrate read the value converge reads: the whole stripped value, which is empty
+
+#### Scenario: A linked findings file
+- **WHEN** a findings file is a link
+- **THEN** each reader refuses it, follows no link and writes nothing
+
+#### Scenario: A stamp keeps the file
+- **WHEN** the conductor stamps `model:` and `tokens:` into a findings file
+- **THEN** the file is renamed over from `<name>.tmp` at mode `0600`, and no moment holds it deleted
+
+#### Scenario: A file still malformed after its rewrite
+- **WHEN** a role's findings file is malformed after its rewrite worker
+- **THEN** converge reads the role clean at `HEAD` and files a spoiled card, and the conductor and integrate read the file's own `verdict:` and `head:`
+
+#### Scenario: Which Status clears
+- **WHEN** a findings file holds a card whose Status is `accepted`
+- **THEN** converge clears it and `skip_stub.py` does not
