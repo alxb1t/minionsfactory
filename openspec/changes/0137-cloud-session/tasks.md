@@ -9,7 +9,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 - [x] 3 — The report · moderate
 - [x] 4 — The wait · hard
 - [x] 5 — The setup · hard
-- [ ] 6 — The record · moderate
+- [x] 6 — The record · moderate
 - [ ] 7 — The digest of uv **HUMAN**
 
 ## 1 — The pin
@@ -108,34 +108,34 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## 6 — The record
 
-- [ ] 6.1 In `README.md`, add `## The cloud` before `## This repo's gate`: an environment's setup script clones MinionsFactory at a
+- [x] 6.1 In `README.md`, add `## The cloud` before `## This repo's gate`: an environment's setup script clones MinionsFactory at a
   tag and runs `python3 scripts/cloud_setup.py`, on the Limited network with package managers; `TMPDIR` is `<home>/mf-tmp`.
   Verify: `git grep -n -e "cloud_setup" -- README.md` prints a line.
-- [ ] 6.2 In that section, give the session's prompt, cut, then `conduct.py wait` in the background; say the tag is made and
+- [x] 6.2 In that section, give the session's prompt, cut, then `conduct.py wait` in the background; say the tag is made and
   pushed by the next run on a machine that pushes tags; and state one line a repository at a time, per [D10](design.md#d10).
   Verify: `git grep -n -F -e "conduct.py wait" -- README.md` prints a line.
-- [ ] 6.3 In `docs/decisions.md`, add `### D85 · A cloud environment's setup script is a script of this repository` after D84:
+- [x] 6.3 In `docs/decisions.md`, add `### D85 · A cloud environment's setup script is a script of this repository` after D84:
   the script, its digests, its refusals and the `mf-tmp` folder; the rejected shell script and start hook.
   Verify: `git grep -n -F -e "### D85 · " -- docs/decisions.md` prints a line.
-- [ ] 6.4 In `docs/decisions.md`, add `### D86 · One line of MF a repository at a time` after D85, with the reason of
+- [x] 6.4 In `docs/decisions.md`, add `### D86 · One line of MF a repository at a time` after D85, with the reason of
   [D10](design.md#d10).
   Verify: `git grep -n -F -e "### D86 · " -- docs/decisions.md` prints a line.
-- [ ] 6.5 In `docs/decisions.md`, add D85 and D86 to the Repo conventions list of the group map at the top, so it ends
+- [x] 6.5 In `docs/decisions.md`, add D85 and D86 to the Repo conventions list of the group map at the top, so it ends
   `D76, D84, D85, D86`.
   Verify: `git grep -n -F -e "D76, D84, D85, D86" -- docs/decisions.md` prints a line.
-- [ ] 6.6 In `docs/decisions.md`, amend D21: a worker's commit under a run holds no `Claude-Session:` line, the run setting
+- [x] 6.6 In `docs/decisions.md`, amend D21: a worker's commit under a run holds no `Claude-Session:` line, the run setting
   `attribution.sessionUrl` false.
   Verify: `git grep -n -e "sessionUrl" -- docs/decisions.md` prints a line.
-- [ ] 6.7 In `docs/decisions.md`, amend D17: the release commit, its tag and the merge are a worker's and unsigned; the
+- [x] 6.7 In `docs/decisions.md`, amend D17: the release commit, its tag and the merge are a worker's and unsigned; the
   conductor's own merges are signed where the machine signs.
   Verify: `git grep -n -F -e "signed where the machine signs" -- docs/decisions.md` prints a line.
-- [ ] 6.8 In `THREAT_MODEL.md`, add to the entry points `scripts/cloud_setup.py`, which a cloud environment runs as root: each
+- [x] 6.8 In `THREAT_MODEL.md`, add to the entry points `scripts/cloud_setup.py`, which a cloud environment runs as root: each
   download is held to a digest of the repository, and the signer signs the conductor's merges.
   Verify: `git grep -n -e "cloud_setup" -- THREAT_MODEL.md` prints a line.
-- [ ] 6.9 In `skills/mf-ship/SKILL.md`, add the `wait` row to the command table: what it prints, `wait: live · +<n> lines`,
+- [x] 6.9 In `skills/mf-ship/SKILL.md`, add the `wait` row to the command table: what it prints, `wait: live · +<n> lines`,
   `wait: ended` and `status`'s lines, and its exit 0.
   Verify: `git grep -n -F -e "wait: live" -- skills/mf-ship/SKILL.md` prints a line.
-- [ ] 6.10 In the same table, add to the `report` row the words `default pushed, tag local` and `default pushed` for `tags = false`.
+- [x] 6.10 In the same table, add to the `report` row the words `default pushed, tag local` and `default pushed` for `tags = false`.
   Verify: `git grep -n -F -e "default pushed" -- skills/mf-ship/SKILL.md` prints a line.
 
 ## 7 — The digest of uv
