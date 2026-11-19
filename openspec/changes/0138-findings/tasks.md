@@ -45,8 +45,8 @@ The module takes converge's form as the one form, and holds each other copy's fo
   Verify: `uv run pytest tests/test_findings.py -q -k test_card` passes.
 - [x] 2.3 Add its second part: `FRONT`, `front`, `fault`, `listed`, `frontmatter`, `read`, `halt_ids`, `stub`, `uncleared` and `stamped`, from converge, `conduct.py`, `integrate.py` and `skip_stub.py`, with a `test_front_*`, `test_read_*`, `test_stub_*` or `test_stamped_*` case for each. Each rule of [the copies](design.md#the-copies) that differs from converge's form is held as one legacy function, named as [D2](design.md#d2) says.
   Verify: `uv run pytest tests/test_findings.py -q -k "test_front or test_read or test_stub or test_stamped"` passes.
-- [x] 2.4 Add to `tests/test_findings.py` `test_legacy_*`: a table that runs each legacy function on the inputs of the pin's cases and expects the output the copy it replaces gave.
-  Verify: `uv run pytest tests/test_findings.py -q -k test_legacy` passes.
+- [x] 2.4 Add to `tests/test_findings.py` `test_legacy_*`: a table that runs each legacy function on the inputs of the pin's cases and expects the output the copy it replaces gave. Task 4.10 deletes the table with the legacy functions, so this Verify holds the file the table lived in.
+  Verify: `uv run pytest tests/test_findings.py -q` passes.
 - [x] 2.5 Add the row `skills/mflib/findings.py`, layer `home`, names `statefile.py`, to `docs/modules.md`, in path order.
   Verify: `uv run pytest tests/test_structure.py -q` passes.
 
