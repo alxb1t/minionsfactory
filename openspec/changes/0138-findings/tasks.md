@@ -54,18 +54,20 @@ The module takes converge's form as the one form, and holds each other copy's fo
 
 No assert changes in this phase: a test's line that reaches a moved name changes, its asserts do not.
 
-- [ ] 3.1 In `skills/mf-converge/scripts/converge.py` add `import mflib.findings` after `import mflib.layout`; delete `FRONT`, `TITLE`, `FIELD`, `BLOCKS`, `SMALL`, `SIZE`, `Card`, `_cards`, `_fault` and `_listed`; `read_findings`, `ruled`, `spoiled` and `stubs` take the module's names.
+- [x] 3.1 In `skills/mf-converge/scripts/converge.py` add `import mflib.findings` after `import mflib.layout`; delete `FRONT`, `TITLE`, `FIELD`, `BLOCKS`, `SMALL`, `SIZE`, `Card`, `_cards`, `_fault` and `_listed`; `read_findings`, `ruled`, `spoiled` and `stubs` take the module's names.
   Verify: `git grep -n -e "^FRONT = " -e "^TITLE = " -e "^FIELD = " -e "^BLOCKS = " -e "^SMALL = " -e "^SIZE = " -e "^class Card" -e "^def _cards(" -e "^def _fault(" -e "^def _listed(" -- skills/mf-converge/scripts/converge.py` prints nothing.
-- [ ] 3.2 Make `skills/mf-converge/scripts/open_cards.py` and `skills/mf-converge/scripts/skip_stub.py` commands over the module: drop their `TITLE`, `NAMED`, `STATUS` and `WORD_END` patterns and `_read`, keep the names of [D3](design.md#d3), call the legacy form where a rule differs.
+- [x] 3.2 Make `skills/mf-converge/scripts/open_cards.py` and `skills/mf-converge/scripts/skip_stub.py` commands over the module: drop their `TITLE`, `NAMED`, `STATUS` and `WORD_END` patterns and `_read`, keep the names of [D3](design.md#d3), call the legacy form where a rule differs.
   Verify: `git grep -n -e "^TITLE = " -e "^NAMED = " -e "^STATUS = " -e "^WORD_END = " -- skills/mf-converge/scripts/open_cards.py skills/mf-converge/scripts/skip_stub.py` prints nothing.
-- [ ] 3.3 In `skills/mf-converge/scripts/overlap.py` add the seed line of `skills/mf-converge/scripts/open_cards.py` and `import mflib.findings`; drop `TITLE`, `AFFECTS`, `PRIORITY`, `ROUND`, `EXECUTOR` and `_read`, so no pattern spells the card head (`- \*\*`); keep the names of [D3](design.md#d3); call the legacy form where a rule differs.
+- [x] 3.3 In `skills/mf-converge/scripts/overlap.py` add the seed line of `skills/mf-converge/scripts/open_cards.py` and `import mflib.findings`; drop `TITLE`, `AFFECTS`, `PRIORITY`, `ROUND`, `EXECUTOR` and `_read`, so no pattern spells the card head (`- \*\*`); keep the names of [D3](design.md#d3); call the legacy form where a rule differs.
   Verify: `git grep -n -F -e "- \*\*" -- skills/mf-converge/scripts/overlap.py` prints nothing.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `CARD`, `BLOCKS`, `NON_SECURITY`, `_field`, `_cards_in`, `_severity`, `_category`, `_status` and `_stamped`; `_open_blockers`, `_security_blocks`, `_security_card`, `_security_held`, `_unjudged`, `_amendable`, `_answered` and `_stamp` call the module, the legacy form where a rule differs; `_frontmatter` is one line over the module's conductor legacy form ([D3](design.md#d3)).
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `CARD`, `BLOCKS`, `NON_SECURITY`, `_field`, `_cards_in`, `_severity`, `_category`, `_status` and `_stamped`; `_open_blockers`, `_security_blocks`, `_security_card`, `_security_held`, `_unjudged`, `_amendable`, `_answered` and `_stamp` call the module, the legacy form where a rule differs; `_frontmatter` is one line over the module's conductor legacy form ([D3](design.md#d3)).
   Verify: `git grep -n -e "^def _field(" -e "^def _cards_in(" -e "^def _severity(" -e "^def _category(" -e "^def _status(" -e "^def _stamped(" -e "^CARD = " -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.5 In `skills/mf-integrate/scripts/integrate.py` delete `def _frontmatter`, add `import mflib.findings` after `import mflib.layout`, and have `unready` call the module, the legacy form where a rule differs.
+- [x] 3.5 In `skills/mf-integrate/scripts/integrate.py` delete `def _frontmatter`, add `import mflib.findings` after `import mflib.layout`, and have `unready` call the module, the legacy form where a rule differs.
   Verify: `git grep -n -e "def _frontmatter" -- skills/mf-integrate/scripts/integrate.py` prints nothing.
-- [ ] 3.6 In `docs/modules.md` add `findings.py` to the `names` cell of the rows of `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py` and `skip_stub.py`, in order.
+- [x] 3.6 In `docs/modules.md` add `findings.py` to the `names` cell of the rows of `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py` and `skip_stub.py`, in order.
   Verify: `uv run pytest tests/test_structure.py -q` passes.
+- [ ] 3.7 In `skills/mf-converge/SKILL.md` add `../../mflib/findings.py` for its reads and writes of a findings file to the sentence that lists what converge loads: 3.6 names `findings.py` in converge's map row, and `tests/test_skills.py` holds that sentence to the row, so the two land in one phase (I8).
+  Verify: `uv run pytest tests/test_skills.py -q -k test_mf_converge_names_each_script_the_map_says_it_loads` passes.
 
 ## 4 — The fix
 
@@ -100,7 +102,5 @@ Each task moves the rows of [the cases](design.md#the-cases) marked `turns` that
   Verify: `git grep -c -e "findings.py" -- docs/decisions.md` exits 0.
 - [ ] 5.3 In `THREAT_MODEL.md` name `skills/mflib/findings.py` in the sentence on the conductor's stamp, the sentence on findings files, the surface of the shared home and the sentence on a security card, which now reads an unread category as security in converge too.
   Verify: `git grep -c -e "findings.py" -- THREAT_MODEL.md` exits 0.
-- [ ] 5.4 In `skills/mf-converge/SKILL.md` add `../../mflib/findings.py` for its reads and writes of a findings file to the sentence that lists what converge loads.
-  Verify: `git grep -c -e "mflib/findings.py" -- skills/mf-converge/SKILL.md` exits 0.
-- [ ] 5.5 In `docs/recipes.md` add to the state-file recipe that the findings files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
+- [ ] 5.4 In `docs/recipes.md` add to the state-file recipe that the findings files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
   Verify: `git grep -c -e "findings.py" -- docs/recipes.md` exits 0.

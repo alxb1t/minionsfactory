@@ -43,7 +43,7 @@ open_cards.py  overlap.py  skip_stub.py      thin commands over the module
 | [D12](#d12) | The conductor's stamp writes through `statefile.write` with its folder descriptor and mode `0o600`, renamed over the target and never unlinked first; its folder comes from `statefile.folder` | `_place` deletes the target before it writes | keeping `_place` |
 | [D13](#d13) | The structure rules' format kind refuses a string constant outside `skills/mflib/` that contains `- **` or `- \*\*`; its list holds each remaining site, named by kind | the patterns that spell the card head are in many scripts; the kind that holds the status log's names takes it | a rule per file |
 | [D14](#d14) | No build task edits a debt card | `.minions/debt.md` is written under its lock by converge and the release alone; converge widens card `0136·S3` to name the stamp and re-points a card that cites a moved line, where it reads the diff | a task that writes the debt |
-| [D15](#d15) | The record agrees in the last phase: D57, D78 and D83; the threat model's sentences on the stamp, the findings files, the home and the security card; `mf-converge`'s `SKILL.md`; the state-file recipe; the module map | a decision is edited where it lives | prose in `design.md` alone |
+| [D15](#d15) | The record agrees in the last phase: D57, D78 and D83; the threat model's sentences on the stamp, the findings files, the home and the security card; the state-file recipe. The module map's rows and `mf-converge`'s `SKILL.md` sentence on what converge loads land in the phase whose `make check` holds them | a decision is edited where it lives | prose in `design.md` alone |
 
 ### D1
 
