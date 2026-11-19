@@ -197,11 +197,15 @@ def test_the_deny_lists_are_literals() -> None:
     )
     assert conduct["NETWORK"] == ("pypi.org", "files.pythonhosted.org")
     assert conduct["HOOKS_OFF"] == (
-        "GIT_CONFIG_COUNT=2",
+        "GIT_CONFIG_COUNT=4",
         "GIT_CONFIG_KEY_0=core.hooksPath",
         "GIT_CONFIG_VALUE_0=/dev/null",
         "GIT_CONFIG_KEY_1=core.fsmonitor",
         "GIT_CONFIG_VALUE_1=false",
+        "GIT_CONFIG_KEY_2=commit.gpgsign",
+        "GIT_CONFIG_VALUE_2=false",
+        "GIT_CONFIG_KEY_3=tag.gpgsign",
+        "GIT_CONFIG_VALUE_3=false",
     )
 
 

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A pin test holds today's `report` under `tags = false`: `main` and its merge on `origin`, the tag local, and the
   word reads `not pushed`, before `report` learns to name the default branch (0137-cloud-session, phase 1).
+- A worker's commit names no session and its git signs nothing: each Claude worker's settings set
+  `attribution.sessionUrl` false, and `HOOKS_OFF` sets `commit.gpgsign` and `tag.gpgsign` false, since a sandbox cannot
+  reach the signer. The conductor's own merges keep the machine's signing (0137-cloud-session, phase 2).
 
 ## [0.107.0] - 2026-11-18
 

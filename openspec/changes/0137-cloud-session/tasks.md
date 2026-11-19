@@ -5,7 +5,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The worker · moderate
+- [x] 2 — The worker · moderate
 - [ ] 3 — The report · moderate
 - [ ] 4 — The wait · hard
 - [ ] 5 — The setup · hard
@@ -20,20 +20,20 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## 2 — The worker
 
-- [ ] 2.1 In `worker_settings` of `skills/mf-ship/scripts/conduct.py`, add `"attribution": {"sessionUrl": False}` to the
+- [x] 2.1 In `worker_settings` of `skills/mf-ship/scripts/conduct.py`, add `"attribution": {"sessionUrl": False}` to the
   returned JSON, per [D2](design.md#d2).
   Verify: `git grep -n -e "sessionUrl" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.2 In `tests/test_conduct.py`, add that key to the expected dict of `test_a_claude_worker_starts_in_the_sandbox`.
+- [x] 2.2 In `tests/test_conduct.py`, add that key to the expected dict of `test_a_claude_worker_starts_in_the_sandbox`.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_a_claude_worker_starts_in_the_sandbox` passes.
-- [ ] 2.3 In `HOOKS_OFF` of `skills/mf-ship/scripts/conduct.py`, set `GIT_CONFIG_COUNT=4` and add `GIT_CONFIG_KEY_2=commit.gpgsign`
+- [x] 2.3 In `HOOKS_OFF` of `skills/mf-ship/scripts/conduct.py`, set `GIT_CONFIG_COUNT=4` and add `GIT_CONFIG_KEY_2=commit.gpgsign`
   and `GIT_CONFIG_KEY_3=tag.gpgsign`, each value `false`, per [D3](design.md#d3); say so in the comment above it.
   Verify: `git grep -n -F -e "GIT_CONFIG_KEY_3=tag.gpgsign" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 2.4 In `tests/test_sandboxed.py`, set the literal of `HOOKS_OFF` in `test_the_deny_lists_are_literals` to those keys.
+- [x] 2.4 In `tests/test_sandboxed.py`, set the literal of `HOOKS_OFF` in `test_the_deny_lists_are_literals` to those keys.
   Verify: `uv run pytest tests/test_sandboxed.py -q -k test_the_deny_lists_are_literals` passes.
-- [ ] 2.5 In `tests/test_conduct.py`, add `test_a_worker_git_signs_nothing_over_a_host_that_signs`: each executor's `env` prefix,
+- [x] 2.5 In `tests/test_conduct.py`, add `test_a_worker_git_signs_nothing_over_a_host_that_signs`: each executor's `env` prefix,
   run over a host environment holding `commit.gpgsign` true, makes `git config --get` print `false` for both signing keys.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_a_worker_git_signs_nothing_over_a_host_that_signs` passes.
-- [ ] 2.6 In `tests/test_conduct.py`, add `test_the_conductor_merges_with_no_signing_key`: a spy on the git call of `merge_in`'s
+- [x] 2.6 In `tests/test_conduct.py`, add `test_the_conductor_merges_with_no_signing_key`: a spy on the git call of `merge_in`'s
   commit holds no `gpgsign` argument and no `GIT_CONFIG` variable.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_the_conductor_merges_with_no_signing_key` passes.
 

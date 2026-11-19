@@ -296,11 +296,14 @@ SCRATCH_IDENTITY = (
 # A worker can write the common directory, and the conductor runs outside its sandbox.
 # These stop a directory's hooks only; `CONFIG_PLAIN` stops a `hook.*` key's.
 NO_HOOKS = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
-# The same, for a worker's git: `make gate` is the one check in a run.
+# The same, for a worker's git: `make gate` is the one check in a run. It signs
+# nothing either: its sandbox cannot reach the signer. Why: 0137-cloud-session D3.
 HOOKS_OFF = (
-    "GIT_CONFIG_COUNT=2",
+    "GIT_CONFIG_COUNT=4",
     *("GIT_CONFIG_KEY_0=core.hooksPath", "GIT_CONFIG_VALUE_0=/dev/null"),
     *("GIT_CONFIG_KEY_1=core.fsmonitor", "GIT_CONFIG_VALUE_1=false"),
+    *("GIT_CONFIG_KEY_2=commit.gpgsign", "GIT_CONFIG_VALUE_2=false"),
+    *("GIT_CONFIG_KEY_3=tag.gpgsign", "GIT_CONFIG_VALUE_3=false"),
 )
 # A worker's npm reads the run's cache offline and runs no install script.
 # Why: 0121-ui-prepare design D4.
@@ -3239,6 +3242,9 @@ def worker_settings(
             "enabledPlugins": _plugins_off(),
             "outputStyle": "default",
             "autoMemoryEnabled": False,
+            # No `Claude-Session:` line: it names the operator's session in pushed
+            # history. Why: 0137-cloud-session design D2.
+            "attribution": {"sessionUrl": False},
         }
     )
 

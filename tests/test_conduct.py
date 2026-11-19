@@ -1441,6 +1441,45 @@ def test_a_merge_in_refuses_a_planted_hook(
     assert "chore(integrate)" not in _git(hooked, "log", "--format=%s", "0002-marks")
 
 
+def test_the_conductor_merges_with_no_signing_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0137-cloud-session design D3 — the machine's own config decides.
+    conduct = _conduct()
+    fake()
+    keyed = re.compile(r"GIT_CONFIG_(COUNT|KEY_|VALUE_)")
+    for name in [name for name in os.environ if keyed.match(name)]:
+        monkeypatch.delenv(name)
+    root = _primary(tmp_path)
+    waiting = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    module = conduct["main"].__globals__
+    real = module["_run"]
+    commits: list[tuple[tuple[str, ...], dict[str, str]]] = []
+
+    def spy(
+        cwd: Path, *args: str, env: dict[str, str] | None = None, **rest: int
+    ) -> subprocess.CompletedProcess[str]:
+        if args and args[0] == "commit":
+            commits.append((args, dict(os.environ if env is None else env)))
+        return real(cwd, *args, env=env, **rest)
+
+    monkeypatch.setitem(module, "_run", spy)
+    held_run = conduct["Run"](root, "claude")
+    held_run.git_state = conduct["_git_state"](root)
+    held_run.delta = lambda tree: "delta: none"
+    held_run.merge_in(waiting, "0002-marks", "main")
+
+    assert "chore(integrate): merge main into 0002-marks" in _git(
+        root, "log", "--format=%s", "0002-marks"
+    )
+    [(args, env)] = commits
+    assert not [arg for arg in args if "gpgsign" in arg]
+    assert not [name for name in env if keyed.match(name)]
+    # Twin: a commit run with the worker's keys would match.
+    assert all(keyed.match(pair) for pair in conduct["HOOKS_OFF"])
+
+
 @pytest.mark.slow
 def test_a_stacked_dependent_resets_and_merges_back(
     tmp_path: Path, fake: Callable[..., Path]
@@ -12467,6 +12506,7 @@ def test_a_claude_worker_starts_in_the_sandbox(
         "enabledPlugins": {},
         "outputStyle": "default",
         "autoMemoryEnabled": False,
+        "attribution": {"sessionUrl": False},
     }
     # A plain-text store is a credential, and a registry that takes writes is a way out.
     assert "~/.git-credentials" in conduct["SECRETS"]
@@ -12521,6 +12561,38 @@ def test_a_claude_worker_starts_in_the_sandbox(
             settings()
         assert stop.value.code == 1
         assert value in str(stop.value)
+
+
+def test_a_worker_git_signs_nothing_over_a_host_that_signs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0137-cloud-session design D3.
+    conduct = _conduct()
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    root = _primary(tmp_path)
+    repo = (root, root / ".git")
+    prefixes: dict[str, list[str]] = {}
+    for executor in ("claude", "codex"):
+        command = conduct["argv"](executor, "Do it.", root, None, None, repo)
+        prefixes[executor] = command[: command.index(executor)]
+    keys = ("commit.gpgsign", "tag.gpgsign")
+    signing = "".join(f"[{key.split('.')[0]}]\n\tgpgsign = true\n" for key in keys)
+    with Path(os.environ["GIT_CONFIG_GLOBAL"]).open("a") as config:
+        config.write(signing)
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "commit.gpgsign")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "true")
+
+    def read(prefix: list[str], key: str) -> str:
+        get = ["git", "-C", str(root), "config", "--get", key]
+        return subprocess.run(
+            [*prefix, *get], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    # Twin: the host signs both, so a prefix without the keys reads `true`.
+    assert [read([], key) for key in keys] == ["true", "true"]
+    for executor, prefix in prefixes.items():
+        assert [read(prefix, key) for key in keys] == ["false", "false"], executor
 
 
 @pytest.mark.slow
