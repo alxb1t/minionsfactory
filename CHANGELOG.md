@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The home gains `statefile.py`, one staged write and one no-follow read, and `statuslog.py`, one writer and parser
   of the status log, each copy's difference an argument; `layout.py` names the log. No caller yet
   (0136-status-log, phase 2).
+- `stamp.py` becomes a command over `statuslog.py`; converge's `stamp`, `open_run`, `latest` and amend walk and the
+  conductor's log readers and `_restamp` call the module, and `Event` and `Run` move into it. No answer changes
+  (0136-status-log, phase 3).
 
 ## [0.107.0] - 2026-11-18
 

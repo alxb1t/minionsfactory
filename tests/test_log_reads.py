@@ -3,7 +3,6 @@
 Cases H and I of 0136-status-log design's pin, and a FIFO at each non-blocking read.
 """
 
-import importlib.util
 import os
 import runpy
 import threading
@@ -13,15 +12,10 @@ from typing import Any
 
 import pytest
 from conduct_load import conduct as _conduct
+from mflib import statuslog
 
 _SKILLS = Path(__file__).resolve().parent.parent / "skills"
 _CHANGE = "0001-a"
-_SPEC = importlib.util.spec_from_file_location(
-    "log_reads_stamp", _SKILLS / "mf-converge" / "scripts" / "stamp.py"
-)
-assert _SPEC and _SPEC.loader
-stamp = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(stamp)
 converge = runpy.run_path(str(_SKILLS / "mf-converge" / "scripts" / "converge.py"))
 viewer = runpy.run_path(str(_SKILLS / "mf-ui" / "scripts" / "viewer.py"))
 conduct = _conduct()
@@ -45,7 +39,7 @@ def test_case_h_a_bad_byte_raises_in_the_stamp_and_run_end_and_is_replaced_else(
     log = _log(tmp_path, b"# t\n\n## Run 1 \xff\n10:00:00 \xff\n")
 
     with pytest.raises(UnicodeDecodeError):
-        stamp.read(log)
+        statuslog.read(log)
     with pytest.raises(UnicodeDecodeError):
         _run_end(tmp_path)
     for read in (converge["_text"], conduct["_bounded"], viewer["read_part"]):
@@ -55,7 +49,7 @@ def test_case_h_a_bad_byte_raises_in_the_stamp_and_run_end_and_is_replaced_else(
 def test_case_i_the_bounds_of_each_read_as_literals(tmp_path: Path) -> None:
     long = "a" * 300_000
     log = _log(tmp_path, f"# t\n\n## Run 1 — d\n{long}\n".encode())
-    for read in (stamp.read, converge["_text"]):
+    for read in (statuslog.read, converge["_text"]):
         assert read(log) == f"# t\n\n## Run 1 — d\n{long}\n", read
     assert _run_end(tmp_path) == long
 

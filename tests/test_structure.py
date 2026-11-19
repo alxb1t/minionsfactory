@@ -64,7 +64,6 @@ LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("converge.py", ".minions/"),
         ("cut_check.py", ".minions/"),
         ("gate_run.py", ".minions/"),
-        ("stamp.py", ".minions/"),
         ("viewer.py", ".minions"),
     }
 )

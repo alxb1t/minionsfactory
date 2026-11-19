@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, Protocol, TextIO
 
 import pytest
+from mflib import statuslog
 from old_layout import ENTRIES, LOG, ROLES, plant
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "mf-converge" / "scripts"
@@ -2510,7 +2511,7 @@ def test_case_m_latest_reads_the_newest_run_to_a_blank_line_or_a_heading(
 ) -> None:
     # Why: 0136-status-log design, the pin.
     converge = _converge()
-    latest, event = converge["latest"], converge["Event"]
+    latest, event = converge["latest"], statuslog.Event
     context = _bare(converge, tmp_path)
     context.log.write_text(
         "# t\n\n## Run 3 — d\n10:00:02 · round 12 · verify — \n"
@@ -2528,19 +2529,19 @@ def test_case_m_latest_reads_the_newest_run_to_a_blank_line_or_a_heading(
 
     context.log.unlink()
     context.log.symlink_to(tmp_path / "gone.md")
-    with pytest.raises(converge["STAMP"]["Stop"]):
+    with pytest.raises(statuslog.Refused):
         latest(context)
 
 
 def test_case_n_halted_is_anchored_at_the_end_and_locked_needs_the_run_folder() -> None:
     # Why: 0136-status-log design, the pin.
     converge = _converge()
-    halted, locked = converge["HALTED"], converge["LOCKED"]
+    halted, locked = converge["HALTED"], statuslog.names_lock
     assert halted.sub("", "red · head abc123") == "red"
     assert halted.sub("", "red · head abc123 · more") == "red · head abc123 · more"
-    assert locked.search("waited 2 minutes for .minions/debt.lock")
-    assert locked.search("waited 2 minutes for .minions/backlog.lock")
-    assert not locked.search("waited 2 minutes for debt.lock")
+    assert locked("waited 2 minutes for .minions/debt.lock")
+    assert locked("waited 2 minutes for .minions/backlog.lock")
+    assert not locked("waited 2 minutes for debt.lock")
 
 
 def test_case_p_a_refused_stamp_is_cannot_and_runs_are_counted_by_heading(
@@ -2565,7 +2566,7 @@ def test_case_p_a_refused_stamp_is_cannot_and_runs_are_counted_by_heading(
     outside.write_text("# t\n\n## Run 1 — d\n")
     context.log.unlink()
     context.log.symlink_to(outside)
-    with pytest.raises(converge["STAMP"]["Stop"]):
+    with pytest.raises(statuslog.Refused):
         converge["open_run"](context)
     with pytest.raises(converge["Cannot"]) as linked:
         converge["stamp"](context, "start — base a")

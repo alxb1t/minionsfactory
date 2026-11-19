@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from conduct_load import conduct as _conduct
+from mflib import statuslog
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "mf-converge" / "scripts"
 _CHANGE = "0001-a"
@@ -26,7 +27,7 @@ _START = "10:00:00 · round 1 · start — base a"
 
 @pytest.fixture(autouse=True)
 def _clock(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(stamp, "_now", lambda: datetime(2026, 11, 7, 10, 2, 3))
+    monkeypatch.setattr(statuslog, "_now", lambda: datetime(2026, 11, 7, 10, 2, 3))
 
 
 def _context(primary: Path) -> object:
@@ -55,7 +56,7 @@ def test_a_link_at_the_log_is_refused_by_the_stamp_and_converge_and_followed_els
 
     assert stamp.main([str(log), "round 1 · verify"]) == 2
     assert capsys.readouterr().out == f"stamp: cannot stamp — {log} is a link\n"
-    with pytest.raises(converge["STAMP"]["Stop"]):
+    with pytest.raises(statuslog.Refused):
         converge["latest"](_context(tmp_path))
     assert _run_end(tmp_path) == _START
     assert outside.read_text() == text
@@ -70,7 +71,7 @@ def test_an_event_outside_the_form_is_stamped_skipped_by_converge_and_read_else(
     assert stamp.main([str(log), "anything goes"]) == 0
     assert capsys.readouterr().out == "10:02:03 · anything goes\n"
     run = converge["latest"](_context(tmp_path))
-    assert run == (None, [converge["Event"](1, "start", "base a")])
+    assert run == (None, [statuslog.Event(1, "start", "base a")])
     assert _run_end(tmp_path) == "10:02:03 · anything goes"
     assert not conduct["_is_event"]("10:02:03 · anything goes", "done")
 

@@ -6,7 +6,7 @@ The phases: pin the region, write the modules, move the stations, give the helpe
 
 - [x] 1 — The pin · hard
 - [x] 2 — The modules · hard
-- [ ] 3 — The stations · hard
+- [x] 3 — The stations · hard
 - [ ] 4 — The helpers · moderate
 - [ ] 5 — The fix · hard
 - [ ] 6 — The rule and the record · hard
@@ -49,17 +49,17 @@ The modules and the layout's name, beside no caller ([D1](design.md#d1), [D3](de
 
 The move: no assert changes, only the line by which a test reaches a name ([D3](design.md#d3), [D10](design.md#d10), [D13](design.md#d13)).
 
-- [ ] 3.1 In `skills/mf-converge/scripts/stamp.py` add the seed line and make `main` check its usage and call `mflib.statuslog.command`: delete `stamp`, `read`, `write`, `_ends`, `_now`, `LOCKS` and `Stop`, and keep `USAGE`, the arguments, the printed lines and the exit codes.
+- [x] 3.1 In `skills/mf-converge/scripts/stamp.py` add the seed line and make `main` check its usage and call `mflib.statuslog.command`: delete `stamp`, `read`, `write`, `_ends`, `_now`, `LOCKS` and `Stop`, and keep `USAGE`, the arguments, the printed lines and the exit codes.
   Verify: `git grep -n -e "^LOCKS" -- skills/mf-converge/scripts/stamp.py` prints nothing.
-- [ ] 3.2 In `tests/test_stamp.py` reach the clock through `statuslog._now` and the swapped-folder seam, the loaded script's `stamp`, through `statuslog.insert`.
+- [x] 3.2 In `tests/test_stamp.py` reach the clock through `statuslog._now` and the swapped-folder seam, the loaded script's `stamp`, through `statuslog.insert`.
   Verify: `uv run pytest tests/test_stamp.py -q` exits 0.
-- [ ] 3.3 In `skills/mf-converge/scripts/converge.py` delete `STAMP`, `EVENT`, `LOCKED`, `Event` and `Run`; make `stamp` call `statuslog.command`, `open_run` call `statuslog.open_run`, `latest` call `statuslog.latest`, `answered_amends` walk the log with `is_heading`, `mark_of` and `parse_event`, `Context.log` call `mflib.layout.status_log`, and every use of `Event`, `Run` and the lock test name the module's. Re-point the lines of `tests/test_converge.py` and the phase 1 files that reach `STAMP` or the stamp's `Stop` to `mflib.statuslog`.
+- [x] 3.3 In `skills/mf-converge/scripts/converge.py` delete `STAMP`, `EVENT`, `LOCKED`, `Event` and `Run`; make `stamp` call `statuslog.command`, `open_run` call `statuslog.open_run`, `latest` call `statuslog.latest`, `answered_amends` walk the log with `is_heading`, `mark_of` and `parse_event`, `Context.log` call `mflib.layout.status_log`, and every use of `Event`, `Run` and the lock test name the module's. Re-point the lines of `tests/test_converge.py` and the phase 1 files that reach `STAMP` or the stamp's `Stop` to `mflib.statuslog`.
   Verify: `git grep -n -e "STAMP\[" -- skills/mf-converge/scripts/converge.py` prints nothing.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `STAMP_SCRIPT`; keep `_run_end`, `_run_marked`, `_run_started`, `_is_event`, `_buried_done` and `_restamp` as wrappers that read the log with `read_text` as today and call `mflib.statuslog`, `_restamp` through `command`, which prints as the stamp's `main` did; `stage_of` tests a halt with `names_lock`.
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` delete `STAMP_SCRIPT`; keep `_run_end`, `_run_marked`, `_run_started`, `_is_event`, `_buried_done` and `_restamp` as wrappers that read the log with `read_text` as today and call `mflib.statuslog`, `_restamp` through `command`, which prints as the stamp's `main` did; `stage_of` tests a halt with `names_lock`.
   Verify: `git grep -n -e "STAMP_SCRIPT" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.5 In `docs/modules.md` set the `names` cells: `stamp.py` names `statuslog.py`; `converge.py` and `conduct.py` lose `stamp.py` and gain `statuslog.py`. In `skills/mf-converge/SKILL.md` replace the mention of `stamp.py` among the scripts converge loads with `../../mflib/statuslog.py`.
+- [x] 3.5 In `docs/modules.md` set the `names` cells: `stamp.py` names `statuslog.py`; `converge.py` and `conduct.py` lose `stamp.py` and gain `statuslog.py`. In `skills/mf-converge/SKILL.md` replace the mention of `stamp.py` among the scripts converge loads with `../../mflib/statuslog.py`.
   Verify: `uv run pytest tests/test_structure.py tests/test_skills.py -q` exits 0.
-- [ ] 3.6 In `tests/test_structure.py` remove the pair `("stamp.py", ".minions/")` from `LAYOUT_SITES`.
+- [x] 3.6 In `tests/test_structure.py` remove the pair `("stamp.py", ".minions/")` from `LAYOUT_SITES`.
   Verify: `git grep -n -F '"stamp.py", ".minions/"' -- tests/test_structure.py` prints nothing.
 
 ## 4 — The helpers

@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
 import mflib.platform
+import mflib.statuslog
 
 TIMEOUT = 10800
 STAMP = "%Y%m%d-%H%M%S"
@@ -65,7 +66,6 @@ HEADROOM = 90
 WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
-STAMP_SCRIPT = Path(__file__).resolve().parents[2] / "mf-converge/scripts/stamp.py"
 # The brief's checker, and the runner of its `--models`.
 # Why: 0106-cut-scripts design D7.
 BRIEF_CHECK = Path(__file__).resolve().parents[2] / "mf-plan/scripts/brief_check.py"
@@ -879,14 +879,14 @@ def _npm_unapproved(tree: Path, change: str, default: str) -> str | None:
 
 def _run_end(runs: Path, change: str) -> str | None:
     """Return the newest converge run's top event line, or None with no run."""
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), None
-    )
-    if heading is None:
-        return None
-    return next((line for line in lines[heading + 1 :] if line.strip()), "").strip()
+    block = mflib.statuslog.newest(_log_text(runs, change), extent="line")
+    return None if block is None else next(iter(block.lines), "").strip()
+
+
+def _log_text(runs: Path, change: str) -> str:
+    """Return the text of `change`'s status log, or "" with none."""
+    log = mflib.layout.status_log(runs.parent, change)
+    return log.read_text() if log.is_file() else ""
 
 
 def _run_marked(runs: Path, change: str, mark: str) -> bool:
@@ -894,10 +894,8 @@ def _run_marked(runs: Path, change: str, mark: str) -> bool:
 
     e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next((line for line in lines if line.startswith("## Run")), "")
-    return heading.rstrip().endswith(f" · {mark}")
+    block = mflib.statuslog.newest(_log_text(runs, change), extent="line")
+    return mflib.statuslog.marked("" if block is None else block.heading, mark)
 
 
 def _granted_run(runs: Path, change: str) -> bool:
@@ -1062,7 +1060,7 @@ def _is_event(line: str, event: str) -> bool:
 
     e.g. "10:00:00 · round 1 · done — ok", "done" → True
     """
-    return line.split(" — ", maxsplit=1)[0].endswith(f" · {event}")
+    return mflib.statuslog.is_event(line, event)
 
 
 def _clear_stale_lock(primary: Path, name: str) -> int | None:
@@ -1176,14 +1174,8 @@ def _run_started(runs: Path, change: str) -> bool:
 
     e.g. "## Run 2 — d", "… · halt — red", "… · start — base a" → True
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
-    )
-    run = itertools.takewhile(
-        lambda line: not line.startswith("## Run"), lines[heading + 1 :]
-    )
+    block = mflib.statuslog.newest(_log_text(runs, change), extent="heading")
+    run = [] if block is None else block.lines
     return any(_is_event(line, "start") for line in run)
 
 
@@ -1306,19 +1298,9 @@ def _buried_done(runs: Path, change: str) -> str | None:
 
     e.g. "… · debt — d" over "… · round 2 · done — ok" → the `done` line
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
-    lines = log.read_text().splitlines() if log.is_file() else []
-    heading = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
-    )
-    run = [
-        line
-        for line in itertools.takewhile(
-            lambda line: not line.startswith("## Run"), lines[heading + 1 :]
-        )
-        if line.strip()
-    ]
-    if not run or _is_event(run[0], "halt") or _is_event(run[0], "done"):
+    block = mflib.statuslog.newest(_log_text(runs, change), extent="heading")
+    run = [] if block is None else block.lines
+    if not run or mflib.statuslog.ends(run[0]):
         return None
     return next((line for line in run if _is_event(line, "done")), None)
 
@@ -1328,10 +1310,10 @@ def _restamp(runs: Path, change: str, buried: str) -> int:
 
     e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
     """
-    log = mflib.layout.change_dir(runs.parent, change) / "status_log.md"
+    log = mflib.layout.status_log(runs.parent, change)
     found = re.search(r"· (round \d+) · done\b", buried)
     event = f"{found[1] if found else 'round 1'} · done — re-stamped by the run"
-    return int(runpy.run_path(str(STAMP_SCRIPT))["main"]([str(log), event]))
+    return mflib.statuslog.command(log, [event], None, None)
 
 
 def _unjudged(
@@ -1583,8 +1565,7 @@ def stage_of(
     # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
     skipped = "converge" in (_skips(runs, change) if skips is None else skips)
     if halt := None if skipped else _converge_halt(runs, change):
-        locks = (mflib.layout.debt_lock(primary), mflib.layout.backlog_lock(primary))
-        if any(str(lock.relative_to(primary)) in halt for lock in locks):
+        if mflib.statuslog.names_lock(halt):
             return "converge", "halted on the debt lock: resumes at Step 9"
         if _rerun(runs, tree, change, halt):
             return "converge", RERUN

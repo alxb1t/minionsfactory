@@ -13,8 +13,10 @@ from datetime import datetime, tzinfo
 from pathlib import Path
 from types import ModuleType
 from typing import Any, NamedTuple
+from unittest import mock
 
 import pytest
+from mflib import statuslog
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "mf-converge" / "scripts"
 _TEXT = "the new text\n"
@@ -32,10 +34,9 @@ def _load(name: str) -> ModuleType:
     return module
 
 
-stamp, bundle, debt_match, open_cards, skip_stub, gate_run, plan_check = (
+bundle, debt_match, open_cards, skip_stub, gate_run, plan_check = (
     _load(f"{name}.py")
     for name in (
-        "stamp",
         "bundle",
         "debt_match",
         "open_cards",
@@ -74,6 +75,20 @@ def _stopped(
     return call
 
 
+def _stamp(path: Path, text: str) -> str | None:
+    """Return the stamp's refusal to write `text`, its read and insert set aside."""
+    lines = (text.splitlines(), [])
+    with (
+        mock.patch.object(statuslog, "read", return_value=""),
+        mock.patch.object(statuslog, "insert", return_value=lines),
+    ):
+        try:
+            statuslog.stamp(path, [], None, None)
+        except statuslog.Refused as refused:
+            return str(refused)
+    return None
+
+
 def _keep(path: Path, text: str) -> str | None:
     plan_check.keep(str(path.parent), _KEY, plan_check.Result(0, text))
     return None
@@ -93,7 +108,7 @@ def _same(text: str) -> str:
 
 
 ROWS = (
-    Row("stamp.py", "status_log.md", _stopped(stamp, stamp.write), _same),
+    Row("stamp.py", "status_log.md", _stamp, _same),
     Row("bundle.py", "bundle.md", _stopped(bundle, bundle.write), _same),
     Row(
         "debt_match.py", "debt-cards.md", _stopped(debt_match, debt_match.write), _same
