@@ -8,7 +8,7 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 - [x] 2 — The worker · moderate
 - [x] 3 — The report · moderate
 - [x] 4 — The wait · hard
-- [ ] 5 — The setup · hard
+- [x] 5 — The setup · hard
 - [ ] 6 — The record · moderate
 - [ ] 7 — The digest of uv **HUMAN**
 
@@ -75,34 +75,34 @@ The phases: pin `report`, make the worker's commit and git quiet, name the defau
 
 ## 5 — The setup
 
-- [ ] 5.1 Create `scripts/cloud_setup.py` as [D6](design.md#d6) says: the PEP 723 header, the seed line, the versions `UV`,
+- [x] 5.1 Create `scripts/cloud_setup.py` as [D6](design.md#d6) says: the PEP 723 header, the seed line, the versions `UV`,
   `BETTERLEAKS` and `OPENSPEC`, the URL and digest constants of [D8](design.md#d8) (`UV_SHA256` is `"UNSET"`), `run`, `fetch`.
   Verify: `grep -n -e "^def run(" -e "^def fetch(" -e "^UV_SHA256 = " scripts/cloud_setup.py` prints a line for each.
-- [ ] 5.2 In `docs/modules.md`, add the row `scripts/cloud_setup.py` · `gate` · `layout.py, platform.py`, and name the script in
+- [x] 5.2 In `docs/modules.md`, add the row `scripts/cloud_setup.py` · `gate` · `layout.py, platform.py`, and name the script in
   the `gate` layer's line, per [D9](design.md#d9).
   Verify: `git grep -n -e "cloud_setup" -- docs/modules.md` prints a line.
-- [ ] 5.3 In `scripts/cloud_setup.py`, add `refuse()`, `install_packages()` and `install_tools()`: the refusals, `apt-get` for
+- [x] 5.3 In `scripts/cloud_setup.py`, add `refuse()`, `install_packages()` and `install_tools()`: the refusals, `apt-get` for
   `bubblewrap`, `socat` and `procps`, and the checked download of `uv` and `betterleaks` into `/usr/local/bin`.
   Verify: `grep -n -e "^def refuse(" -e "^def install_packages(" -e "^def install_tools(" scripts/cloud_setup.py` prints a line for each.
-- [ ] 5.4 In `scripts/cloud_setup.py`, add `install_openspec()`, `make_folder()` and `write_ship_toml()`: `npm` at the version,
+- [x] 5.4 In `scripts/cloud_setup.py`, add `install_openspec()`, `make_folder()` and `write_ship_toml()`: `npm` at the version,
   `mf-tmp` under the home, and `ship.toml` at `layout.ship_file()` only where none stands.
   Verify: `grep -n -e "^def install_openspec(" -e "^def make_folder(" -e "^def write_ship_toml(" scripts/cloud_setup.py` prints a line for each.
-- [ ] 5.5 In `scripts/cloud_setup.py`, add `install_skills()`, `read_back()` and `main()`: `make install-skills` at the clone's
+- [x] 5.5 In `scripts/cloud_setup.py`, add `install_skills()`, `read_back()` and `main()`: `make install-skills` at the clone's
   tag, `platform.has_sandbox()`, and one report ending `cloud_setup: ready`; each step skips what stands.
   Verify: `grep -n -e "^def install_skills(" -e "^def read_back(" -e "^def main(" scripts/cloud_setup.py` prints a line for each.
-- [ ] 5.6 Create `tests/test_cloud_setup.py` with its fixtures, which replace `run`, `fetch` and the root and OS checks, and
+- [x] 5.6 Create `tests/test_cloud_setup.py` with its fixtures, which replace `run`, `fetch` and the root and OS checks, and
   `test_a_first_run_installs_each_step`.
   Verify: `uv run pytest tests/test_cloud_setup.py -q -k test_a_first_run_installs_each_step` passes.
-- [ ] 5.7 In it, add `test_a_user_or_os_or_clone_the_script_refuses_runs_no_command`: not root, macOS and a clone at no tag each
+- [x] 5.7 In it, add `test_a_user_or_os_or_clone_the_script_refuses_runs_no_command`: not root, macOS and a clone at no tag each
   exit 2 with `run` never called.
   Verify: `uv run pytest tests/test_cloud_setup.py -q -k test_a_user_or_os_or_clone_the_script_refuses_runs_no_command` passes.
-- [ ] 5.8 In it, add `test_a_digest_that_differs_installs_nothing`: the download's hash differs, and the run fails naming the tool.
+- [x] 5.8 In it, add `test_a_digest_that_differs_installs_nothing`: the download's hash differs, and the run fails naming the tool.
   Verify: `uv run pytest tests/test_cloud_setup.py -q -k test_a_digest_that_differs_installs_nothing` passes.
-- [ ] 5.9 In it, add `test_a_second_run_skips_each_step` and `test_a_ship_toml_that_stands_is_kept`.
+- [x] 5.9 In it, add `test_a_second_run_skips_each_step` and `test_a_ship_toml_that_stands_is_kept`.
   Verify: `uv run pytest tests/test_cloud_setup.py -q -k "test_a_second_run_skips_each_step or test_a_ship_toml_that_stands_is_kept"` passes.
-- [ ] 5.10 In it, add `test_a_sandbox_that_does_not_apply_fails_the_run`: `has_sandbox` false makes exit 1 and the report name it.
+- [x] 5.10 In it, add `test_a_sandbox_that_does_not_apply_fails_the_run`: `has_sandbox` false makes exit 1 and the report name it.
   Verify: `uv run pytest tests/test_cloud_setup.py -q -k test_a_sandbox_that_does_not_apply_fails_the_run` passes.
-- [ ] 5.11 In it, add `test_the_versions_are_the_repositorys`: `UV`, `BETTERLEAKS` and `OPENSPEC`, and the `betterleaks` URL and
+- [x] 5.11 In it, add `test_the_versions_are_the_repositorys`: `UV`, `BETTERLEAKS` and `OPENSPEC`, and the `betterleaks` URL and
   digest, each equal what the file [D6](design.md#d6) names for it holds, read at the test.
   Verify: `uv run pytest tests/test_cloud_setup.py -q -k test_the_versions_are_the_repositorys` passes.
 

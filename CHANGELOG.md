@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `conduct.py wait` blocks until the live run ends: every 60 s it prints the run log's new lines and
   `wait: live · +<n> lines`, reading no `origin`, so a cloud VM stays up; at the end, `wait: ended` and `status`'s
   lines (0137-cloud-session, phase 4).
+- `scripts/cloud_setup.py` makes a cloud Linux VM ready for a run, as root, from a clone at a tag: `bubblewrap`, `socat`
+  and `procps`, `uv` and `betterleaks` checked against their digests, `openspec`, `mf-tmp`, `ship.toml`, the skills at
+  the tag, then the sandbox read back. A second run skips what stands (0137-cloud-session, phase 5).
 
 ## [0.107.0] - 2026-11-18
 

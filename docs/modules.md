@@ -8,7 +8,7 @@ The layers:
 - **`conductor`** — the scripts under `skills/mf-ship/scripts/` that run a version's line and load a station in process.
 - **`station`** — a station's own scripts.
 - **`reader`** — the operator's readers of run data, and the metric scripts.
-- **`gate`** — the scripts `make gate` and `make corpus` run.
+- **`gate`** — the scripts `make gate` and `make corpus` run, and the setup script a cloud environment runs.
 - **`home`** — the shared home, `skills/mflib/`: the port to the OS, and the layout of the run directory and of the home folder.
 
 A row gives a path once, and `check_map` fails on a `conductor` or `home` row outside its folder.
@@ -19,6 +19,7 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 
 | path | layer | names |
 |---|---|---|
+| `scripts/cloud_setup.py` | gate | layout.py, platform.py |
 | `scripts/corpus.py` | gate | layout.py |
 | `scripts/docstrings.py` | gate | — |
 | `scripts/metrics/codebase.py` | reader | — |
