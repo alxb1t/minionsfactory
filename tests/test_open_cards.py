@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import mflib.findings
 import pytest
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -150,7 +151,9 @@ def test_pin_k_open_cards_card_runs_to_a_title_or_heading() -> None:
     first = "- **R1 — a**\n  - **Status:** open\n\n  - **Fix:** f\n"
     second = "- **A4 — b**\n  - **Status:** fixed\n"
 
-    found = open_cards.cards(f"{first}## Refuted\n  - **Fix:** g\n{second}")
+    found = mflib.findings.cards_open_cards_legacy(
+        f"{first}## Refuted\n  - **Fix:** g\n{second}"
+    )
 
     assert found == [first, second]
 

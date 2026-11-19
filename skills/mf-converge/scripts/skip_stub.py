@@ -9,19 +9,17 @@ skip_stub.py <findings-file> <round>
 
 import argparse
 import errno
-import re
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
 import mflib.statefile
 
 TIMEOUT_SECONDS = 600
 ROLES = ("conformance", "adversarial")
-BODY = "Skipped by the plan: no worker judged this round."
-STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\w+)", re.MULTILINE)
 
 
 class Stop(Exception):
@@ -78,35 +76,20 @@ def stub(path: Path, role: str, round_: int, head: str, cwd: Path | None = None)
     common = Path(
         _git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=cwd)
     )
-    keys = {
-        "type": role,
-        "plan": path.parent.name,
-        "project": common.parent.name,
-        "branch": _git("branch", "--show-current", cwd=cwd),
-        "head": head,
-        "reviewed": _today().isoformat(),
-        "round": round_,
-        "open_blocking": 0,
-        "verdict": "clean",
-        "mode": "skipped",
-        "workers": 0,
-        "model": "none",
-        "executor": "none",
-        "packet": "skipped: all",
-    }
-    front = "".join(f"{key}: {value}\n" for key, value in keys.items())
-    return f"---\n{front}---\n\n{BODY}\n"
+    return mflib.findings.stub(
+        role,
+        path.parent.name,
+        common.parent.name,
+        _git("branch", "--show-current", cwd=cwd),
+        head,
+        _today().isoformat(),
+        round_,
+    )
 
 
 def uncleared(text: str) -> bool:
-    r"""Return whether a findings file holds a checker's round not yet cleared."""
-    lines = text.split("\n---", 1)[0].splitlines()
-    pairs = (line.partition(":") for line in lines)
-    front = {key.strip(): value.strip() for key, _, value in pairs}
-    if front.get("mode") == "skipped":
-        return False
-    statuses = STATUS.findall(text)
-    return front.get("verdict") != "clean" or any(s != "verified" for s in statuses)
+    """Return whether a findings file holds a checker's round not yet cleared."""
+    return mflib.findings.uncleared_skip_stub_legacy(text)
 
 
 def write(path: Path, text: str) -> None:

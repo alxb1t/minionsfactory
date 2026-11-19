@@ -28,6 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import mflib.findings
 import pytest
 from conduct_load import conduct as _conduct
 from fake_worker import (
@@ -14559,13 +14560,15 @@ def test_pin_h_conduct_card_runs_to_the_next_title() -> None:
     )
     second = "- **R2 — b**\n  - **Status:** fixed\n"
 
-    found = list(_conduct()["_cards_in"](f"---\nx: y\n---\n\n{first}{second}"))
+    found = list(
+        mflib.findings.cards_conduct_legacy(f"---\nx: y\n---\n\n{first}{second}")
+    )
 
     assert found == [("R1", first), ("R2", second)]
 
 
 def test_pin_h_conduct_field_needs_an_indented_colon_inside() -> None:
-    field = _conduct()["_field"]
+    field = mflib.findings.field_conduct_legacy
     assert field("- **R1 — a**\n  - **Status:**  open \n", "Status") == "open"
     assert field("- **R1 — a**\n\t- **Status:** open\n", "Status") == "open"
     assert field("- **R1 — a**\n  - **Status**: open\n", "Status") == ""
@@ -14573,13 +14576,13 @@ def test_pin_h_conduct_field_needs_an_indented_colon_inside() -> None:
 
 
 def test_pin_h_conduct_reads_a_word_its_own_way() -> None:
-    conduct = _conduct()
-
     def card(field: str, value: str) -> str:
         return f"- **S1 — a**\n  - **{field}:** {value}\n"
 
     severity, category, status = (
-        conduct[name] for name in ("_severity", "_category", "_status")
+        mflib.findings.severity_conduct_legacy,
+        mflib.findings.category_conduct_legacy,
+        mflib.findings.status_conduct_legacy,
     )
     assert severity(card("Priority", "**high** · adversarial · x — y")) == "**high**"
     assert severity(card("Priority", "`High` · adversarial · x — y")) == "high"
@@ -14600,7 +14603,7 @@ def test_pin_i_conduct_a_security_card_fails_closed() -> None:
 
     assert security(card("high · adversarial · injection — why."))
     assert security(card("critical · adversarial"))
-    for named in conduct["NON_SECURITY"]:
+    for named in mflib.findings.NON_SECURITY:
         assert not security(card(f"high · adversarial · {named} — why.")), named
     assert not security(card("medium · adversarial · security — why."))
 
@@ -14712,7 +14715,7 @@ def test_pin_j_conduct_answered_needs_each_head(tmp_path: Path) -> None:
 
 
 def test_pin_o_conduct_stamped_sets_the_model_in_place() -> None:
-    stamped = _conduct()["_stamped"]
+    stamped = mflib.findings.stamped
     assert stamped(
         "---\ntype: c\nmodel: x\nround: 1\ntokens: 3\n---\nmodel: y\n", "m", 5
     ) == ("---\ntype: c\nmodel: m\ntokens: 5\nround: 1\n---\nmodel: y\n")

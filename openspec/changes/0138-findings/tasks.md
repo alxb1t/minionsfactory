@@ -6,7 +6,7 @@ Pin each copy of the findings format as it stands, build the module, move the st
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The stations · moderate
+- [x] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
@@ -66,7 +66,7 @@ No assert changes in this phase: a test's line that reaches a moved name changes
   Verify: `git grep -n -e "def _frontmatter" -- skills/mf-integrate/scripts/integrate.py` prints nothing.
 - [x] 3.6 In `docs/modules.md` add `findings.py` to the `names` cell of the rows of `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py` and `skip_stub.py`, in order.
   Verify: `uv run pytest tests/test_structure.py -q` passes.
-- [ ] 3.7 In `skills/mf-converge/SKILL.md` add `../../mflib/findings.py` for its reads and writes of a findings file to the sentence that lists what converge loads: 3.6 names `findings.py` in converge's map row, and `tests/test_skills.py` holds that sentence to the row, so the two land in one phase (I8).
+- [x] 3.7 In `skills/mf-converge/SKILL.md` add `../../mflib/findings.py` for its reads and writes of a findings file to the sentence that lists what converge loads: 3.6 names `findings.py` in converge's map row, and `tests/test_skills.py` holds that sentence to the row, so the two land in one phase (I8).
   Verify: `uv run pytest tests/test_skills.py -q -k test_mf_converge_names_each_script_the_map_says_it_loads` passes.
 
 ## 4 — The fix

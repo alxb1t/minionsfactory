@@ -12,6 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import mflib.findings
 import pytest
 from old_layout import ENTRIES, LOG, ROLES, plant
 
@@ -821,7 +822,7 @@ def _pin_ready(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 
 def test_pin_e_integrate_frontmatter_reads_the_first_word() -> None:
-    frontmatter = runpy.run_path(str(_SCRIPT))["_frontmatter"]
+    frontmatter = mflib.findings.frontmatter_integrate_legacy
     for text, value in _PIN_FRONTMATTER:
         assert frontmatter(text, "verdict") == value, text
 

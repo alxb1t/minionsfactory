@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
 import mflib.layout
 
 TIMEOUT_SECONDS = 60
@@ -101,18 +102,6 @@ def default_branch(cwd: Path) -> str:
     return ref.strip().removeprefix("origin/") if ref else "main"
 
 
-def _frontmatter(text: str, key: str) -> str | None:
-    """Return a key's value in the text's leading `---` block.
-
-    e.g. a findings file opening `verdict: clean` in its block, "verdict" → "clean"
-    """
-    if not text.startswith("---\n"):
-        return None
-    block = text[4:].split("\n---", 1)[0]
-    found = re.search(rf"^{key}:\s*(\S+)", block, re.MULTILINE)
-    return found[1] if found else None
-
-
 def _after(text: str) -> list[str]:
     r"""Return the change ids a proposal's `after:` names.
 
@@ -195,8 +184,9 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
         return None
     if len(present) != len(files):
         return "converge ran, and a findings file is missing"
+    front = mflib.findings.frontmatter_integrate_legacy
     for file in files:
-        if _frontmatter(file.read_text(), "verdict") != "clean":
+        if front(file.read_text(), "verdict") != "clean":
             return f"{file.name} is not clean"
     return None
 

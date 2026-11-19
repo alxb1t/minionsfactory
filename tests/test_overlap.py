@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import mflib.findings
 import pytest
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -200,8 +201,9 @@ def test_pin_l_overlap_reads_a_field_with_its_colon_inside() -> None:
     ]
     assert overlap.anchors(f"{title}  - **What it affects**: `a.py:1`\n") == []
     assert overlap.anchors(f"{title}- **What it affects:** `a.py:1`\n") == []
-    assert overlap.blocks(f"{title}  - **Priority:** blocking · c\n", ("blocking",))
-    assert not overlap.blocks(f"{title}  - **Priority**: blocking · c\n", ("blocking",))
+    blocks = mflib.findings.blocks_overlap_legacy
+    assert blocks(f"{title}  - **Priority:** blocking · c\n", ("blocking",))
+    assert not blocks(f"{title}  - **Priority**: blocking · c\n", ("blocking",))
     assert not overlap.first_round(f"{title}  - **Round:** 2\n")
     assert overlap.first_round(f"{title}  - **Round**: 2\n")
     assert overlap.first_round(title)
@@ -214,7 +216,9 @@ def test_pin_l_overlap_reads_a_grade_raw() -> None:
         ("Blocking", False),
     ):
         card = f"- **R1 — a**\n  - **Priority:** {grade} · c\n"
-        assert overlap.blocks(card, ("blocking",)) is blocking, grade
+        assert mflib.findings.blocks_overlap_legacy(card, ("blocking",)) is blocking, (
+            grade
+        )
 
 
 def test_pin_l_overlap_reads_executor_alone_on_its_line() -> None:

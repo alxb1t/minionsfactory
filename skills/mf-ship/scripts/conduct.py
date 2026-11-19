@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from markdown_it.token import Token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
 import mflib.layout
 import mflib.platform
 import mflib.statefile
@@ -170,17 +171,6 @@ AMENDS = ("tasks.md", "design.md")
 # decision change. Why: 0103-fewer-rounds design D3.
 FIX_NOTE = re.compile(r"Fix note \(\d{4}-\d{2}-\d{2}, [RS]\d+\): \S.*")
 ROLES = ("conformance", "adversarial")
-# A cap of these alone gets the run's one grant. Why: 0070-cap-policy design D1, D2.
-BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
-NON_SECURITY = (
-    "stability",
-    "data integrity",
-    "functional correctness",
-    "performance",
-    "maintainability",
-)
-SMALL = ("one line", "a test", "one line and a test")
-CARD = re.compile(r"^- \*\*([^\s*]+) — ", re.MULTILINE)
 EXECUTORS = ("claude", "codex")
 SKILLS_DIR = Path(__file__).resolve().parents[2]
 # The longest one script's environment takes to build. Why: 0112-uv-race design D2.
@@ -490,11 +480,7 @@ def _frontmatter(text: str, key: str) -> str | None:
 
     e.g. a findings file opening `verdict: clean` in its block, "verdict" → "clean"
     """
-    if not text.startswith("---\n"):
-        return None
-    block = text[4:].split("\n---", 1)[0]
-    found = re.search(rf"^{key}:\s*(\S+)", block, re.MULTILINE)
-    return found[1] if found else None
+    return mflib.findings.frontmatter_conduct_legacy(text, key)
 
 
 def _after(text: str) -> list[str]:
@@ -1222,8 +1208,9 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
     files = (
         mflib.layout.change_dir(runs.parent, change) / f"{role}.md" for role in ROLES
     )
+    front = mflib.findings.frontmatter_conduct_legacy
     return all(
-        file.is_file() and _frontmatter(file.read_text(), "verdict") == "clean"
+        file.is_file() and front(file.read_text(), "verdict") == "clean"
         for file in files
     )
 
@@ -1279,9 +1266,10 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
         return _ancestor(tree, halted, "HEAD")
     if any(_amends(tree, change, halted)):
         return True
+    front = mflib.findings.frontmatter_conduct_legacy
     for role in ROLES:
         file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
-        judged = _frontmatter(file.read_text(), "head") if file.is_file() else None
+        judged = front(file.read_text(), "head") if file.is_file() else None
         resolved = judged and _maybe(
             tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
         )
@@ -1342,14 +1330,15 @@ def _unjudged(
     if "converge" in (_skips(runs, change) if skips is None else skips):
         return None
     head = _git(tree, "rev-parse", rev).strip()
+    front = mflib.findings.frontmatter_conduct_legacy
     for role in ROLES:
         file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
         if not file.is_file():
             return f"no {role} findings file"
         text = file.read_text()
-        if (verdict := _frontmatter(text, "verdict")) != "clean":
+        if (verdict := front(text, "verdict")) != "clean":
             return f"{role}: verdict {verdict}"
-        judged = _frontmatter(text, "head") or ""
+        judged = front(text, "head") or ""
         resolved = _maybe(tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}")
         if not judged or (resolved or "").strip() != head:
             return f"{role}: judged {judged or 'no head'}, not {rev}"
@@ -2787,43 +2776,6 @@ def _is_cap(stage: str, halt: str) -> bool:
     return stage == "converge-halted" and "cap reached" in halt
 
 
-def _field(card: str, name: str) -> str:
-    """Return a card's `- **<name>:** <value>` value, or "" with none."""
-    found = re.search(rf"^[ \t]+- \*\*{name}:\*\*[ \t]*(.*)$", card, re.MULTILINE)
-    return found[1].strip() if found else ""
-
-
-def _cards_in(text: str) -> Iterator[tuple[str, str]]:
-    r"""Yield each findings card's id and its text, to the next card.
-
-    e.g. "- **R1 — a finding**\n  - **Status:** open\n" → ("R1", that text)
-    """
-    starts = list(CARD.finditer(text))
-    ends = [card.start() for card in starts[1:]] + [len(text)]
-    for title, end in zip(starts, ends[: len(starts)], strict=True):
-        yield title[1], text[title.start() : end]
-
-
-def _severity(card: str) -> str:
-    """Return a card's severity: its `Priority`'s first part, in lower case."""
-    # A station may wrap a field's value in backticks.
-    return _field(card, "Priority").split(" · ")[0].strip(" `").lower()
-
-
-def _category(card: str) -> str:
-    """Return a card's category: its `Priority`'s third part, in lower case, or "".
-
-    e.g. "high · adversarial · security — why" → "security"
-    """
-    parts = _field(card, "Priority").split(" · ")
-    return parts[2].split(" — ")[0].strip(" `").lower() if len(parts) > 2 else ""
-
-
-def _status(card: str) -> str:
-    """Return a card's `Status`, its backticks dropped, as `_severity` drops them."""
-    return _field(card, "Status").strip(" `")
-
-
 def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """Return each open blocking card's id and fix size; None when a file is unread.
 
@@ -2839,10 +2791,12 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
             text = file.read_text()
         except (OSError, UnicodeDecodeError):
             return None
-        for name, card in _cards_in(text):
-            blocking = _severity(card) in BLOCKS[role]
-            if blocking and re.match(r"open\b", _status(card)):
-                sized = re.search(r"size:([^:]*)$", _field(card, "Fix"))
+        for name, card in mflib.findings.cards_conduct_legacy(text):
+            severity = mflib.findings.severity_conduct_legacy(card)
+            status = mflib.findings.status_conduct_legacy(card)
+            if severity in mflib.findings.BLOCKS[role] and re.match(r"open\b", status):
+                fix = mflib.findings.field_conduct_legacy(card, "Fix")
+                sized = mflib.findings.SIZE.search(fix)
                 size = sized[1].strip(" `.") if sized else ""
                 found.append((name, size or "a design change"))
     return found
@@ -2854,14 +2808,17 @@ def _security_blocks(runs: Path, change: str, halt: str) -> bool:
     Why: 0085-self-healing-ship design D2;
     0095-converge-roles design D2.
     """
-    ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
+    ids = mflib.findings.halt_ids(halt)
     try:
         text = (
             mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
         ).read_text()
     except (OSError, UnicodeDecodeError):
         return True
-    return any(name in ids and _security_card(card) for name, card in _cards_in(text))
+    return any(
+        name in ids and _security_card(card)
+        for name, card in mflib.findings.cards_conduct_legacy(text)
+    )
 
 
 def _security_card(card: str) -> bool:
@@ -2869,9 +2826,7 @@ def _security_card(card: str) -> bool:
 
     Why: 0095-converge-roles design D2; 0119-debt-paydown-3b design D3.
     """
-    return (
-        _severity(card) in BLOCKS["adversarial"] and _category(card) not in NON_SECURITY
-    )
+    return mflib.findings.security_conduct_legacy(card)
 
 
 def _security_held(runs: Path, change: str, halt: str) -> bool:
@@ -2880,16 +2835,17 @@ def _security_held(runs: Path, change: str, halt: str) -> bool:
     Why: 0089-supervisor design D6;
     0095-converge-roles design D2.
     """
-    ids = set(re.findall(r"\b[RS]\d+\b", halt.partition("amend needed — ")[2]))
+    ids = mflib.findings.halt_ids(halt)
     try:
         text = (
             mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
         ).read_text()
     except (OSError, UnicodeDecodeError):
         return True
+    status = mflib.findings.status_conduct_legacy
     return any(
-        _security_card(card) and (name in ids or _status(card).startswith("open"))
-        for name, card in _cards_in(text)
+        _security_card(card) and (name in ids or status(card).startswith("open"))
+        for name, card in mflib.findings.cards_conduct_legacy(text)
     )
 
 
@@ -4107,29 +4063,6 @@ def tokens_of(log: Path) -> int | None:
     return codex if codex is not None else claude
 
 
-def _stamped(text: str, model: str | None, tokens: int | None) -> str | None:
-    """Return a findings file with its frontmatter's `model:` and `tokens:` set.
-
-    None when it has no frontmatter. e.g. `model: x` → `model: m`, then `tokens: 5`
-    """
-    found = re.match(r"---\n(.*?\n)---\n", text, re.DOTALL)
-    if found is None:
-        return None
-    kept = [
-        line
-        for line in found[1].splitlines(keepends=True)
-        if not line.startswith("tokens:")
-    ]
-    stamp = [f"model: {model or 'default'}\n"]
-    stamp += [] if tokens is None else [f"tokens: {tokens}\n"]
-    at = next((i for i, line in enumerate(kept) if line.startswith("model:")), None)
-    if at is None:
-        kept += stamp
-    else:
-        kept[at : at + 1] = stamp
-    return f"---\n{''.join(kept)}---\n{text[found.end() :]}"
-
-
 def _stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
     """Set a findings file's `model:` and `tokens:`, following no link; else leave it.
 
@@ -4150,7 +4083,7 @@ def _stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> No
                     text = handle.read().decode(errors="replace")
             finally:
                 os.close(file)
-            if (stamped := _stamped(text, model, tokens)) is not None:
+            if (stamped := mflib.findings.stamped(text, model, tokens)) is not None:
                 _place(fd, name, stamped)
     finally:
         os.close(fd)
@@ -5285,7 +5218,7 @@ class Run:
             first = change not in self.capped
             allowed = self.grants_auto.get(change, True)
         first = first and not _granted_run(runs, change)
-        small = all(size in SMALL for _, size in blockers)
+        small = all(size in mflib.findings.SMALL for _, size in blockers)
         return first and allowed and small, " ".join(card for card, _ in blockers)
 
     def auto_grant(self, version: Version, stage: str, halt: str) -> tuple[bool, str]:

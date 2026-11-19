@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol, TextIO
 
+import mflib.findings
 import pytest
 from mflib import statuslog
 from old_layout import ENTRIES, LOG, ROLES, plant
@@ -2615,7 +2616,7 @@ def _pin_context(converge: dict[str, Any], host: Host, **workers: object) -> Log
 
 
 def test_pin_a_card_word_drops_marks_and_folds_case() -> None:
-    card = _converge()["Card"]
+    card = mflib.findings.Card
     for value, word in (
         ("`**Fixed**` — a note", "fixed"),
         ("verified held", "verified"),
@@ -2643,7 +2644,7 @@ def test_pin_b_converge_reads_each_field_line() -> None:
         "  - **Status:** verified\n"
     )
 
-    (card,) = _converge()["_cards"](body, "conformance")
+    (card,) = mflib.findings.cards(body, "conformance")
 
     assert card.fields == {
         "Priority": "blocking · conformance · stability — why.",
@@ -2656,7 +2657,7 @@ def test_pin_b_converge_reads_each_field_line() -> None:
 
 
 def test_pin_b_converge_reads_no_title_off_the_form() -> None:
-    cards = _converge()["_cards"]
+    cards = mflib.findings.cards
     for title in (
         "  - **R1 — nested**",
         "- **R 1 — spaced**",
@@ -2669,7 +2670,7 @@ def test_pin_b_converge_reads_no_title_off_the_form() -> None:
 
 def test_pin_b_converge_reads_a6_as_a_title() -> None:
     body = "- **A6 — a title**\n  - **Status:** open\n"
-    assert [card.id for card in _converge()["_cards"](body, "adversarial")] == ["A6"]
+    assert [card.id for card in mflib.findings.cards(body, "adversarial")] == ["A6"]
 
 
 def _pin_extent(between: str) -> dict[str, dict[str, str]]:
@@ -2677,7 +2678,7 @@ def _pin_extent(between: str) -> dict[str, dict[str, str]]:
         "- **R1 — a title**\n  - **Status:** open\n"
         f"{between}  - **Fix:** a fix · size: one line.\n"
     )
-    return {card.id: card.fields for card in _converge()["_cards"](body, "conformance")}
+    return {card.id: card.fields for card in mflib.findings.cards(body, "conformance")}
 
 
 def test_pin_extent_converge_a_blank_line_ends_a_card() -> None:
@@ -2745,7 +2746,7 @@ def test_pin_c_converge_names_each_fault(tmp_path: Path) -> None:
 
 
 def test_pin_d_converge_security_is_the_exact_category() -> None:
-    card = _converge()["Card"]
+    card = mflib.findings.Card
 
     def security(role: str, priority: str) -> bool:
         return card("S1", role, {"Priority": priority}).security
@@ -2777,7 +2778,7 @@ def test_pin_f_a_spoiled_card_is_open_for_each_dispatched_role(host: Host) -> No
 
     (spoiled,) = converge["spoiled"](context)
 
-    (card,) = converge["_cards"](spoiled, "conformance")
+    (card,) = mflib.findings.cards(spoiled, "conformance")
     assert spoiled.startswith("- **0001·M1 — conformance's findings file was malformed")
     assert (card.status, card.word("Amend"), card.amend) == ("open", "no", False)
 
@@ -2820,7 +2821,7 @@ def test_pin_f_stubs_halt_on_a_link(host: Host, tmp_path: Path) -> None:
 
 
 def test_pin_g_converge_reads_the_fix_size() -> None:
-    card = _converge()["Card"]
+    card = mflib.findings.Card
 
     def small(fix: str) -> bool:
         return card("R1", "conformance", {"Fix": fix}).small
@@ -2841,7 +2842,7 @@ def test_pin_g_converge_counts_an_open_blocker() -> None:
 
     def counted(status: str, grade: str = "blocking") -> bool:
         priority = f"{grade} · conformance · stability — why."
-        held = converge["Card"](
+        held = mflib.findings.Card(
             "R1", "conformance", {"Priority": priority, "Status": status}
         )
         read = converge["Verdict"]("conformance", cards=(held,))
@@ -2870,7 +2871,7 @@ def test_pin_amend_a_held_card_is_skipped_alone(host: Host) -> None:
     body = _card(
         "R2 nit", amend="yes", status="wontfix", size=_DESIGN, still="`true`"
     ) + _card("R3 nit", amend="yes", status="wontfix", size=_DESIGN, still="`false`")
-    cards = converge["_cards"](body, "conformance")
+    cards = mflib.findings.cards(body, "conformance")
 
     assert converge["amends"](context, cards, {"0001·R2"}) == {"R3": "false"}
 
