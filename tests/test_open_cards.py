@@ -143,65 +143,84 @@ def test_open_cards_refuse_what_they_cannot_read(
         assert not out.exists()
 
 
-# The pin: `open_cards.py`'s copy of the findings format, as it stands.
-# Why: 0138-findings design D2, its case k.
+# The fix: `open_cards.py` on the module's one form; its case k turns whole.
+# Why: 0138-findings design D2, D4, D5, D7, D9 and D11.
 
 
-def test_pin_k_open_cards_card_runs_to_a_title_or_heading() -> None:
+def _judged(text: str) -> bool:
+    (card,) = mflib.findings.cards(text, "")
+    return open_cards.judged(card)
+
+
+def _page(tmp_path: Path, body: str) -> str:
+    findings, out = tmp_path / "conformance.md", tmp_path / "conformance.open.md"
+    findings.write_text(_FRONT + body)
+    open_cards.open_page(findings, out)
+    return out.read_text().partition("\n\n")[2]
+
+
+def test_fix_extent_open_cards_a_card_ends_at_an_unindented_line(
+    tmp_path: Path,
+) -> None:
     first = "- **R1 — a**\n  - **Status:** open\n\n  - **Fix:** f\n"
-    second = "- **A4 — b**\n  - **Status:** fixed\n"
+    second = "- **S4 — b**\n  - **Status:** fixed\n"
 
-    found = mflib.findings.cards_open_cards_legacy(
-        f"{first}## Refuted\n  - **Fix:** g\n{second}"
+    assert _page(tmp_path, f"{first}a line\n  - **Fix:** g\n{second}") == (
+        first + second
     )
 
-    assert found == [first, second]
+
+def test_fix_field_open_cards_read_a_colon_outside() -> None:
+    assert _judged("- **R1 — a**\n  - **Status**: fixed\n")
+    with pytest.raises(open_cards.Stop, match=r"^card R1: no Status$"):
+        _judged("- **R1 — a**\n- **Status:** open\n")
 
 
-def test_pin_k_open_cards_read_the_status_word() -> None:
+def test_fix_word_open_cards_read_the_status_word() -> None:
     for status, judged in (
         ("`**Fixed**`. — a note", True),
-        ("Verified-held", False),
         ("WONTFIX", True),
+        ("**Verified** — held", False),
     ):
-        assert open_cards.judged(_card("R1", status)) is judged, status
-    twice = _card("R1", "open") + "  - **Status:** verified\n"
-    assert open_cards.judged(twice)
-    assert not open_cards.judged(_card("R1", "verified") + "  - **Status:** open\n")
-
-
-def test_pin_k_open_cards_stop_on_a_status_off_the_form() -> None:
-    for card, why in (
-        (_card("R1", "_wontfix_"), "card R1: Status _wontfix_"),
-        (_card("R1", ""), "card R1: Status empty"),
-        ("- **R1 — a**\n  - **Status**: open\n", "card R1: no Status"),
-        ("- **R1 — a**\n- **Status:** open\n", "card R1: no Status"),
+        assert _judged(_card("R1", status)) is judged, status
+    for status, why in (
+        ("Verified-held", "card R1: Status Verified-held"),
+        ("_wontfix_", "card R1: Status _wontfix_"),
+        ("", "card R1: Status empty"),
     ):
         with pytest.raises(open_cards.Stop) as stopped:
-            open_cards.judged(card)
+            _judged(_card("R1", status))
         assert str(stopped.value) == why
 
 
-def test_pin_k_open_cards_stop_on_a_bad_byte(tmp_path: Path) -> None:
+def test_fix_first_open_cards_read_the_first_status() -> None:
+    assert _judged(_card("R1", "open") + "  - **Status:** verified\n")
+    assert not _judged(_card("R1", "verified") + "  - **Status:** reopened\n")
+
+
+def test_fix_ids_open_cards_stop_on_a_card_off_the_ids(tmp_path: Path) -> None:
+    findings, out = tmp_path / "adversarial.md", tmp_path / "adversarial.open.md"
+    for ident in ("S-1", "A4"):
+        findings.write_text(_FRONT + _card(ident, "open"))
+        with pytest.raises(
+            open_cards.Stop, match=rf"^card {ident} is not R<n> or S<n>$"
+        ):
+            open_cards.open_page(findings, out)
+        assert not out.exists()
+
+
+def test_fix_read_open_cards_replace_a_bad_byte(tmp_path: Path) -> None:
     findings = tmp_path / "conformance.md"
-    findings.write_bytes(_FRONT.encode() + b"\xff\n")
+    findings.write_bytes(_FRONT.encode() + _OPEN.encode() + b"\xff\n")
 
-    with pytest.raises(open_cards.Stop, match="invalid start byte"):
-        open_cards.open_page(findings, tmp_path / "conformance.open.md")
+    assert open_cards.open_page(findings, tmp_path / "conformance.open.md") == 1
 
 
-def test_pin_link_open_cards_open_page_follows_a_link(tmp_path: Path) -> None:
+def test_fix_read_open_cards_refuse_a_link(tmp_path: Path) -> None:
     target = tmp_path / "target.md"
     target.write_text(_FRONT + _OPEN)
     findings = tmp_path / "conformance.md"
     findings.symlink_to(target)
 
-    assert open_cards.open_page(findings, tmp_path / "conformance.open.md") == 1
-
-
-def test_pin_malformed_open_cards_open_page_writes_the_card(tmp_path: Path) -> None:
-    findings, out = tmp_path / "adversarial.md", tmp_path / "adversarial.open.md"
-    findings.write_text(_FRONT + _card("S-1", "open"))
-
-    assert open_cards.open_page(findings, out) == 1
-    assert _card("S-1", "open") in out.read_text()
+    with pytest.raises(open_cards.Stop, match=r": Too many levels of symbolic links$"):
+        open_cards.open_page(findings, tmp_path / "conformance.open.md")

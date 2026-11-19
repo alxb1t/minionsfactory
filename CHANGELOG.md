@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py` and `skip_stub.py` read and write a findings
   file through `skills/mflib/findings.py`, each through its `_legacy` form where its rule differs, so no behaviour
   moves yet; the module map and `mf-converge`'s `SKILL.md` name it (0138-findings, phase 3).
+- Every reader of a findings file reads the same card: a card runs through a blank line, a field reads either colon,
+  `Open` and a bold grade count, an unread category is security, a card off `R<n>` and `S<n>` or a stray Status makes
+  the file malformed, and every read follows no link. The stamp no longer unlinks the file first (0138-findings, phase 4).
 
 ## [0.109.0] - 2026-11-19
 

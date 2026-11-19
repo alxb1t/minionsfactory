@@ -531,7 +531,9 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
     front, body = mflib.findings.front(text)
     stub = front.get("mode") == "skipped"
     cards = mflib.findings.cards(body, role)
-    fault = mflib.findings.fault(front, role, stub)
+    fault = mflib.findings.fault(front, role, stub) or mflib.findings.malformed(
+        body, role
+    )
     unmarked = (card for card in cards if card.word("Amend") not in ("yes", "no"))
     if fault is None and (card := next(unmarked, None)):
         fault = f"card {card.id} has no Amend line"
@@ -1692,17 +1694,14 @@ def by_rule(context: Context, chosen: list[tuple[str, list[str]]]) -> bool:
 
 def ruled(path: Path, now: str, round_: int, today: str, lines: str) -> None:
     """Set a findings file clean by rule at `now`: frontmatter, `## By rule`, log."""
-    text = mflib.findings.read(path) or ""
-    for key, value in (
-        ("head", now),
-        ("round", round_),
-        ("reviewed", today),
-        ("mode", "by-rule"),
-        ("workers", 0),
-    ):
-        text = re.sub(
-            rf"^{key}:.*$", f"{key}: {value}", text, count=1, flags=re.MULTILINE
-        )
+    keys = {
+        "head": now,
+        "round": round_,
+        "reviewed": today,
+        "mode": "by-rule",
+        "workers": 0,
+    }
+    text = mflib.findings.keyed(mflib.findings.read(path) or "", keys)
     before, log, after = text.partition("## Resolution log\n")
     text = f"{before}## By rule\n\n{lines}\n{log}{after}"
     BUNDLE["write"](

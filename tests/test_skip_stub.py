@@ -196,34 +196,10 @@ def _pin_status(status: str) -> str:
     return f"- **S1 — a**\n  - **Status:** {status}\n"
 
 
-def test_pin_m_uncleared_reads_its_keys_to_the_first_rule() -> None:
-    open_card = _pin_status("open")
-    assert not skip_stub.uncleared("mode: skipped\n---\n" + open_card)
-    assert skip_stub.uncleared("mode: parallel\n---\n" + open_card)
-    assert not skip_stub.uncleared(
-        "---\nmode: skipped\nverdict: changes-requested\n---\n" + open_card
-    )
-
-
-def test_pin_m_uncleared_sees_no_card_off_the_form() -> None:
-    assert skip_stub.uncleared(_PIN_CLEAN + _pin_status("open"))
-    for card in (
-        _pin_status("`open`"),
-        _pin_status("**open**"),
-        "- **S1 — a**\n  - **Status**: open\n",
-    ):
-        assert not skip_stub.uncleared(_PIN_CLEAN + card), card
-
-
 def test_pin_m_uncleared_clears_on_verified_alone() -> None:
     assert not skip_stub.uncleared(_PIN_CLEAN + _pin_status("verified"))
     for status in ("accepted", "fixed", "wontfix"):
         assert skip_stub.uncleared(_PIN_CLEAN + _pin_status(status)), status
-
-
-def test_pin_m_uncleared_reads_every_status_line() -> None:
-    twice = _pin_status("verified") + "  - **Status:** open\n"
-    assert skip_stub.uncleared(_PIN_CLEAN + twice)
 
 
 def test_pin_m_role_of_refuses_a_path_off_the_form(tmp_path: Path) -> None:
@@ -257,10 +233,53 @@ def test_pin_link_skip_stub_write_refuses_a_link(tmp_path: Path) -> None:
     assert target.read_text() == _PIN_CLEAN + _pin_status("verified")
 
 
-def test_pin_malformed_skip_stub_write_replaces_the_file(tmp_path: Path) -> None:
+# The fix: `skip_stub.py` on the module's one form; its case m turns, but `verified`.
+# Why: 0138-findings design D2, D4, D5, D7, D8 and D11.
+
+
+def test_fix_frontmatter_skip_stub_reads_the_leading_block() -> None:
+    open_card = _pin_status("open")
+    assert skip_stub.uncleared("mode: skipped\n---\n" + open_card)
+    assert skip_stub.uncleared("mode: parallel\n---\n" + open_card)
+    assert not skip_stub.uncleared(
+        "---\nmode: skipped\nverdict: changes-requested\n---\n" + open_card
+    )
+
+
+def test_fix_field_skip_stub_reads_a_colon_outside() -> None:
+    assert skip_stub.uncleared(_PIN_CLEAN + "- **S1 — a**\n  - **Status**: open\n")
+    assert not skip_stub.uncleared(
+        _PIN_CLEAN + "- **S1 — a**\n  - **Status**: verified\n"
+    )
+
+
+def test_fix_word_skip_stub_reads_the_status_word() -> None:
+    for status in ("`open`", "**open**", "reopened", ""):
+        assert skip_stub.uncleared(_PIN_CLEAN + _pin_status(status)), status
+    for status in ("`Verified`", "**verified** — held"):
+        assert not skip_stub.uncleared(_PIN_CLEAN + _pin_status(status)), status
+
+
+def test_fix_first_skip_stub_reads_the_first_status() -> None:
+    twice = _pin_status("verified") + "  - **Status:** open\n"
+    assert not skip_stub.uncleared(_PIN_CLEAN + twice)
+    assert skip_stub.uncleared(
+        _PIN_CLEAN + _pin_status("open") + "  - **Status:** verified\n"
+    )
+
+
+def test_fix_ids_skip_stub_keeps_a_malformed_file(tmp_path: Path) -> None:
     stub = tmp_path / "adversarial.md"
-    stub.write_text(_PIN_CLEAN + "- **S-1 — a**\n  - **Status:** verified\n")
-
+    for body, why in (
+        ("- **S-1 — a**\n  - **Status:** verified\n", "card S-1 is not R<n> or S<n>"),
+        ("## Notes\n\n  - **Status:** verified\n", "a Status under no card: unnamed"),
+    ):
+        stub.write_text(_PIN_CLEAN + body)
+        with pytest.raises(skip_stub.Stop) as stopped:
+            skip_stub.write(stub, "stub\n")
+        assert str(stopped.value) == f"{stub} is malformed: {why}"
+        assert stub.read_text() == _PIN_CLEAN + body
+    # Twin: the same card on the contract's ids is replaced.
+    stub.write_text(_PIN_CLEAN + _pin_status("verified"))
     skip_stub.write(stub, "stub\n")
-
     assert stub.read_text() == "stub\n"

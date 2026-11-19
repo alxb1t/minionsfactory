@@ -2668,21 +2668,12 @@ def test_pin_b_converge_reads_no_title_off_the_form() -> None:
         assert cards(f"{title}\n  - **Status:** open\n", "conformance") == [], title
 
 
-def test_pin_b_converge_reads_a6_as_a_title() -> None:
-    body = "- **A6 — a title**\n  - **Status:** open\n"
-    assert [card.id for card in mflib.findings.cards(body, "adversarial")] == ["A6"]
-
-
 def _pin_extent(between: str) -> dict[str, dict[str, str]]:
     body = (
         "- **R1 — a title**\n  - **Status:** open\n"
         f"{between}  - **Fix:** a fix · size: one line.\n"
     )
     return {card.id: card.fields for card in mflib.findings.cards(body, "conformance")}
-
-
-def test_pin_extent_converge_a_blank_line_ends_a_card() -> None:
-    assert _pin_extent("\n") == {"R1": {"Status": "open"}}
 
 
 def test_pin_extent_converge_an_unindented_line_ends_a_card() -> None:
@@ -2743,18 +2734,6 @@ def test_pin_c_converge_names_each_fault(tmp_path: Path) -> None:
     ):
         read = _pin_read(converge, path, findings("conformance", "h", **keys))
         assert read.malformed == f"conformance.md is malformed: {why}"
-
-
-def test_pin_d_converge_security_is_the_exact_category() -> None:
-    card = mflib.findings.Card
-
-    def security(role: str, priority: str) -> bool:
-        return card("S1", role, {"Priority": priority}).security
-
-    assert security("adversarial", "high · adversarial · security — why.")
-    assert not security("adversarial", "high · adversarial · Security — why.")
-    assert not security("adversarial", "high · adversarial")
-    assert not security("conformance", "blocking · conformance · security — why.")
 
 
 def test_pin_f_a_rewrite_keeps_a_good_files_cards(host: Host) -> None:
@@ -2917,3 +2896,64 @@ def test_pin_malformed_converge_reads_the_role_clean_at_head(host: Host) -> None
     read = converge["rewrite"](context, "conformance", frozen, "files is missing")
 
     assert read == converge["Verdict"]("conformance", "clean", _head(host), 1)
+
+
+# The fix: converge's reads on the module's one form.
+# Why: 0138-findings design D4, D6, D7 and D8.
+
+
+def test_fix_extent_converge_a_blank_line_does_not_end_a_card() -> None:
+    assert _pin_extent("\n") == {
+        "R1": {"Status": "open", "Fix": "a fix · size: one line."}
+    }
+
+
+def test_fix_security_converge_fails_closed_on_an_unread_category() -> None:
+    card = mflib.findings.Card
+
+    def security(role: str, priority: str) -> bool:
+        return card("S1", role, {"Priority": priority}).security
+
+    assert security("adversarial", "high · adversarial · security — why.")
+    assert security("adversarial", "high · adversarial · Security — why.")
+    assert security("adversarial", "high · adversarial")
+    assert not security("adversarial", "high · adversarial · stability — why.")
+    assert not security("conformance", "blocking · conformance · security — why.")
+
+
+def test_fix_ids_converge_reads_a_card_off_the_ids_as_malformed(
+    tmp_path: Path,
+) -> None:
+    converge = _converge()
+    path = tmp_path / "adversarial.md"
+    for title, why in (
+        ("A6 blocking", "card A6 is not R<n> or S<n>"),
+        ("S-1 blocking", "card S-1 is not R<n> or S<n>"),
+    ):
+        read = _pin_read(
+            converge, path, findings("adversarial", "h", body=_card(title))
+        )
+        assert read.malformed == f"adversarial.md is malformed: {why}", title
+    stray = "## Findings\n\n  - **Status:** open\n"
+    read = _pin_read(converge, path, findings("adversarial", "h", body=stray))
+    assert (
+        read.malformed == "adversarial.md is malformed: a Status under no card: unnamed"
+    )
+    # Twin: the same card titled on the contract's ids is read.
+    read = _pin_read(
+        converge, path, findings("adversarial", "h", body=_card("S1 blocking"))
+    )
+    assert (read.malformed, [card.id for card in read.cards]) == (None, ["S1"])
+
+
+def test_fix_frontmatter_converge_ruled_edits_the_block_alone(tmp_path: Path) -> None:
+    converge = _converge()
+    path = tmp_path / "conformance.md"
+    path.write_text("---\n head : a\nmode: parallel\n---\n\nround: 7\nworkers: 3\n")
+
+    converge["ruled"](path, "b" * 40, 2, "2026-11-19", "- a rule.\n")
+
+    assert path.read_text() == (
+        f"---\nhead: {'b' * 40}\nmode: by-rule\n---\n\nround: 7\nworkers: 3\n"
+        "## By rule\n\n- a rule.\n2026-11-19 · round 2 · by rule — clean\n"
+    )

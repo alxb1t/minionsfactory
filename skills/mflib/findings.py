@@ -1,11 +1,12 @@
 """Write and parse a findings file: its cards, their fields and words, its frontmatter.
 
-Converge's form is the one form; a `_legacy` function holds another script's copy.
-Remove each `_legacy` function once its script reads the one form: 0138 design D2.
+Why: 0138-findings design D1.
 """
 
+import contextlib
+import os
 import re
-from collections.abc import Iterator
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,9 +26,12 @@ SMALL = ("one line", "a test", "one line and a test")
 SIZE = re.compile(r"size:([^:]*)$")
 TITLE = re.compile(r"^- \*\*([^\s*]+) — ")
 FIELD = re.compile(r"^[ \t]+- \*\*(.+?):?\*\*:?[ \t]*(.*)$")
-# Any top-level bold line, off the card's form or not: names a stray Status's card.
+# The contract's card ids; any other titled card makes the file malformed.
+ID = re.compile(r"[RS]\d+")
+# Any top-level bold line, off the card's form or not: names a stray field's card.
 NAMED = re.compile(r"^[-*] \*\*([^\s*:]+)")
-STATUS = re.compile(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\S*)", re.MULTILINE)
+# The fields a line under no card makes the file malformed by: 0138-findings design D7.
+STRAYS = ("Status", "Priority")
 FRONT = re.compile(r"\A---\n(.*?\n)---\n", re.DOTALL)
 INTEGERS = ("round", "open_blocking", "files", "commits")
 LISTS = ("passes", "inconclusive")
@@ -36,8 +40,12 @@ HALT_ID = re.compile(r"\b[RS]\d+\b")
 STUB_BODY = "Skipped by the plan: no worker judged this round."
 
 
-class Unread(Exception):
-    """Say which findings file a legacy read could not read, and why."""
+def _words(value: str) -> list[str]:
+    """Return a value's words, its backticks and bold dropped.
+
+    e.g. "`**Fixed**` — a note" → ["Fixed", "—", "a", "note"]
+    """
+    return value.replace("`", "").replace("*", "").split()
 
 
 @dataclass(frozen=True)
@@ -54,13 +62,23 @@ class Card:
 
         e.g. "**Fixed** — a note" → "fixed"
         """
-        words = self.fields.get(name, "").replace("`", "").replace("*", "").split()
+        words = _words(self.fields.get(name, ""))
         return words[0].rstrip(".,;:").casefold() if words else ""
 
     @property
     def severity(self) -> str:
         """Return the grade its Priority opens with."""
         return self.word("Priority")
+
+    @property
+    def category(self) -> str:
+        """Return the category its Priority names third, read as a word is, or "".
+
+        e.g. "high · adversarial · `Data integrity` — why" → "data integrity"
+        """
+        parts = self.fields.get("Priority", "").split(" · ")
+        named = _words(parts[2].split(" — ")[0]) if len(parts) > 2 else []
+        return " ".join(named).rstrip(".,;:").casefold()
 
     @property
     def blocking(self) -> bool:
@@ -78,54 +96,91 @@ class Card:
         return self.word("Amend") == "yes"
 
     @property
+    def size(self) -> str:
+        """Return the size its Fix names last, or "" with none.
+
+        e.g. "a fix · size: `a test`." → "a test"
+        """
+        sized = SIZE.search(self.fields.get("Fix", ""))
+        return sized[1].strip(" `.") if sized else ""
+
+    @property
     def small(self) -> bool:
         """Return whether its Fix size is one of `SMALL`, read literally."""
-        sized = SIZE.search(self.fields.get("Fix", ""))
-        return bool(sized) and sized[1].strip(" `.") in SMALL
+        return self.size in SMALL
 
     @property
     def security(self) -> bool:
-        """Return whether it is an adversarial card of category `security`."""
-        parts = self.fields.get("Priority", "").split(" · ")
-        category = parts[2].split(" — ")[0].strip() if len(parts) > 2 else ""
-        return self.role == "adversarial" and category == "security"
+        """Return whether it is a blocking adversarial card of no category named safe.
+
+        An unread category is security: 0138-findings design D6.
+        """
+        return (
+            self.role == "adversarial"
+            and self.blocking
+            and self.category not in NON_SECURITY
+        )
 
 
 def cards(text: str, role: str) -> list[Card]:
-    """Return the cards of a findings file's body, each with its fields.
+    """Return the cards of a findings file, each with its fields; the first field wins.
 
-    A card is its title and the indented lines after it; a repeated field's first wins.
+    A card is its title and its indented lines, blanks between: 0138 design D4.
     """
     found: list[Card] = []
     current: Card | None = None
+    blanks: list[str] = []
     for line in text.splitlines():
+        if not line.strip():
+            blanks.append(line)
+            continue
         if title := TITLE.match(line):
             current = Card(title[1], role, {}, [line])
             found.append(current)
         elif current is None or not line.startswith((" ", "\t")):
             current = None
         else:
-            current.lines.append(line)
+            current.lines.extend([*blanks, line])
             if named := FIELD.match(line):
                 current.fields.setdefault(named[1], named[2].strip())
+        blanks = []
     return found
 
 
-def strays(text: str) -> list[str]:
-    r"""Return, for each Status line under no card title, the bold line above it.
+def strays(text: str) -> list[tuple[str, str]]:
+    r"""Return each Status or Priority line under no card: its field and the bold above.
 
-    e.g. "- **Note**\n  - **Status:** open\n" → ["Note"]; none above, "unnamed"
+    e.g. "- **Note**\n  - **Status:** open\n" → [("Status", "Note")]; none, "unnamed"
     """
-    found: list[str] = []
+    found: list[tuple[str, str]] = []
     name, inside = "unnamed", False
     for line in text.splitlines():
+        if not line.strip():
+            continue
         if line.startswith("#"):
             name, inside = "unnamed", False
         elif bold := NAMED.match(line):
             name, inside = bold[1], TITLE.match(line) is not None
-        elif STATUS.match(line) and not inside:
-            found.append(name)
+        elif not line.startswith((" ", "\t")):
+            name, inside = "unnamed", False
+        elif (named := FIELD.match(line)) and named[1] in STRAYS and not inside:
+            found.append((named[1], name))
     return found
+
+
+def malformed(text: str, role: str) -> str | None:
+    """Return why a findings file's cards break the contract, else None.
+
+    e.g. a card titled `S-1` → "card S-1 is not R<n> or S<n>".
+    Why: 0138-findings design D7.
+    """
+    for card in cards(text, role):
+        if not ID.fullmatch(card.id):
+            return f"card {card.id} is not R<n> or S<n>"
+    if found := strays(text):
+        name, under = found[0]
+        return f"a {name} under no card: {under}"
+    return None
 
 
 def front(text: str) -> tuple[dict[str, str], str]:
@@ -142,6 +197,23 @@ def front(text: str) -> tuple[dict[str, str], str]:
 def frontmatter(text: str, key: str) -> str | None:
     """Return a key's value in the text's leading block, or None."""
     return front(text)[0].get(key)
+
+
+def keyed(text: str, values: Mapping[str, object]) -> str:
+    r"""Return the text with each key of its leading block that `values` names set.
+
+    A key the block lacks stays unset. Why: 0138-findings design D8.
+    e.g. "---\nround: 1\n---\nround: 7\n", {"round": 2} → "round: 2" above, 7 kept
+    """
+    found = FRONT.match(text)
+    if found is None:
+        return text
+    lines = found[1].splitlines(keepends=True)
+    for at, line in enumerate(lines):
+        key, colon, _ = line.partition(":")
+        if colon and key.strip() in values:
+            lines[at] = f"{key.strip()}: {values[key.strip()]}\n"
+    return f"---\n{''.join(lines)}---\n{text[found.end() :]}"
 
 
 def fault(keys: dict[str, str], role: str, stub: bool) -> str | None:
@@ -257,148 +329,16 @@ def stamped(text: str, model: str | None, tokens: int | None) -> str | None:
     return f"---\n{''.join(kept)}---\n{text[found.end() :]}"
 
 
-def cards_conduct_legacy(text: str) -> Iterator[tuple[str, str]]:
-    r"""Yield each card's id and its text, to the next card: `conduct.py`'s extent.
+def stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
+    """Set a findings file's `model:` and `tokens:`, following no link; else leave it.
 
-    e.g. "- **R1 — a finding**\n  - **Status:** open\n" → ("R1", that text)
+    Staged as `<name>.tmp` at mode 0600 and renamed over it: 0138-findings design D12.
     """
-    starts = list(re.finditer(TITLE.pattern, text, re.MULTILINE))
-    ends = [card.start() for card in starts[1:]] + [len(text)]
-    for title, end in zip(starts, ends[: len(starts)], strict=True):
-        yield title[1], text[title.start() : end]
-
-
-def field_conduct_legacy(card: str, name: str) -> str:
-    """Return a card's `- **<name>:** <value>` value, or "" with none."""
-    found = re.search(rf"^[ \t]+- \*\*{name}:\*\*[ \t]*(.*)$", card, re.MULTILINE)
-    return found[1].strip() if found else ""
-
-
-def severity_conduct_legacy(card: str) -> str:
-    """Return a card's severity: its `Priority`'s first part, in lower case."""
-    return field_conduct_legacy(card, "Priority").split(" · ")[0].strip(" `").lower()
-
-
-def category_conduct_legacy(card: str) -> str:
-    """Return a card's category: its `Priority`'s third part, in lower case, or "".
-
-    e.g. "high · adversarial · security — why" → "security"
-    """
-    parts = field_conduct_legacy(card, "Priority").split(" · ")
-    return parts[2].split(" — ")[0].strip(" `").lower() if len(parts) > 2 else ""
-
-
-def status_conduct_legacy(card: str) -> str:
-    """Return a card's `Status`, its backticks dropped, as the severity drops them."""
-    return field_conduct_legacy(card, "Status").strip(" `")
-
-
-def security_conduct_legacy(card: str) -> bool:
-    """Return whether an adversarial card blocks, in a security or unread category."""
-    return (
-        severity_conduct_legacy(card) in BLOCKS["adversarial"]
-        and category_conduct_legacy(card) not in NON_SECURITY
-    )
-
-
-def frontmatter_conduct_legacy(text: str, key: str) -> str | None:
-    """Return the first word of a key's value in the text's leading `---` block.
-
-    e.g. a findings file opening `verdict: clean` in its block, "verdict" → "clean"
-    """
-    if not text.startswith("---\n"):
-        return None
-    block = text[4:].split("\n---", 1)[0]
-    found = re.search(rf"^{key}:\s*(\S+)", block, re.MULTILINE)
-    return found[1] if found else None
-
-
-# `integrate.py`'s copy is the conductor's.
-frontmatter_integrate_legacy = frontmatter_conduct_legacy
-
-
-def cards_open_cards_legacy(text: str) -> list[str]:
-    """Return each card, its title to the line before the next title or heading."""
-    found: list[list[str]] = []
-    current: list[str] | None = None
-    for line in text.splitlines():
-        if TITLE.match(line):
-            current = [line]
-            found.append(current)
-        elif line.startswith("#"):
-            current = None
-        elif current is not None:
-            current.append(line)
-    return ["\n".join(card).rstrip() + "\n" for card in found]
-
-
-# `overlap.py`'s copy is `open_cards.py`'s.
-cards_overlap_legacy = cards_open_cards_legacy
-
-
-def statuses_open_cards_legacy(card: str) -> list[tuple[str, str]]:
-    """Return each `**Status:**` line's value and its word, `open_cards.py`'s way.
-
-    e.g. "`*Fixed*`. — a note" → ("`*Fixed*`.", "fixed")
-    """
-    said = [status[1] for status in STATUS.finditer(card)]
-    return [
-        (each, re.split(r"\W", each.lstrip("`*_"), maxsplit=1)[0].casefold())
-        for each in said
-    ]
-
-
-def read_open_cards_legacy(path: Path) -> str:
-    """Return a file's text; one that cannot be read raises `Unread`, saying why."""
-    try:
-        return path.read_text()
-    except (OSError, UnicodeDecodeError) as error:
-        why = error.strerror if isinstance(error, OSError) else error.reason
-        raise Unread(f"{path}: {why}") from error
-
-
-def affects_overlap_legacy(card: str) -> str | None:
-    """Return a card's `What it affects` value as written, or None with none."""
-    found = re.search(r"^[ \t]+- \*\*What it affects:\*\*(.*)$", card, re.MULTILINE)
-    return found[1] if found else None
-
-
-def blocks_overlap_legacy(card: str, blocking: tuple[str, ...]) -> bool:
-    """Return whether a card's Priority opens with one of its role's blocking grades."""
-    found = re.search(r"^[ \t]+- \*\*Priority:\*\*\s*(\S+)", card, re.MULTILINE)
-    return found is not None and found[1] in blocking
-
-
-def first_round_overlap_legacy(card: str) -> bool:
-    """Return whether a card's **Round** is 1 or absent."""
-    found = re.search(r"^[ \t]+- \*\*Round:\*\*\s*(\d+)", card, re.MULTILINE)
-    return found is None or found[1] == "1"
-
-
-def executor_overlap_legacy(text: str) -> str:
-    """Return a findings file's frontmatter `executor:`, else `unknown`."""
-    block = text.split("\n---", 1)[0] if text.startswith("---\n") else ""
-    found = re.search(r"^executor:\s*(\S+)\s*$", block, re.MULTILINE)
-    return found[1] if found else "unknown"
-
-
-def read_overlap_legacy(path: Path) -> str:
-    """Return a findings file's text; an unread one raises `Unread`, naming its path."""
-    try:
-        return path.read_text()
-    except (OSError, UnicodeDecodeError) as error:
-        raise Unread(str(path)) from error
-
-
-def uncleared_skip_stub_legacy(text: str) -> bool:
-    r"""Return whether a findings file holds a checker's round not yet cleared.
-
-    Its keys are the lines before the first `\n---`; every Status line is read.
-    """
-    lines = text.split("\n---", 1)[0].splitlines()
-    pairs = (line.partition(":") for line in lines)
-    keys = {key.strip(): value.strip() for key, _, value in pairs}
-    if keys.get("mode") == "skipped":
-        return False
-    statuses = re.findall(r"^[ \t]+- \*\*Status:\*\*[ \t]*(\w+)", text, re.MULTILINE)
-    return keys.get("verdict") != "clean" or any(s != "verified" for s in statuses)
+    with contextlib.suppress(OSError, statefile.WriteFailed):
+        fd = statefile.folder(folder.parent, folder.name)
+        try:
+            text = statefile.read(name, folder=fd)
+            if (done := stamped(text, model, tokens)) is not None:
+                statefile.write(Path(name), done, folder=fd, mode=0o600)
+        finally:
+            os.close(fd)

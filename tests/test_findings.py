@@ -1,10 +1,9 @@
 """The findings file's writer and parser in the home, each name a case.
 
-Why: 0138-findings design D1 and D2.
+Why: 0138-findings design D1, and D4 to D12 for the `test_fix_*` cases.
 """
 
 import os
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -90,14 +89,14 @@ def test_card_small_reads_the_fix_size() -> None:
         assert not small(fix), fix
 
 
-def test_card_security_is_the_exact_category() -> None:
-    def security(role: str, priority: str) -> bool:
-        return findings.Card("S1", role, {"Priority": priority}).security
-
-    assert security("adversarial", "high · adversarial · security — why.")
-    assert not security("adversarial", "high · adversarial · Security — why.")
-    assert not security("adversarial", "high · adversarial")
-    assert not security("conformance", "blocking · conformance · security — why.")
+def test_card_size_is_the_last_size_its_fix_names() -> None:
+    for fix, size in (
+        ("a fix · size: `a test`.", "a test"),
+        ("a size: big · size: a design change.", "a design change"),
+        ("a fix · size: a test. note: x", ""),
+        ("", ""),
+    ):
+        assert findings.Card("R1", "conformance", {"Fix": fix}).size == size, fix
 
 
 def test_card_title_takes_an_id_and_a_dash() -> None:
@@ -161,7 +160,6 @@ def test_card_cards_read_each_field_line() -> None:
 @pytest.mark.parametrize(
     ("between", "fields"),
     [
-        ("\n", {"R1": {"Status": "open"}}),
         ("a line\n", {"R1": {"Status": "open"}}),
         ("## Refuted\n", {"R1": {"Status": "open"}}),
         (
@@ -169,7 +167,7 @@ def test_card_cards_read_each_field_line() -> None:
             {"R1": {"Status": "open"}, "R2": {"Fix": "a fix · size: one line."}},
         ),
     ],
-    ids=["blank", "unindented", "heading", "title"],
+    ids=["unindented", "heading", "title"],
 )
 def test_card_cards_end_at_the_first_unindented_line(
     between: str, fields: dict[str, dict[str, str]]
@@ -181,112 +179,24 @@ def test_card_cards_end_at_the_first_unindented_line(
     assert {card.id: card.fields for card in findings.cards(body, "")} == fields
 
 
-def test_card_strays_name_each_status_under_no_title() -> None:
+def test_card_strays_name_each_status_or_priority_under_no_title() -> None:
     text = (
         "  - **Status:** open\n"
         "- **R1 — a**\n  - **Status:** open\n"
         "- **Note** a bold line\n  - **Status:** fixed\n"
-        "* **Other:** x\n  - **Status:** fixed\n"
+        "* **Other:** x\n  - **Priority:** high · a · b\n"
         "## Refuted\n  - **Status:** open\n"
         "- **R2 — b**\n  - **Status**: open\n"
-        "- **Lone**\n  - **Status**: open\n"
+        "- **R3 — c**\n  - **Fix:** f\n  - **Round:** 1\n"
     )
-    assert findings.strays(text) == ["unnamed", "Note", "Other", "unnamed"]
-    assert findings.strays("- **R1 — a**\n  - **Status:** open\n") == []
-
-
-# The legacy forms of the card: each copy's rule as it stands, phase 4's to delete.
-
-
-def test_card_cards_conduct_legacy_run_to_the_next_title() -> None:
-    first = "- **R1 — a**\n  - **Status:** open\n\n## Refuted\n"
-    second = "- **R2 — b**\n  - **Status:** fixed\n"
-
-    found = list(findings.cards_conduct_legacy(f"---\nx: y\n---\n\n{first}{second}"))
-
-    assert found == [("R1", first), ("R2", second)]
-    assert list(findings.cards_conduct_legacy("no card\n")) == []
-
-
-def test_card_field_conduct_legacy_needs_an_indented_colon_inside() -> None:
-    field = findings.field_conduct_legacy
-    assert field("- **R1 — a**\n  - **Status:**  open \n", "Status") == "open"
-    assert field("- **R1 — a**\n  - **Status**: open\n", "Status") == ""
-    assert field("- **R1 — a**\n- **Status:** open\n", "Status") == ""
-
-
-def test_card_words_conduct_legacy_read_the_conductors_way() -> None:
-    def card(name: str, value: str) -> str:
-        return f"- **S1 — a**\n  - **{name}:** {value}\n"
-
-    assert (
-        findings.severity_conduct_legacy(card("Priority", "**high** · a")) == "**high**"
-    )
-    assert findings.severity_conduct_legacy(card("Priority", "`High` · a")) == "high"
-    assert (
-        findings.category_conduct_legacy(
-            card("Priority", "high · adversarial · `Security` — y")
-        )
-        == "security"
-    )
-    assert (
-        findings.category_conduct_legacy(card("Priority", "high · adversarial")) == ""
-    )
-    assert findings.status_conduct_legacy(card("Status", "**Open**")) == "**Open**"
-    assert findings.status_conduct_legacy(card("Status", "`Open`")) == "Open"
-
-
-def test_card_security_conduct_legacy_fails_closed() -> None:
-    def card(priority: str) -> str:
-        return f"- **S1 — a**\n  - **Priority:** {priority}\n"
-
-    assert findings.security_conduct_legacy(card("high · adversarial · injection — w."))
-    assert findings.security_conduct_legacy(card("critical · adversarial"))
-    for named in findings.NON_SECURITY:
-        assert not findings.security_conduct_legacy(
-            card(f"high · adversarial · {named} — why.")
-        ), named
-    assert not findings.security_conduct_legacy(card("medium · adversarial · security"))
-
-
-def test_card_cards_open_cards_legacy_run_to_a_title_or_heading() -> None:
-    first = "- **R1 — a**\n  - **Status:** open\n\n  - **Fix:** f\n"
-    second = "- **A4 — b**\n  - **Status:** fixed\n"
-    text = f"{first}## Refuted\n  - **Fix:** g\n{second}"
-
-    assert findings.cards_open_cards_legacy(text) == [first, second]
-    assert findings.cards_overlap_legacy(text) == [first, second]
-
-
-def test_card_statuses_open_cards_legacy_read_each_status_word() -> None:
-    card = (
-        "- **R1 — a**\n  - **Status:** `**Fixed**`. — a note\n"
-        "  - **Status:** Verified-held\n  - **Status:** _wontfix_\n"
-        "  - **Status:**\n  - **Status**: open\n"
-    )
-    assert findings.statuses_open_cards_legacy(card) == [
-        ("`**Fixed**`.", "fixed"),
-        ("Verified-held", "verified"),
-        ("_wontfix_", "wontfix_"),
-        ("", ""),
+    assert findings.strays(text) == [
+        ("Status", "unnamed"),
+        ("Status", "Note"),
+        ("Priority", "Other"),
+        ("Status", "unnamed"),
     ]
-
-
-def test_card_overlap_legacy_reads_a_field_with_its_colon_inside() -> None:
-    title = "- **R1 — a**\n"
-    affects = findings.affects_overlap_legacy
-    assert affects(f"{title}  - **What it affects:** `a.py:1`\n") == " `a.py:1`"
-    assert affects(f"{title}  - **What it affects**: `a.py:1`\n") is None
-    assert affects(f"{title}- **What it affects:** `a.py:1`\n") is None
-    blocks = findings.blocks_overlap_legacy
-    assert blocks(f"{title}  - **Priority:** blocking · c\n", ("blocking",))
-    assert not blocks(f"{title}  - **Priority**: blocking · c\n", ("blocking",))
-    assert not blocks(f"{title}  - **Priority:** **blocking** · c\n", ("blocking",))
-    assert not blocks(f"{title}  - **Priority:** Blocking · c\n", ("blocking",))
-    assert not findings.first_round_overlap_legacy(f"{title}  - **Round:** 2\n")
-    assert findings.first_round_overlap_legacy(f"{title}  - **Round:** 1\n")
-    assert findings.first_round_overlap_legacy(f"{title}  - **Round**: 2\n")
-    assert findings.first_round_overlap_legacy(title)
+    assert findings.strays("- **R1 — a**\n  - **Status:** open\n") == []
+    assert findings.strays("- **N**\n  - **Fix:** f\n") == []
 
 
 # The frontmatter: the leading block, its keys and their faults.
@@ -359,29 +269,6 @@ def test_front_listed_reads_a_lists_items() -> None:
     assert findings.listed("[ , a]") == ("a",)
 
 
-def test_front_conduct_legacy_reads_the_first_word() -> None:
-    for text, value in (
-        ("---\nverdict:\nclean\n---\n", "clean"),
-        ("---\nverdict: clean # note\n---\n", "clean"),
-        ("---\nverdict: clean\n", "clean"),
-        ("---\nhead: a\n---\nverdict: clean\n", None),
-        ("verdict: clean\n", None),
-    ):
-        assert findings.frontmatter_conduct_legacy(text, "verdict") == value, text
-        assert findings.frontmatter_integrate_legacy(text, "verdict") == value, text
-
-
-def test_front_executor_overlap_legacy_needs_it_alone_on_its_line() -> None:
-    for text, executor in (
-        ("---\nexecutor: codex\n---\n", "codex"),
-        ("---\nexecutor:  codex  \n---\n", "codex"),
-        ("---\nexecutor: codex # x\n---\n", "unknown"),
-        ("executor: codex\n", "unknown"),
-        ("---\nhead: a\n---\nexecutor: codex\n", "unknown"),
-    ):
-        assert findings.executor_overlap_legacy(text) == executor, text
-
-
 # The read of a findings file, and a halt's card ids.
 
 
@@ -409,32 +296,6 @@ def test_read_halt_ids_takes_r_and_s_ids_after_amend_needed() -> None:
     assert findings.halt_ids("halt — amend needed — A1, R-1, XR1") == set()
     assert findings.halt_ids("halt — S1 · amend needed — R1") == {"R1"}
     assert findings.halt_ids("halt — cap reached — R1") == set()
-
-
-def test_read_open_cards_legacy_stops_saying_why(tmp_path: Path) -> None:
-    path = tmp_path / "conformance.md"
-    path.write_text("x\n")
-    assert findings.read_open_cards_legacy(path) == "x\n"
-    path.write_bytes(b"\xff\n")
-    with pytest.raises(findings.Unread, match=r": invalid start byte$"):
-        findings.read_open_cards_legacy(path)
-    missing = tmp_path / "adversarial.md"
-    with pytest.raises(findings.Unread, match=r"adversarial\.md: No such file"):
-        findings.read_open_cards_legacy(missing)
-
-
-def test_read_overlap_legacy_names_the_path(tmp_path: Path) -> None:
-    path = tmp_path / "conformance.md"
-    path.write_text("x\n")
-    target = tmp_path / "target.md"
-    target.write_text("y\n")
-    (tmp_path / "adversarial.md").symlink_to(target)
-    assert findings.read_overlap_legacy(path) == "x\n"
-    assert findings.read_overlap_legacy(tmp_path / "adversarial.md") == "y\n"
-    path.write_bytes(b"\xff\n")
-    with pytest.raises(findings.Unread) as unread:
-        findings.read_overlap_legacy(path)
-    assert str(unread.value) == str(path)
 
 
 # The stub, and whether a file it would replace is cleared.
@@ -473,25 +334,6 @@ def test_stub_uncleared_clears_each_verified_card_alone() -> None:
     for status in ("open", "`open`", "accepted", "fixed", "wontfix", ""):
         assert findings.uncleared(_CLEAN + _status(status)), status
     assert findings.uncleared(_CLEAN + "- **S1 — a**\n  - **Status**: open\n")
-    twice = _status("verified") + "  - **Status:** open\n"
-    assert not findings.uncleared(_CLEAN + twice)
-
-
-def test_stub_uncleared_skip_stub_legacy_reads_its_own_way() -> None:
-    legacy = findings.uncleared_skip_stub_legacy
-    open_card = _status("open")
-    assert not legacy("mode: skipped\n---\n" + open_card)
-    assert legacy("mode: parallel\n---\n" + open_card)
-    assert legacy(_CLEAN + open_card)
-    for card in (
-        _status("`open`"),
-        _status("**open**"),
-        "- **S1 — a**\n  - **Status**: open\n",
-        _status("verified"),
-    ):
-        assert not legacy(_CLEAN + card), card
-    assert legacy(_CLEAN + _status("accepted"))
-    assert legacy(_CLEAN + _status("verified") + "  - **Status:** open\n")
 
 
 # The stamp's text: a checker's model and tokens set in the leading block.
@@ -510,250 +352,128 @@ def test_stamped_sets_the_model_in_place() -> None:
     )
 
 
-# Each legacy function on the pin's inputs, expecting what the copy it holds gave.
-# Why: 0138-findings design D2, its cases e, h, i, k, l and m.
-
-_H_FIRST = (
-    "- **R1 — a**\n  - **Status:** open\n\n  - **Fix:** f\n## Refuted\n\n- **x.** why\n"
-)
-_H_SECOND = "- **R2 — b**\n  - **Status:** fixed\n"
-_K_FIRST = "- **R1 — a**\n  - **Status:** open\n\n  - **Fix:** f\n"
-_K_SECOND = "- **A4 — b**\n  - **Status:** fixed\n"
-_K_TEXT = f"{_K_FIRST}## Refuted\n  - **Fix:** g\n{_K_SECOND}"
-_TITLE = "- **R1 — a**\n"
+# The fix: each rule the copies disagreed on, on its one side.
+# Why: 0138-findings design D4 to D12.
 
 
-def _field(name: str, value: str) -> str:
-    return f"- **S1 — a**\n  - **{name}:** {value}\n"
+def test_fix_extent_a_card_runs_through_a_blank_line() -> None:
+    body = (
+        "- **R1 — a title**\n  - **Status:** open\n\n\n"
+        "  - **Fix:** a fix · size: one line.\n\n"
+        "## Refuted\n"
+    )
 
+    (card,) = findings.cards(body, "conformance")
 
-def _conduct_cards(text: str) -> list[tuple[str, str]]:
-    return list(findings.cards_conduct_legacy(text))
-
-
-_LEGACY: list[tuple[str, Callable[..., object], tuple[object, ...], object]] = [
-    (
-        "h-extent",
-        _conduct_cards,
-        (f"---\nx: y\n---\n\n{_H_FIRST}{_H_SECOND}",),
-        [("R1", _H_FIRST), ("R2", _H_SECOND)],
-    ),
-    (
-        "h-field",
-        findings.field_conduct_legacy,
-        (f"{_TITLE}  - **Status:**  open \n", "Status"),
-        "open",
-    ),
-    (
-        "h-field-tab",
-        findings.field_conduct_legacy,
-        (f"{_TITLE}\t- **Status:** open\n", "Status"),
-        "open",
-    ),
-    (
-        "h-field-colon-outside",
-        findings.field_conduct_legacy,
-        (f"{_TITLE}  - **Status**: open\n", "Status"),
+    assert card.fields == {"Status": "open", "Fix": "a fix · size: one line."}
+    # The blank lines between its lines are kept, the one after its last is not.
+    assert card.lines == [
+        "- **R1 — a title**",
+        "  - **Status:** open",
         "",
-    ),
-    (
-        "h-field-unindented",
-        findings.field_conduct_legacy,
-        (f"{_TITLE}- **Status:** open\n", "Status"),
         "",
-    ),
-    (
-        "h-severity-bold",
-        findings.severity_conduct_legacy,
-        (_field("Priority", "**high** · adversarial · x — y"),),
-        "**high**",
-    ),
-    (
-        "h-severity-ticked",
-        findings.severity_conduct_legacy,
-        (_field("Priority", "`High` · adversarial · x — y"),),
-        "high",
-    ),
-    (
-        "h-category",
-        findings.category_conduct_legacy,
-        (_field("Priority", "high · adversarial · `Security` — y"),),
-        "security",
-    ),
-    (
-        "h-category-none",
-        findings.category_conduct_legacy,
-        (_field("Priority", "high · adversarial"),),
-        "",
-    ),
-    (
-        "h-status-bold",
-        findings.status_conduct_legacy,
-        (_field("Status", "**Open**"),),
-        "**Open**",
-    ),
-    (
-        "h-status-ticked",
-        findings.status_conduct_legacy,
-        (_field("Status", "`Open`"),),
-        "Open",
-    ),
-    (
-        "i-security-unknown",
-        findings.security_conduct_legacy,
-        (_field("Priority", "high · adversarial · injection — why."),),
-        True,
-    ),
-    (
-        "i-security-missing",
-        findings.security_conduct_legacy,
-        (_field("Priority", "critical · adversarial"),),
-        True,
-    ),
-    (
-        "i-security-named",
-        findings.security_conduct_legacy,
-        (_field("Priority", "high · adversarial · stability — why."),),
-        False,
-    ),
-    (
-        "i-security-medium",
-        findings.security_conduct_legacy,
-        (_field("Priority", "medium · adversarial · security — why."),),
-        False,
-    ),
-    *(
-        (f"e-{script}-{n}", function, (text, "verdict"), value)
-        for script, function in (
-            ("conduct", findings.frontmatter_conduct_legacy),
-            ("integrate", findings.frontmatter_integrate_legacy),
-        )
-        for n, (text, value) in enumerate(
-            (
-                ("---\nverdict:\nclean\n---\n", "clean"),
-                ("---\nverdict: clean # note\n---\n", "clean"),
-                ("---\nverdict: clean\n", "clean"),
-                ("---\nhead: a\n---\nverdict: clean\n", None),
-                ("verdict: clean\n", None),
-            )
-        )
-    ),
-    ("k-extent", findings.cards_open_cards_legacy, (_K_TEXT,), [_K_FIRST, _K_SECOND]),
-    *(
-        (
-            f"k-status-{n}",
-            findings.statuses_open_cards_legacy,
-            (_field("Status", said),),
-            [(said, word)],
-        )
-        for n, (said, word) in enumerate(
-            (
-                ("`**Fixed**`.", "fixed"),
-                ("Verified-held", "verified"),
-                ("WONTFIX", "wontfix"),
-                ("_wontfix_", "wontfix_"),
-                ("", ""),
-            )
-        )
-    ),
-    (
-        "k-status-colon-outside",
-        findings.statuses_open_cards_legacy,
-        ("- **R1 — a**\n  - **Status**: open\n",),
-        [],
-    ),
-    ("l-extent", findings.cards_overlap_legacy, (_K_TEXT,), [_K_FIRST, _K_SECOND]),
-    (
-        "l-affects",
-        findings.affects_overlap_legacy,
-        (f"{_TITLE}  - **What it affects:** `a.py:1`\n",),
-        " `a.py:1`",
-    ),
-    (
-        "l-affects-colon-outside",
-        findings.affects_overlap_legacy,
-        (f"{_TITLE}  - **What it affects**: `a.py:1`\n",),
-        None,
-    ),
-    (
-        "l-affects-unindented",
-        findings.affects_overlap_legacy,
-        (f"{_TITLE}- **What it affects:** `a.py:1`\n",),
-        None,
-    ),
-    *(
-        (
-            f"l-blocks-{n}",
-            findings.blocks_overlap_legacy,
-            (f"{_TITLE}  - **Priority{colon} {grade} · c\n", ("blocking",)),
-            blocking,
-        )
-        for n, (colon, grade, blocking) in enumerate(
-            (
-                (":**", "blocking", True),
-                ("**:", "blocking", False),
-                (":**", "**blocking**", False),
-                (":**", "Blocking", False),
-            )
-        )
-    ),
-    (
-        "l-round-2",
-        findings.first_round_overlap_legacy,
-        (f"{_TITLE}  - **Round:** 2\n",),
-        False,
-    ),
-    (
-        "l-round-colon-outside",
-        findings.first_round_overlap_legacy,
-        (f"{_TITLE}  - **Round**: 2\n",),
-        True,
-    ),
-    ("l-round-none", findings.first_round_overlap_legacy, (_TITLE,), True),
-    *(
-        (f"l-executor-{n}", findings.executor_overlap_legacy, (text,), executor)
-        for n, (text, executor) in enumerate(
-            (
-                ("---\nexecutor: codex\n---\n", "codex"),
-                ("---\nexecutor:  codex  \n---\n", "codex"),
-                ("---\nexecutor: codex # x\n---\n", "unknown"),
-                ("executor: codex\n", "unknown"),
-                ("---\nhead: a\n---\nexecutor: codex\n", "unknown"),
-            )
-        )
-    ),
-    *(
-        (f"m-uncleared-{n}", findings.uncleared_skip_stub_legacy, (text,), uncleared)
-        for n, (text, uncleared) in enumerate(
-            (
-                ("mode: skipped\n---\n" + _status("open"), False),
-                ("mode: parallel\n---\n" + _status("open"), True),
-                (
-                    "---\nmode: skipped\nverdict: changes-requested\n---\n"
-                    + _status("open"),
-                    False,
-                ),
-                (_CLEAN + _status("open"), True),
-                (_CLEAN + _status("`open`"), False),
-                (_CLEAN + _status("**open**"), False),
-                (_CLEAN + "- **S1 — a**\n  - **Status**: open\n", False),
-                (_CLEAN + _status("verified"), False),
-                (_CLEAN + _status("accepted"), True),
-                (_CLEAN + _status("fixed"), True),
-                (_CLEAN + _status("wontfix"), True),
-                (_CLEAN + _status("verified") + "  - **Status:** open\n", True),
-            )
-        )
-    ),
-]
+        "  - **Fix:** a fix · size: one line.",
+    ]
+    # Twin: a blank line, then an unindented one, ends it.
+    after = "- **R1 — a**\n  - **Status:** open\n\na line\n  - **Fix:** f\n"
+    assert findings.cards(after, "")[0].fields == {"Status": "open"}
 
 
-@pytest.mark.parametrize(
-    ("function", "args", "expected"),
-    [row[1:] for row in _LEGACY],
-    ids=[row[0] for row in _LEGACY],
-)
-def test_legacy_gives_what_the_copy_gave(
-    function: Callable[..., object], args: tuple[object, ...], expected: object
-) -> None:
-    assert function(*args) == expected
+def test_fix_field_a_stray_reads_the_colon_outside() -> None:
+    assert findings.strays("- **Lone**\n  - **Status**: open\n") == [("Status", "Lone")]
+    # A stray after a blank line under its card is no stray: the card goes on.
+    assert findings.strays("- **R1 — a**\n  - **Fix:** f\n\n  - **Status:** o\n") == []
+
+
+def test_fix_word_the_category_reads_as_a_word() -> None:
+    def category(priority: str) -> str:
+        return findings.Card("S1", "adversarial", {"Priority": priority}).category
+
+    assert category("high · adversarial · `Data integrity`. — why") == (
+        "data integrity"
+    )
+    assert category("high · adversarial · **Security** — why") == "security"
+    assert category("high · adversarial") == ""
+
+
+def test_fix_security_a_card_fails_closed_on_an_unread_category() -> None:
+    def security(role: str, priority: str) -> bool:
+        return findings.Card("S1", role, {"Priority": priority}).security
+
+    for priority in (
+        "high · adversarial · security — why.",
+        "high · adversarial · Security — why.",
+        "critical · adversarial · injection — why.",
+        "**high** · adversarial",
+    ):
+        assert security("adversarial", priority), priority
+    for named in findings.NON_SECURITY:
+        assert not security("adversarial", f"high · adversarial · `{named}` — why.")
+    assert not security("adversarial", "medium · adversarial · security — why.")
+    assert not security("conformance", "blocking · conformance · security — why.")
+
+
+def test_fix_ids_malformed_names_an_id_or_a_stray() -> None:
+    assert findings.malformed(_card("R1", Status="open") + _card("S12"), "") is None
+    for text, why in (
+        (_card("S-1", Status="open"), "card S-1 is not R<n> or S<n>"),
+        (_card("A6", Status="open"), "card A6 is not R<n> or S<n>"),
+        (_card("R1x"), "card R1x is not R<n> or S<n>"),
+        ("- **Note**\n  - **Status:** open\n", "a Status under no card: Note"),
+        ("## Findings\n  - **Priority:** high\n", "a Priority under no card: unnamed"),
+    ):
+        assert findings.malformed(_CLEAN + text, "adversarial") == why, text
+    # The frontmatter alone is no card: a reader of its keys never meets the check.
+    assert findings.malformed("---\nverdict: clean\nmode: x\n---\n", "") is None
+
+
+def test_fix_frontmatter_keyed_sets_the_block_alone() -> None:
+    text = "---\n head : a\nround: 1\nmode: x\n---\nround: 7\nworkers: 3\n"
+    assert findings.keyed(text, {"head": "b", "round": 2, "workers": 0}) == (
+        "---\nhead: b\nround: 2\nmode: x\n---\nround: 7\nworkers: 3\n"
+    )
+    assert findings.keyed("round: 1\n", {"round": 2}) == "round: 1\n"
+
+
+def test_fix_first_a_repeated_status_reads_its_first_line() -> None:
+    twice = _status("verified") + "  - **Status:** open\n"
+    assert not findings.uncleared(_CLEAN + twice)
+    assert findings.uncleared(_CLEAN + _status("open") + "  - **Status:** verified\n")
+
+
+def test_fix_stamp_writes_at_0600_and_leaves_a_link(tmp_path: Path) -> None:
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    path = folder / "conformance.md"
+    path.write_bytes(b"---\nmodel: x\n---\n\xff\n")
+    path.chmod(0o644)
+
+    findings.stamp(folder, "conformance.md", "m", 5)
+
+    assert (
+        path.read_text() == "---\nmodel: m\ntokens: 5\n---\n\N{REPLACEMENT CHARACTER}\n"
+    )
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert sorted(item.name for item in folder.iterdir()) == ["conformance.md"]
+    # A file with no frontmatter, a linked file and a linked folder are left alone.
+    path.write_text("no block\n")
+    findings.stamp(folder, "conformance.md", "m", 5)
+    assert path.read_text() == "no block\n"
+    target = tmp_path / "target.md"
+    target.write_text("---\nmodel: x\n---\n")
+    (folder / "adversarial.md").symlink_to(target)
+    findings.stamp(folder, "adversarial.md", "m", 5)
+    (tmp_path / "linked").symlink_to(folder)
+    path.write_text("---\nmodel: x\n---\n")
+    findings.stamp(tmp_path / "linked", "conformance.md", "m", 5)
+    assert target.read_text() == path.read_text() == "---\nmodel: x\n---\n"
+
+
+def test_fix_stamp_keeps_the_file_when_its_write_fails(tmp_path: Path) -> None:
+    path = tmp_path / "conformance.md"
+    path.write_text("---\nmodel: x\n---\n")
+    (tmp_path / "conformance.md.tmp").mkdir()
+
+    findings.stamp(tmp_path, "conformance.md", "m", 5)
+
+    assert path.read_text() == "---\nmodel: x\n---\n"

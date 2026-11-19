@@ -89,14 +89,17 @@ def stub(path: Path, role: str, round_: int, head: str, cwd: Path | None = None)
 
 def uncleared(text: str) -> bool:
     """Return whether a findings file holds a checker's round not yet cleared."""
-    return mflib.findings.uncleared_skip_stub_legacy(text)
+    return mflib.findings.uncleared(text)
 
 
 def write(path: Path, text: str) -> None:
     """Replace the file with `text` through a staged file; a link is refused."""
     try:
         # why: a skip added after a round keeps its cards; 0105-converge-switches D3
-        if path.is_file() and uncleared(mflib.statefile.read(path)):
+        held = mflib.findings.read(path)
+        if held is not None and (why := mflib.findings.malformed(held, path.stem)):
+            raise Stop(f"{path} is malformed: {why}")
+        if held is not None and uncleared(held):
             raise Stop(
                 f"{path} holds a checker's round not cleared:"
                 " clearing it is the person's act"

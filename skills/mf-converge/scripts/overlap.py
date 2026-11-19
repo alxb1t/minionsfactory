@@ -28,12 +28,37 @@ PATH = re.compile(rf"[\w.-]*(?:/[\w.-]*)+|[\w.-]*\.(?:{SUFFIXES})")
 
 type Anchor = tuple[str, int | None, int | None]
 
-# A findings file that cannot be read; its path is the message.
-Unread = mflib.findings.Unread
-# `review_metrics.py` takes these names: 0138-findings design D3.
-cards = mflib.findings.cards_overlap_legacy
-executor = mflib.findings.executor_overlap_legacy
-first_round = mflib.findings.first_round_overlap_legacy
+
+class Unread(Exception):
+    """Name a findings file `line` cannot read, and why when it is malformed."""
+
+
+def _card(card: str) -> mflib.findings.Card:
+    """Return the card a card's text holds; one with no field when it holds none."""
+    found = mflib.findings.cards(card, "")
+    return found[0] if found else mflib.findings.Card("", "", {})
+
+
+# `review_metrics.py` takes `cards`, `first_round` and `executor`: 0138 design D3.
+def cards(text: str) -> list[str]:
+    """Return each card's text: its title and its indented lines."""
+    return ["\n".join(card.lines) + "\n" for card in mflib.findings.cards(text, "")]
+
+
+def first_round(card: str) -> bool:
+    """Return whether a card's **Round** is 1 or absent."""
+    found = re.match(r"\d+", _card(card).fields.get("Round", ""))
+    return found is None or found[0] == "1"
+
+
+def executor(text: str) -> str:
+    """Return a findings file's frontmatter `executor:`, else `unknown`."""
+    return mflib.findings.frontmatter(text, "executor") or "unknown"
+
+
+def _blocks(card: str, blocking: tuple[str, ...]) -> bool:
+    """Return whether a card's grade is one of its role's blocking grades."""
+    return _card(card).severity in blocking
 
 
 def anchors(card: str) -> list[Anchor]:
@@ -41,9 +66,9 @@ def anchors(card: str) -> list[Anchor]:
 
     e.g. "`f()` in `a.py:12-14`, `b.py`" → [("a.py", 12, 14), ("b.py", None, None)]
     """
-    affects = mflib.findings.affects_overlap_legacy(card)
+    affects = _card(card).fields.get("What it affects", "")
     found: list[Anchor] = []
-    for span in SPAN.findall(affects) if affects is not None else []:
+    for span in SPAN.findall(affects):
         path = LINES.sub("", span)
         if not path or (path == span and not PATH.fullmatch(path)):
             continue
@@ -95,26 +120,37 @@ def overlap(
         taken.add(hit)
         shared.append((primary[hit], card))
     left = [card for index, card in enumerate(primary) if index not in taken]
-    blocks = mflib.findings.blocks_overlap_legacy
     return {
         "shared": len(shared),
         "primary_alone": len(left),
         "shadow_alone": len(alone),
         "shared_blockers": sum(
-            blocks(one, blocking) or blocks(other, blocking) for one, other in shared
+            _blocks(one, blocking) or _blocks(other, blocking) for one, other in shared
         ),
-        "primary_blockers": sum(blocks(card, blocking) for card in left),
-        "shadow_blockers": sum(blocks(card, blocking) for card in alone),
+        "primary_blockers": sum(_blocks(card, blocking) for card in left),
+        "shadow_blockers": sum(_blocks(card, blocking) for card in alone),
     }
+
+
+def _read(path: Path) -> str:
+    """Return a findings file's text; missing, unread or malformed raises `Unread`."""
+    try:
+        text = mflib.findings.read(path)
+    except OSError as error:
+        raise Unread(str(path)) from error
+    if text is None:
+        raise Unread(str(path))
+    if why := mflib.findings.malformed(text, ""):
+        raise Unread(f"{path}: {why}")
+    return text
 
 
 def line(folder: Path) -> str:
     """Return each role's counts, joined by `; `."""
-    read = mflib.findings.read_overlap_legacy
     found: list[str] = []
     for role, blocking in ROLES.items():
-        held = read(folder / f"{role}.md")
-        shade = read(folder / f"shadow-{role}.md")
+        held = _read(folder / f"{role}.md")
+        shade = _read(folder / f"shadow-{role}.md")
         primary = [card for card in cards(held) if first_round(card)]
         counts = overlap(primary, cards(shade), blocking)
         found.append(

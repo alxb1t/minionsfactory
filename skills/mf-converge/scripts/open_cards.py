@@ -10,6 +10,7 @@ D10, 0108-converge-script design D11.
 
 import argparse
 import errno
+import os
 import sys
 from pathlib import Path
 
@@ -25,21 +26,18 @@ class Stop(Exception):
     """End the run with the reason it prints, and exit 2."""
 
 
-def judged(card: str) -> bool:
+def judged(card: mflib.findings.Card) -> bool:
     """Return whether a card's Status asks a verify for its verdict.
 
-    e.g. "  - **Status:** `Fixed` — a note" → True; "verified — held" → False.
+    e.g. Status "`Fixed` — a note" → True; "verified — held" → False.
     A Status word none of `KNOWN`, or none at all, stops the run, naming the card.
     """
-    title = mflib.findings.TITLE.match(card)
-    name = title[1] if title else "unnamed"
-    statuses = mflib.findings.statuses_open_cards_legacy(card)
-    if not statuses:
-        raise Stop(f"card {name}: no Status")
-    for each, word in statuses:
-        if word not in KNOWN:
-            raise Stop(f"card {name}: Status {each or 'empty'}")
-    return statuses[0][1] in JUDGED
+    if "Status" not in card.fields:
+        raise Stop(f"card {card.id}: no Status")
+    if card.status not in KNOWN:
+        said = card.fields["Status"].split()
+        raise Stop(f"card {card.id}: Status {said[0] if said else 'empty'}")
+    return card.status in JUDGED
 
 
 # `bundle.py`'s `write`.
@@ -59,15 +57,15 @@ def open_page(findings: Path, out: Path) -> int:
     Raises `Stop` as `main` exits 2.
     """
     try:
-        text = mflib.findings.read_open_cards_legacy(findings)
-    except mflib.findings.Unread as unread:
-        raise Stop(str(unread)) from unread
-    if strays := mflib.findings.strays(text):
-        raise Stop(f"a Status under no card: {strays[0]}")
-    found = [
-        card for card in mflib.findings.cards_open_cards_legacy(text) if judged(card)
-    ]
-    body = "".join(found) or "None.\n"
+        text = mflib.findings.read(findings)
+    except OSError as error:
+        raise Stop(f"{findings}: {error.strerror}") from error
+    if text is None:
+        raise Stop(f"{findings}: {os.strerror(errno.ENOENT)}")
+    if why := mflib.findings.malformed(text, ""):
+        raise Stop(why)
+    found = [card for card in mflib.findings.cards(text, "") if judged(card)]
+    body = "".join("\n".join(card.lines) + "\n" for card in found) or "None.\n"
     write(out, f"# {findings.name} — the cards a verify judges\n\n{body}")
     return len(found)
 

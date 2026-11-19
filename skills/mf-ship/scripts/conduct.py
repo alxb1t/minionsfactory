@@ -171,6 +171,8 @@ AMENDS = ("tasks.md", "design.md")
 # decision change. Why: 0103-fewer-rounds design D3.
 FIX_NOTE = re.compile(r"Fix note \(\d{4}-\d{2}-\d{2}, [RS]\d+\): \S.*")
 ROLES = ("conformance", "adversarial")
+# The Status words that leave a security card unheld. Why: 0138-findings design D5.
+CLOSED = ("fixed", "verified", "wontfix", "accepted")
 EXECUTORS = ("claude", "codex")
 SKILLS_DIR = Path(__file__).resolve().parents[2]
 # The longest one script's environment takes to build. Why: 0112-uv-race design D2.
@@ -480,7 +482,30 @@ def _frontmatter(text: str, key: str) -> str | None:
 
     e.g. a findings file opening `verdict: clean` in its block, "verdict" → "clean"
     """
-    return mflib.findings.frontmatter_conduct_legacy(text, key)
+    return mflib.findings.frontmatter(text, key)
+
+
+def _findings(runs: Path, change: str, role: str) -> str | None:
+    """Return a role's findings file's text; None when it is missing or unread.
+
+    Why: 0138-findings design D9.
+    """
+    file = mflib.layout.findings_file(runs.parent, change, role)
+    try:
+        return mflib.findings.read(file)
+    except OSError:
+        return None
+
+
+def _read_cards(runs: Path, change: str, role: str) -> list[mflib.findings.Card] | None:
+    """Return a role's findings file's cards; None if missing, unread or malformed.
+
+    Why: 0138-findings design D7 and D9.
+    """
+    text = _findings(runs, change, role)
+    if text is None or mflib.findings.malformed(text, role):
+        return None
+    return mflib.findings.cards(text, role)
 
 
 def _after(text: str) -> list[str]:
@@ -1205,13 +1230,10 @@ def _amendable(runs: Path, change: str, halt: str) -> bool:
         _run_marked(runs, change, "catch-up") or _run_marked(runs, change, "amend")
     ):
         return False
-    files = (
-        mflib.layout.change_dir(runs.parent, change) / f"{role}.md" for role in ROLES
-    )
-    front = mflib.findings.frontmatter_conduct_legacy
+    texts = (_findings(runs, change, role) for role in ROLES)
     return all(
-        file.is_file() and front(file.read_text(), "verdict") == "clean"
-        for file in files
+        text is not None and mflib.findings.frontmatter(text, "verdict") == "clean"
+        for text in texts
     )
 
 
@@ -1266,10 +1288,9 @@ def _answered(runs: Path, tree: Path, change: str, halt: str) -> bool:
         return _ancestor(tree, halted, "HEAD")
     if any(_amends(tree, change, halted)):
         return True
-    front = mflib.findings.frontmatter_conduct_legacy
     for role in ROLES:
-        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
-        judged = front(file.read_text(), "head") if file.is_file() else None
+        text = _findings(runs, change, role)
+        judged = mflib.findings.frontmatter(text, "head") if text is not None else None
         resolved = judged and _maybe(
             tree, "rev-parse", "-q", "--verify", f"{judged}^{{commit}}"
         )
@@ -1330,12 +1351,15 @@ def _unjudged(
     if "converge" in (_skips(runs, change) if skips is None else skips):
         return None
     head = _git(tree, "rev-parse", rev).strip()
-    front = mflib.findings.frontmatter_conduct_legacy
+    front = mflib.findings.frontmatter
     for role in ROLES:
-        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
-        if not file.is_file():
+        file = mflib.layout.findings_file(runs.parent, change, role)
+        try:
+            text = mflib.findings.read(file)
+        except OSError as error:
+            return f"{file.name} cannot be read: {error.strerror}"
+        if text is None:
             return f"no {role} findings file"
-        text = file.read_text()
         if (verdict := front(text, "verdict")) != "clean":
             return f"{role}: verdict {verdict}"
         judged = front(text, "head") or ""
@@ -2784,21 +2808,14 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
     """
     found = []
     for role in ROLES:
-        file = mflib.layout.change_dir(runs.parent, change) / f"{role}.md"
-        if not file.is_file():
+        cards = _read_cards(runs, change, role)
+        if cards is None:
             return None
-        try:
-            text = file.read_text()
-        except (OSError, UnicodeDecodeError):
-            return None
-        for name, card in mflib.findings.cards_conduct_legacy(text):
-            severity = mflib.findings.severity_conduct_legacy(card)
-            status = mflib.findings.status_conduct_legacy(card)
-            if severity in mflib.findings.BLOCKS[role] and re.match(r"open\b", status):
-                fix = mflib.findings.field_conduct_legacy(card, "Fix")
-                sized = mflib.findings.SIZE.search(fix)
-                size = sized[1].strip(" `.") if sized else ""
-                found.append((name, size or "a design change"))
+        found += [
+            (card.id, card.size or "a design change")
+            for card in cards
+            if card.blocking and card.status == "open"
+        ]
     return found
 
 
@@ -2809,43 +2826,29 @@ def _security_blocks(runs: Path, change: str, halt: str) -> bool:
     0095-converge-roles design D2.
     """
     ids = mflib.findings.halt_ids(halt)
-    try:
-        text = (
-            mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
-        ).read_text()
-    except (OSError, UnicodeDecodeError):
-        return True
-    return any(
-        name in ids and _security_card(card)
-        for name, card in mflib.findings.cards_conduct_legacy(text)
-    )
+    cards = _read_cards(runs, change, "adversarial")
+    return cards is None or any(card.id in ids and card.security for card in cards)
 
 
 def _security_card(card: str) -> bool:
-    """Return whether an adversarial card blocks, in a security or unread category.
+    """Return whether a card's text is a blocking adversarial card not named safe.
 
     Why: 0095-converge-roles design D2; 0119-debt-paydown-3b design D3.
     """
-    return mflib.findings.security_conduct_legacy(card)
+    return any(found.security for found in mflib.findings.cards(card, "adversarial"))
 
 
 def _security_held(runs: Path, change: str, halt: str) -> bool:
     """Return whether a blocking security card bars the supervisor at a converge halt.
 
-    Why: 0089-supervisor design D6;
-    0095-converge-roles design D2.
+    A Status none of `CLOSED`, or none at all, holds it. Why: 0089-supervisor design D6;
+    0095-converge-roles design D2; 0138-findings design D5.
     """
     ids = mflib.findings.halt_ids(halt)
-    try:
-        text = (
-            mflib.layout.change_dir(runs.parent, change) / "adversarial.md"
-        ).read_text()
-    except (OSError, UnicodeDecodeError):
-        return True
-    status = mflib.findings.status_conduct_legacy
-    return any(
-        _security_card(card) and (name in ids or status(card).startswith("open"))
-        for name, card in mflib.findings.cards_conduct_legacy(text)
+    cards = _read_cards(runs, change, "adversarial")
+    return cards is None or any(
+        card.security and (card.id in ids or card.status not in CLOSED)
+        for card in cards
     )
 
 
@@ -3078,21 +3081,6 @@ def _bounded(path: Path | str, fd: int | None = None) -> str | None:
     except OSError:
         return None
     return data.decode(errors="replace") if len(data) <= READ_BYTES else None
-
-
-def _place(fd: int, name: str, text: str) -> None:
-    """Write `name` whole through `fd`: made as `.<name>`, then renamed over the old.
-
-    Each is made `O_EXCL`, following no link; a failure raises `OSError`.
-    """
-    part = f".{name}"
-    for old in (name, part):
-        with contextlib.suppress(OSError):
-            os.unlink(old, dir_fd=fd)
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
-    with os.fdopen(os.open(part, flags, 0o600, dir_fd=fd), "w") as handle:
-        handle.write(text)
-    os.rename(part, name, src_dir_fd=fd, dst_dir_fd=fd)
 
 
 def _granted(runs: Path, change: str, take: bool) -> bool:
@@ -4067,26 +4055,9 @@ def _stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> No
     """Set a findings file's `model:` and `tokens:`, following no link; else leave it.
 
     A file that is no regular file, or has no frontmatter, is left as it is.
-    Why: 0104-codex-limits design D5.
+    Why: 0104-codex-limits design D5; 0138-findings design D12.
     """
-    try:
-        fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    except OSError:
-        return
-    try:
-        with contextlib.suppress(OSError):
-            file = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-            try:
-                if not stat.S_ISREG(os.fstat(file).st_mode):
-                    return
-                with os.fdopen(file, "rb", closefd=False) as handle:
-                    text = handle.read().decode(errors="replace")
-            finally:
-                os.close(file)
-            if (stamped := mflib.findings.stamped(text, model, tokens)) is not None:
-                _place(fd, name, stamped)
-    finally:
-        os.close(fd)
+    mflib.findings.stamp(folder, name, model, tokens)
 
 
 def _quota(log: Path, before: dict[str, Window]) -> None:

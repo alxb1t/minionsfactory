@@ -7,7 +7,7 @@ Pin each copy of the findings format as it stands, build the module, move the st
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
 - [x] 3 — The stations · moderate
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
 ## 1 — The pin
@@ -73,25 +73,25 @@ No assert changes in this phase: a test's line that reaches a moved name changes
 
 Each task moves the rows of [the cases](design.md#the-cases) marked `turns` that its rule touches to `test_fix_<rule>_*` cases in the same test file ([D2](design.md#d2)), and adds a `test_fix_<rule>_*` case to `tests/test_findings.py`; the rules are `extent`, `field`, `word`, `security`, `ids`, `frontmatter`, `read`, `first` and `stamp`. A task that deletes a legacy function drops its row from the `test_legacy_*` table. A case marked `stays` is not touched.
 
-- [ ] 4.1 One extent and one field line ([D4](design.md#d4)): the module's `cards` and `FIELD` are the one form in every reader; delete the legacy functions of the extent and of the field line.
+- [x] 4.1 One extent and one field line ([D4](design.md#d4)): the module's `cards` and `FIELD` are the one form in every reader; delete the legacy functions of the extent and of the field line.
   Verify: `uv run pytest tests/test_findings.py tests/test_converge.py tests/test_conduct.py tests/test_open_cards.py tests/test_overlap.py tests/test_skip_stub.py -q -k "test_fix_extent or test_fix_field"` passes.
-- [ ] 4.2 One word ([D5](design.md#d5), [D11](design.md#d11)): `Card.word` reads Status, grade and category in every reader; an unknown or empty Status is not cleared; `open_cards.py` keeps its stop; `skip_stub.py` clears on `verified` alone.
+- [x] 4.2 One word ([D5](design.md#d5), [D11](design.md#d11)): `Card.word` reads Status, grade and category in every reader; an unknown or empty Status is not cleared; `open_cards.py` keeps its stop; `skip_stub.py` clears on `verified` alone.
   Verify: `uv run pytest tests/test_findings.py tests/test_conduct.py tests/test_open_cards.py tests/test_skip_stub.py -q -k test_fix_word` passes.
-- [ ] 4.3 One security rule ([D6](design.md#d6)): `Card.security` fails closed on an unread category, as `_security_card` does; the malformed file's answer to the security readers is task 4.4's.
+- [x] 4.3 One security rule ([D6](design.md#d6)): `Card.security` fails closed on an unread category, as `_security_card` does; the malformed file's answer to the security readers is task 4.4's.
   Verify: `uv run pytest tests/test_findings.py tests/test_converge.py tests/test_conduct.py -q -k test_fix_security` passes.
-- [ ] 4.4 Ids and strays ([D7](design.md#d7)): add `malformed(text, role)` to the module, naming a card id outside `R<n>` and `S<n>` and a Status or Priority under no title, and have each reader of cards call it and answer as the table of [D7](design.md#d7) says; the title pattern is unchanged.
+- [x] 4.4 Ids and strays ([D7](design.md#d7)): add `malformed(text, role)` to the module, naming a card id outside `R<n>` and `S<n>` and a Status or Priority under no title, and have each reader of cards call it and answer as the table of [D7](design.md#d7) says; the title pattern is unchanged.
   Verify: `uv run pytest tests/test_findings.py tests/test_converge.py tests/test_conduct.py tests/test_open_cards.py tests/test_overlap.py tests/test_skip_stub.py -q -k test_fix_ids` passes.
-- [ ] 4.5 One frontmatter ([D8](design.md#d8)): `front` is the one form in `_frontmatter`, `unready`, `overlap.executor` and `uncleared`; `ruled` edits a key of the block alone; a key is stripped.
+- [x] 4.5 One frontmatter ([D8](design.md#d8)): `front` is the one form in `_frontmatter`, `unready`, `overlap.executor` and `uncleared`; `ruled` edits a key of the block alone; a key is stripped.
   Verify: `uv run pytest tests/test_findings.py tests/test_converge.py tests/test_conduct.py tests/test_integrate.py tests/test_overlap.py tests/test_skip_stub.py -q -k test_fix_frontmatter` passes.
-- [ ] 4.6 One read ([D9](design.md#d9)): `_unjudged`, `_amendable`, `_answered`, `_open_blockers`, `_security_blocks`, `_security_held`, `unready`, `open_page`, `overlap.line` and `skip_stub.uncleared` read through the module's `read`; a missing file keeps each caller's answer.
+- [x] 4.6 One read ([D9](design.md#d9)): `_unjudged`, `_amendable`, `_answered`, `_open_blockers`, `_security_blocks`, `_security_held`, `unready`, `open_page`, `overlap.line` and `skip_stub.uncleared` read through the module's `read`; a missing file keeps each caller's answer.
   Verify: `uv run pytest tests/test_findings.py tests/test_conduct.py tests/test_integrate.py tests/test_open_cards.py tests/test_overlap.py tests/test_skip_stub.py -q -k test_fix_read` passes.
-- [ ] 4.7 A repeated field reads its first line ([D11](design.md#d11)): `skip_stub.py` reads a card's Status through the module, no longer each Status line of the file.
+- [x] 4.7 A repeated field reads its first line ([D11](design.md#d11)): `skip_stub.py` reads a card's Status through the module, no longer each Status line of the file.
   Verify: `uv run pytest tests/test_findings.py tests/test_skip_stub.py -q -k test_fix_first` passes.
-- [ ] 4.8 The stamp ([D12](design.md#d12)): add `stamp(folder, name, model, tokens)` to the module, writing through `mflib.statefile.write` with the folder descriptor and mode `0o600`, its folder from `mflib.statefile.folder`; `_stamp` calls it.
+- [x] 4.8 The stamp ([D12](design.md#d12)): add `stamp(folder, name, model, tokens)` to the module, writing through `mflib.statefile.write` with the folder descriptor and mode `0o600`, its folder from `mflib.statefile.folder`; `_stamp` calls it.
   Verify: `uv run pytest tests/test_findings.py tests/test_conduct.py -q -k test_fix_stamp` passes.
-- [ ] 4.9 Delete `_place` from `skills/mf-ship/scripts/conduct.py`: `_stamp` no longer calls it, and no other file does.
+- [x] 4.9 Delete `_place` from `skills/mf-ship/scripts/conduct.py`: `_stamp` no longer calls it, and no other file does.
   Verify: `git grep -n -w -e "_place" -- skills` prints nothing.
-- [ ] 4.10 Delete every function of `skills/mflib/findings.py` whose name ends `_legacy` ([D2](design.md#d2)) and its table row in `tests/test_findings.py`.
+- [x] 4.10 Delete every function of `skills/mflib/findings.py` whose name ends `_legacy` ([D2](design.md#d2)) and its table row in `tests/test_findings.py`.
   Verify: `git grep -n -e "_legacy" -- skills` prints nothing.
 
 ## 5 — The rule and the record
