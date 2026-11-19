@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin tests hold the staged writes, the no-follow reads and the status log's writer and readers as they stand —
   each copy's link, `.tmp`, rename, bad-byte, bound, FIFO and run-end answer — before they move into one module
   (0136-status-log, phase 1).
+- The home gains `statefile.py`, one staged write and one no-follow read, and `statuslog.py`, one writer and parser
+  of the status log, each copy's difference an argument; `layout.py` names the log. No caller yet
+  (0136-status-log, phase 2).
 
 ## [0.107.0] - 2026-11-18
 

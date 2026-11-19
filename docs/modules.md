@@ -59,3 +59,5 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mflib/__init__.py` | home | — |
 | `skills/mflib/layout.py` | home | — |
 | `skills/mflib/platform.py` | home | — |
+| `skills/mflib/statefile.py` | home | — |
+| `skills/mflib/statuslog.py` | home | layout.py, statefile.py |

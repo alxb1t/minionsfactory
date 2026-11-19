@@ -5,7 +5,7 @@ The phases: pin the region, write the modules, move the stations, give the helpe
 ## Progress
 
 - [x] 1 — The pin · hard
-- [ ] 2 — The modules · hard
+- [x] 2 — The modules · hard
 - [ ] 3 — The stations · hard
 - [ ] 4 — The helpers · moderate
 - [ ] 5 — The fix · hard
@@ -34,15 +34,15 @@ Tests only, each green on the code as it stands ([D2](design.md#d2)).
 
 The modules and the layout's name, beside no caller ([D1](design.md#d1), [D3](design.md#d3)).
 
-- [ ] 2.1 In `skills/mflib/layout.py` add `STATUS_LOG = "status_log.md"` and `status_log(primary, change)`, which returns `change_dir(primary, change) / STATUS_LOG`, with its docstring example; add its case to `tests/test_layout.py`, named `test_the_layout_names_the_log_of_a_change`.
+- [x] 2.1 In `skills/mflib/layout.py` add `STATUS_LOG = "status_log.md"` and `status_log(primary, change)`, which returns `change_dir(primary, change) / STATUS_LOG`, with its docstring example; add its case to `tests/test_layout.py`, named `test_the_layout_names_the_log_of_a_change`.
   Verify: `uv run pytest tests/test_layout.py -q -k names_the_log_of_a_change` exits 0.
-- [ ] 2.2 Write `skills/mflib/statefile.py` as [the modules](design.md#the-modules) names it, with every value of [the differences](design.md#the-differences) and `os.open` called as `os.open`. Write `tests/test_statefile.py`: a case for each argument value, a FIFO and a link at a read, and a file made at `.tmp` between the clear and the create.
+- [x] 2.2 Write `skills/mflib/statefile.py` as [the modules](design.md#the-modules) names it, with every value of [the differences](design.md#the-differences) and `os.open` called as `os.open`. Write `tests/test_statefile.py`: a case for each argument value, a FIFO and a link at a read, and a file made at `.tmp` between the clear and the create.
   Verify: `uv run pytest tests/test_statefile.py -q` exits 0.
-- [ ] 2.3 Write `skills/mflib/statuslog.py` as [the modules](design.md#the-modules) names it, path-based, importing `layout` and `statefile` as `from . import …`, each difference as today's code has it, and its read of the log taking `guard=False` as the stamp's read does. Write `tests/test_statuslog.py`: `NAMES` as a literal list of the spec's event names, a case for each function, each `extent`, and `names_lock` on `.minions/debt.lock`, `.minions/backlog.lock` and a bare `debt.lock`.
+- [x] 2.3 Write `skills/mflib/statuslog.py` as [the modules](design.md#the-modules) names it, path-based, importing `layout` and `statefile` as `from . import …`, each difference as today's code has it, and its read of the log taking `guard=False` as the stamp's read does. Write `tests/test_statuslog.py`: `NAMES` as a literal list of the spec's event names, a case for each function, each `extent`, and `names_lock` on `.minions/debt.lock`, `.minions/backlog.lock` and a bare `debt.lock`.
   Verify: `uv run pytest tests/test_statuslog.py -q` exits 0.
-- [ ] 2.4 Add the `home` row of `skills/mflib/statefile.py` to `docs/modules.md`, in path order, its `names` cell `—`.
+- [x] 2.4 Add the `home` row of `skills/mflib/statefile.py` to `docs/modules.md`, in path order, its `names` cell `—`.
   Verify: `git grep -c -e "statefile" -- docs/modules.md` exits 0.
-- [ ] 2.5 Add the `home` row of `skills/mflib/statuslog.py` to `docs/modules.md`, in path order, its `names` cell `layout.py, statefile.py`.
+- [x] 2.5 Add the `home` row of `skills/mflib/statuslog.py` to `docs/modules.md`, in path order, its `names` cell `layout.py, statefile.py`.
   Verify: `git grep -c -e "statuslog" -- docs/modules.md` exits 0.
 
 ## 3 — The stations
