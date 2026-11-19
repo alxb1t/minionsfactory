@@ -58,7 +58,8 @@ def test_a_link_at_the_log_is_refused_by_the_stamp_and_converge_and_followed_els
     assert capsys.readouterr().out == f"stamp: cannot stamp — {log} is a link\n"
     with pytest.raises(statuslog.Refused):
         converge["latest"](_context(tmp_path))
-    assert _run_end(tmp_path) == _START
+    with pytest.raises(conduct["Stop"], match=r"status_log\.md is a link"):
+        _run_end(tmp_path)
     assert outside.read_text() == text
 
 
@@ -99,9 +100,29 @@ def test_a_halt_whose_detail_holds_a_line_break_puts_its_head_on_a_later_line(
     assert stamp.main([str(log), f"round 1 · halt — {detail}"]) == 0
     capsys.readouterr()
 
-    head = "10:02:03 · round 1 · halt — git diff failed: fatal: a"
-    assert log.read_text().splitlines()[3:5] == [head, "fatal: b · head abc123"]
+    head = (
+        "10:02:03 · round 1 · halt — git diff failed: fatal: a fatal: b · head abc123"
+    )
+    assert log.read_text().splitlines()[3:5] == [head, _START]
     [top, *_] = converge["latest"](_context(tmp_path)).events
-    assert top == (1, "halt", "git diff failed: fatal: a")
-    assert not converge["HALTED"].search(top.detail)
+    assert top == (1, "halt", "git diff failed: fatal: a fatal: b · head abc123")
+    assert converge["HALTED"].search(top.detail)[1] == "abc123"
     assert _run_end(tmp_path) == head
+
+
+def test_the_rerun_of_a_halt_whose_git_stderr_held_a_line_break_reads_its_head(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design D8.
+    log = _log(tmp_path)
+    log.write_text(f"# t\n\n## Run 1 — d\n{_START}\n")
+    stderr = "fatal: bad object\r\nfatal: the remote end hung up\n\n"
+    event = f"round 1 · halt — git fetch failed: {stderr} · head abc1234"
+
+    assert statuslog.command(log, [event], None, None) == 0
+    capsys.readouterr()
+
+    halt = conduct["_converge_halt"](tmp_path / ".minions", _CHANGE)
+    assert halt is not None
+    assert "\n" not in halt
+    assert conduct["HALT_HEAD"].search(halt)[1] == "abc1234"

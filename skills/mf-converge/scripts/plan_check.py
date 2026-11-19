@@ -507,7 +507,7 @@ def keep(tree: str, key: str, result: Result) -> None:
     text = json.dumps({"exit": result.code, "output": result.output})
     with contextlib.suppress(OSError, mflib.statefile.WriteFailed):
         folder.mkdir(parents=True, exist_ok=True)
-        mflib.statefile.write(path, text, remove="never")
+        mflib.statefile.write(path, text)
 
 
 def load(tree: str, key: str) -> Result | None:

@@ -1,7 +1,6 @@
 """Write a staged state file, and read a regular one, following no link.
 
-Each argument holds a difference between the copies until they are fixed to one side.
-Why: 0136-status-log design D1, D3, D4 and D5, and its differences.
+Why: 0136-status-log design D1, D4 and D5.
 """
 
 import contextlib
@@ -12,7 +11,6 @@ from pathlib import Path
 from typing import Literal
 
 type Step = Literal["create", "replace"]
-type Removal = Literal["any", "rename", "never"]
 
 
 class WriteFailed(Exception):
@@ -37,14 +35,13 @@ def write(
     text: str,
     *,
     refuse_link: bool = False,
-    remove: Removal,
     folder: int | None = None,
     mode: int = 0o644,
 ) -> None:
     """Replace `path` with `text` through `<name>.tmp`, cleared, made anew and renamed.
 
-    `remove` names the failures that remove the staged file: `any`, a failed `rename`,
-    or `never`. A link at `path` is a `replace` failure under `refuse_link`.
+    A failure removes the staged file. A link at `path` is a `replace` failure under
+    `refuse_link`.
     """
     staged = path.with_name(f"{path.name}.tmp")
     if refuse_link:
@@ -63,9 +60,8 @@ def write(
         step = "replace"
         os.replace(staged, path, src_dir_fd=folder, dst_dir_fd=folder)
     except OSError as error:
-        if remove == "any" or (remove == "rename" and step == "replace"):
-            with contextlib.suppress(OSError):
-                os.unlink(staged, dir_fd=folder)
+        with contextlib.suppress(OSError):
+            os.unlink(staged, dir_fd=folder)
         raise WriteFailed(step, error) from error
 
 
@@ -75,18 +71,17 @@ def read_bytes(
     folder: int | None = None,
     limit: int | None = None,
     tail: bool = False,
-    guard: bool = True,
 ) -> bytes:
     """Return a file's bytes, read through one descriptor that follows no link.
 
-    `limit` bounds the bytes, the last ones under `tail`. Under `guard` the open does
-    not block, and a file that is no regular file raises `OSError` `EINVAL`.
+    `limit` bounds the bytes, the last ones under `tail`. The open does not block, and
+    a file that is no regular file raises `OSError` `EINVAL`.
     """
-    flags = os.O_RDONLY | os.O_NOFOLLOW | (os.O_NONBLOCK if guard else 0)
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
     fd = _open(Path(path), flags, folder)
     with os.fdopen(fd, "rb") as file:
         status = os.fstat(fd)
-        if guard and not stat.S_ISREG(status.st_mode):
+        if not stat.S_ISREG(status.st_mode):
             raise OSError(errno.EINVAL, "it is not a file")
         if tail and limit is not None and status.st_size > limit:
             file.seek(status.st_size - limit)
@@ -99,13 +94,12 @@ def read(
     folder: int | None = None,
     limit: int | None = None,
     tail: bool = False,
-    guard: bool = True,
 ) -> str:
     """Return `read_bytes` of `path` as text, a bad byte replaced.
 
     e.g. the bytes 61 ff → "a�"
     """
-    data = read_bytes(path, folder=folder, limit=limit, tail=tail, guard=guard)
+    data = read_bytes(path, folder=folder, limit=limit, tail=tail)
     return data.decode(errors="replace")
 
 

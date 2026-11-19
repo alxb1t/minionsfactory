@@ -79,7 +79,7 @@ def _stamp(path: Path, text: str) -> str | None:
     """Return the stamp's refusal to write `text`, its read and insert set aside."""
     lines = (text.splitlines(), [])
     with (
-        mock.patch.object(statuslog, "read", return_value=""),
+        mock.patch.object(statuslog, "_read_held", return_value=""),
         mock.patch.object(statuslog, "insert", return_value=lines),
     ):
         try:
@@ -129,17 +129,13 @@ ROWS = (
     ),
 )
 _IDS = [row.name for row in ROWS]
-# The writers that refuse a link at the target, as the code stands.
-_REFUSES_LINK = {"bundle.py", "debt_match.py", "open_cards.py"}
-# A rename that fails: how each writer ends, and whether its `.tmp` stays.
-_RENAME_FAILS = {
-    "stamp.py": ("refuses", False),
-    "bundle.py": ("refuses", False),
-    "debt_match.py": ("refuses", False),
-    "open_cards.py": ("refuses", False),
-    "skip_stub.py": ("refuses", True),
-    "gate_run.py": ("raises", True),
-    "plan_check.py": ("silent", True),
+# The change-folder writers refuse a link at the target; the stores replace it.
+_REFUSES_LINK = {
+    "stamp.py",
+    "bundle.py",
+    "debt_match.py",
+    "open_cards.py",
+    "skip_stub.py",
 }
 
 
@@ -198,10 +194,14 @@ def test_case_b_a_file_made_at_the_tmp_after_the_clear_is_refused(
     target.write_text(_OLD)
     real = os.open
 
-    def planting(path: Path, flags: int, mode: int = 0o777) -> int:
-        if path.name.endswith(".tmp") and flags & os.O_EXCL:
-            path.write_text("planted\n")
-        return real(path, flags, mode)
+    def planting(
+        path: Path, flags: int, mode: int = 0o777, *, dir_fd: int | None = None
+    ) -> int:
+        if Path(path).name.endswith(".tmp") and flags & os.O_EXCL:
+            made = real(path, os.O_WRONLY | os.O_CREAT, 0o644, dir_fd=dir_fd)
+            os.write(made, b"planted\n")
+            os.close(made)
+        return real(path, flags, mode, dir_fd=dir_fd)
 
     monkeypatch.setattr(os, "open", planting)
 
@@ -238,14 +238,9 @@ def test_case_d_a_failed_rename_ends_as_it_does_today(tmp_path: Path, row: Row) 
     target = _target(tmp_path, row)
     target.mkdir()
     (target / "kept").write_text("kept\n")
-    end, leaves = _RENAME_FAILS[row.name]
 
-    if end == "raises":
-        with pytest.raises(IsADirectoryError):
-            row.write(target, _TEXT)
-    else:
-        said = row.write(target, _TEXT)
-        assert (said is not None) == (end == "refuses")
+    said = row.write(target, _TEXT)
 
+    assert (said is None) == (row.name == "plan_check.py")
     assert (target / "kept").read_text() == "kept\n"
-    assert os.path.lexists(_staged(target)) == leaves
+    assert not os.path.lexists(_staged(target))

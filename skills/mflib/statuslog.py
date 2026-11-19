@@ -1,22 +1,25 @@
 """Write and parse a change's status log: its title, its runs and their events.
 
-Each argument holds a difference between the copies until they are fixed to one side.
-Why: 0136-status-log design D1, D3, D6 and D13; the log's form is the sdd spec's.
+Why: 0136-status-log design D1, D6 and D13; the log's form is the sdd spec's.
 """
 
 import contextlib
 import errno
 import itertools
+import os
 import re
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import NamedTuple
 
 from . import layout, statefile
 
-type Extent = Literal["blank", "heading", "line"]
 HEADING = "## Run"
-EVENT = re.compile(r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+) — (.*)$")
+EVENT = re.compile(
+    r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+)(?: —(?: (.*))?)?$"
+)
+LINE_BREAKS = re.compile(r"[\r\n]+")
 NAMES = (
     *("start", "freeze", "fan-out", "verdicts", "shadow", "fix", "verify"),
     *("pickup", "catch-up", "by rule", "debt", "halt", "done"),
@@ -44,7 +47,7 @@ class Run(NamedTuple):
 
 
 class Block(NamedTuple):
-    """A run's heading, and the lines its extent holds."""
+    """A run's heading, and its lines to the next heading, blank lines skipped."""
 
     heading: str
     lines: list[str]
@@ -63,9 +66,18 @@ def title(change: str) -> str:
     return f"# {change} — converge status"
 
 
-def create(log: Path, change: str) -> None:
-    """Create the log holding its title; a log that stands is left as it is."""
-    with contextlib.suppress(FileExistsError), log.open("x") as file:
+def create(log: Path, change: str, folder: int | None = None) -> None:
+    """Create the log holding its title, in `folder` if given, through no link.
+
+    A log that stands is left as it is.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    name = log if folder is None else log.name
+    try:
+        fd = os.open(name, flags, 0o644, dir_fd=folder)
+    except FileExistsError:
+        return
+    with os.fdopen(fd, "w") as file:
         file.write(f"{title(change)}\n")
 
 
@@ -79,16 +91,16 @@ def heading(number: int, now: datetime, mark: str | None) -> str:
 
 
 def mark_of(line: str) -> str | None:
-    """Return the text after a heading's first ` · `, as it stands, or None.
+    """Return the text after a heading's first ` · `, stripped, or None.
 
-    e.g. "## Run 3 — d · catch-up" → "catch-up"
+    e.g. "## Run 3 — d · catch-up " → "catch-up"
     """
-    return line.partition(" · ")[2] or None
+    return line.partition(" · ")[2].strip() or None
 
 
 def marked(line: str, mark: str) -> bool:
-    """Return whether a heading ends ` · <mark>`, its trailing blanks dropped."""
-    return line.rstrip().endswith(f" · {mark}")
+    """Return whether a heading's mark is `mark`."""
+    return mark_of(line) == mark
 
 
 def is_heading(line: str) -> bool:
@@ -97,12 +109,13 @@ def is_heading(line: str) -> bool:
 
 
 def parse_event(line: str) -> Event | None:
-    """Return the event a line holds in the spec's form, or None.
+    """Return the event a stripped line holds in the spec's form, or None.
 
+    The detail is optional.
     e.g. "10:00:00 · round 12 · fix — R1" → Event(12, "fix", "R1")
     """
-    found = EVENT.match(line)
-    return Event(int(found[1]), found[2], found[3]) if found else None
+    found = EVENT.match(line.strip())
+    return Event(int(found[1]), found[2], found[3] or "") if found else None
 
 
 def is_event(line: str, name: str) -> bool:
@@ -110,12 +123,14 @@ def is_event(line: str, name: str) -> bool:
 
     e.g. "10:00:00 · round 1 · done — ok", "done" → True
     """
-    return line.split(" — ", maxsplit=1)[0].endswith(f" · {name}")
+    event = parse_event(line)
+    return event is not None and event.name == name
 
 
 def ends(line: str) -> str | None:
     """Return `done` or `halt` for a line that ends a run, else None."""
-    return next((name for name in ENDS if is_event(line, name)), None)
+    event = parse_event(line)
+    return event.name if event is not None and event.name in ENDS else None
 
 
 def _heading_at(lines: list[str]) -> int | None:
@@ -123,30 +138,19 @@ def _heading_at(lines: list[str]) -> int | None:
     return next((i for i, line in enumerate(lines) if is_heading(line)), None)
 
 
-def newest(text: str, *, extent: Extent) -> Block | None:
-    """Return the newest run's heading and lines, or None with no run.
-
-    The lines run to a blank line or a heading under `blank`, to the next heading,
-    blanks skipped, under `heading`, and are the first line not blank under `line`.
-    """
+def newest(text: str) -> Block | None:
+    """Return the newest run's heading and its lines, or None with no run."""
     lines = text.splitlines()
     at = _heading_at(lines)
     if at is None:
         return None
-    rest = lines[at + 1 :]
-    run = list(itertools.takewhile(lambda line: not is_heading(line), rest))
-    if extent == "blank":
-        held = list(itertools.takewhile(str.strip, run))
-    elif extent == "heading":
-        held = [line for line in run if line.strip()]
-    else:
-        held = [line for line in rest if line.strip()][:1]
-    return Block(lines[at], held)
+    run = itertools.takewhile(lambda line: not is_heading(line), lines[at + 1 :])
+    return Block(lines[at], [line for line in run if line.strip()])
 
 
 def latest(text: str) -> Run:
-    """Return the newest run to a blank line or a heading; no run has no event."""
-    block = newest(text, extent="blank")
+    """Return the newest run's mark and events; no run has no event."""
+    block = newest(text)
     if block is None:
         return Run(None, [])
     events = [event for event in map(parse_event, block.lines) if event]
@@ -182,48 +186,104 @@ def insert(
             rest.pop(0)
         return [lines[0], "", line, *(["", *rest] if rest else [])], [line]
     at = _heading_at(lines)
-    block = newest(text, extent="line")
+    block = newest(text)
     if at is None or block is None:
         raise Refused(f"no {HEADING} heading")
-    if ended := next((e for e in map(ends, events[:-1]) if e), None):
+    written = [f"{now:%H:%M:%S} · {event}" for event in events]
+    if ended := next((e for e in map(ends, written[:-1]) if e), None):
         raise Refused(f"{ended} goes last in a call")
     top = next(iter(block.lines), "")
     if (ended := ends(top)) and not (ended == "halt" and names_lock(top)):
         raise Refused(f"the run ends on {ended}: open a {HEADING} for a new event")
-    written = [f"{now:%H:%M:%S} · {event}" for event in events]
     return [*lines[: at + 1], *reversed(written), *lines[at + 1 :]], written
 
 
-def read(log: Path) -> str:
-    """Return the log's text, read through one descriptor that refuses a link.
+def _refusal(log: Path, error: OSError) -> Refused:
+    """Return the refusal an `OSError` at the log reads as."""
+    if error.errno == errno.ELOOP:
+        return Refused(f"{log} is a link")
+    return Refused(f"{log}: {error.strerror}")
 
-    A link raises `Refused`, and a byte that is not UTF-8 `UnicodeDecodeError`.
+
+def read(log: Path) -> str:
+    """Return the log's text, a bad byte replaced, read through no link.
+
+    A link, a file that is no regular file or a missing log raises `Refused`.
     """
     try:
-        data = statefile.read_bytes(log, guard=False)
+        return statefile.read(log)
     except OSError as error:
-        if error.errno == errno.ELOOP:
-            raise Refused(f"{log} is a link") from error
-        raise Refused(f"{log}: {error.strerror}") from error
-    return data.decode()
+        raise _refusal(log, error) from error
 
 
-def stamp(log: Path, events: list[str], run: int | None, mark: str | None) -> list[str]:
-    """Write events or a run heading into the log; return the lines written."""
-    lines, written = insert(read(log), events, run, mark)
+@contextlib.contextmanager
+def _held(log: Path, folder: int | None) -> Iterator[int]:
+    """Yield `folder`, else a descriptor on the log's folder opened by pathname.
+
+    The descriptor opened here makes nothing, and is closed after.
+    """
+    if folder is not None:
+        yield folder
+        return
     try:
-        statefile.write(log, "\n".join(lines) + "\n", remove="rename")
-    except statefile.WriteFailed as failed:
-        if failed.step == "create":
-            raise Refused(f"{log.name}.tmp could not be created") from failed
-        raise Refused(f"{log.name} could not be replaced") from failed
+        fd = os.open(log.parent, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError as error:
+        raise _refusal(log, error) from error
+    try:
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def _read_held(log: Path, folder: int) -> str:
+    """Return the log's text, read in `folder`; a byte that is not UTF-8 is refused."""
+    try:
+        data = statefile.read_bytes(log.name, folder=folder)
+    except OSError as error:
+        raise _refusal(log, error) from error
+    try:
+        return data.decode()
+    except UnicodeDecodeError as error:
+        raise Refused(f"{log} holds a byte that is not UTF-8") from error
+
+
+def stamp(
+    log: Path,
+    events: list[str],
+    run: int | None,
+    mark: str | None,
+    folder: int | None = None,
+) -> list[str]:
+    """Write events or a run heading into the log; return the lines written.
+
+    A line break run is one space; one descriptor on the folder holds every step.
+    Why: card 0109·S1; 0136-status-log design D7, D8.
+    """
+    flat = [LINE_BREAKS.sub(" ", event) for event in events]
+    with _held(log, folder) as fd:
+        lines, written = insert(_read_held(log, fd), flat, run, mark)
+        try:
+            text = "\n".join(lines) + "\n"
+            statefile.write(Path(log.name), text, refuse_link=True, folder=fd)
+        except statefile.WriteFailed as failed:
+            if failed.error.errno == errno.ELOOP:
+                raise Refused(f"{log} is a link") from failed
+            if failed.step == "create":
+                raise Refused(f"{log.name}.tmp could not be created") from failed
+            raise Refused(f"{log.name} could not be replaced") from failed
     return written
 
 
-def command(log: Path, events: list[str], run: int | None, mark: str | None) -> int:
+def command(
+    log: Path,
+    events: list[str],
+    run: int | None,
+    mark: str | None,
+    folder: int | None = None,
+) -> int:
     """Stamp the log and print each line written, or the refusal; return the exit."""
     try:
-        written = stamp(log, events, run, mark)
+        written = stamp(log, events, run, mark, folder)
     except Refused as refused:
         print(f"stamp: cannot stamp — {refused}")
         return 2
@@ -231,12 +291,19 @@ def command(log: Path, events: list[str], run: int | None, mark: str | None) -> 
     return 0
 
 
-def open_run(log: Path, change: str, mark: str | None = None) -> int:
+def open_run(
+    log: Path, change: str, mark: str | None = None, folder: int | None = None
+) -> int:
     """Open the next run, making the log's folder and the log; return the exit.
 
     The runs are counted by their heading lines. A link at the log raises `Refused`.
     """
-    log.parent.mkdir(parents=True, exist_ok=True)
-    create(log, change)
-    runs = read(log).count(f"\n{HEADING}")
-    return command(log, [], runs + 1, mark)
+    if folder is None:
+        log.parent.mkdir(parents=True, exist_ok=True)
+    with _held(log, folder) as fd:
+        create(log, change, fd)
+        try:
+            text = statefile.read(log.name, folder=fd)
+        except OSError as error:
+            raise _refusal(log, error) from error
+        return command(log, [], text.count(f"\n{HEADING}") + 1, mark, fd)

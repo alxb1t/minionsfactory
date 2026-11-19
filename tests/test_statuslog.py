@@ -1,6 +1,6 @@
-"""The status log's writer and parser in the home, each function and extent a case.
+"""The status log's writer and parser in the home, each function a case.
 
-Why: 0136-status-log design D1, D3, D6 and D13, and its differences.
+Why: 0136-status-log design D1, D6, D7, D8 and D13.
 """
 
 import os
@@ -78,15 +78,17 @@ def test_heading_takes_the_number_the_time_and_a_mark() -> None:
 
 def test_mark_of_takes_the_text_after_the_first_dot_as_it_stands() -> None:
     assert statuslog.mark_of("## Run 3 — d · catch-up") == "catch-up"
-    assert statuslog.mark_of("## Run 3 — d · grant ") == "grant "
+    assert statuslog.mark_of("## Run 3 — d · grant ") == "grant"
     assert statuslog.mark_of("## Run 3 — d · a · b") == "a · b"
     assert statuslog.mark_of("## Run 3 — d") is None
+    assert statuslog.mark_of("## Run 3 — d ·  ") is None
 
 
 def test_marked_tests_the_end_with_trailing_blanks_dropped() -> None:
     assert statuslog.marked("## Run 4 — d · grant  ", "grant")
     assert not statuslog.marked("## Run 4 — d · catch-up", "grant")
     assert not statuslog.marked("## Run 4 — d · regrant", "grant")
+    assert not statuslog.marked("## Run 4 — d · grant · x", "grant")
 
 
 def test_is_heading_tests_the_run_prefix() -> None:
@@ -101,7 +103,8 @@ def test_parse_event_needs_a_round_and_a_dash() -> None:
     assert parse("10:00:00 · round 1 · by rule — R1") == event(1, "by rule", "R1")
     assert parse("10:00:00 · round 1 · start — a — b") == event(1, "start", "a — b")
     assert parse("10:00:00 · anything goes") is None
-    assert parse("10:00:00 · round 1 · done") is None
+    assert parse("10:00:00 · round 1 · done") == event(1, "done", "")
+    assert parse("  10:00:00 · round 1 · halt — x  ") == event(1, "halt", "x")
 
 
 def test_is_event_tests_the_name_before_the_first_dash() -> None:
@@ -109,6 +112,8 @@ def test_is_event_tests_the_name_before_the_first_dash() -> None:
     assert statuslog.is_event("10:00:00 · round 1 · done", "done")
     assert not statuslog.is_event("10:00:00 · round 1 · fix — x · done", "done")
     assert not statuslog.is_event("10:00:00 · anything goes", "done")
+    assert not statuslog.is_event("10:00:00 · round 1 · halt — a · done — b", "done")
+    assert not statuslog.is_event("10:00:00 · done — ok", "done")
 
 
 def test_ends_names_done_or_halt_and_nothing_else() -> None:
@@ -118,35 +123,20 @@ def test_ends_names_done_or_halt_and_nothing_else() -> None:
     assert statuslog.ends("10:00:00 · round 1 · verify — x") is None
 
 
-@pytest.mark.parametrize(
-    ("extent", "lines"),
-    [
-        ("blank", ["10:00:01 · round 2 · fix — R1", _START]),
-        ("heading", ["10:00:01 · round 2 · fix — R1", _START, "stray"]),
-        ("line", ["10:00:01 · round 2 · fix — R1"]),
-    ],
-)
-def test_newest_holds_the_lines_its_extent_names(
-    extent: statuslog.Extent, lines: list[str]
-) -> None:
-    assert statuslog.newest(_LOG, extent=extent) == ("## Run 2 — d · catch-up", lines)
+def test_newest_holds_the_lines_its_extent_names() -> None:
+    lines = ["10:00:01 · round 2 · fix — R1", _START, "stray"]
+
+    assert statuslog.newest(_LOG) == ("## Run 2 — d · catch-up", lines)
 
 
-@pytest.mark.parametrize(
-    ("extent", "lines"),
-    [("blank", []), ("heading", []), ("line", ["## Run 1 — d"])],
-)
-def test_newest_of_a_run_just_opened_over_an_older_one(
-    extent: statuslog.Extent, lines: list[str]
-) -> None:
+def test_newest_of_a_run_just_opened_over_an_older_one() -> None:
     text = "# t\n\n## Run 2 — d\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n"
 
-    assert statuslog.newest(text, extent=extent) == ("## Run 2 — d", lines)
+    assert statuslog.newest(text) == ("## Run 2 — d", [])
 
 
-@pytest.mark.parametrize("extent", ["blank", "heading", "line"])
-def test_newest_of_no_run_is_none(extent: statuslog.Extent) -> None:
-    assert statuslog.newest("# t\n", extent=extent) is None
+def test_newest_of_no_run_is_none() -> None:
+    assert statuslog.newest("# t\n") is None
 
 
 def test_latest_is_the_runs_mark_and_events_to_a_blank_line() -> None:
@@ -156,6 +146,8 @@ def test_latest_is_the_runs_mark_and_events_to_a_blank_line() -> None:
         "catch-up",
         [event(2, "fix", "R1"), event(1, "start", "base a")],
     )
+    past = "# t\n\n## Run 1 — d\n10:00:01 · round 1 · fix — R1\n\n" + _START
+    assert statuslog.latest(past).events[1] == event(1, "start", "base a")
     assert statuslog.latest("# t\n\n## Run 1 — d\nstray\n") == (None, [])
     assert statuslog.latest("# t\n") == (None, [])
 
@@ -267,12 +259,19 @@ def test_read_refuses_a_link_and_a_missing_log(tmp_path: Path) -> None:
     assert str(linked.value) == f"{log} is a link"
 
 
-def test_read_raises_on_a_byte_that_is_not_utf_8(tmp_path: Path) -> None:
+def test_read_raises_on_a_byte_that_is_not_utf_8(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     log = tmp_path / "status_log.md"
-    log.write_bytes(b"# t \xff\n")
+    log.write_bytes(b"# t \xff\n\n## Run 1 - d\n")
 
-    with pytest.raises(UnicodeDecodeError):
-        statuslog.read(log)
+    assert statuslog.read(log) == "# t �\n\n## Run 1 - d\n"
+    with pytest.raises(statuslog.Refused, match="holds a byte that is not UTF-8"):
+        statuslog.stamp(log, ["round 1 · verify"], None, None)
+    assert statuslog.command(log, ["round 1 · verify"], None, None) == 2
+    said = f"stamp: cannot stamp — {log} holds a byte that is not UTF-8\n"
+    assert capsys.readouterr().out == said
+    assert log.read_bytes() == b"# t \xff\n\n## Run 1 - d\n"
 
 
 def test_stamp_writes_the_lines_and_returns_them(tmp_path: Path) -> None:
@@ -282,6 +281,16 @@ def test_stamp_writes_the_lines_and_returns_them(tmp_path: Path) -> None:
 
     assert written == ["10:02:03 · round 1 · verify — ok"]
     assert log.read_text() == f"# t\n\n## Run 1 — d\n{written[0]}\n{_START}\n"
+
+
+def test_stamp_flattens_each_run_of_line_breaks_to_one_space(tmp_path: Path) -> None:
+    # Why: 0136-status-log design D8.
+    log = _log(tmp_path, f"# t\n\n## Run 1 — d\n{_START}\n")
+
+    written = statuslog.stamp(log, ["round 1 · halt — a\nb\r\n\nc"], None, None)
+
+    assert written == ["10:02:03 · round 1 · halt — a b c"]
+    assert log.read_text().splitlines()[3:] == [written[0], _START]
 
 
 def test_stamp_words_a_create_that_fails(tmp_path: Path) -> None:
@@ -363,6 +372,56 @@ def test_open_run_counts_the_runs_by_their_heading_lines(
     assert statuslog.open_run(log, _CHANGE, "amend") == 0
 
     assert capsys.readouterr().out == "## Run 2 — 2026-11-07 10:02 · amend\n"
+
+
+@pytest.mark.parametrize("given", [True, False], ids=["folder-given", "folder-opened"])
+def test_card_0109_s1_a_change_folder_swapped_after_the_read_is_not_followed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    given: bool,
+) -> None:
+    # Why: card 0109·S1; 0136-status-log design D7.
+    run_dir = tmp_path / ".minions"
+    log = run_dir / "changes" / _CHANGE / "status_log.md"
+    log.parent.mkdir(parents=True)
+    log.write_text(f"# t\n\n## Run 1 — d\n{_START}\n")
+    outside, moved = tmp_path / "outside", tmp_path / "moved"
+    outside.mkdir()
+    (outside / "status_log.md").write_text("the person's\n")
+    real = statuslog.insert
+
+    def swapping(
+        text: str, events: list[str], run: int | None, mark: str | None
+    ) -> tuple[list[str], list[str]]:
+        log.parent.rename(moved)
+        log.parent.symlink_to(outside)
+        return real(text, events, run, mark)
+
+    monkeypatch.setattr(statuslog, "insert", swapping)
+    fd = statefile.folder(run_dir, "changes", _CHANGE) if given else None
+    try:
+        assert statuslog.command(log, ["round 1 · verify"], None, None, fd) == 0
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+    capsys.readouterr()
+    assert (outside / "status_log.md").read_text() == "the person's\n"
+    assert sorted(path.name for path in outside.iterdir()) == ["status_log.md"]
+    assert "10:02:03 · round 1 · verify" in (moved / "status_log.md").read_text()
+
+
+def test_a_missing_log_folder_keeps_the_missing_log_text(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    log = tmp_path / "gone" / "status_log.md"
+
+    assert statuslog.command(log, ["round 1 · verify"], None, None) == 2
+
+    said = f"stamp: cannot stamp — {log}: No such file or directory\n"
+    assert capsys.readouterr().out == said
+    assert not log.parent.exists()
 
 
 def test_open_run_raises_on_a_link_at_the_log(tmp_path: Path) -> None:

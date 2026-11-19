@@ -2519,7 +2519,11 @@ def test_case_m_latest_reads_the_newest_run_to_a_blank_line_or_a_heading(
     )
     assert latest(context) == (
         None,
-        [event(12, "verify", ""), event(12, "start", "base a")],
+        [
+            event(12, "verify", ""),
+            event(12, "start", "base a"),
+            event(1, "halt", "old"),
+        ],
     )
     context.log.write_text(
         "# t\n\n## Run 3 — d · catch-up\n10:00:01 · round 2 · fix — R1\n"

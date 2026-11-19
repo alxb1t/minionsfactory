@@ -865,23 +865,34 @@ def _npm_unapproved(tree: Path, change: str, default: str) -> str | None:
 
 
 def _run_end(runs: Path, change: str) -> str | None:
-    """Return the newest converge run's top event line, or None with no run."""
-    block = mflib.statuslog.newest(_log_text(runs, change), extent="line")
-    return None if block is None else next(iter(block.lines), "").strip()
+    """Return the newest converge run's top line, its heading with none, or None."""
+    block = mflib.statuslog.newest(_log_text(runs, change))
+    return None if block is None else next(iter(block.lines), block.heading).strip()
 
 
 def _log_text(runs: Path, change: str) -> str:
-    """Return the text of `change`'s status log, or "" with none."""
+    """Return the text of `change`'s status log, or "" with none; a link halts.
+
+    A FIFO halts as a link does. Why: 0136-status-log design D5.
+    """
     log = mflib.layout.status_log(runs.parent, change)
-    return log.read_text() if log.is_file() else ""
+    try:
+        return mflib.statefile.read(log)
+    except (FileNotFoundError, NotADirectoryError):
+        return ""
+    except OSError as error:
+        if error.errno not in (errno.ELOOP, errno.EINVAL):
+            raise
+        name = log.relative_to(runs.parent)
+        raise Stop(1, f"conduct: halt — {name} is a link") from None
 
 
 def _run_marked(runs: Path, change: str, mark: str) -> bool:
-    """Return whether the newest converge run's heading ends ` · <mark>`.
+    """Return whether the newest converge run's heading is marked `mark`.
 
     e.g. "## Run 4 — 2026-11-05 10:04 · grant", "grant" → True
     """
-    block = mflib.statuslog.newest(_log_text(runs, change), extent="line")
+    block = mflib.statuslog.newest(_log_text(runs, change))
     return mflib.statuslog.marked("" if block is None else block.heading, mark)
 
 
@@ -1161,7 +1172,7 @@ def _run_started(runs: Path, change: str) -> bool:
 
     e.g. "## Run 2 — d", "… · halt — red", "… · start — base a" → True
     """
-    block = mflib.statuslog.newest(_log_text(runs, change), extent="heading")
+    block = mflib.statuslog.newest(_log_text(runs, change))
     run = [] if block is None else block.lines
     return any(_is_event(line, "start") for line in run)
 
@@ -1285,7 +1296,7 @@ def _buried_done(runs: Path, change: str) -> str | None:
 
     e.g. "… · debt — d" over "… · round 2 · done — ok" → the `done` line
     """
-    block = mflib.statuslog.newest(_log_text(runs, change), extent="heading")
+    block = mflib.statuslog.newest(_log_text(runs, change))
     run = [] if block is None else block.lines
     if not run or mflib.statuslog.ends(run[0]):
         return None
@@ -1296,11 +1307,20 @@ def _restamp(runs: Path, change: str, buried: str) -> int:
     """Stamp `done` on top of the status log, as the run's own; return the exit code.
 
     e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
+    Why: card 0109·S1; 0136-status-log design D7.
     """
     log = mflib.layout.status_log(runs.parent, change)
     found = re.search(r"· (round \d+) · done\b", buried)
     event = f"{found[1] if found else 'round 1'} · done — re-stamped by the run"
-    return mflib.statuslog.command(log, [event], None, None)
+    try:
+        fd = mflib.statefile.folder(runs, mflib.layout.CHANGES, change)
+    except OSError as error:
+        print(f"stamp: cannot stamp — {log}: {error.strerror}")
+        return 2
+    try:
+        return mflib.statuslog.command(log, [event], None, None, fd)
+    finally:
+        os.close(fd)
 
 
 def _unjudged(

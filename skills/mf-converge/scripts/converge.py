@@ -324,17 +324,38 @@ def _plural(count: int, noun: str) -> str:
     return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
+@contextmanager
+def _change_folder(context: Context) -> Iterator[int]:
+    """Yield a descriptor on the change's folder, made, through no link; or `Cannot`.
+
+    Why: card 0109·S1; 0136-status-log design D7.
+    """
+    run_dir = mflib.layout.run_dir(Path(context.host.primary))
+    try:
+        fd = mflib.statefile.folder(run_dir, mflib.layout.CHANGES, context.change)
+    except OSError:
+        raise Cannot(
+            f"converge: cannot run — {context.log} cannot be stamped"
+        ) from None
+    try:
+        yield fd
+    finally:
+        os.close(fd)
+
+
 def stamp(context: Context, *events: str) -> None:
     """Write `events` of this round to the status log, the last given on top."""
     lines = [f"round {context.round} · {event}" for event in events]
-    if mflib.statuslog.command(context.log, lines, None, None) != 0:
-        raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
+    with _change_folder(context) as fd:
+        if mflib.statuslog.command(context.log, lines, None, None, fd) != 0:
+            raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
 
 
 def open_run(context: Context, mark: str | None = None) -> None:
     """Open a new run in the status log, creating the log with its title if missing."""
-    if mflib.statuslog.open_run(context.log, context.change, mark) != 0:
-        raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
+    with _change_folder(context) as fd:
+        if mflib.statuslog.open_run(context.log, context.change, mark, fd) != 0:
+            raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
 
 
 def sandboxed(context: Context, argv: list[str], out: TextIO | None = None) -> int:

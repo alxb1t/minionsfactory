@@ -39,7 +39,7 @@ def test_a_write_replaces_the_file_with_a_new_one_of_mode_0644(tmp_path: Path) -
     os.link(target, hard)
     umask = os.umask(0o022)
     try:
-        statefile.write(target, _TEXT, remove="any")
+        statefile.write(target, _TEXT)
     finally:
         os.umask(umask)
 
@@ -52,7 +52,7 @@ def test_a_write_replaces_the_file_with_a_new_one_of_mode_0644(tmp_path: Path) -
 def test_a_write_takes_the_mode_it_is_given(tmp_path: Path) -> None:
     target = tmp_path / "state.md"
 
-    statefile.write(target, _TEXT, remove="any", mode=0o600)
+    statefile.write(target, _TEXT, mode=0o600)
 
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
 
@@ -63,7 +63,7 @@ def test_a_write_clears_a_stale_tmp_that_links_outside(tmp_path: Path) -> None:
     outside.write_text(_OLD)
     _staged(target).symlink_to(outside)
 
-    statefile.write(target, _TEXT, remove="never")
+    statefile.write(target, _TEXT)
 
     assert target.read_text() == _TEXT
     assert outside.read_text() == _OLD
@@ -76,7 +76,7 @@ def test_refuse_link_true_refuses_a_link_at_the_target(tmp_path: Path) -> None:
     target.symlink_to(outside)
 
     with pytest.raises(statefile.WriteFailed) as failed:
-        statefile.write(target, _TEXT, refuse_link=True, remove="any")
+        statefile.write(target, _TEXT, refuse_link=True)
 
     assert failed.value.step == "replace"
     assert failed.value.error.errno == errno.ELOOP
@@ -88,7 +88,7 @@ def test_refuse_link_true_refuses_a_link_at_the_target(tmp_path: Path) -> None:
 def test_refuse_link_true_writes_a_missing_target(tmp_path: Path) -> None:
     target = tmp_path / "state.md"
 
-    statefile.write(target, _TEXT, refuse_link=True, remove="any")
+    statefile.write(target, _TEXT, refuse_link=True)
 
     assert target.read_text() == _TEXT
 
@@ -99,53 +99,42 @@ def test_refuse_link_false_replaces_a_link_at_the_target(tmp_path: Path) -> None
     outside.write_text(_OLD)
     target.symlink_to(outside)
 
-    statefile.write(target, _TEXT, refuse_link=False, remove="any")
+    statefile.write(target, _TEXT, refuse_link=False)
 
     assert not target.is_symlink()
     assert target.read_text() == _TEXT
     assert outside.read_text() == _OLD
 
 
-@pytest.mark.parametrize(
-    ("remove", "leaves"), [("any", False), ("rename", True), ("never", True)]
-)
 def test_a_file_made_at_the_tmp_between_the_clear_and_the_create_is_refused(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    remove: statefile.Removal,
-    leaves: bool,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "state.md"
     target.write_text(_OLD)
     _plant_at_create(monkeypatch)
 
     with pytest.raises(statefile.WriteFailed) as failed:
-        statefile.write(target, _TEXT, remove=remove)
+        statefile.write(target, _TEXT)
 
     monkeypatch.undo()
     assert failed.value.step == "create"
     assert failed.value.error.errno == errno.EEXIST
     assert target.read_text() == _OLD
-    assert os.path.lexists(_staged(target)) == leaves
+    assert not os.path.lexists(_staged(target))
 
 
-@pytest.mark.parametrize(
-    ("remove", "leaves"), [("any", False), ("rename", False), ("never", True)]
-)
-def test_a_failed_rename_is_a_replace_failure(
-    tmp_path: Path, remove: statefile.Removal, leaves: bool
-) -> None:
+def test_a_failed_rename_is_a_replace_failure(tmp_path: Path) -> None:
     target = tmp_path / "state.md"
     target.mkdir()
     (target / "kept").write_text("kept\n")
 
     with pytest.raises(statefile.WriteFailed) as failed:
-        statefile.write(target, _TEXT, remove=remove)
+        statefile.write(target, _TEXT)
 
     assert failed.value.step == "replace"
     assert isinstance(failed.value.error, IsADirectoryError)
     assert (target / "kept").read_text() == "kept\n"
-    assert os.path.lexists(_staged(target)) == leaves
+    assert not os.path.lexists(_staged(target))
 
 
 def test_a_write_and_a_read_go_through_the_folder_given(tmp_path: Path) -> None:
@@ -153,13 +142,11 @@ def test_a_write_and_a_read_go_through_the_folder_given(tmp_path: Path) -> None:
     held.mkdir()
     fd = os.open(held, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        statefile.write(Path("state.md"), _TEXT, remove="any", folder=fd)
+        statefile.write(Path("state.md"), _TEXT, folder=fd)
         assert statefile.read("state.md", folder=fd) == _TEXT
         (held / "link").symlink_to(held / "state.md")
         with pytest.raises(statefile.WriteFailed):
-            statefile.write(
-                Path("link"), _TEXT, refuse_link=True, remove="any", folder=fd
-            )
+            statefile.write(Path("link"), _TEXT, refuse_link=True, folder=fd)
     finally:
         os.close(fd)
 
@@ -184,15 +171,14 @@ def test_a_read_replaces_a_bad_byte(tmp_path: Path) -> None:
     assert statefile.read(path) == "a�b"
 
 
-@pytest.mark.parametrize("guard", [True, False])
-def test_a_link_at_a_read_raises_eloop(tmp_path: Path, guard: bool) -> None:
+def test_a_link_at_a_read_raises_eloop(tmp_path: Path) -> None:
     path = tmp_path / "state.md"
     outside = tmp_path / "outside"
     outside.write_text(_OLD)
     path.symlink_to(outside)
 
     with pytest.raises(OSError, match="symbolic links") as raised:
-        statefile.read(path, guard=guard)
+        statefile.read(path)
 
     assert raised.value.errno == errno.ELOOP
 
@@ -224,15 +210,9 @@ def test_a_fifo_at_a_guarded_read_raises_inside_ten_seconds(tmp_path: Path) -> N
     assert error.errno == errno.EINVAL
 
 
-@pytest.mark.parametrize(("guard", "takes"), [(True, False), (False, True)])
-def test_guard_decides_whether_a_file_that_is_no_regular_file_is_read(
-    guard: bool, takes: bool
-) -> None:
-    if takes:
-        assert statefile.read_bytes(os.devnull, guard=guard) == b""
-    else:
-        with pytest.raises(OSError, match="not a file"):
-            statefile.read_bytes(os.devnull, guard=guard)
+def test_guard_decides_whether_a_file_that_is_no_regular_file_is_read() -> None:
+    with pytest.raises(OSError, match="not a file"):
+        statefile.read_bytes(os.devnull)
 
 
 def test_folder_makes_each_part_and_refuses_a_link(tmp_path: Path) -> None:

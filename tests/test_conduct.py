@@ -12208,6 +12208,33 @@ def test_case_o_only_a_halt_on_the_run_folders_lock_is_the_lock_stage(
         assert conduct["stage_of"](root, version)[0] == stage, why
 
 
+def test_a_status_log_link_or_fifo_halts_the_stage_and_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0136-status-log design D5.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True)
+    version = conduct["find_version"](root, "0001-todo")
+    missing = conduct["stage_of"](root, version)
+    said = "conduct: halt — .minions/changes/0001-todo/status_log.md is a link"
+    outside = tmp_path / "outside.md"
+    outside.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 1 · done — ok\n")
+    for plant in (lambda: log.symlink_to(outside), lambda: os.mkfifo(log)):
+        plant()
+        with pytest.raises(conduct["Stop"]) as stopped:
+            conduct["stage_of"](root, version)
+        assert (stopped.value.code, str(stopped.value)) == (1, said)
+        capsys.readouterr()
+        assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 1
+        assert capsys.readouterr().out.strip() == said
+        log.unlink()
+
+    assert conduct["stage_of"](root, version) == missing
+
+
 def _status_log(tmp_path: Path, text: str) -> Path:
     log = tmp_path / ".minions" / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -12237,14 +12264,20 @@ def test_case_q_the_readers_of_the_status_log_as_they_stand(tmp_path: Path) -> N
     assert started(runs, change)
     _status_log(tmp_path, f"# t\n\n## Run 2 — d\n{halt}\n## Run 1 — d\n{start}\n")
     assert not started(runs, change)
+    # A run just opened over an older one is a run of no event: its own heading.
+    _status_log(tmp_path, f"# t\n\n## Run 3 — d\n\n## Run 2 — d\n{halt}\n")
+    assert end(runs, change) == "## Run 3 — d"
 
     log = _status_log(tmp_path, "")
     outside = tmp_path / "outside.md"
     outside.write_text(f"# t\n\n## Run 3 — d · grant\n{start}\n")
     log.unlink()
     log.symlink_to(outside)
-    assert (end(runs, change), marked(runs, change, "grant")) == (start, True)
-    assert started(runs, change)
+    for reader in (end, started):
+        with pytest.raises(conduct["Stop"], match=r"status_log\.md is a link"):
+            reader(runs, change)
+    with pytest.raises(conduct["Stop"], match=r"status_log\.md is a link"):
+        marked(runs, change, "grant")
 
     for line, name, holds in (
         ("10:00:00 · round 1 · done — ok", "done", True),

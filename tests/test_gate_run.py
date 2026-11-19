@@ -248,15 +248,39 @@ def test_fresh_runs_whatever_stands_and_records(tmp_path: Path) -> None:
     assert list(elsewhere.iterdir()) == []
 
 
-def test_case_e_a_staged_record_that_cannot_be_made_is_named(tmp_path: Path) -> None:
-    # Why: 0136-status-log design, the pin.
+@pytest.mark.parametrize(
+    ("folder", "said"),
+    [
+        ("tree.tmp", "tree.tmp could not be created"),
+        ("tree", "tree could not be replaced"),
+    ],
+)
+def test_case_e_a_staged_record_that_cannot_be_made_is_named(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    folder: str,
+    said: str,
+) -> None:
+    # Why: 0136-status-log design, the pin and D4.
     record = tmp_path / "gate" / "tree"
     record.parent.mkdir()
-    record.with_name("tree.tmp").mkdir()
+    (record.parent / folder).mkdir()
+    (record.parent / folder / "kept").write_text("kept\n")
 
-    assert gate_run.write_record(record, "d", 1) == "tree.tmp could not be created"
+    assert gate_run.write_record(record, "d", 1) == said
 
-    assert not record.exists()
+    assert not record.is_file()
+    assert (record.parent / folder / "kept").read_text() == "kept\n"
+    monkeypatch.setattr(gate_run, "settled_tree", lambda: "tree")
+    monkeypatch.setattr(gate_run, "dry_run", lambda: "d")
+    monkeypatch.setattr(gate_run, "records", lambda: record.parent)
+    green = subprocess.CompletedProcess(["make", "gate"], 0, stdout="")
+    monkeypatch.setattr(gate_run.subprocess, "run", lambda *_, **__: green)
+
+    assert gate_run.gate(fresh=True) == 0
+
+    assert capsys.readouterr().out.startswith(f"gate: green — unrecorded, {said} · ")
 
 
 def test_records_go_under_the_primary_run_directory(tmp_path: Path) -> None:

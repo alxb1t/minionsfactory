@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The staged writes of `bundle.py`, `debt_match.py`, `open_cards.py`, `skip_stub.py`, `gate_run.py` and
   `plan_check.py`, and the reads of converge's `_text`, the viewer's `read_part` and the conductor's `_bounded`
   and `_folder_fd`, call `statefile.py`, each keeping its check, its bound and its error text (0136-status-log, phase 4).
+- Each copy is fixed to one side: a failed staged write leaves no `.tmp`; the stamp and `skip_stub.py` refuse a link;
+  a green gate whose record cannot be written is green and unrecorded; a run reads to the next heading; the
+  conductor halts on a linked log; the stamp holds the change folder's descriptor (card 0109·S1) and flattens a
+  detail's line breaks (0136-status-log, phase 5).
 
 ## [0.107.0] - 2026-11-18
 

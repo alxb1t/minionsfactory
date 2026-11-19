@@ -129,11 +129,11 @@ def write_record(path: Path, dry: str, seconds: int) -> str | None:
     date = datetime.now(UTC).isoformat(timespec="seconds")
     text = f"dry: {dry}\ndate: {date}\nseconds: {seconds}\n"
     try:
-        mflib.statefile.write(path, text, remove="never")
+        mflib.statefile.write(path, text)
     except mflib.statefile.WriteFailed as failed:
         if failed.step == "create":
             return f"{path.name}.tmp could not be created"
-        raise failed.error from None
+        return f"{path.name} could not be replaced"
     return None
 
 

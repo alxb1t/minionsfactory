@@ -81,7 +81,7 @@ def page(found: list[str]) -> str:
 def write(path: Path, text: str) -> None:
     """Replace `path` with `text` through a staged file; a link is refused."""
     try:
-        mflib.statefile.write(path, text, refuse_link=True, remove="any")
+        mflib.statefile.write(path, text, refuse_link=True)
     except mflib.statefile.WriteFailed as failed:
         if failed.error.errno == errno.ELOOP:
             raise Stop(f"{path} is a link") from failed

@@ -38,11 +38,15 @@ def test_case_h_a_bad_byte_raises_in_the_stamp_and_run_end_and_is_replaced_else(
 ) -> None:
     log = _log(tmp_path, b"# t\n\n## Run 1 \xff\n10:00:00 \xff\n")
 
-    with pytest.raises(UnicodeDecodeError):
-        statuslog.read(log)
-    with pytest.raises(UnicodeDecodeError):
-        _run_end(tmp_path)
-    for read in (converge["_text"], conduct["_bounded"], viewer["read_part"]):
+    with pytest.raises(statuslog.Refused, match="not UTF-8"):
+        statuslog.stamp(log, ["round 1 · verify"], None, None)
+    assert _run_end(tmp_path) == "10:00:00 �"
+    for read in (
+        statuslog.read,
+        converge["_text"],
+        conduct["_bounded"],
+        viewer["read_part"],
+    ):
         assert read(log) == "# t\n\n## Run 1 �\n10:00:00 �\n", read
 
 

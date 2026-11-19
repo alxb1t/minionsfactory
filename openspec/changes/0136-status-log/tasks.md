@@ -8,7 +8,7 @@ The phases: pin the region, write the modules, move the stations, give the helpe
 - [x] 2 — The modules · hard
 - [x] 3 — The stations · hard
 - [x] 4 — The helpers · moderate
-- [ ] 5 — The fix · hard
+- [x] 5 — The fix · hard
 - [ ] 6 — The rule and the record · hard
 
 ## 1 — The pin
@@ -85,17 +85,17 @@ The writers and readers outside the log take `statefile`, each keeping its check
 
 Each copy to one side, in the order of [D4](design.md#d4) to [D8](design.md#d8); the phase 1 cases whose copies differed turn to the one side.
 
-- [ ] 5.1 In `skills/mflib/statefile.py` delete `remove` and `guard`: the staged file is removed on any failure and every read is guarded. Pass `refuse_link=True` from `statuslog.stamp` and `skip_stub.py`, and make `skip_stub.py`'s read of the file it replaces, still after `path.is_file()`, call `statefile.read`; a link at its target, met by the read or the write, stops as `<path> is a link`, as the other change-folder writers word it. Turn the rows of `tests/test_staged_writes.py`, `tests/test_statefile.py` and `tests/test_log_reads.py` that held a second value.
+- [x] 5.1 In `skills/mflib/statefile.py` delete `remove` and `guard`: the staged file is removed on any failure and every read is guarded. Pass `refuse_link=True` from `statuslog.stamp` and `skip_stub.py`, and make `skip_stub.py`'s read of the file it replaces, still after `path.is_file()`, call `statefile.read`; a link at its target, met by the read or the write, stops as `<path> is a link`, as the other change-folder writers word it. Turn the rows of `tests/test_staged_writes.py`, `tests/test_statefile.py` and `tests/test_log_reads.py` that held a second value.
   Verify: `uv run pytest tests/test_staged_writes.py tests/test_statefile.py tests/test_log_reads.py tests/test_skip_stub.py -q` exits 0.
-- [ ] 5.2 In `skills/mf-converge/scripts/gate_run.py` make a failed record print `gate: green — unrecorded, <name>.tmp could not be created` for a create, or `gate: green — unrecorded, <name> could not be replaced` for a rename, `<name>` the record's file name, and exit 0. Turn case D's `gate_run.py` row and case E.
+- [x] 5.2 In `skills/mf-converge/scripts/gate_run.py` make a failed record print `gate: green — unrecorded, <name>.tmp could not be created` for a create, or `gate: green — unrecorded, <name> could not be replaced` for a rename, `<name>` the record's file name, and exit 0. Turn case D's `gate_run.py` row and case E.
   Verify: `uv run pytest tests/test_gate_run.py tests/test_staged_writes.py -q` exits 0.
-- [ ] 5.3 In `skills/mflib/statuslog.py` delete `extent`: a run is its heading to the next heading, blank lines skipped. `mark_of` strips and returns `None` with no mark, `marked` calls it; `parse_event` takes an optional detail, and `is_event` and `ends` call it. Turn cases M, Q and R and the copies' rows of `tests/test_status_log_copies.py`.
+- [x] 5.3 In `skills/mflib/statuslog.py` delete `extent`: a run is its heading to the next heading, blank lines skipped. `mark_of` strips and returns `None` with no mark, `marked` calls it; `parse_event` takes an optional detail, and `is_event` and `ends` call it. Turn cases M, Q and R and the copies' rows of `tests/test_status_log_copies.py`.
   Verify: `uv run pytest tests/test_statuslog.py tests/test_converge.py tests/test_status_log_copies.py -q` exits 0.
-- [ ] 5.4 In `skills/mf-ship/scripts/conduct.py` make the readers of the log read through `statefile.read`: a bad byte is replaced, and a link or a FIFO raises `Stop(1, "conduct: halt — .minions/changes/<change-id>/status_log.md is a link")` naming the path. Add a test with `status_log_link` in its name: `stage_of` raises it, and `conduct.py status` prints it and exits 1; a missing log keeps its answer.
+- [x] 5.4 In `skills/mf-ship/scripts/conduct.py` make the readers of the log read through `statefile.read`: a bad byte is replaced, and a link or a FIFO raises `Stop(1, "conduct: halt — .minions/changes/<change-id>/status_log.md is a link")` naming the path. Add a test with `status_log_link` in its name: `stage_of` raises it, and `conduct.py status` prints it and exits 1; a missing log keeps its answer.
   Verify: `uv run pytest tests/test_conduct.py -q -k "case_q or case_r or case_s or status_log_link"` exits 0.
-- [ ] 5.5 In `skills/mflib/statuslog.py` give `stamp`, `command` and `open_run` an optional `folder` descriptor, held across the read, the create and the rename; with none, they open the log's parent by pathname and make nothing, so a missing log keeps its text. The parser replaces a bad byte and the writer refuses one with exit 2. Converge and `_restamp` pass `statefile.folder(run_dir, CHANGES, change)`. Add `tests/test_statuslog.py`'s case for card 0109·S1: the change folder swapped for a link right after the read leaves the outside file untouched.
+- [x] 5.5 In `skills/mflib/statuslog.py` give `stamp`, `command` and `open_run` an optional `folder` descriptor, held across the read, the create and the rename; with none, they open the log's parent by pathname and make nothing, so a missing log keeps its text. The parser replaces a bad byte and the writer refuses one with exit 2. Converge and `_restamp` pass `statefile.folder(run_dir, CHANGES, change)`. Add `tests/test_statuslog.py`'s case for card 0109·S1: the change folder swapped for a link right after the read leaves the outside file untouched.
   Verify: `uv run pytest tests/test_statuslog.py tests/test_stamp.py tests/test_converge.py -q` exits 0.
-- [ ] 5.6 In `skills/mflib/statuslog.py` make `stamp` flatten each run of line breaks in an event to one space. Turn the multi-line halt of `tests/test_status_log_copies.py`, and add a test with `line_break` in its name for the re-run of a halt that carried git's stderr.
+- [x] 5.6 In `skills/mflib/statuslog.py` make `stamp` flatten each run of line breaks in an event to one space. Turn the multi-line halt of `tests/test_status_log_copies.py`, and add a test with `line_break` in its name for the re-run of a halt that carried git's stderr.
   Verify: `uv run pytest tests/test_statuslog.py tests/test_status_log_copies.py -q -k "line_break or flatten"` exits 0.
 
 ## 6 — The rule and the record

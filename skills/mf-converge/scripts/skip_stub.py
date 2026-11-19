@@ -8,6 +8,7 @@ skip_stub.py <findings-file> <round>
 """
 
 import argparse
+import errno
 import re
 import subprocess
 import sys
@@ -109,21 +110,22 @@ def uncleared(text: str) -> bool:
 
 
 def write(path: Path, text: str) -> None:
-    """Replace the file with `text`, through a staged file that refuses a link.
-
-    The staged `.tmp` is removed, created anew with `O_NOFOLLOW`, then renamed over the
-    file, so nothing is written through a link a worker planted.
-    """
+    """Replace the file with `text` through a staged file; a link is refused."""
     try:
         # why: a skip added after a round keeps its cards; 0105-converge-switches D3
-        if path.is_file() and uncleared(path.read_text(errors="replace")):
+        if path.is_file() and uncleared(mflib.statefile.read(path)):
             raise Stop(
                 f"{path} holds a checker's round not cleared:"
                 " clearing it is the person's act"
             )
-        mflib.statefile.write(path, text, remove="never")
-    except (OSError, mflib.statefile.WriteFailed) as error:
-        raise Stop(f"{path.name} could not be written") from error
+        mflib.statefile.write(path, text, refuse_link=True)
+    except (OSError, mflib.statefile.WriteFailed) as failed:
+        error = (
+            failed.error if isinstance(failed, mflib.statefile.WriteFailed) else failed
+        )
+        if error.errno == errno.ELOOP:
+            raise Stop(f"{path} is a link") from failed
+        raise Stop(f"{path.name} could not be written") from failed
 
 
 def main(argv: list[str] | None = None) -> int:
