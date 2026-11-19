@@ -5,7 +5,7 @@ Pin each copy of the findings format as it stands, build the module, move the st
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
@@ -39,15 +39,15 @@ Each case is green on the tree as it stands ([D2](design.md#d2)). The worker see
 
 The module takes converge's form as the one form, and holds each other copy's form as a legacy function ([D2](design.md#d2)).
 
-- [ ] 2.1 Add `findings_name(role)`, `shadow_name(role)`, `open_name(role)` and `findings_file(primary, change, role)` to `skills/mflib/layout.py` ([D1](design.md#d1)), and `test_layout_findings_*` cases for each to `tests/test_layout.py`.
+- [x] 2.1 Add `findings_name(role)`, `shadow_name(role)`, `open_name(role)` and `findings_file(primary, change, role)` to `skills/mflib/layout.py` ([D1](design.md#d1)), and `test_layout_findings_*` cases for each to `tests/test_layout.py`.
   Verify: `uv run pytest tests/test_layout.py -q -k test_layout_findings` passes.
-- [ ] 2.2 Create `skills/mflib/findings.py`, standard library and `mflib.statefile` alone, with its first part: `BLOCKS`, `NON_SECURITY`, `SMALL`, `SIZE`, `TITLE`, `FIELD`, `Card`, `cards(text, role)` and `strays(text)`, from converge, `conduct.py` and `open_cards.py`, and the legacy form of each of their rules that differs: the extent, the field line, the word, the severity, the category, the status and the security card. Create `tests/test_findings.py` with a `test_card_*` case for each.
+- [x] 2.2 Create `skills/mflib/findings.py`, standard library and `mflib.statefile` alone, with its first part: `BLOCKS`, `NON_SECURITY`, `SMALL`, `SIZE`, `TITLE`, `FIELD`, `Card`, `cards(text, role)` and `strays(text)`, from converge, `conduct.py` and `open_cards.py`, and the legacy form of each of their rules that differs: the extent, the field line, the word, the severity, the category, the status and the security card. Create `tests/test_findings.py` with a `test_card_*` case for each.
   Verify: `uv run pytest tests/test_findings.py -q -k test_card` passes.
-- [ ] 2.3 Add its second part: `FRONT`, `front`, `fault`, `listed`, `frontmatter`, `read`, `halt_ids`, `stub`, `uncleared` and `stamped`, from converge, `conduct.py`, `integrate.py` and `skip_stub.py`, with a `test_front_*`, `test_read_*`, `test_stub_*` or `test_stamped_*` case for each. Each rule of [the copies](design.md#the-copies) that differs from converge's form is held as one legacy function, named as [D2](design.md#d2) says.
+- [x] 2.3 Add its second part: `FRONT`, `front`, `fault`, `listed`, `frontmatter`, `read`, `halt_ids`, `stub`, `uncleared` and `stamped`, from converge, `conduct.py`, `integrate.py` and `skip_stub.py`, with a `test_front_*`, `test_read_*`, `test_stub_*` or `test_stamped_*` case for each. Each rule of [the copies](design.md#the-copies) that differs from converge's form is held as one legacy function, named as [D2](design.md#d2) says.
   Verify: `uv run pytest tests/test_findings.py -q -k "test_front or test_read or test_stub or test_stamped"` passes.
-- [ ] 2.4 Add to `tests/test_findings.py` `test_legacy_*`: a table that runs each legacy function on the inputs of the pin's cases and expects the output the copy it replaces gave.
+- [x] 2.4 Add to `tests/test_findings.py` `test_legacy_*`: a table that runs each legacy function on the inputs of the pin's cases and expects the output the copy it replaces gave.
   Verify: `uv run pytest tests/test_findings.py -q -k test_legacy` passes.
-- [ ] 2.5 Add the row `skills/mflib/findings.py`, layer `home`, names `statefile.py`, to `docs/modules.md`, in path order.
+- [x] 2.5 Add the row `skills/mflib/findings.py`, layer `home`, names `statefile.py`, to `docs/modules.md`, in path order.
   Verify: `uv run pytest tests/test_structure.py -q` passes.
 
 ## 3 — The stations

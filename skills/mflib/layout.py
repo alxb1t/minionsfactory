@@ -75,6 +75,39 @@ def status_log(primary: Path, change: str) -> Path:
     return change_dir(primary, change) / STATUS_LOG
 
 
+def findings_name(role: str) -> str:
+    """Return the name of a checker's findings file in a change's folder.
+
+    e.g. "adversarial" → "adversarial.md"
+    """
+    return f"{role}.md"
+
+
+def shadow_name(role: str) -> str:
+    """Return the name of a checker's shadow findings file in a change's folder.
+
+    e.g. "adversarial" → "shadow-adversarial.md"
+    """
+    return f"shadow-{role}.md"
+
+
+def open_name(role: str) -> str:
+    """Return the name of the page of a role's cards a verify judges.
+
+    e.g. "adversarial" → "adversarial.open.md"
+    """
+    return f"{role}.open.md"
+
+
+def findings_file(primary: Path, change: str, role: str) -> Path:
+    """Return a checker's findings file.
+
+    e.g. "0001-a", "conformance" → <primary>/.minions/changes/0001-a/conformance.md
+    Why: 0138-findings design D1.
+    """
+    return change_dir(primary, change) / findings_name(role)
+
+
 def runs_dir(primary: Path) -> Path:
     """Return the folder of the runs' logs and their claim."""
     return run_dir(primary) / "runs"

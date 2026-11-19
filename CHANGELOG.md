@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin tests hold each copy of the findings format as it stands: converge, `conduct.py`, `integrate.py`, `open_cards.py`,
   `overlap.py` and `skip_stub.py`, each reader also given a linked file and a file still malformed after its rewrite,
   before the copies move into one module (0138-findings, phase 1).
+- `skills/mflib/findings.py` writes and parses a findings file in converge's form, and holds each other script's
+  differing copy as a `_legacy` function, so the stations can move onto it unchanged; `skills/mflib/layout.py` names
+  the findings files (0138-findings, phase 2).
 
 ## [0.109.0] - 2026-11-19
 
