@@ -2174,7 +2174,10 @@ def test_an_amend_card_halts_the_debt(host: Host) -> None:
 def test_a_fixed_repeats_old_card_is_cleared(
     host: Host, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    gone = _filed(_card("R1 nit", still="`true`"), "0000")
+    # A blank line inside the paid card does not end it: its later fields go too.
+    gone = _filed(_card("R1 nit", still="`true`"), "0000").replace(
+        "  - **Still true?**", "\n  - **Still true?**"
+    )
     kept = _filed(_card("R2 nit", still="`false`"), "0000")
     sibling = _filed(_card("R6 nit", still="`false`"), "0000")
     debt = _debt(host)

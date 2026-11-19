@@ -122,6 +122,8 @@ A frontmatter is a block at the start of the file, ended by the first `---` line
 | `open_cards.py`, `overlap.py` | `Stop`, `Unread`, as now | replaced |
 | `skip_stub.py` `uncleared` | no file: the stub is written, as now | replaced |
 
+Fix note (2026-11-20, S1): the conductor's card reader also reads a file with no frontmatter as malformed, so a bad byte alone reaches the security readers as `True`.
+
 ### D10
 
 The disagreement stays and is pinned by the cases for each reader in [the pin](tasks.md#1--the-pin).

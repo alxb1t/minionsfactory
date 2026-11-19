@@ -3682,6 +3682,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
     halt = "10:00:00 · round 3 · halt — cap reached · head abc1234"
     assert held(minions, "0001-todo", halt)
     card = (
+        "---\nverdict: changes-requested\n---\n\n"
         "- **S1 — a finding**\n"
         "  - **Priority:** high · adversarial · security — why.\n"
         "  - **Fix:** a fix · size: one line.\n"
@@ -14810,6 +14811,12 @@ def test_fix_read_conduct_replaces_a_bad_byte(tmp_path: Path) -> None:
     blocker = f"---\nverdict: x\n---\n\n{_pin_card('R1', 'blocking')}"
     (folder / "conformance.md").write_bytes(blocker.encode() + b"\xff\n")
     assert conduct["_open_blockers"](runs, "0001-a") == [("R1", "a test")]
+    # A file of a bad byte alone holds no frontmatter: it is malformed, a security card.
+    (folder / "adversarial.md").write_bytes(b"\xff")
+    halt = "halt — amend needed — S1 · head a"
+    assert conduct["_security_blocks"](runs, "0001-a", halt)
+    assert conduct["_security_held"](runs, "0001-a", "halt — cap reached")
+    assert conduct["_open_blockers"](runs, "0001-a") is None
 
 
 def test_fix_read_conduct_refuses_a_link(tmp_path: Path) -> None:

@@ -500,10 +500,15 @@ def _findings(runs: Path, change: str, role: str) -> str | None:
 def _read_cards(runs: Path, change: str, role: str) -> list[mflib.findings.Card] | None:
     """Return a role's findings file's cards; None if missing, unread or malformed.
 
+    A file with no frontmatter, as a bad byte alone, is malformed: its cards are unread.
     Why: 0138-findings design D7 and D9.
     """
     text = _findings(runs, change, role)
-    if text is None or mflib.findings.malformed(text, role):
+    if (
+        text is None
+        or not mflib.findings.front(text)[0]
+        or mflib.findings.malformed(text, role)
+    ):
         return None
     return mflib.findings.cards(text, role)
 

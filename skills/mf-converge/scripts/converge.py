@@ -1305,15 +1305,16 @@ def _section_end(lines: list[str], at: int) -> int:
 
 
 def _unfiled(text: str, ident: str) -> str:
-    """Return the debt without the card `ident`, and its heading when left empty."""
+    """Return the debt without the card `ident`, and its heading when left empty.
+
+    The card's extent is the one the shared reader reads, blanks inside it included.
+    """
     lines = text.splitlines(keepends=True)
     start = next(
         i for i, line in enumerate(lines) if line.startswith(f"- **{ident} — ")
     )
-    end = start + 1
-    while end < len(lines) and lines[end].startswith((" ", "\t")):
-        end += 1
-    del lines[start:end]
+    card = next(c for c in mflib.findings.cards(text, "") if c.id == ident)
+    del lines[start : start + len(card.lines)]
     tops = [i for i in range(start) if lines[i].startswith("## ")]
     if tops and not "".join(lines[tops[-1] + 1 : _section_end(lines, start)]).strip():
         del lines[tops[-1] : _section_end(lines, start)]
