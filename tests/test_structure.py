@@ -64,8 +64,17 @@ LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("converge.py", ".minions/"),
         ("cut_check.py", ".minions/"),
         ("gate_run.py", ".minions/"),
-        ("stamp.py", ".minions/"),
         ("viewer.py", ".minions"),
+    }
+)
+FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("review_metrics.py", "## Run"),
+        ("review_metrics.py", "status_log.md"),
+        ("run.py", "## Run"),
+        ("run.py", "status_log.md"),
+        ("viewer.py", "## Run"),
+        ("viewer.py", "status_log.md"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")
@@ -76,6 +85,8 @@ _STATE_PREFIX = ".minions/"
 _KEPT = ".mf-ship-origin"
 _XDG = ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME")
 _HOME = "skills/mflib/"
+_LOG = "status_log.md"
+_RUN = "## Run"
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
 SCRIPTS_SEED = (
     'sys.path.insert(0, str(Path(__file__).resolve().parents[{}] / "skills"))'
@@ -433,6 +444,35 @@ def check_layout(
     shown = {f"{file} spells {name}" for file, name in listed if not _home_name(name)}
     state = _against(found, shown, "a state path outside layout.py", "LAYOUT_SITES")
     return sorted(home) + state
+
+
+def _format_name(text: str) -> str:
+    """Return the format name the string `text` spells, or `""` for none.
+
+    e.g. `"status_log.md"` → itself, `"^(## Run\\b.*)$"` → `"## Run"`
+    """
+    if text == _LOG:
+        return text
+    return _RUN if _RUN in text else ""
+
+
+def check_formats(
+    root: Path, listed: frozenset[tuple[str, str]] = FORMAT_SITES
+) -> list[str]:
+    """Return a breach line for each format name spelled outside the home — rule 6.
+
+    e.g. `["x.py spells ## Run: a format name outside skills/mflib/, not listed …"]`
+    Why: 0136-status-log design D9.
+    """
+    found = {
+        f"{path.rpartition('/')[2]} spells {name}"
+        for path, tree in _parse(root).items()
+        if not path.startswith(_HOME)
+        for text in _strings(tree)
+        if (name := _format_name(text))
+    }
+    shown = {f"{file} spells {name}" for file, name in listed}
+    return _against(found, shown, "a format name outside skills/mflib/", "FORMAT_SITES")
 
 
 def _loads_home(node: ast.stmt) -> bool:
@@ -976,6 +1016,57 @@ def test_check_layout_fails_on_a_listed_site_that_is_gone(tmp_path: Path) -> Non
 def test_check_layout_passes_a_docstring(tmp_path: Path, source: str) -> None:
     root = _plant(tmp_path, {"scripts/x.py": source})
     assert check_layout(root, listed=frozenset()) == []
+
+
+def test_check_formats_holds_on_the_tree() -> None:
+    assert check_formats(_REPO) == []
+
+
+def test_check_formats_fails_on_a_planted_log_name(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": 'LOG = "status_log.md"\n'})
+    assert check_formats(root, listed=frozenset()) == [
+        "x.py spells status_log.md: a format name outside skills/mflib/, "
+        "not listed in FORMAT_SITES"
+    ]
+
+
+def test_check_formats_fails_on_a_heading_in_a_longer_string(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": 'RUN = r"^(## Run\\b.*)$"\n'})
+    assert check_formats(root, listed=frozenset()) == [
+        "x.py spells ## Run: a format name outside skills/mflib/, "
+        "not listed in FORMAT_SITES"
+    ]
+
+
+def test_check_formats_fails_on_a_listed_site_that_is_gone(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": ""})
+    assert check_formats(root, listed=frozenset({("x.py", "## Run")})) == [
+        "x.py spells ## Run: listed in FORMAT_SITES, not found"
+    ]
+
+
+def test_check_formats_passes_the_home_modules(tmp_path: Path) -> None:
+    root = _plant(
+        tmp_path,
+        {
+            _LAYOUT: 'LOG = "status_log.md"\n',
+            "skills/mflib/statuslog.py": 'HEADING = "## Run"\n',
+        },
+    )
+    assert check_formats(root, listed=frozenset()) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '"""status_log.md"""\ndef f() -> None:\n    """## Run 2 — d"""\n',
+        'SAY = "the status_log.md"\nTOO = "## Ru"\n',
+    ],
+    ids=["docstring", "no-name"],
+)
+def test_check_formats_passes_a_docstring(tmp_path: Path, source: str) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": source})
+    assert check_formats(root, listed=frozenset()) == []
 
 
 _SEEDED = f"import sys\nfrom pathlib import Path\n\n{SEED}\nimport mflib.platform\n"

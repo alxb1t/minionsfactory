@@ -14,7 +14,6 @@ import os
 import re
 import runpy
 import shlex
-import stat
 import subprocess
 import sys
 import time
@@ -28,9 +27,10 @@ from typing import Any, NamedTuple, NoReturn, Protocol, TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
+import mflib.statefile
+import mflib.statuslog
 
 HERE = Path(__file__).resolve().parent
-STAMP = runpy.run_path(str(HERE / "stamp.py"))
 BUNDLE = runpy.run_path(str(HERE / "bundle.py"))
 DEBT_MATCH = runpy.run_path(str(HERE / "debt_match.py"))
 SKIP_STUB = runpy.run_path(str(HERE / "skip_stub.py"))
@@ -45,7 +45,6 @@ CAP = 3
 TIMEOUT_SECONDS = 600
 SMALL = ("one line", "a test", "one line and a test")
 SIZE = re.compile(r"size:([^:]*)$")
-EVENT = re.compile(r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+) — (.*)$")
 SPAN = re.compile(r"(\w+)\.\.(\w+) · (\d+) commits? · (\d+) files?")
 HALTED = re.compile(r" · head (\w+)$")
 NO_COMMAND = ("is up to date", "Nothing to be done")
@@ -79,7 +78,6 @@ REWRITE = (
 # The debt lock's poll and wait, in seconds. Why: design D5.
 LOCK_POLL = 5
 LOCK_WAIT = 600
-LOCKED = re.compile(r"\.minions/(?:debt|backlog)\.lock")
 COMMAND = re.compile(r"`([^`]+)`")
 REPEAT = re.compile(r"repeat of `?([\w·]+)")
 NOTE = re.compile(r"^Fix note \(\d{4}-\d\d-\d\d, ([^)]+)\):")
@@ -301,7 +299,7 @@ class Context:
     @property
     def log(self) -> Path:
         """Return the status log."""
-        return self.folder / "status_log.md"
+        return mflib.layout.status_log(Path(self.host.primary), self.change)
 
 
 def git(tree: Path, *args: str) -> str:
@@ -326,25 +324,38 @@ def _plural(count: int, noun: str) -> str:
     return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
+@contextmanager
+def _change_folder(context: Context) -> Iterator[int]:
+    """Yield a descriptor on the change's folder, made, through no link; or `Cannot`.
+
+    Why: card 0109·S1; 0136-status-log design D7.
+    """
+    run_dir = mflib.layout.run_dir(Path(context.host.primary))
+    try:
+        fd = mflib.statefile.folder(run_dir, mflib.layout.CHANGES, context.change)
+    except OSError:
+        raise Cannot(
+            f"converge: cannot run — {context.log} cannot be stamped"
+        ) from None
+    try:
+        yield fd
+    finally:
+        os.close(fd)
+
+
 def stamp(context: Context, *events: str) -> None:
     """Write `events` of this round to the status log, the last given on top."""
     lines = [f"round {context.round} · {event}" for event in events]
-    if STAMP["main"]([str(context.log), *lines]) != 0:
-        raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
+    with _change_folder(context) as fd:
+        if mflib.statuslog.command(context.log, lines, None, None, fd) != 0:
+            raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
 
 
 def open_run(context: Context, mark: str | None = None) -> None:
     """Open a new run in the status log, creating the log with its title if missing."""
-    context.folder.mkdir(parents=True, exist_ok=True)
-    try:
-        with context.log.open("x") as log:
-            log.write(f"# {context.change} — converge status\n")
-    except FileExistsError:
-        pass
-    runs = STAMP["read"](context.log).count("\n## Run")
-    marked = [] if mark is None else ["--mark", mark]
-    if STAMP["main"]([str(context.log), "--run", str(runs + 1), *marked]) != 0:
-        raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
+    with _change_folder(context) as fd:
+        if mflib.statuslog.open_run(context.log, context.change, mark, fd) != 0:
+            raise Cannot(f"converge: cannot run — {context.log} cannot be stamped")
 
 
 def sandboxed(context: Context, argv: list[str], out: TextIO | None = None) -> int:
@@ -557,13 +568,9 @@ def _text(path: Path) -> str | None:
     A link or a file that is no regular file raises OSError.
     """
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        return mflib.statefile.read(path)
     except FileNotFoundError:
         return None
-    with os.fdopen(fd, "rb") as file:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise OSError(errno.EINVAL, "it is not a file")
-        return file.read().decode(errors="replace")
 
 
 def _cards(body: str, role: str) -> list[Card]:
@@ -793,36 +800,11 @@ def converge(
         return 1
 
 
-class Event(NamedTuple):
-    """One status-log event: its round, its name and its detail."""
-
-    round: int
-    name: str
-    detail: str
-
-
-class Run(NamedTuple):
-    """The status log's newest run: its heading's mark and its events, newest first."""
-
-    mark: str | None
-    events: list[Event]
-
-
-def latest(context: Context) -> Run:
+def latest(context: Context) -> mflib.statuslog.Run:
     """Return the status log's newest run; no log, or no run, is one of no event."""
-    text = STAMP["read"](context.log) if os.path.lexists(context.log) else ""
-    lines = text.splitlines()
-    at = next(
-        (i for i, line in enumerate(lines) if line.startswith("## Run")), len(lines)
-    )
-    mark = lines[at].partition(" · ")[2] if at < len(lines) else ""
-    events = []
-    for line in lines[at + 1 :]:
-        if not line.strip() or line.startswith("## Run"):
-            break
-        if found := EVENT.match(line):
-            events.append(Event(int(found[1]), found[2], found[3]))
-    return Run(mark or None, events)
+    log = context.log
+    text = mflib.statuslog.read(log) if os.path.lexists(log) else ""
+    return mflib.statuslog.latest(text)
 
 
 def resume(context: Context, granting: bool) -> int:
@@ -835,7 +817,11 @@ def resume(context: Context, granting: bool) -> int:
     top = run.events[0] if run.events else None
     if top is not None and top.name not in ("halt", "done"):
         return go_on(context, run)
-    if top is not None and top.name == "halt" and LOCKED.search(top.detail):
+    if (
+        top is not None
+        and top.name == "halt"
+        and mflib.statuslog.names_lock(top.detail)
+    ):
         return unlocked(context, run)
     if granting:
         begin(context, "grant")
@@ -847,14 +833,14 @@ def resume(context: Context, granting: bool) -> int:
         begin(context, "catch-up")
         return catch_up(context, judged)
     if top is not None and top.name == "halt" and unanswered(context, run):
-        # why: the cap's halt stands on top; `stamp.py` takes no event after it
+        # why: the cap's halt stands on top; `statuslog.py` takes no event after it
         print(f"converge: halt — {HALTED.sub('', top.detail)}")
         return 1
     begin(context, None)
     return fresh(context)
 
 
-def unlocked(context: Context, run: Run) -> int:
+def unlocked(context: Context, run: mflib.statuslog.Run) -> int:
     """Go on at Step 9 with a run the debt lock halted, both files clean at `HEAD`.
 
     Else halt, naming the file. Why: design D3, D5.
@@ -1319,12 +1305,12 @@ def answered_amends(context: Context) -> set[str]:
     """
     ids: set[str] = set()
     mark = None
-    for line in STAMP["read"](context.log).splitlines():
-        if line.startswith("## Run"):
-            mark = line.partition(" · ")[2] or None
-        elif found := EVENT.match(line):
-            round_, name, detail = found.groups()
-            if (name, round_, mark) == ("start", "1", None):
+    for line in mflib.statuslog.read(context.log).splitlines():
+        if mflib.statuslog.is_heading(line):
+            mark = mflib.statuslog.mark_of(line)
+        elif found := mflib.statuslog.parse_event(line):
+            round_, name, detail = found
+            if (name, round_, mark) == ("start", 1, None):
                 break
             if name == "halt" and detail.startswith("amend needed — "):
                 named = HALTED.sub("", detail).removeprefix("amend needed — ")
@@ -1820,7 +1806,7 @@ def ruled(path: Path, now: str, round_: int, today: str, lines: str) -> None:
     )
 
 
-def before_round(run: Run) -> bool:
+def before_round(run: mflib.statuslog.Run) -> bool:
     """Return whether the run's halt is a halt before round 1.
 
     No `start`, no grant, and no `verify: halt`. Why: design D3.
@@ -1832,7 +1818,7 @@ def before_round(run: Run) -> bool:
     )
 
 
-def answered(context: Context, run: Run) -> str | None:
+def answered(context: Context, run: mflib.statuslog.Run) -> str | None:
     """Return the files' judged head when a commit answered the run's halt, else None.
 
     `HEAD` descends from the halt's head and is not it, and the files judged that
@@ -1851,7 +1837,7 @@ def answered(context: Context, run: Run) -> str | None:
     return judged if judged == sha or any(amends) else None
 
 
-def unanswered(context: Context, run: Run) -> bool:
+def unanswered(context: Context, run: mflib.statuslog.Run) -> bool:
     """Return whether the run's halt is a cap no grant or answer has moved.
 
     Its files read, at one head. Why: design D3; D56.
@@ -1880,7 +1866,7 @@ def resolve(context: Context, short: str) -> str:
     return git(context.tree, "rev-parse", "--verify", f"{short}^{{commit}}").strip()
 
 
-def frozen_of(context: Context, run: Run) -> Freeze:
+def frozen_of(context: Context, run: mflib.statuslog.Run) -> Freeze:
     """Return the run's latest freeze; with none yet, the files' judged head."""
     for event in run.events:
         if event.name == "freeze" and (span := SPAN.search(event.detail)):
@@ -1890,7 +1876,7 @@ def frozen_of(context: Context, run: Run) -> Freeze:
     return Freeze(judged, judged, 0, 0)
 
 
-def cap_of(run: Run) -> int:
+def cap_of(run: mflib.statuslog.Run) -> int:
     """Return the run's cap: a grant's one round past it, an own count's two rounds."""
     first = run.events[-1]
     if run.mark == "grant":
@@ -1900,7 +1886,7 @@ def cap_of(run: Run) -> int:
     return CAP
 
 
-def go_on(context: Context, run: Run) -> int:
+def go_on(context: Context, run: mflib.statuslog.Run) -> int:
     """Go on with an unended run from its latest event.
 
     Why: design D3; `test_a_run_resumes_from_its_status_log` holds each row.
@@ -2199,7 +2185,10 @@ def halt(context: Context, reason: str) -> None:
     """
     if (events := latest(context).events) and (
         events[0].name == "done"
-        or (events[0].name == "halt" and not LOCKED.search(events[0].detail))
+        or (
+            events[0].name == "halt"
+            and not mflib.statuslog.names_lock(events[0].detail)
+        )
     ):
         return
     stamp(context, f"halt — {reason} · head {head(context)}")

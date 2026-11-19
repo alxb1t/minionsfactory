@@ -24,6 +24,13 @@ def test_a_change_folder_is_under_changes(tmp_path: Path) -> None:
     assert layout.CHANGES == "changes"
 
 
+def test_the_layout_names_the_log_of_a_change(tmp_path: Path) -> None:
+    assert layout.status_log(tmp_path, "0001-todo") == (
+        tmp_path / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    )
+    assert layout.STATUS_LOG == "status_log.md"
+
+
 @pytest.mark.parametrize(
     ("name", "spelled"),
     [

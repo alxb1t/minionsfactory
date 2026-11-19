@@ -14,7 +14,7 @@ root, through `skills/mf-converge/scripts/gate_run.py`, which records a green ru
 dry run's hash, the date and the seconds — and on a later call reuses it when the worktree is clean, its tree is that tree,
 and `make -n gate` prints the same lines. A red run SHALL record nothing, and no record SHALL be written through a linked
 `.minions/gate` or staged record, and `mf-release`'s gate after its fold SHALL run
-fresh. `gate_run.py` SHALL run `make gate` and its dry run with no `VIRTUAL_ENV` in their environment. On a green run it
+fresh. A green run whose record cannot be written or renamed SHALL print `gate: green — unrecorded, <reason>` and exit 0. `gate_run.py` SHALL run `make gate` and its dry run with no `VIRTUAL_ENV` in their environment. On a green run it
 SHALL print its summary line alone, holding make's output back; on a red run it SHALL print make's output, then its summary
 line. Each SHALL print the output of `make -n gate` before its first gate run in a session. Each SHALL halt,
 naming the root `Makefile`, when that file is missing, has no `gate` target, or has a `gate` target that runs
@@ -45,6 +45,10 @@ no command. No shipped skill SHALL name `.minions/minions.toml`.
 - **THEN** `gate_run.py` prints one line, `gate: green — …`
 - **AND WHEN** the gate is red
 - **THEN** it prints make's output, then `gate: red — …`
+
+#### Scenario: A green gate whose record cannot be renamed
+- **WHEN** the gate is green and the record's staged file cannot be renamed over its target
+- **THEN** `gate_run.py` prints `gate: green — unrecorded, <reason>`, removes the staged file and exits 0
 
 ### Requirement: The cut and the build share one input contract
 
@@ -226,8 +230,8 @@ The verify pass SHALL reopen the card when that run is missing, or when the test
 
 `skills/mf-converge/scripts/converge.py` SHALL write `.minions/changes/<change-id>/status_log.md`: one line
 per event, in the form `HH:MM:SS · round N · <event> — <detail>`, each line and run heading written by
-`skills/mf-converge/scripts/stamp.py`, which takes the clock's time. One `stamp.py` call MAY write several events, each its
-own line, inserted so the last given is on top; the script SHALL write in one call the events it has with no command
+`skills/mflib/statuslog.py`, which takes the clock's time, and `skills/mf-converge/scripts/stamp.py` SHALL be the command over it, its arguments, output and exits unchanged. One `stamp.py` call MAY write several events, each its
+own line, inserted so the last given is on top; the module SHALL write in one call the events it has with no command
 between them. `stamp.py` SHALL exit 2, writing nothing, on a call that gives `done` or `halt` before another event, and on any
 event for a run whose top line is `done`, or `halt` naming neither `.minions/debt.lock` nor `.minions/backlog.lock`: an event after
 one needs a new `## Run` heading. A `halt` naming a lock takes the events of the converge that resumes it. Each run SHALL open
@@ -237,13 +241,14 @@ heading, so the newest run and the newest line are on top. No line SHALL be edit
 `done`, and a run SHALL end on `halt` or `done`. Each `verdicts` line SHALL name one role and end `executor <x> · model <m> ·
 effort <e> · tokens <n>`: the executor, model and effort the checker's spawn names, `default` where none, and `tokens` its log's
 figure or `unavailable`, then ` · fallback: codex usage limit` when the checker fell back. A
-`shadow` line SHALL hold `overlap.py`'s line, or a shadow checker's failure. The log SHALL NOT be a findings file: no station writes
+`shadow` line SHALL hold `overlap.py`'s line, or a shadow checker's failure. The writer SHALL hold one descriptor of the change's folder, opened with no link followed, across its read of the log, its create and its rename, for every
+event and heading and for a new run's log; it SHALL refuse, exit 2 and write nothing, a log that is a link, no regular file, or holds a byte that is not UTF-8; and it SHALL write each run of line breaks in an event as one space. A reader of the log SHALL follow no link, SHALL replace a byte that is not UTF-8, and SHALL take a run as its heading to the next heading, blank lines skipped. The log SHALL NOT be a findings file: no station writes
 it and no release reads it.
 
 #### Scenario: Converge names the log, its order and its events
 - **WHEN** `converge.py` dispatches, receives or decides
 - **THEN** it inserts one line for that event under the latest `## Run N` heading, written by
-  `skills/mf-converge/scripts/stamp.py`, which takes the clock's time
+  `skills/mflib/statuslog.py`, which takes the clock's time
 - **AND** the newest run and the newest line are on top, and no earlier line changes
 
 #### Scenario: Several events in one call
@@ -286,6 +291,20 @@ it and no release reads it.
 #### Scenario: A security head by rule
 - **WHEN** a verify round follows a fix that touched no path of the threat model's `## Surfaces`
 - **THEN** the round's `fan-out` names both checkers, and the log holds one `verdicts` line for each, and no `by rule` line
+
+#### Scenario: A change folder swapped for a link
+- **WHEN** a stamp has read the log and the change's folder is swapped for a link to another folder before it writes
+- **THEN** the write lands in the folder the descriptor holds, and the other folder's files are untouched
+
+#### Scenario: A log that is a link or not UTF-8
+- **WHEN** the log is a link, or holds a byte that is not UTF-8, and `stamp.py` is given an event
+- **THEN** it exits 2 naming the log, and the log is unchanged
+- **AND WHEN** the conductor reads a log that is a link
+- **THEN** that version halts naming the log, and the run goes on
+
+#### Scenario: A detail with a line break
+- **WHEN** a halt's detail holds git's stderr, with line breaks, and ends with its head
+- **THEN** the log holds the event on one line, the breaks written as spaces, and the halt's re-run reads the head from its end
 
 ### Requirement: A skill infers the one active change
 
@@ -5297,7 +5316,7 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 
 ### Requirement: The gate holds the structure rules
 
-`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `bwrap`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists and in the port, `skills/mflib/platform.py`. No string constant outside `skills/mflib/layout.py` SHALL equal `.minions` or start with `.minions/`, unless the test lists the file and the name. No string constant outside `skills/mflib/layout.py` SHALL contain `.mf-ship-origin` or equal `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`, and the test SHALL list no such site. A script that loads the shared home SHALL load it after the seed line its folder fixes: the same line in each script under `skills/`, and under `scripts/` the one that reaches `skills/` from the file's depth. Every Python file under `skills/` SHALL match a path glob of the threat model's `## Surfaces`. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. The rules for loads, names, cycles, OS commands and state paths SHALL each carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
+`make gate` and `make check` SHALL run `tests/test_structure.py`, which holds the structure rules over every Python file under `skills/` and `scripts/`. A script SHALL name only a file of its own folder, a file of the shared home, or — the conductor alone — a station's script. No script SHALL take a name starting with `_` from a file it names. The files a script names SHALL make no cycle. `sandbox-exec`, `bwrap`, `caffeinate`, `sysctl` and `ps` SHALL be named only in the files the test lists and in the port, `skills/mflib/platform.py`. No string constant outside `skills/mflib/layout.py` SHALL equal `.minions` or start with `.minions/`, unless the test lists the file and the name. No string constant outside `skills/mflib/layout.py` SHALL contain `.mf-ship-origin` or equal `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`, and the test SHALL list no such site. No string constant outside `skills/mflib/` SHALL equal `status_log.md` or contain `## Run`, unless the test lists the file and the name. A script that loads the shared home SHALL load it after the seed line its folder fixes: the same line in each script under `skills/`, and under `scripts/` the one that reaches `skills/` from the file's depth. Every Python file under `skills/` SHALL match a path glob of the threat model's `## Surfaces`. `docs/modules.md` SHALL hold one row for each of those files, with its layer and the files it names, and no row for a file that is gone. The rules for loads, names, cycles, OS commands, state paths and formats SHALL each carry a list of today's exceptions in the test, and a listed exception that no longer exists SHALL fail the test.
 
 #### Scenario: A load the map does not declare
 - **WHEN** a script names a file of another station that its row in `docs/modules.md` does not list
@@ -5337,6 +5356,12 @@ replaces it. `viewer.py` SHALL be a standard-library `uv` script, and no file un
 - **WHEN** a script outside `skills/mflib/layout.py` holds a string constant equal to `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME`
 - **THEN** the state-path rule fails naming the file and the name, whatever the test lists
 - **AND WHEN** `skills/mflib/layout.py` holds it
+- **THEN** the rule passes
+
+#### Scenario: A format name outside the home
+- **WHEN** a script outside `skills/mflib/` holds a string constant equal to `status_log.md`, or one that contains `## Run`, and the file and the name are on no exception list
+- **THEN** the format rule fails naming the file and the name
+- **AND WHEN** a file of `skills/mflib/` holds it
 - **THEN** the rule passes
 
 #### Scenario: A load of the home with no seed

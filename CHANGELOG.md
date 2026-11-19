@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.108.0] - 2026-11-19
+
+Gate: local 6m7s · CI not read under mf-ship · 0.107.0: local 5m23s · CI not read under mf-ship
+
+- Pin tests hold the staged writes, the no-follow reads and the status log's writer and readers as they stand —
+  each copy's link, `.tmp`, rename, bad-byte, bound, FIFO and run-end answer — before they move into one module
+  (0136-status-log, phase 1).
+- The home gains `statefile.py`, one staged write and one no-follow read, and `statuslog.py`, one writer and parser
+  of the status log, each copy's difference an argument; `layout.py` names the log. No caller yet
+  (0136-status-log, phase 2).
+- `stamp.py` becomes a command over `statuslog.py`; converge's `stamp`, `open_run`, `latest` and amend walk and the
+  conductor's log readers and `_restamp` call the module, and `Event` and `Run` move into it. No answer changes
+  (0136-status-log, phase 3).
+- The staged writes of `bundle.py`, `debt_match.py`, `open_cards.py`, `skip_stub.py`, `gate_run.py` and
+  `plan_check.py`, and the reads of converge's `_text`, the viewer's `read_part` and the conductor's `_bounded`
+  and `_folder_fd`, call `statefile.py`, each keeping its check, its bound and its error text (0136-status-log, phase 4).
+- Each copy is fixed to one side: a failed staged write leaves no `.tmp`; the stamp and `skip_stub.py` refuse a link;
+  a green gate whose record cannot be written is green and unrecorded; a run reads to the next heading; the
+  conductor halts on a linked log; the stamp holds the change folder's descriptor (card 0109·S1) and flattens a
+  detail's line breaks (0136-status-log, phase 5).
+- The sixth structure rule gains `check_formats`: outside `skills/mflib/` no string constant equals `status_log.md` or
+  contains `## Run` unless `FORMAT_SITES` lists it. D78, D83, D57, the threat model, the recipe and the map name the
+  format modules (0136-status-log, phase 6).
+
 ## [0.107.0] - 2026-11-18
 
 Gate: local 5m23s · CI not read under mf-ship · 0.106.0: local 4m58s · CI not read under mf-ship
