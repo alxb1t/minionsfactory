@@ -610,13 +610,14 @@ def test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards(host: Host) -
         f"round 1 · freeze — {base[:7]}..{head[:7]} · 2 commits · 2 files"
     )
 
+    # A debt it may not read halts the freeze, and the cards file stands.
     debt.unlink()
     debt.mkdir()
-    converge["freeze"](context, base, head)
+    with pytest.raises(converge["Halt"], match=r"^debt_match\.py exited 2 — "):
+        converge["freeze"](context, base, head)
 
-    assert (folder / "debt-cards.md").read_text() == (
-        "# Debt cards on the diff's files\n\nNone.\n"
-    )
+    assert (folder / "debt-cards.md").read_text() == cards
+    debt.rmdir()
 
     # A planted link takes no patch and no bundle: the freeze halts naming it.
     for name, said in (
@@ -861,7 +862,8 @@ def test_a_bold_bullet_is_no_card(host: Host) -> None:
 
     assert read.malformed is None
     assert [card.id for card in read.cards] == ["R1"]
-    assert debtfile.TITLE.findall(body) == ["R1"]
+    debt = body.replace(_card("R1 drift"), _filed(_card("R1 drift")))
+    assert debtfile.TITLE.findall(debt) == ["0001·R1"]
 
 
 def _verdicts(
@@ -2084,7 +2086,7 @@ def test_the_debt_is_written_once_under_its_lock(
     assert run(host) == 1
 
     assert events(host)[-1] == (
-        "round 1 · halt — .minions/debt.md cannot be read: it is a link"
+        "round 1 · halt — debt_match.py exited 2 — the debt cannot be matched"
         f" · head {_head(host)}"
     )
 
@@ -3023,13 +3025,18 @@ def test_debt_pin_lock(host: Host, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not lock.exists()
     old.unlink()
 
-    # The release removes what stands at the name, another holder's lock too.
-    with converge["debt_lock"](primary):
+    # The release leaves another holder's lock, and a lock gone is no error.
+    with converge["debt_lock"](primary) as held:
+        assert held.holds()
+        (lock / "owner").unlink()
         lock.rmdir()
         lock.mkdir()
-    assert not lock.exists()
-    with pytest.raises(FileNotFoundError), converge["debt_lock"](primary):
+    assert lock.is_dir()
+    lock.rmdir()
+    with converge["debt_lock"](primary):
+        (lock / "owner").unlink()
         lock.rmdir()
+    assert not lock.exists()
 
 
 def test_debt_pin_read(tmp_path: Path) -> None:
@@ -3076,7 +3083,7 @@ def test_debt_pin_read(tmp_path: Path) -> None:
         "- **0001·R1 — a**\n- **R2 — b**\n  - **0001·R3 — c**\n"
         "-  **0001·R4 — d**\n- **0001·R5 —e**\n"
     )
-    assert debtfile.TITLE.findall(text) == ["0001·R1", "R2"]
+    assert debtfile.TITLE.findall(text) == ["0001·R1"]
 
 
 def test_debt_pin_filed() -> None:
@@ -3085,9 +3092,9 @@ def test_debt_pin_filed() -> None:
     old = "- **0001·R1 — old**\n  - **Status:** open\n"
     assert filed("# Debt\n", _CHANGE, []) == "# Debt\n"
     assert filed("# Debt\n\n", _CHANGE, [card]) == f"# Debt\n\n## 0001-a\n\n{card}"
-    # The heading is matched exactly: one with trailing blanks gets a second.
+    # A heading with trailing blanks is found, and no second one is written.
     blank = f"# Debt\n\n## 0001-a  \n\n{old}"
-    assert filed(blank, _CHANGE, [card]) == (f"{blank.rstrip()}\n\n## 0001-a\n\n{card}")
+    assert filed(blank, _CHANGE, [card]) == f"{blank}{card}"
     # A `### ` line or a `#` line is inside; the cards go after the last non-blank.
     inner = f"# Debt\n\n## 0001-a\n\n{old}### a note\n#no heading\n"
     other = "## 0000-z\n\n- **0000·R1 — z**\n"
@@ -3108,9 +3115,14 @@ def test_debt_pin_filed() -> None:
         unfiled(debt, "0001·R9")
 
 
-def test_debt_pin_write(host: Host) -> None:
+def test_debt_pin_write(host: Host, monkeypatch: pytest.MonkeyPatch) -> None:
     converge = _converge()
     context = _pin_context(converge, host)
+    # The lock is renewed after each Still true? command it holds.
+    renewed: list[Path] = []
+    monkeypatch.setattr(
+        debtfile.Holder, "renew", lambda held: renewed.append(held.path)
+    )
     head = _head(host)
     filed = _card("R1 nit", size=_DESIGN)
     body = (
@@ -3156,7 +3168,9 @@ def test_debt_pin_write(host: Host) -> None:
         n: _filed(_card(f"R{n} nit", still=f"`{command}`"), "0000")
         for n, command in ((1, "true"), (2, "false"), (3, "ls"))
     }
-    debt.write_text(f"{text}\n## 0000-z\n\n{''.join(old.values())}")
+    # The total counts a qualified title alone.
+    bare = _card("R9 nit")
+    debt.write_text(f"{text}\n## 0000-z\n\n{''.join(old.values())}{bare}")
     repeats = "".join(
         _card(f"R{n + 3} nit", status="verified", related=f"repeat of `0000·R{n}`.")
         for n in old
@@ -3165,7 +3179,8 @@ def test_debt_pin_write(host: Host) -> None:
 
     assert converge["debt"](context) == ([], [], ["0000·R1"], 4, {"0000·R1": "true"})
 
-    assert debt.read_text() == f"{text}\n## 0000-z\n\n{old[2]}{old[3]}"
+    assert debt.read_text() == f"{text}\n## 0000-z\n\n{old[2]}{old[3]}{bare}"
+    assert renewed == [debt.with_name("debt.lock")] * 4
 
 
 def test_debt_pin_debted(host: Host) -> None:
@@ -3182,13 +3197,13 @@ def test_debt_pin_debted(host: Host) -> None:
         ["0001·R1", "0001·R2"],
         ["R3"],
         ["0000·R1"],
-        2,
+        1,
         {},
     )
 
     converge["stamp"](context, "debt — none")
 
-    assert converge["debted"](context) == ([], [], [], 2, {})
+    assert converge["debted"](context) == ([], [], [], 1, {})
 
     locked = statuslog.names_lock
     assert locked("halt — .minions/debt.lock held for 10 minutes")
@@ -3204,12 +3219,12 @@ def test_debt_pin_empty_page(host: Host) -> None:
     context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
     converge["open_run"](context)
 
-    converge["freeze"](context, base, _head(host))
+    with pytest.raises(converge["Halt"]) as halted:
+        converge["freeze"](context, base, _head(host))
 
-    assert (host.folder() / "debt-cards.md").read_text() == (
-        "# Debt cards on the diff's files\n\nNone.\n"
-    )
-    assert events(host)[-1].startswith("round 1 · freeze — ")
+    assert str(halted.value) == ("debt_match.py exited 2 — the debt cannot be matched")
+    assert not (host.folder() / "debt-cards.md").exists()
+    assert not any(" · freeze — " in event for event in events(host))
 
 
 def test_debt_pin_backlog_no_file(host: Host) -> None:
@@ -3231,3 +3246,33 @@ def test_debt_pin_backlog_no_file(host: Host) -> None:
         pass
     assert str(regular.value) == _OLD_BACKLOG
     assert not old.with_name("debt.lock").exists()
+
+
+def test_debt_pin_folder(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    head = _head(host)
+    body = _card("R1 nit", size=_DESIGN)
+    host.write("conformance", findings("conformance", head, body=body))
+    host.write("adversarial", findings("adversarial", head))
+    minions = _debt(host).parent
+    elsewhere = minions.with_name("elsewhere")
+    minions.rename(elsewhere)
+    minions.symlink_to(elsewhere)
+
+    with pytest.raises(converge["Halt"]) as refused:
+        converge["debt"](context)
+
+    assert str(refused.value).startswith(
+        f".minions/debt.md cannot be written — {minions}: "
+    )
+    assert not (elsewhere / "debt.md").exists()
+    assert not (elsewhere / "debt.lock").exists()
+
+    # Twin: the same debt in a real folder is written.
+    minions.unlink()
+    elsewhere.rename(minions)
+
+    assert converge["debt"](context).written == ["0001·R1"]
+
+    assert _filed(body) in (minions / "debt.md").read_text()

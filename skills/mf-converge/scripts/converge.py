@@ -436,8 +436,8 @@ def freeze(
 ) -> Freeze:
     """Write the patch, bundle, cards and evidence of `base..head`; return its counts.
 
-    A catch-up's `scope` is its patch, commits and files. `debt_match.py`'s exit 2
-    leaves a cards file of no card. Writes `freeze`. Why: design D3, D5.
+    A catch-up's `scope` is its patch, commits and files. A non-zero exit of
+    `debt_match.py` halts. Writes `freeze`. Why: design D3, D5; 0139-debt design D5.
     """
     tree, folder = context.tree, context.folder
     folder.mkdir(parents=True, exist_ok=True)
@@ -457,8 +457,8 @@ def freeze(
     old = mflib.layout.backlog_file(primary)
     debt = old if not os.path.lexists(debt) and os.path.lexists(old) else debt
     cards = folder / "debt-cards.md"
-    if DEBT_MATCH["main"]([str(debt), str(patch), str(cards)]) != 0:
-        mflib.debtfile.write(cards, mflib.debtfile.page([]))
+    if code := DEBT_MATCH["main"]([str(debt), str(patch), str(cards)]):
+        raise Halt(f"debt_match.py exited {code} — the debt cannot be matched")
     _evidence(context, base, head, diff)
     commits, files = scope[1:] if scope else counts(context, base, head)[:2]
     shown = f"{_plural(commits, 'commit')} · {_plural(files, 'file')}"
@@ -1151,7 +1151,7 @@ def still_true(context: Context, value: str) -> tuple[int | None, str]:
 
 
 @contextmanager
-def debt_lock(primary: Path) -> Iterator[None]:
+def debt_lock(primary: Path) -> Iterator[mflib.debtfile.Holder]:
     """Hold `.minions/debt.lock` while the body runs; wait for it, then halt.
 
     An old `.minions/backlog.md` takes no lock. Why: design D5, D7.
@@ -1162,8 +1162,8 @@ def debt_lock(primary: Path) -> Iterator[None]:
             " /mf-ship moves it at a run's start"
         )
     try:
-        with mflib.debtfile.lock(mflib.layout.debt_lock(primary), LOCK_WAIT):
-            yield
+        with mflib.debtfile.lock(mflib.layout.debt_lock(primary), LOCK_WAIT) as held:
+            yield held
     except mflib.debtfile.Held:
         raise Halt(f".minions/debt.lock held for {LOCK_WAIT // 60} minutes") from None
 
@@ -1272,7 +1272,7 @@ def debt(context: Context) -> Debt:
     ]
     checks = amends(context, cards, set(mflib.debtfile.ids(_debt_text(path))))
     moot, written, cleared = list(checks), [], []
-    with debt_lock(primary):
+    with debt_lock(primary) as held:
         text = _debt_text(path) or mflib.debtfile.PREAMBLE
         holds = set(mflib.debtfile.ids(text))
         filed = []
@@ -1281,6 +1281,7 @@ def debt(context: Context) -> Debt:
             if card.id in checks or qualified in holds:
                 continue
             code, command = still_true(context, card.fields.get("Still true?", ""))
+            held.renew()
             if code == 1:
                 moot.append(card.id)
                 checks[card.id] = command
@@ -1306,19 +1307,36 @@ def debt(context: Context) -> Debt:
             if old is None:
                 continue
             code, command = still_true(context, old.fields.get("Still true?", ""))
+            held.renew()
             if code == 1:
                 text = mflib.debtfile.unfiled(text, old.id)
                 cleared.append(old.id)
                 checks[old.id] = command
-        try:
-            mflib.debtfile.write(path, text)
-        except mflib.statefile.WriteFailed as failed:
-            link = failed.error.errno == errno.ELOOP
-            why = f"{path} is a link" if link else f"{path}: {failed.error.strerror}"
-            raise Halt(f".minions/debt.md cannot be written — {why}") from failed
-    paid = Debt(written, moot, cleared, len(mflib.debtfile.ids(text)), checks)
+        _write_debt(primary, text)
+    paid = Debt(written, moot, cleared, mflib.debtfile.count(text), checks)
     stamp(context, f"debt — {_debt_detail(paid)}")
     return paid
+
+
+def _write_debt(primary: Path, text: str) -> None:
+    """Write the debt through the folder it opens; a link at `.minions` halts.
+
+    Why: 0139-debt design D7.
+    """
+    path = mflib.layout.debt_file(primary)
+    try:
+        fd = mflib.statefile.folder(primary, mflib.layout.MINIONS)
+    except OSError as error:
+        why = f"{path.parent}: {error.strerror}"
+        raise Halt(f".minions/debt.md cannot be written — {why}") from error
+    try:
+        mflib.debtfile.write(Path(path.name), text, folder=fd)
+    except mflib.statefile.WriteFailed as failed:
+        link = failed.error.errno == errno.ELOOP
+        why = f"{path} is a link" if link else f"{path}: {failed.error.strerror}"
+        raise Halt(f".minions/debt.md cannot be written — {why}") from failed
+    finally:
+        os.close(fd)
 
 
 def _debt_detail(paid: Debt) -> str:
@@ -1350,7 +1368,7 @@ def debted(context: Context) -> Debt:
         named.get("written", []),
         named.get("moot", []),
         named.get("cleared", []),
-        len(mflib.debtfile.ids(text)),
+        mflib.debtfile.count(text),
         {},
     )
 

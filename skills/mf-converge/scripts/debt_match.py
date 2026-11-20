@@ -11,7 +11,6 @@ Why: 0095-converge-roles design D8; 0101-cut-converge-diet design D4.
 
 import argparse
 import errno
-import os
 import sys
 from pathlib import Path
 
@@ -54,7 +53,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         changed = mflib.debtfile.paths(_read(args.patch))
-        debt = _read(args.debt) if os.path.lexists(args.debt) else ""
+        try:
+            debt = mflib.debtfile.read(args.debt)
+        except mflib.debtfile.Unreadable as unread:
+            raise Stop(f"{args.debt}: {unread.reason}") from unread
         found = [
             card
             for card in mflib.debtfile.blocks(debt)

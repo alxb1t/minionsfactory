@@ -346,16 +346,19 @@ def run_dir() -> Path:
 def debt_section(item: list[str] | None, placed: list[Any]) -> str:
     """Return the `## Debt cards` text: cards on a cited path or listed by the item.
 
-    The cards are the run directory's `debt.md`, cut by `skills/mflib/debtfile.py`.
+    The cards are the run directory's `debt.md`, read and cut by
+    `skills/mflib/debtfile.py`; a debt it may not read stops with exit 2.
     """
     path = mflib.layout.debt_file(_primary())
-    if not path.exists():
-        return _section("Debt cards", [])
+    try:
+        text = mflib.debtfile.read(path)
+    except mflib.debtfile.Unreadable as unread:
+        raise Stop(2, f"cut_context: cannot write — {path}: {unread.reason}") from None
     cited = {cite.path for one in placed for cite in one.cites}
     listed = set(_ids(item_flags(item or []).get("debt", "")))
     kept = [
         card.strip()
-        for card in mflib.debtfile.blocks(_read(path))
+        for card in mflib.debtfile.blocks(text)
         if mflib.debtfile.matched(card, cited) or mflib.debtfile.card_id(card) in listed
     ]
     return _section("Debt cards", kept)

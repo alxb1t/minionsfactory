@@ -3,8 +3,12 @@
 The callers find each path and word each halt. Why: 0139-debt design D2 and D3.
 """
 
+import contextlib
 import errno
+import os
 import re
+import secrets
+import stat
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -12,7 +16,8 @@ from pathlib import Path
 
 from . import findings, statefile
 
-TITLE = re.compile(r"^- \*\*([^\s*]+) — ", re.MULTILINE)
+# A card's title holds a qualified id. Why: 0139-debt design D4, D10.
+TITLE = re.compile(r"^- \*\*([0-9]{4}·[^\s*]+) — ", re.MULTILINE)
 PREAMBLE = (
     "# Debt\n\n*Deferred work from converge, one heading per change; a paydown change"
     " lists the ids it closes under `debt:`.*\n"
@@ -24,6 +29,8 @@ SPAN = re.compile(r"`([^`]+)`")
 LINES = re.compile(r":\d+(?:-\d+)?$")
 # The lock's poll, in seconds. Why: 0139-debt design D6.
 LOCK_POLL = 5
+# The lock's entry that holds its holder's token.
+OWNER = "owner"
 
 
 class Unreadable(Exception):
@@ -64,25 +71,33 @@ def ids(text: str, change: str | None = None) -> list[str]:
     inside = False
     for line in text.splitlines():
         if line.startswith("## "):
-            inside = line.strip() == f"## {change}"
+            inside = _heads(line, change)
         elif inside and (card := TITLE.match(line)):
             found.append(card[1])
     return found
 
 
+def count(text: str, change: str | None = None) -> int:
+    """Return how many cards the text holds, or the section `## <change>` holds."""
+    return len(ids(text, change))
+
+
+def _heads(line: str, change: str) -> bool:
+    """Return whether the line is `## <change>`, trailing blanks forgiven."""
+    return line.rstrip() == f"## {change}"
+
+
 def blocks(text: str) -> list[str]:
-    """Return each card, its title to the line before the next title or heading."""
-    found: list[list[str]] = []
-    current: list[str] | None = None
-    for line in text.splitlines():
-        if TITLE.match(line):
-            current = [line]
-            found.append(current)
-        elif line.startswith("#"):
-            current = None
-        elif current is not None:
-            current.append(line)
-    return ["\n".join(card).rstrip() + "\n" for card in found]
+    """Return each card of a qualified id: its title and its indented lines.
+
+    The extent is `findings.cards`'s, a blank line not ending it.
+    Why: 0139-debt design D4.
+    """
+    return [
+        "\n".join(card.lines) + "\n"
+        for card in findings.cards(text, "")
+        if TITLE.match(card.lines[0])
+    ]
 
 
 def card_id(block: str) -> str:
@@ -118,14 +133,17 @@ def page(found: list[str]) -> str:
 
 
 def filed(text: str, change: str, cards: list[str]) -> str:
-    """Return the debt with `cards` at the end of `## <change>`, made if missing."""
+    """Return the debt with `cards` at the end of `## <change>`, made if missing.
+
+    The heading is found as `ids` reads it. Why: 0139-debt design D4.
+    """
     if not cards:
         return text
     lines = [line if line.endswith("\n") else f"{line}\n" for line in text.splitlines()]
-    heading = f"## {change}\n"
-    if heading not in lines:
-        return f"{''.join(lines).rstrip()}\n\n{heading}\n{''.join(cards)}"
-    at = lines.index(heading) + 1
+    heads = (i for i, line in enumerate(lines) if _heads(line, change))
+    if (found := next(heads, None)) is None:
+        return f"{''.join(lines).rstrip()}\n\n## {change}\n\n{''.join(cards)}"
+    at = found + 1
     end = _section_end(lines, at)
     while end > at and not lines[end - 1].strip():
         end -= 1
@@ -205,11 +223,56 @@ def qualify(lines: list[str], ident: str, qualified: str) -> str:
     return "".join(f"{line}\n" for line in [title, *lines[1:]])
 
 
+class Holder:
+    """Hold a taken lock's path and its holder's token."""
+
+    def __init__(self, path: Path, token: str) -> None:
+        """Hold the lock's path and the token written in it."""
+        self.path = path
+        self.token = token
+
+    def holds(self) -> bool:
+        """Return whether the lock's `owner` still holds this token."""
+        try:
+            return statefile.read(self.path / OWNER) == self.token
+        except OSError:
+            return False
+
+    def renew(self) -> None:
+        """Set the lock's time to now, while it holds this token."""
+        if self.holds():
+            with contextlib.suppress(OSError):
+                os.utime(self.path)
+
+    def release(self) -> None:
+        """Remove the lock, `owner` first, while it holds this token; else leave it."""
+        if self.holds():
+            with contextlib.suppress(OSError):
+                (self.path / OWNER).unlink()
+                self.path.rmdir()
+
+
+def _owned(path: Path) -> Holder:
+    """Write a fresh token in the lock just made; a failed write removes the lock."""
+    token = secrets.token_hex(16)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    try:
+        with os.fdopen(os.open(path / OWNER, flags, 0o600), "w") as file:
+            file.write(token)
+    except OSError:
+        with contextlib.suppress(OSError):
+            (path / OWNER).unlink(missing_ok=True)
+            path.rmdir()
+        raise
+    return Holder(path, token)
+
+
 @contextmanager
-def lock(path: Path, wait: int = 0) -> Iterator[None]:
-    """Hold the lock `path`, made by `mkdir`, while the body runs; `rmdir` it after.
+def lock(path: Path, wait: int = 0) -> Iterator[Holder]:
+    """Hold the lock `path`, made by `mkdir`, while the body runs; release it after.
 
     A held lock is polled every `LOCK_POLL` seconds up to `wait`, then raises `Held`.
+    Why: 0139-debt design D6.
     """
     waited = 0
     while True:
@@ -221,10 +284,31 @@ def lock(path: Path, wait: int = 0) -> Iterator[None]:
                 raise Held from None
             time.sleep(LOCK_POLL)
             waited += LOCK_POLL
+    holder = _owned(path)
     try:
-        yield
+        yield holder
     finally:
+        holder.release()
+
+
+def break_stale(path: Path, limit: int) -> int | None:
+    """Remove the lock `path` older than `limit` seconds, `owner` first; return its age.
+
+    A lock younger, holding any other entry, or no folder stays.
+    Why: 0139-debt design D6.
+    """
+    try:
+        status = path.lstat()
+        if not stat.S_ISDIR(status.st_mode):
+            return None
+        age = round(time.time() - status.st_mtime)
+        if age <= limit or set(os.listdir(path)) - {OWNER}:
+            return None
+        (path / OWNER).unlink(missing_ok=True)
         path.rmdir()
+    except OSError:
+        return None
+    return age
 
 
 def write(path: Path, text: str, folder: int | None = None) -> None:

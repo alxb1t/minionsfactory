@@ -57,7 +57,7 @@ def test_debtfile_read(tmp_path: Path) -> None:
 
 
 def test_debtfile_read_holds_the_title_and_the_preamble() -> None:
-    assert debtfile.TITLE.pattern == r"^- \*\*([^\s*]+) — "
+    assert debtfile.TITLE.pattern == r"^- \*\*([0-9]{4}·[^\s*]+) — "
     assert debtfile.PREAMBLE == (
         "# Debt\n\n*Deferred work from converge, one heading per change; a paydown"
         " change lists the ids it closes under `debt:`.*\n"
@@ -78,13 +78,31 @@ def test_debtfile_ids() -> None:
     assert debtfile.ids("- **0001·R1 — before any heading**\n", "0001-a") == []
 
 
+def test_debtfile_title() -> None:
+    text = (
+        "# Debt\n\n## 0001-a\n\n- **0001·R1 — a**\n- **R2 — unqualified**\n"
+        "- **001·R3 — three digits**\n- **0001R4 — no dot**\n- **0001·M1 — spoiled**\n"
+        "- **00001·R5 — five digits**\n- **0001· — no id**\n"
+        "## 0000-z\n\n- **0000·S1 — z**\n- **S2 — unqualified**\n"
+    )
+    assert debtfile.ids(text) == ["0001·R1", "0001·M1", "0000·S1"]
+    assert debtfile.ids(text, "0001-a") == ["0001·R1", "0001·M1"]
+    assert debtfile.count(text) == 3
+    assert debtfile.count(text, "0001-a") == 2
+    assert debtfile.count(text, "0000-z") == 1
+    assert debtfile.count(text, "0002-b") == 0
+    assert debtfile.count("") == 0
+    assert debtfile.card_id("- **R2 — unqualified**\n") == ""
+
+
 def test_debtfile_blocks() -> None:
     text = (
         "# Debt\n\n## 0001-a\n\n"
         "- **0001·R1 — a**\n  - **Status:** open\n\n  - **Round:** 1\n"
         "- **0001·R2 — b**\n  - **Status:** open\n"
         "### a note\n  - **Round:** 2\n"
-        "- **0001·R3 — c**\n"
+        "- **0001·R3 — c**\n\nloose prose\n  - **Round:** 3\n"
+        "- **R4 — unqualified**\n  - **Status:** open\n"
     )
     assert debtfile.blocks(text) == [
         "- **0001·R1 — a**\n  - **Status:** open\n\n  - **Round:** 1\n",
@@ -126,10 +144,11 @@ def test_debtfile_filed() -> None:
     assert debtfile.filed("# Debt\n\n", "0001-a", [_NEW]) == (
         f"# Debt\n\n## 0001-a\n\n{_NEW}"
     )
-    # The heading is matched exactly: one with trailing blanks gets a second.
+    # A heading with trailing blanks is found, and no second one is written.
     blank = f"# Debt\n\n## 0001-a  \n\n{_OLD}"
-    assert debtfile.filed(blank, "0001-a", [_NEW]) == (
-        f"{blank.rstrip()}\n\n## 0001-a\n\n{_NEW}"
+    assert debtfile.filed(blank, "0001-a", [_NEW]) == f"{blank}{_NEW}"
+    assert debtfile.filed(blank, "0001-ab", [_NEW]) == (
+        f"{blank.rstrip()}\n\n## 0001-ab\n\n{_NEW}"
     )
     # A `### ` line is inside; the cards go after the last non-blank line.
     inner = f"# Debt\n\n## 0001-a\n\n{_OLD}### a note\n"
@@ -228,14 +247,96 @@ def test_debtfile_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not os.path.lexists(held)
 
 
-def test_debtfile_lock_release_removes_whatever_stands(tmp_path: Path) -> None:
+def _age(path: Path, seconds: float) -> None:
+    at = time.time() - seconds
+    os.utime(path, (at, at), follow_symlinks=False)
+
+
+def test_debtfile_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     held = tmp_path / "debt.lock"
-    with debtfile.lock(held):
+    owner = held / "owner"
+    with debtfile.lock(held) as first:
+        token = owner.read_text()
+        assert first.token == token and first.holds()
+        assert oct(owner.stat().st_mode & 0o777) == "0o600"
+    assert not os.path.lexists(held)
+    with debtfile.lock(held) as second:
+        assert second.token != token
+
+    # The renewal sets the lock's time; a run's start then leaves a live hold.
+    with debtfile.lock(held) as holder:
+        _age(held, 700)
+        holder.renew()
+        assert debtfile.break_stale(held, 600) is None
+        assert held.is_dir() and holder.holds()
+
+    # A lock broken and taken by another stands after the release, and no error.
+    with debtfile.lock(held) as holder:
+        owner.unlink()
         held.rmdir()
         held.mkdir()
-    assert not os.path.lexists(held)
-    with pytest.raises(FileNotFoundError), debtfile.lock(held):
+        owner.write_text("another\n")
+        _age(held, 700)
+        holder.renew()
+        assert not holder.holds()
+    assert owner.read_text() == "another\n"
+    assert debtfile.break_stale(held, 600) is not None
+    # A lock gone is no error.
+    with debtfile.lock(held) as holder:
+        owner.unlink()
         held.rmdir()
+        holder.renew()
+    assert not os.path.lexists(held)
+
+    # A token that cannot be written takes no lock.
+    def refused(*_: object) -> int:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(os, "open", refused)
+    with pytest.raises(OSError, match="No space"), debtfile.lock(held):
+        pass
+    monkeypatch.undo()
+    assert not os.path.lexists(held)
+
+
+def test_debtfile_token_break_stale(tmp_path: Path) -> None:
+    held = tmp_path / "debt.lock"
+    assert debtfile.break_stale(held, 600) is None
+    held.write_text("")
+    _age(held, 700)
+    assert debtfile.break_stale(held, 600) is None
+    held.unlink()
+    held.symlink_to(tmp_path)
+    _age(held, 700)
+    assert debtfile.break_stale(held, 600) is None
+    assert held.is_symlink()
+    held.unlink()
+
+    held.mkdir()
+    (held / "owner").write_text("x\n")
+    _age(held, 600)
+    assert debtfile.break_stale(held, 600) is None
+    _age(held, 601)
+    assert debtfile.break_stale(held, 600) == 601
+    assert not os.path.lexists(held)
+    # A lock with no owner, the release prose's, is broken as any other.
+    held.mkdir()
+    _age(held, 700)
+    assert debtfile.break_stale(held, 600) == 700
+    assert not os.path.lexists(held)
+
+    held.mkdir()
+    (held / "owner").write_text("x\n")
+    (held / "other").write_text("")
+    _age(held, 700)
+    assert debtfile.break_stale(held, 600) is None
+    assert sorted(os.listdir(held)) == ["other", "owner"]
+    (held / "other").unlink()
+    (held / "owner").unlink()
+    (held / "owner").mkdir()
+    _age(held, 700)
+    assert debtfile.break_stale(held, 600) is None
+    assert (held / "owner").is_dir()
 
 
 def test_debtfile_write(tmp_path: Path) -> None:

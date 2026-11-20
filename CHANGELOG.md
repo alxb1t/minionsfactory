@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Converge, `debt_match.py`, `cut_context.py` and the conductor read and write the debt file through
   `skills/mflib/debtfile.py`, and hold no copy of its rules; no behaviour or assert changed, so the fix can turn one
   rule at a time (0139-debt, phase 3).
+- The debt file's copies agree: a card has a qualified id and `findings.cards`'s extent, a heading's trailing blanks
+  are forgiven, every reader follows no link, the freeze halts on a debt it may not read, the lock knows its holder,
+  the debt write holds its folder, and `report` names a debt it may not read (0139-debt, phase 4).
 
 ## [0.110.0] - 2026-11-20
 

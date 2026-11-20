@@ -7,7 +7,7 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
 - [x] 3 — The stations · moderate
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
 ## 1 — The pin
@@ -95,23 +95,23 @@ Each station goes through the module with no assert changed; only the line by wh
 
 Each task turns the rows of the pin it names to one side and leaves the others, per [D4](design.md#d4) to [D9](design.md#d9).
 
-- [ ] 4.1 **HALT CHECK** The stations went through the module in the last phase.
+- [x] 4.1 **HALT CHECK** The stations went through the module in the last phase.
   Verify: `git grep -n -F "debtfile" -- skills/mf-converge/scripts/converge.py skills/mf-cut-change/scripts/cut_context.py skills/mf-ship/scripts/conduct.py` prints a line of each file.
-- [ ] 4.2 In `skills/mflib/debtfile.py` narrow `TITLE` to a qualified id, `<4 digits>·<id>`, and give `ids` and a new `count(text, change=None)` that one reading; turn the title rows of the pins `debt_pin_read`, `debt_pin_debted` and `debt_pin_cards` and the total of `debt_pin_write`; turn the assert of `test_a_bold_bullet_is_no_card` in `tests/test_converge.py` that reads the title on an unqualified card, so its card is titled with a qualified id and the assert reads that id, and it still proves a bold-led bullet is no title; write `test_debtfile_title`.
+- [x] 4.2 In `skills/mflib/debtfile.py` narrow `TITLE` to a qualified id, `<4 digits>·<id>`, and give `ids` and a new `count(text, change=None)` that one reading; turn the title rows of the pins `debt_pin_read`, `debt_pin_debted` and `debt_pin_cards` and the total of `debt_pin_write`; turn the assert of `test_a_bold_bullet_is_no_card` in `tests/test_converge.py` that reads the title on an unqualified card, so its card is titled with a qualified id and the assert reads that id, and it still proves a bold-led bullet is no title; write `test_debtfile_title`.
   Verify: `uv run pytest tests/test_debtfile.py tests/test_converge.py tests/test_conduct.py -q -k "debtfile_title or debtfile_ids or debt_pin_read or debt_pin_debted or debt_pin_cards or debt_pin_write or bold_bullet"` passes.
-- [ ] 4.3 In `debtfile.py` have `blocks` take a card's extent from `findings.cards`, a blank line not ending it, and return the cards of a qualified id alone; have `filed` find a heading as `read` does, trailing blanks forgiven, and end a section at a `## ` line alone; turn the extent rows of the pin `debt_pin_match`, the unqualified-id row of `debt_pin_section` and the heading row of `debt_pin_filed`.
+- [x] 4.3 In `debtfile.py` have `blocks` take a card's extent from `findings.cards`, a blank line not ending it, and return the cards of a qualified id alone; have `filed` find a heading as `read` does, trailing blanks forgiven, and end a section at a `## ` line alone; turn the extent rows of the pin `debt_pin_match`, the unqualified-id row of `debt_pin_section` and the heading row of `debt_pin_filed`.
   Verify: `uv run pytest tests/test_debtfile.py tests/test_debt_match.py tests/test_cut_context.py tests/test_converge.py -q -k "debtfile_blocks or debtfile_filed or debt_pin_match or debt_pin_section or debt_pin_filed"` passes.
-- [ ] 4.4 Have `debt_match.py` read the debt through `debtfile.read`: a link halts, exit 2, a bad byte is replaced and a link to a file is not followed; have `cut_context.py` read through it and stop on `Unreadable`; turn the link and bad-byte rows of the pins `debt_pin_match` and `debt_pin_section`.
+- [x] 4.4 Have `debt_match.py` read the debt through `debtfile.read`: a link halts, exit 2, a bad byte is replaced and a link to a file is not followed; have `cut_context.py` read through it and stop on `Unreadable`; turn the link and bad-byte rows of the pins `debt_pin_match` and `debt_pin_section`.
   Verify: `uv run pytest tests/test_debt_match.py tests/test_cut_context.py -q -k "debt_pin_match or debt_pin_section"` passes.
-- [ ] 4.5 In `converge.py` halt the freeze on any non-zero exit of `debt_match.py`, naming it and its exit, in place of the empty `debt-cards.md`; turn the pin `debt_pin_empty_page` to a halt, and turn the last assert of `test_the_debt_is_written_once_under_its_lock`, which reads a debt that is a link, to the freeze's halt; re-word the docstring of the freeze that says `debt_match.py`'s exit 2.
+- [x] 4.5 In `converge.py` halt the freeze on any non-zero exit of `debt_match.py`, naming it and its exit, in place of the empty `debt-cards.md`; turn the pin `debt_pin_empty_page` to a halt, and turn the last assert of `test_the_debt_is_written_once_under_its_lock`, which reads a debt that is a link, to the freeze's halt; re-word the docstring of the freeze that says `debt_match.py`'s exit 2.
   Verify: `uv run pytest tests/test_converge.py -q -k "debt_pin_empty_page or the_debt_is_written_once"` passes.
-- [ ] 4.6 In `debtfile.py` give `lock` its holder's token: write `owner` inside the lock folder, renew the lock's time through the handle `lock` yields, `renew()`, release only a lock that holds the token and treat a lock gone or another's as no error; add `break_stale(path, limit)` that removes `owner` and then the folder, and leaves a lock that holds any other entry; write `test_debtfile_token`.
+- [x] 4.6 In `debtfile.py` give `lock` its holder's token: write `owner` inside the lock folder, renew the lock's time through the handle `lock` yields, `renew()`, release only a lock that holds the token and treat a lock gone or another's as no error; add `break_stale(path, limit)` that removes `owner` and then the folder, and leaves a lock that holds any other entry; write `test_debtfile_token`.
   Verify: `uv run pytest tests/test_debtfile.py -q -k debtfile_token` passes.
-- [ ] 4.7 In `converge.py` have the `debt_lock` wrapper yield the handle, and call `renew()` after each `still_true` call in `debt()`, and in `conduct.py` have `_clear_stale_lock` call `debtfile.break_stale`; turn the release rows of the pin `debt_pin_lock`.
+- [x] 4.7 In `converge.py` have the `debt_lock` wrapper yield the handle, and call `renew()` after each `still_true` call in `debt()`, and in `conduct.py` have `_clear_stale_lock` call `debtfile.break_stale`; turn the release rows of the pin `debt_pin_lock`.
   Verify: `uv run pytest tests/test_converge.py tests/test_conduct.py -q -k "debt_pin_lock or debt_pin_stale_lock"` passes.
-- [ ] 4.8 In `converge.py` write the debt through `mflib.statefile.folder(primary, mflib.layout.MINIONS)` and `debtfile.write(..., folder=)`, per [D7](design.md#d7); write `test_debt_pin_folder` in `tests/test_converge.py`: a link at `.minions` is refused.
+- [x] 4.8 In `converge.py` write the debt through `mflib.statefile.folder(primary, mflib.layout.MINIONS)` and `debtfile.write(..., folder=)`, per [D7](design.md#d7); write `test_debt_pin_folder` in `tests/test_converge.py`: a link at `.minions` is refused.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_folder` passes.
-- [ ] 4.9 In `conduct.py` halt `migrate_debt` on a `backlog.md` that is no regular file, naming it, and have `report` name a debt it may not read in that change's line and go on, per [D8](design.md#d8) and [D9](design.md#d9); turn the no-file row of the pin `debt_pin_migration` and the folder and bad-byte rows of `debt_pin_cards`.
+- [x] 4.9 In `conduct.py` halt `migrate_debt` on a `backlog.md` that is no regular file, naming it, and have `report` name a debt it may not read in that change's line and go on, per [D8](design.md#d8) and [D9](design.md#d9); turn the no-file row of the pin `debt_pin_migration` and the folder and bad-byte rows of `debt_pin_cards`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "debt_pin_migration or debt_pin_cards"` passes.
 
 ## 5 — The rule and the record
