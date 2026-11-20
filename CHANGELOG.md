@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin tests hold each copy of the debt file's rules as it stands: converge's read, lock, file, unfile, write and
   freeze, `debt_match.py`, `cut_context.py`'s debt section, and the conductor's card reader, stale break and migration,
   before the copies move into one module (0139-debt, phase 1).
+- `skills/mflib/debtfile.py` holds each copy of the debt file's rules as it stands — the read, the title, the card,
+  the file and unfile, the spoiled card, the lock and the staged write — with no caller yet, so the stations can move
+  onto it with no assert changed (0139-debt, phase 2).
 
 ## [0.110.0] - 2026-11-20
 

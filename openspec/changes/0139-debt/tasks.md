@@ -5,7 +5,7 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
@@ -47,19 +47,19 @@ Each case below is green on the code as it stands and seen red under the change 
 
 `skills/mflib/debtfile.py` is born with no caller, each function holding a copy as it stands, per [D2](design.md#d2) and [D3](design.md#d3). Its docstrings name `0139-debt design D2`.
 
-- [ ] 2.1 Create `skills/mflib/debtfile.py` on `statefile.py` and `findings.py` with `Unreadable`, `TITLE` (`^- \*\*([^\s*]+) — `, multiline), `PREAMBLE` (converge's `DEBT_PREAMBLE` text) and `read(path)`, as the [function table](design.md#d3) says; add `tests/test_debtfile.py` with `test_debtfile_read`.
+- [x] 2.1 Create `skills/mflib/debtfile.py` on `statefile.py` and `findings.py` with `Unreadable`, `TITLE` (`^- \*\*([^\s*]+) — `, multiline), `PREAMBLE` (converge's `DEBT_PREAMBLE` text) and `read(path)`, as the [function table](design.md#d3) says; add `tests/test_debtfile.py` with `test_debtfile_read`.
   Verify: `uv run pytest tests/test_debtfile.py -q -k debtfile_read` passes.
-- [ ] 2.2 Add `ids(text, change=None)`, `blocks(text)`, `card_id(block)`, `paths(patch)`, `matched(block, changed)` and `page(found)`, each the body of the function it is today's copy of; add `test_debtfile_ids`, `test_debtfile_blocks` and `test_debtfile_match`, each case titling its cards with a qualified id.
+- [x] 2.2 Add `ids(text, change=None)`, `blocks(text)`, `card_id(block)`, `paths(patch)`, `matched(block, changed)` and `page(found)`, each the body of the function it is today's copy of; add `test_debtfile_ids`, `test_debtfile_blocks` and `test_debtfile_match`, each case titling its cards with a qualified id.
   Verify: `uv run pytest tests/test_debtfile.py -q -k "debtfile_ids or debtfile_blocks or debtfile_match"` passes.
-- [ ] 2.3 Add `filed(text, change, cards)`, `unfiled(text, ident)` and `clear(text, ids)`, the bodies of converge's `_filed`, `_unfiled` and `_section_end` and `clear` per [D12](design.md#d12); add `test_debtfile_filed`, `test_debtfile_unfiled` and `test_debtfile_clear`.
+- [x] 2.3 Add `filed(text, change, cards)`, `unfiled(text, ident)` and `clear(text, ids)`, the bodies of converge's `_filed`, `_unfiled` and `_section_end` and `clear` per [D12](design.md#d12); add `test_debtfile_filed`, `test_debtfile_unfiled` and `test_debtfile_clear`.
   Verify: `uv run pytest tests/test_debtfile.py -q -k "debtfile_filed or debtfile_unfiled or debtfile_clear"` passes.
-- [ ] 2.4 Add `spoiled(number, index, role, why, round_, change, where)`, the text converge's `spoiled` builds for one role, `where` the path the caller passes, and `qualify(lines, ident, qualified)`, the title rewrite of converge's `debt()`; add `test_debtfile_spoiled` and `test_debtfile_qualify`.
+- [x] 2.4 Add `spoiled(number, index, role, why, round_, change, where)`, the text converge's `spoiled` builds for one role, `where` the path the caller passes, and `qualify(lines, ident, qualified)`, the title rewrite of converge's `debt()`; add `test_debtfile_spoiled` and `test_debtfile_qualify`.
   Verify: `uv run pytest tests/test_debtfile.py -q -k "debtfile_spoiled or debtfile_qualify"` passes.
-- [ ] 2.5 Add `Held`, `LOCK_POLL` and `lock(path, wait=0)`, which makes `path` by `mkdir`, polls every `LOCK_POLL` seconds up to `wait`, raises `Held`, and removes `path` by `rmdir` at the end, no token yet, per [D6](design.md#d6); add `test_debtfile_lock`.
+- [x] 2.5 Add `Held`, `LOCK_POLL` and `lock(path, wait=0)`, which makes `path` by `mkdir`, polls every `LOCK_POLL` seconds up to `wait`, raises `Held`, and removes `path` by `rmdir` at the end, no token yet, per [D6](design.md#d6); add `test_debtfile_lock`.
   Verify: `uv run pytest tests/test_debtfile.py -q -k debtfile_lock` passes.
-- [ ] 2.6 Add `write(path, text, folder=None)`, the staged write of `statefile.write` with a link refused, `WriteFailed` let through; add `test_debtfile_write`.
+- [x] 2.6 Add `write(path, text, folder=None)`, the staged write of `statefile.write` with a link refused, `WriteFailed` let through; add `test_debtfile_write`.
   Verify: `uv run pytest tests/test_debtfile.py -q -k debtfile_write` passes.
-- [ ] 2.7 Add the row `skills/mflib/debtfile.py | home | findings.py, statefile.py` to `docs/modules.md`, in path order.
+- [x] 2.7 Add the row `skills/mflib/debtfile.py | home | findings.py, statefile.py` to `docs/modules.md`, in path order.
   Verify: `uv run pytest tests/test_structure.py -q` passes.
 
 ## 3 — The stations
