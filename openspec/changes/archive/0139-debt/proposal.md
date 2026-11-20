@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.111
 ---
 
 # The debt file module
