@@ -54,10 +54,10 @@ The surface of the move, with the copy each function is today's:
 | function | holds | today's copy |
 |---|---|---|
 | `read(path)` | `""` when missing, a bad byte replaced, `Unreadable(reason)` on a link, a folder or a pipe | converge's `_debt_text` |
-| `ids(text, change=None)` | every title id of the text, or of the section `## <change>`, any id | converge's `DEBT_TITLE`, the conductor's `_cards` |
-| `blocks(text)`, `card_id(block)` | each card as `debt_match.py` cuts it, to the next title or `#` line; the id a block opens with | `debt_match.cards`, `cut_context._card_id` |
+| `ids(text, change=None)` | every title id of the text, or of the section `## <change>`, any id | converge's title pattern, the conductor's `_cards` |
+| `blocks(text)`, `card_id(block)` | each card as `debt_match.py` cuts it, to the next title or `#` line; the id a block opens with | `debt_match.cards`, `cut_context.py`'s card id |
 | `paths(patch)`, `matched(block, changed)`, `page(found)` | the patch's paths, the match on **What it affects**, the cards file's text | `debt_match.py` |
-| `filed(text, change, cards)`, `unfiled(text, ident)`, `clear(text, ids)` | file cards under `## <change>`; take one card out and its heading when left empty; take each id out | converge's `_filed`, `_unfiled`, `_section_end` |
+| `filed(text, change, cards)`, `unfiled(text, ident)`, `clear(text, ids)` | file cards under `## <change>`; take one card out and its heading when left empty; take each id out | converge's `_filed`, its take-out of one card, `_section_end` |
 | `spoiled(number, index, role, why, round_, change, where)` | the text of a spoiled card, `where` the path the caller names | converge's `spoiled` |
 | `qualify(lines, ident, qualified)` | a card's lines, each ended by a newline, its title's id replaced | converge's `debt()` title line |
 | `lock(path, wait=0)` | `mkdir`, polls every `LOCK_POLL` seconds up to `wait`, raises `Held`, `rmdir` at the end | converge's `debt_lock`, the migration's lock |
