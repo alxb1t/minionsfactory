@@ -67,7 +67,7 @@ The surface of the move, with the copy each function is today's:
 
 ### D4
 
-After the fix there is one title, `<4 digits>·<id>` with an id of no blank or `*`; one card, its extent `findings.cards`'s, a blank line not ending it; one count, of the file or under a heading. A heading is `## <change>` as the writer writes it; trailing blanks on the read are forgiven, and a section ends at the next `## ` line alone. The writer's own lookup of a heading is a read, so a heading with trailing blanks is found and no second one is written.
+After the fix there is one title, `<digits>·<id>` with an id of no blank or `*`, its number at any width, as `CHANGE_ID`'s `\d+` and converge's `debt()` qualify it; one card, its extent `findings.cards`'s, a blank line not ending it; one count, of the file or under a heading. A heading is `## <change>` as the writer writes it; trailing blanks on the read are forgiven, and a section ends at the next `## ` line alone. The writer's own lookup of a heading is a read, so a heading with trailing blanks is found and no second one is written.
 
 ### D5
 
@@ -101,7 +101,7 @@ The migration's halt for a `backlog.md` that is no regular file — a dangling l
 
 ### D10
 
-The module's id check is its own pattern. A debt card whose id is `M<n>`, a spoiled card's, passes; so does any `<4 digits>·<id>` the file holds today.
+The module's id check is its own pattern. A debt card whose id is `M<n>`, a spoiled card's, passes; so does any `<digits>·<id>` the file holds today or converge files, at any width.
 
 ### D11
 

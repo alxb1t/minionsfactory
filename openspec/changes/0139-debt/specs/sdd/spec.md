@@ -4,7 +4,7 @@
 
 `skills/mflib/debtfile.py` SHALL be the one writer and parser of `.minions/debt.md`: its read, a card's id, extent and count, the file and unfile of cards, the spoiled card's text, its lock, the patch's paths and the match of a card to them, the page of `debt-cards.md`, and the clear of a paid card. `converge.py`, `cut_context.py` and `conduct.py` SHALL read and write the debt through it, and `debt_match.py` SHALL be a command over it with its arguments, output and exits as they were. The module SHALL name no state path: its callers find the file and its lock through `skills/mflib/layout.py`.
 
-A debt card SHALL be a title line `- **<4 digits>·<id> — <title>**` and the indented lines after it, a blank line not ending it, and a count SHALL be of the file or of the cards under one heading. A heading SHALL be `## <change>` as the writer writes it, trailing blanks forgiven on the read, and a section SHALL end at the next `## ` line alone; the writer's own lookup of a heading SHALL be a read. Every reader SHALL follow no link and replace a byte that is not UTF-8, a link SHALL halt it, and a missing file SHALL read as no card.
+A debt card SHALL be a title line `- **<digits>·<id> — <title>**`, its number at any width, and the indented lines after it, a blank line not ending it, and a count SHALL be of the file or of the cards under one heading. A heading SHALL be `## <change>` as the writer writes it, trailing blanks forgiven on the read, and a section SHALL end at the next `## ` line alone; the writer's own lookup of a heading SHALL be a read. Every reader SHALL follow no link and replace a byte that is not UTF-8, a link SHALL halt it, and a missing file SHALL read as no card.
 
 The lock SHALL be one function of the module: it SHALL make `.minions/debt.lock` by `mkdir`, wait the caller's seconds by five and raise when it is still held, write its holder's token into the lock, and renew the lock's time after each **Still true?** command. Its release SHALL remove only a lock that holds that token, and a lock gone or another's SHALL be no error. The break of a stale lock SHALL go through the module and remove the token before the folder.
 
@@ -211,7 +211,7 @@ under `conduct.py`'s sandbox runner, never bare. It SHALL read a findings file's
 whose id is outside `R<n>` and `S<n>`, SHALL be malformed. `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py`
 and `skip_stub.py` SHALL read a findings file's cards and frontmatter through `skills/mflib/findings.py`, a card's title a line that
 starts `- **<id> — ` with an id holding no `*`, so a bullet that closes its bold after its first word, as `- **stale-claim** — ran.`,
-is no card; `skills/mflib/debtfile.py` SHALL read a debt card's title, a line that starts `- **<4 digits>·<id> — ` with an id holding no `*`, and `debt_match.py` and `cut_context.py` SHALL read it through the module. The status log's events and their text
+is no card; `skills/mflib/debtfile.py` SHALL read a debt card's title, a line that starts `- **<digits>·<id> — ` with an id holding no `*`, and `debt_match.py` and `cut_context.py` SHALL read it through the module. The status log's events and their text
 SHALL stay as before.
 
 The script SHALL go on where it can: a worker that exits non-zero or leaves no file SHALL get one fresh retry; a malformed

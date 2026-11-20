@@ -9,6 +9,7 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
 - [x] 5 — The rule and the record · moderate
+- [ ] 6 — The title's width · moderate
 
 ## 1 — The pin
 
@@ -97,7 +98,7 @@ Each task turns the rows of the pin it names to one side and leaves the others, 
 
 - [x] 4.1 **HALT CHECK** The stations went through the module in the last phase.
   Verify: `git grep -n -F "debtfile" -- skills/mf-converge/scripts/converge.py skills/mf-cut-change/scripts/cut_context.py skills/mf-ship/scripts/conduct.py` prints a line of each file.
-- [x] 4.2 In `skills/mflib/debtfile.py` narrow `TITLE` to a qualified id, `<4 digits>·<id>`, and give `ids` and a new `count(text, change=None)` that one reading; turn the title rows of the pins `debt_pin_read`, `debt_pin_debted` and `debt_pin_cards` and the total of `debt_pin_write`; turn the assert of `test_a_bold_bullet_is_no_card` in `tests/test_converge.py` that reads the title on an unqualified card, so its card is titled with a qualified id and the assert reads that id, and it still proves a bold-led bullet is no title; write `test_debtfile_title`.
+- [x] 4.2 In `skills/mflib/debtfile.py` narrow `TITLE` to a qualified id, `<digits>·<id>`, and give `ids` and a new `count(text, change=None)` that one reading; turn the title rows of the pins `debt_pin_read`, `debt_pin_debted` and `debt_pin_cards` and the total of `debt_pin_write`; turn the assert of `test_a_bold_bullet_is_no_card` in `tests/test_converge.py` that reads the title on an unqualified card, so its card is titled with a qualified id and the assert reads that id, and it still proves a bold-led bullet is no title; write `test_debtfile_title`.
   Verify: `uv run pytest tests/test_debtfile.py tests/test_converge.py tests/test_conduct.py -q -k "debtfile_title or debtfile_ids or debt_pin_read or debt_pin_debted or debt_pin_cards or debt_pin_write or bold_bullet"` passes.
 - [x] 4.3 In `debtfile.py` have `blocks` take a card's extent from `findings.cards`, a blank line not ending it, and return the cards of a qualified id alone; have `filed` find a heading as `read` does, trailing blanks forgiven, and end a section at a `## ` line alone; turn the extent rows of the pin `debt_pin_match`, the unqualified-id row of `debt_pin_section` and the heading row of `debt_pin_filed`.
   Verify: `uv run pytest tests/test_debtfile.py tests/test_debt_match.py tests/test_cut_context.py tests/test_converge.py -q -k "debtfile_blocks or debtfile_filed or debt_pin_match or debt_pin_section or debt_pin_filed"` passes.
@@ -126,3 +127,10 @@ The lists shrank with the move, in phase 3, per [D11](design.md#d11); this phase
   Verify: `git grep -n -F "debtfile.py" -- docs/recipes.md` prints a line.
 - [x] 5.4 In `THREAT_MODEL.md` add to the findings-files bullet that the debt write holds its folder and its lock's token, and that the start-of-run move of an old layout's files, `migrate_layout`, and of an old `backlog.md`, `migrate_debt`, follow no link; add the debt module's name to the sentence that lists the shared home's formats.
   Verify: `git grep -n -F "migrate_debt" -- THREAT_MODEL.md` prints a line.
+
+## 6 — The title's width
+
+Converge files a card under its change's number at whatever width it has, so the title reads a number at any width, per [D4](design.md#d4) and [D10](design.md#d10).
+
+- [ ] 6.1 In `skills/mflib/debtfile.py` widen `TITLE` to `^- \*\*([0-9]+·[^\s*]+) — `, multiline; in `tests/test_debtfile.py` update the pattern `test_debtfile_read_holds_the_title_and_the_preamble` pins, turn the `001·R3` and `00001·R5` rows of `test_debtfile_title` from refused to read, and add `test_debtfile_title_width`: a card `qualify()` titles `1·R1` and one it titles `10000·R1` each round-trip through `ids()` and `blocks()`.
+  Verify: `uv run pytest tests/test_debtfile.py tests/test_converge.py tests/test_conduct.py -q -k "debtfile_title or debtfile_read or debtfile_ids or debtfile_blocks or debtfile_qualify or debt_pin_read or debt_pin_debted or debt_pin_cards or debt_pin_write"` passes.
