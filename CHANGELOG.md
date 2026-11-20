@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the debt write holds its folder, and `report` names a debt it may not read (0139-debt, phase 4).
 - D16, D57, D66, D83, the state-file recipe and the threat model name `skills/mflib/debtfile.py` as the debt file's
   writer and parser, its lock's holder, and the start-of-run moves that follow no link (0139-debt, phase 5).
+- A debt card's title reads its change's number at any width, as converge files it, so a card of `1-…` or
+  `10000-…` is counted and matched again (0139-debt, phase 6).
 
 ## [0.110.0] - 2026-11-20
 

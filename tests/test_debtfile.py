@@ -57,7 +57,7 @@ def test_debtfile_read(tmp_path: Path) -> None:
 
 
 def test_debtfile_read_holds_the_title_and_the_preamble() -> None:
-    assert debtfile.TITLE.pattern == r"^- \*\*([0-9]{4}·[^\s*]+) — "
+    assert debtfile.TITLE.pattern == r"^- \*\*([0-9]+·[^\s*]+) — "
     assert debtfile.PREAMBLE == (
         "# Debt\n\n*Deferred work from converge, one heading per change; a paydown"
         " change lists the ids it closes under `debt:`.*\n"
@@ -85,14 +85,23 @@ def test_debtfile_title() -> None:
         "- **00001·R5 — five digits**\n- **0001· — no id**\n"
         "## 0000-z\n\n- **0000·S1 — z**\n- **S2 — unqualified**\n"
     )
-    assert debtfile.ids(text) == ["0001·R1", "0001·M1", "0000·S1"]
-    assert debtfile.ids(text, "0001-a") == ["0001·R1", "0001·M1"]
-    assert debtfile.count(text) == 3
-    assert debtfile.count(text, "0001-a") == 2
+    assert debtfile.ids(text) == ["0001·R1", "001·R3", "0001·M1", "00001·R5", "0000·S1"]
+    assert debtfile.ids(text, "0001-a") == ["0001·R1", "001·R3", "0001·M1", "00001·R5"]
+    assert debtfile.count(text) == 5
+    assert debtfile.count(text, "0001-a") == 4
     assert debtfile.count(text, "0000-z") == 1
     assert debtfile.count(text, "0002-b") == 0
     assert debtfile.count("") == 0
     assert debtfile.card_id("- **R2 — unqualified**\n") == ""
+
+
+def test_debtfile_title_width() -> None:
+    for number in ["1", "10000"]:
+        card = debtfile.qualify(
+            ["- **R1 — a title**", "  - **Status:** open"], "R1", f"{number}·R1"
+        )
+        assert debtfile.ids(card) == [f"{number}·R1"]
+        assert debtfile.blocks(card) == [card]
 
 
 def test_debtfile_blocks() -> None:

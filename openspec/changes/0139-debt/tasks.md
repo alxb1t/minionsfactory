@@ -9,7 +9,7 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
 - [x] 5 — The rule and the record · moderate
-- [ ] 6 — The title's width · moderate
+- [x] 6 — The title's width · moderate
 
 ## 1 — The pin
 
@@ -132,5 +132,5 @@ The lists shrank with the move, in phase 3, per [D11](design.md#d11); this phase
 
 Converge files a card under its change's number at whatever width it has, so the title reads a number at any width, per [D4](design.md#d4) and [D10](design.md#d10).
 
-- [ ] 6.1 In `skills/mflib/debtfile.py` widen `TITLE` to `^- \*\*([0-9]+·[^\s*]+) — `, multiline; in `tests/test_debtfile.py` update the pattern `test_debtfile_read_holds_the_title_and_the_preamble` pins, turn the `001·R3` and `00001·R5` rows of `test_debtfile_title` from refused to read, and add `test_debtfile_title_width`: a card `qualify()` titles `1·R1` and one it titles `10000·R1` each round-trip through `ids()` and `blocks()`.
+- [x] 6.1 In `skills/mflib/debtfile.py` widen `TITLE` to `^- \*\*([0-9]+·[^\s*]+) — `, multiline; in `tests/test_debtfile.py` update the pattern `test_debtfile_read_holds_the_title_and_the_preamble` pins, turn the `001·R3` and `00001·R5` rows of `test_debtfile_title` from refused to read, and add `test_debtfile_title_width`: a card `qualify()` titles `1·R1` and one it titles `10000·R1` each round-trip through `ids()` and `blocks()`.
   Verify: `uv run pytest tests/test_debtfile.py tests/test_converge.py tests/test_conduct.py -q -k "debtfile_title or debtfile_read or debtfile_ids or debtfile_blocks or debtfile_qualify or debt_pin_read or debt_pin_debted or debt_pin_cards or debt_pin_write"` passes.

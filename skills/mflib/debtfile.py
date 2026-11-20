@@ -17,7 +17,7 @@ from pathlib import Path
 from . import findings, statefile
 
 # A card's title holds a qualified id. Why: 0139-debt design D4, D10.
-TITLE = re.compile(r"^- \*\*([0-9]{4}·[^\s*]+) — ", re.MULTILINE)
+TITLE = re.compile(r"^- \*\*([0-9]+·[^\s*]+) — ", re.MULTILINE)
 PREAMBLE = (
     "# Debt\n\n*Deferred work from converge, one heading per change; a paydown change"
     " lists the ids it closes under `debt:`.*\n"
