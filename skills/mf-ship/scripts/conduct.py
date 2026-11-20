@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from markdown_it.token import Token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.debtfile
 import mflib.findings
 import mflib.layout
 import mflib.platform
@@ -6629,17 +6630,14 @@ class Run:
         if lock.is_symlink() or (lock.exists() and not lock.is_dir()):
             return f"{lock_name} is a file, not a lock: a person removes it"
         try:
-            lock.mkdir()
-        except FileExistsError:
+            with mflib.debtfile.lock(lock):
+                # A link never replaces: a debt file made since the check stands.
+                os.link(old, new)
+                old.unlink()
+        except mflib.debtfile.Held:
             return f"{lock_name} is held: a person or a hand-run writer holds it"
-        try:
-            # A link never replaces: a debt file made since the check stands.
-            os.link(old, new)
-            old.unlink()
         except FileExistsError:
             return both
-        finally:
-            lock.rmdir()
         self.log.event("run", "move", f"{old_name} → {new_name}")
         return None
 
@@ -8135,14 +8133,7 @@ def _cards(debt: Path, change: str) -> list[str]:
 
     e.g. "- **0016·R5 — a title**" → "0016·R5"
     """
-    ids: list[str] = []
-    inside = False
-    for line in debt.read_text().splitlines() if debt.is_file() else []:
-        if line.startswith("## "):
-            inside = line.strip() == f"## {change}"
-        elif inside and (card := re.match(r"- \*\*([^\s*]+) — ", line)):
-            ids.append(card[1])
-    return ids
+    return mflib.debtfile.ids(debt.read_text() if debt.is_file() else "", change)
 
 
 def _log_order(log: Path) -> tuple[str, int, str]:

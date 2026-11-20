@@ -24,7 +24,6 @@ LOADS_OUTSIDE: frozenset[tuple[str, str]] = frozenset(
         ("cut_check.py", "plan_check.py"),
         ("cut_context.py", "brief_check.py"),
         ("cut_context.py", "bundle.py"),
-        ("cut_context.py", "debt_match.py"),
         ("facts.py", "brief_check.py"),
         ("review_metrics.py", "conduct.py"),
         ("review_metrics.py", "metrics.py"),
@@ -71,15 +70,12 @@ FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
     {
         # the Acceptance pattern, no card
         ("brief_check.py", "- **"),
-        # the debt's, the integrate note, the probe's `- **WHEN**`
+        # the integrate note, the probe's `- **WHEN**`
         ("conduct.py", "- **"),
-        # the debt's
-        ("converge.py", "- **"),
-        # the debt's, and the spec template, no card
+        # the spec template, no card
         ("cut_context.py", "- **"),
         # the debt's
         ("debt.py", "- **"),
-        ("debt_match.py", "- **"),
         # the card's reader
         ("review_metrics.py", "- **"),
         ("review_metrics.py", "## Run"),

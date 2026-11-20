@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mflib/debtfile.py` holds each copy of the debt file's rules as it stands — the read, the title, the card,
   the file and unfile, the spoiled card, the lock and the staged write — with no caller yet, so the stations can move
   onto it with no assert changed (0139-debt, phase 2).
+- Converge, `debt_match.py`, `cut_context.py` and the conductor read and write the debt file through
+  `skills/mflib/debtfile.py`, and hold no copy of its rules; no behaviour or assert changed, so the fix can turn one
+  rule at a time (0139-debt, phase 3).
 
 ## [0.110.0] - 2026-11-20
 

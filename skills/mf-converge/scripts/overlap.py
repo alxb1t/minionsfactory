@@ -18,7 +18,7 @@ import mflib.findings
 
 NEAR = 5
 ROLES = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
-# `debt_match.py`'s `What it affects` spans, copied.
+# The `What it affects` spans of `skills/mflib/debtfile.py`, copied.
 SPAN = re.compile(r"`([^`]+)`")
 LINES = re.compile(r":\d+(?:-\d+)?$")
 # A bare file path: a `/` or a named suffix, so `main()`, `os.O_RDONLY` and `Run.ship`

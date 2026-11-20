@@ -20,7 +20,7 @@ from typing import Any, NamedTuple, Protocol, TextIO
 
 import mflib.findings
 import pytest
-from mflib import statuslog
+from mflib import debtfile, statuslog
 from old_layout import ENTRIES, LOG, ROLES, plant
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "mf-converge" / "scripts"
@@ -861,7 +861,7 @@ def test_a_bold_bullet_is_no_card(host: Host) -> None:
 
     assert read.malformed is None
     assert [card.id for card in read.cards] == ["R1"]
-    assert converge["DEBT_TITLE"].findall(body) == ["R1"]
+    assert debtfile.TITLE.findall(body) == ["R1"]
 
 
 def _verdicts(
@@ -3010,7 +3010,7 @@ def test_debt_pin_lock(host: Host, monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(converge["Halt"]) as held, converge["debt_lock"](primary):
         pass
     assert str(held.value) == ".minions/debt.lock held for 10 minutes"
-    poll, wait = converge["LOCK_POLL"], converge["LOCK_WAIT"]
+    poll, wait = debtfile.LOCK_POLL, converge["LOCK_WAIT"]
     assert naps == [poll] * (wait // poll)
     assert lock.is_dir()
     lock.rmdir()
@@ -3076,12 +3076,11 @@ def test_debt_pin_read(tmp_path: Path) -> None:
         "- **0001·R1 — a**\n- **R2 — b**\n  - **0001·R3 — c**\n"
         "-  **0001·R4 — d**\n- **0001·R5 —e**\n"
     )
-    assert converge["DEBT_TITLE"].findall(text) == ["0001·R1", "R2"]
+    assert debtfile.TITLE.findall(text) == ["0001·R1", "R2"]
 
 
 def test_debt_pin_filed() -> None:
-    converge = _converge()
-    filed, unfiled = converge["_filed"], converge["_unfiled"]
+    filed, unfiled = debtfile.filed, debtfile.unfiled
     card = "- **0001·R2 — new**\n  - **Status:** open\n"
     old = "- **0001·R1 — old**\n  - **Status:** open\n"
     assert filed("# Debt\n", _CHANGE, []) == "# Debt\n"

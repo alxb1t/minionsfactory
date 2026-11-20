@@ -56,7 +56,8 @@ The Steps its functions name: 1 preconditions · 2 freeze · 3 dispatch · 5 ver
 9 debt · 10 report. It loads `bundle.py`, `debt_match.py`, `skip_stub.py`, `open_cards.py`,
 `plan_check.py`, `evidence.py`, `gate_integrity.py` and `overlap.py` from its folder, `../../mf-integrate/scripts/integrate.py` for `replay`,
 `../../mflib/layout.py` for the run directory's paths, `../../mflib/statuslog.py` for each status-log event,
-`../../mflib/findings.py` for its reads and writes of a findings file and `../../mflib/statefile.py` for its reads
+`../../mflib/findings.py` for its reads and writes of a findings file, `../../mflib/debtfile.py` for its reads and
+writes of the debt file and its lock, and `../../mflib/statefile.py` for its reads
 that follow no link; it runs
 `gate_run.py`, `gate_check.py`, `plan_check.py`, `make -n gate`, each `Verify:` a catch-up's range adds and each card's
 **Still true?** command under the host's sandbox. The events, each halt and each worker's inputs are in `converge.py`'s

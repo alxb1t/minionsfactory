@@ -6,7 +6,7 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The stations · moderate
+- [x] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
@@ -66,29 +66,29 @@ Each case below is green on the code as it stands and seen red under the change 
 
 Each station goes through the module with no assert changed; only the line by which a test reaches a name moves, per [D1](design.md#d1).
 
-- [ ] 3.1 **HALT CHECK** The module's functions are the ones the stations will call.
+- [x] 3.1 **HALT CHECK** The module's functions are the ones the stations will call.
   Verify: `git grep -n -e "^def read" -e "^def ids" -e "^def blocks" -e "^def filed" -e "^def unfiled" -e "^def lock" -e "^def write" -- skills/mflib/debtfile.py` prints a line for each.
-- [ ] 3.2 In `skills/mf-converge/scripts/converge.py` delete `DEBT_TITLE`, `DEBT_PREAMBLE`, `LOCK_POLL`, `_filed`, `_section_end` and `_unfiled`, and make `_debt_text` a call of `debtfile.read`; call `debtfile.ids`, `debtfile.PREAMBLE`, `debtfile.filed` and `debtfile.unfiled` where they were called, and re-word each `Unreadable` into the halt `_debt_text` words today. `LOCK_WAIT` stays.
+- [x] 3.2 In `skills/mf-converge/scripts/converge.py` delete `DEBT_TITLE`, `DEBT_PREAMBLE`, `LOCK_POLL`, `_filed`, `_section_end` and `_unfiled`, and make `_debt_text` a call of `debtfile.read`; call `debtfile.ids`, `debtfile.PREAMBLE`, `debtfile.filed` and `debtfile.unfiled` where they were called, and re-word each `Unreadable` into the halt `_debt_text` words today. `LOCK_WAIT` stays.
   Verify: `git grep -n -e "DEBT_TITLE" -e "DEBT_PREAMBLE" -e "^LOCK_POLL" -e "_filed" -e "_unfiled" -e "_section_end" -- skills/mf-converge/scripts/converge.py` prints nothing.
-- [ ] 3.3 In `converge.py` make `debt_lock` a wrapper: it keeps the check of an old `backlog.md`, calls `debtfile.lock(path, LOCK_WAIT)` and words `Held` as `.minions/debt.lock held for 10 minutes`; `spoiled` builds each card through `debtfile.spoiled`, and `debt()` re-titles each card through `debtfile.qualify`, so no `- **` stays in the file; a test that patches `sleep` for the lock's wait reaches it through `debtfile` now, and no assert changes.
+- [x] 3.3 In `converge.py` make `debt_lock` a wrapper: it keeps the check of an old `backlog.md`, calls `debtfile.lock(path, LOCK_WAIT)` and words `Held` as `.minions/debt.lock held for 10 minutes`; `spoiled` builds each card through `debtfile.spoiled`, and `debt()` re-titles each card through `debtfile.qualify`, so no `- **` stays in the file; a test that patches `sleep` for the lock's wait reaches it through `debtfile` now, and no assert changes.
   Verify: `git grep -n -e "debtfile.lock" -e "debtfile.spoiled" -e "debtfile.qualify" -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 3.4 In `converge.py` write the debt and the freeze's empty page through `debtfile.write` and `debtfile.page`, in place of `DEBT_MATCH["write"]` and `DEBT_MATCH["page"]`, with the same exit and the same halt text; `DEBT_MATCH["main"]` still runs `debt_match.py`.
+- [x] 3.4 In `converge.py` write the debt and the freeze's empty page through `debtfile.write` and `debtfile.page`, in place of `DEBT_MATCH["write"]` and `DEBT_MATCH["page"]`, with the same exit and the same halt text; `DEBT_MATCH["main"]` still runs `debt_match.py`.
   Verify: `git grep -n -e 'DEBT_MATCH\["write"\]' -e 'DEBT_MATCH\["page"\]' -e 'DEBT_MATCH\["Stop"\]' -- skills/mf-converge/scripts/converge.py` prints nothing.
-- [ ] 3.5 In `skills/mf-converge/scripts/debt_match.py` make `main` a command over the module: `HEADING`, `TITLE`, `DIFF`, `AFFECTS`, `SPAN`, `LINES` and the functions `paths`, `cards`, `matched` and `page` leave it for the module's `paths`, `blocks`, `matched` and `page`; its arguments, output and exits stay, and `Stop` and `write` stay for `tests/test_staged_writes.py`.
+- [x] 3.5 In `skills/mf-converge/scripts/debt_match.py` make `main` a command over the module: `HEADING`, `TITLE`, `DIFF`, `AFFECTS`, `SPAN`, `LINES` and the functions `paths`, `cards`, `matched` and `page` leave it for the module's `paths`, `blocks`, `matched` and `page`; its arguments, output and exits stay, and `Stop` and `write` stay for `tests/test_staged_writes.py`.
   Verify: `git grep -n -e "^HEADING" -e "^TITLE" -e "^DIFF" -e "^AFFECTS" -e "^SPAN" -e "^LINES" -e "^def cards" -e "^def matched" -e "^def paths" -e "^def page" -- skills/mf-converge/scripts/debt_match.py` prints nothing.
-- [ ] 3.6 In `skills/mf-cut-change/scripts/cut_context.py` import `mflib.debtfile`, delete `DEBT_MATCH`, `CARD_ID` and `_card_id`, and have `debt_section` call `debtfile.blocks`, `matched` and `card_id`; its `_read` stays.
+- [x] 3.6 In `skills/mf-cut-change/scripts/cut_context.py` import `mflib.debtfile`, delete `DEBT_MATCH`, `CARD_ID` and `_card_id`, and have `debt_section` call `debtfile.blocks`, `matched` and `card_id`; its `_read` stays.
   Verify: `git grep -n -e "DEBT_MATCH" -e "CARD_ID" -e "_card_id" -- skills/mf-cut-change/scripts/cut_context.py` prints nothing.
-- [ ] 3.7 In `skills/mf-ship/scripts/conduct.py` make `_cards` parse through `debtfile.ids(text, change)`, keeping its read, and make `migrate_debt` take its lock through `with debtfile.lock(lock):`, `Held` worded as the held-lock halt is today.
+- [x] 3.7 In `skills/mf-ship/scripts/conduct.py` make `_cards` parse through `debtfile.ids(text, change)`, keeping its read, and make `migrate_debt` take its lock through `with debtfile.lock(lock):`, `Held` worded as the held-lock halt is today.
   Verify: `git grep -n -e "debtfile.ids" -e "debtfile.lock" -- skills/mf-ship/scripts/conduct.py` prints a line for each.
-- [ ] 3.8 In `skills/mf-converge/scripts/overlap.py` reword the comment that says `debt_match.py`'s `What it affects` spans are copied, to name `skills/mflib/debtfile.py`, where they now live; no code changes.
+- [x] 3.8 In `skills/mf-converge/scripts/overlap.py` reword the comment that says `debt_match.py`'s `What it affects` spans are copied, to name `skills/mflib/debtfile.py`, where they now live; no code changes.
   Verify: `git grep -n -F "debtfile.py" -- skills/mf-converge/scripts/overlap.py` prints a line.
-- [ ] 3.9 In `tests/test_converge.py` point the reach of `converge["DEBT_TITLE"]` at `mflib.debtfile.TITLE`, and point each line of the pins and of the older tests that reaches a name phase 3 deleted — `_filed`, `_unfiled`, `DEBT_PREAMBLE`, `LOCK_POLL`, `debt_match`'s `cards`, `matched`, `paths` and `page`, `cut_context`'s `_card_id` — at the module's function; in `tests/test_staged_writes.py` keep `debt_match.write` as it is; change no assert.
+- [x] 3.9 In `tests/test_converge.py` point the reach of `converge["DEBT_TITLE"]` at `mflib.debtfile.TITLE`, and point each line of the pins and of the older tests that reaches a name phase 3 deleted — `_filed`, `_unfiled`, `DEBT_PREAMBLE`, `LOCK_POLL`, `debt_match`'s `cards`, `matched`, `paths` and `page`, `cut_context`'s `_card_id` — at the module's function; in `tests/test_staged_writes.py` keep `debt_match.write` as it is; change no assert.
   Verify: `git grep -n -F 'converge["DEBT_TITLE"]' -- tests` prints nothing.
-- [ ] 3.10 In `tests/test_structure.py` delete `("debt_match.py", "- **")` and `("converge.py", "- **")` from `FORMAT_SITES` and `("cut_context.py", "debt_match.py")` from `LOADS_OUTSIDE`, per [D11](design.md#d11).
+- [x] 3.10 In `tests/test_structure.py` delete `("debt_match.py", "- **")` and `("converge.py", "- **")` from `FORMAT_SITES` and `("cut_context.py", "debt_match.py")` from `LOADS_OUTSIDE`, per [D11](design.md#d11).
   Verify: `git grep -n -e '("debt_match.py", "- \*\*")' -e '("converge.py", "- \*\*")' -e '("cut_context.py", "debt_match.py")' -- tests/test_structure.py` prints nothing.
-- [ ] 3.11 In `docs/modules.md` give the rows of `converge.py`, `debt_match.py`, `cut_context.py` and `conduct.py` the names each now holds, `debtfile.py` among them and `debt_match.py` out of `cut_context.py`'s row; in `skills/mf-converge/SKILL.md` name `../../mflib/debtfile.py` beside `../../mflib/findings.py`.
+- [x] 3.11 In `docs/modules.md` give the rows of `converge.py`, `debt_match.py`, `cut_context.py` and `conduct.py` the names each now holds, `debtfile.py` among them and `debt_match.py` out of `cut_context.py`'s row; in `skills/mf-converge/SKILL.md` name `../../mflib/debtfile.py` beside `../../mflib/findings.py`.
   Verify: `uv run pytest tests/test_structure.py tests/test_skills.py -q` passes.
-- [ ] 3.12 **HALT CHECK** The move held: the pins and the older tests of the moved scripts pass with no assert changed.
+- [x] 3.12 **HALT CHECK** The move held: the pins and the older tests of the moved scripts pass with no assert changed.
   Verify: `uv run pytest tests/test_converge.py tests/test_debt_match.py tests/test_cut_context.py tests/test_staged_writes.py -q` passes.
 
 ## 4 — The fix

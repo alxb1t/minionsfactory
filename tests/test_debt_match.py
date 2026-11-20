@@ -11,6 +11,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from mflib import debtfile
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-converge" / "scripts" / "debt_match.py"
@@ -147,7 +148,7 @@ def test_debt_match_refuses_what_it_cannot_read(
 
 def test_debt_pin_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     # Why: 0139-debt design D1, the pin of `debt_match.py` as it stands.
-    assert debt_match.paths(
+    assert debtfile.paths(
         "diff --git a/old.md b/new.md\n diff --git a/no.md b/no.md\n"
         "diff --git a/src/a.py b/src/a.py\n"
     ) == {"old.md", "new.md", "src/a.py"}
@@ -156,7 +157,7 @@ def test_debt_pin_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
         "- **R2 — two**\n  - **What it affects:** `b.py`\n### a note\n"
         "  - **Status:** open\n"
     )
-    assert debt_match.cards(debt) == [
+    assert debtfile.blocks(debt) == [
         "- **0001·R1 — one**\n  - **Fix:** x\n\nloose prose\n",
         "- **R2 — two**\n  - **What it affects:** `b.py`\n",
     ]
@@ -166,10 +167,10 @@ def test_debt_pin_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
         "  - **Fix:** `src/c.py`\n"
     )
     for changed in ({"src/a.py"}, {"docs/x.md"}, {"save()"}):
-        assert debt_match.matched(card, changed), changed
-    assert not debt_match.matched(card, {"src/c.py"})
+        assert debtfile.matched(card, changed), changed
+    assert not debtfile.matched(card, {"src/c.py"})
     flat = "- **0001·R1 — a**\n- **What it affects:** `src/a.py`\n"
-    assert not debt_match.matched(flat, {"src/a.py"})
+    assert not debtfile.matched(flat, {"src/a.py"})
 
     patch, cards = tmp_path / "diff.patch", tmp_path / "debt-cards.md"
     patch.write_text(_PATCH)

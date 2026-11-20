@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, NoReturn, Protocol, TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.debtfile
 import mflib.findings
 import mflib.layout
 import mflib.statefile
@@ -67,18 +68,12 @@ REWRITE = (
     "Rewrite that file to the contract. Keep its verdict, each card's id, grade,"
     " fields and Status; judge nothing anew. Edit no other file.\n"
 )
-# The debt lock's poll and wait, in seconds. Why: design D5.
-LOCK_POLL = 5
+# The debt lock's wait, in seconds. Why: design D5.
 LOCK_WAIT = 600
 COMMAND = re.compile(r"`([^`]+)`")
 REPEAT = re.compile(r"repeat of `?([\w·]+)")
 NOTE = re.compile(r"^Fix note \(\d{4}-\d\d-\d\d, ([^)]+)\):")
 DECISION = re.compile(r"^### (D\d+)\b")
-DEBT_TITLE = re.compile(r"^- \*\*([^\s*]+) — ", re.MULTILINE)
-DEBT_PREAMBLE = (
-    "# Debt\n\n*Deferred work from converge, one heading per change; a paydown change"
-    " lists the ids it closes under `debt:`.*\n"
-)
 
 
 class Halt(Exception):
@@ -463,7 +458,7 @@ def freeze(
     debt = old if not os.path.lexists(debt) and os.path.lexists(old) else debt
     cards = folder / "debt-cards.md"
     if DEBT_MATCH["main"]([str(debt), str(patch), str(cards)]) != 0:
-        DEBT_MATCH["write"](cards, DEBT_MATCH["page"]([]))
+        mflib.debtfile.write(cards, mflib.debtfile.page([]))
     _evidence(context, base, head, diff)
     commits, files = scope[1:] if scope else counts(context, base, head)[:2]
     shown = f"{_plural(commits, 'commit')} · {_plural(files, 'file')}"
@@ -1166,31 +1161,19 @@ def debt_lock(primary: Path) -> Iterator[None]:
             ".minions/debt.lock not taken — an old .minions/backlog.md stands;"
             " /mf-ship moves it at a run's start"
         )
-    lock, waited = mflib.layout.debt_lock(primary), 0
-    while True:
-        try:
-            lock.mkdir()
-            break
-        except FileExistsError:
-            if waited >= LOCK_WAIT:
-                raise Halt(
-                    f".minions/debt.lock held for {LOCK_WAIT // 60} minutes"
-                ) from None
-            time.sleep(LOCK_POLL)
-            waited += LOCK_POLL
     try:
-        yield
-    finally:
-        lock.rmdir()
+        with mflib.debtfile.lock(mflib.layout.debt_lock(primary), LOCK_WAIT):
+            yield
+    except mflib.debtfile.Held:
+        raise Halt(f".minions/debt.lock held for {LOCK_WAIT // 60} minutes") from None
 
 
 def _debt_text(path: Path) -> str:
     """Return the debt's text, "" when missing; one that cannot be read halts."""
     try:
-        return _text(path) or ""
-    except OSError as error:
-        why = "it is a link" if error.errno == errno.ELOOP else error.strerror
-        raise Halt(f".minions/debt.md cannot be read: {why}") from error
+        return mflib.debtfile.read(path)
+    except mflib.debtfile.Unreadable as unread:
+        raise Halt(f".minions/debt.md cannot be read: {unread.reason}") from unread
 
 
 def answered_amends(context: Context) -> set[str]:
@@ -1259,66 +1242,17 @@ def spoiled(context: Context) -> list[str]:
             continue
         where = f".minions/changes/{context.change}/{role}.md"
         found.append(
-            f"- **{number}·M{len(found) + 1} — {role}'s findings file was malformed"
-            " after a rewrite**\n"
-            "  - **Why it's a problem:** converge read the role as clean at HEAD with"
-            " no card, so a finding in the file went unjudged.\n"
-            "  - **When you'd hit it:** the release reads the file's own verdict.\n"
-            f"  - **What it affects:** `{where}`.\n"
-            f"  - **Evidence:** {read.malformed} · read.\n"
-            "  - **Verdict:** confirmed.\n"
-            "  - **Priority:** medium · conformance · maintainability — the role's"
-            " verdict this run is the script's, not its checker's.\n"
-            f"  - **Round:** {context.round}\n"
-            "  - **Fix:** rewrite the file to the findings file contract, then converge"
-            " again · size: a design change.\n"
-            "  - **Amend:** no\n"
-            f"  - **Trigger:** the release of {context.change}.\n"
-            f"  - **Still true?** read `{where}` against the contract.\n"
-            "  - **Related:** none.\n"
-            "  - **Status:** open\n"
+            mflib.debtfile.spoiled(
+                number,
+                len(found) + 1,
+                role,
+                read.malformed,
+                context.round,
+                context.change,
+                where,
+            )
         )
     return found
-
-
-def _filed(text: str, change: str, cards: list[str]) -> str:
-    """Return the debt with `cards` at the end of `## <change>`, made if missing."""
-    if not cards:
-        return text
-    lines = [line if line.endswith("\n") else f"{line}\n" for line in text.splitlines()]
-    heading = f"## {change}\n"
-    if heading not in lines:
-        return f"{''.join(lines).rstrip()}\n\n{heading}\n{''.join(cards)}"
-    at = lines.index(heading) + 1
-    end = _section_end(lines, at)
-    while end > at and not lines[end - 1].strip():
-        end -= 1
-    gap = ["\n"] if end < len(lines) and lines[end].startswith("## ") else []
-    return "".join([*lines[:end], *cards, *gap, *lines[end:]])
-
-
-def _section_end(lines: list[str], at: int) -> int:
-    """Return the index of the first `## ` heading at or past `at`, else the end."""
-    return next(
-        (i for i in range(at, len(lines)) if lines[i].startswith("## ")), len(lines)
-    )
-
-
-def _unfiled(text: str, ident: str) -> str:
-    """Return the debt without the card `ident`, and its heading when left empty.
-
-    The card's extent is the one the shared reader reads, blanks inside it included.
-    """
-    lines = text.splitlines(keepends=True)
-    start = next(
-        i for i, line in enumerate(lines) if line.startswith(f"- **{ident} — ")
-    )
-    card = next(c for c in mflib.findings.cards(text, "") if c.id == ident)
-    del lines[start : start + len(card.lines)]
-    tops = [i for i in range(start) if lines[i].startswith("## ")]
-    if tops and not "".join(lines[tops[-1] + 1 : _section_end(lines, start)]).strip():
-        del lines[tops[-1] : _section_end(lines, start)]
-    return "".join(lines)
 
 
 def debt(context: Context) -> Debt:
@@ -1336,11 +1270,11 @@ def debt(context: Context) -> Debt:
         for card in verdict.cards
         if not card.blocking and card.status != "verified"
     ]
-    checks = amends(context, cards, set(DEBT_TITLE.findall(_debt_text(path))))
+    checks = amends(context, cards, set(mflib.debtfile.ids(_debt_text(path))))
     moot, written, cleared = list(checks), [], []
     with debt_lock(primary):
-        text = _debt_text(path) or DEBT_PREAMBLE
-        holds = set(DEBT_TITLE.findall(text))
+        text = _debt_text(path) or mflib.debtfile.PREAMBLE
+        holds = set(mflib.debtfile.ids(text))
         filed = []
         for card in cards:
             qualified = f"{number}·{card.id}"
@@ -1351,15 +1285,14 @@ def debt(context: Context) -> Debt:
                 moot.append(card.id)
                 checks[card.id] = command
                 continue
-            title = card.lines[0].replace(f"- **{card.id} — ", f"- **{qualified} — ")
-            filed.append("".join(f"{line}\n" for line in [title, *card.lines[1:]]))
+            filed.append(mflib.debtfile.qualify(card.lines, card.id, qualified))
             written.append(qualified)
         for spoilt in spoiled(context):
-            qualified = DEBT_TITLE.findall(spoilt)[0]
+            qualified = mflib.debtfile.ids(spoilt)[0]
             if qualified not in holds:
                 filed.append(spoilt)
                 written.append(qualified)
-        text = _filed(text, context.change, filed)
+        text = mflib.debtfile.filed(text, context.change, filed)
         for card in (c for v in files for c in v.cards if c.status == "verified"):
             repeat = REPEAT.search(card.fields.get("Related", ""))
             old = next(
@@ -1374,14 +1307,16 @@ def debt(context: Context) -> Debt:
                 continue
             code, command = still_true(context, old.fields.get("Still true?", ""))
             if code == 1:
-                text = _unfiled(text, old.id)
+                text = mflib.debtfile.unfiled(text, old.id)
                 cleared.append(old.id)
                 checks[old.id] = command
         try:
-            DEBT_MATCH["write"](path, text)
-        except DEBT_MATCH["Stop"] as stop:
-            raise Halt(f".minions/debt.md cannot be written — {stop}") from stop
-    paid = Debt(written, moot, cleared, len(DEBT_TITLE.findall(text)), checks)
+            mflib.debtfile.write(path, text)
+        except mflib.statefile.WriteFailed as failed:
+            link = failed.error.errno == errno.ELOOP
+            why = f"{path} is a link" if link else f"{path}: {failed.error.strerror}"
+            raise Halt(f".minions/debt.md cannot be written — {why}") from failed
+    paid = Debt(written, moot, cleared, len(mflib.debtfile.ids(text)), checks)
     stamp(context, f"debt — {_debt_detail(paid)}")
     return paid
 
@@ -1415,7 +1350,7 @@ def debted(context: Context) -> Debt:
         named.get("written", []),
         named.get("moot", []),
         named.get("cleared", []),
-        len(DEBT_TITLE.findall(text)),
+        len(mflib.debtfile.ids(text)),
         {},
     )
 
