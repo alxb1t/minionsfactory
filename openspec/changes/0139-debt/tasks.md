@@ -8,7 +8,7 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 - [x] 2 — The module · hard
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
-- [ ] 5 — The rule and the record · moderate
+- [x] 5 — The rule and the record · moderate
 
 ## 1 — The pin
 
@@ -118,11 +118,11 @@ Each task turns the rows of the pin it names to one side and leaves the others, 
 
 The lists shrank with the move, in phase 3, per [D11](design.md#d11); this phase amends the record and edits no debt card, per [D13](design.md#d13).
 
-- [ ] 5.1 In `docs/decisions.md` amend D16 where it lives: `.minions/debt.md` is written and parsed by `skills/mflib/debtfile.py`, and its lock knows its holder.
+- [x] 5.1 In `docs/decisions.md` amend D16 where it lives: `.minions/debt.md` is written and parsed by `skills/mflib/debtfile.py`, and its lock knows its holder.
   Verify: `git grep -n -F "skills/mflib/debtfile.py" -- docs/decisions.md` prints a line.
-- [ ] 5.2 In `docs/decisions.md` amend D66 so `debt_match.py` is a command over the module, and D57 so `debt.md` stays generic and is written and parsed by the module; in D83 name the module beside `findings.py` as a writer of the card head.
+- [x] 5.2 In `docs/decisions.md` amend D66 so `debt_match.py` is a command over the module, and D57 so `debt.md` stays generic and is written and parsed by the module; in D83 name the module beside `findings.py` as a writer of the card head.
   Verify: `git grep -n -F "is a command over the module" -- docs/decisions.md` prints a line.
-- [ ] 5.3 In `docs/recipes.md`, in the state-file recipe, say the debt file is written and parsed through `skills/mflib/debtfile.py`, its lock through `lock`; in `docs/modules.md` hold the layer text as it is.
+- [x] 5.3 In `docs/recipes.md`, in the state-file recipe, say the debt file is written and parsed through `skills/mflib/debtfile.py`, its lock through `lock`; in `docs/modules.md` hold the layer text as it is.
   Verify: `git grep -n -F "debtfile.py" -- docs/recipes.md` prints a line.
-- [ ] 5.4 In `THREAT_MODEL.md` add to the findings-files bullet that the debt write holds its folder and its lock's token, and that the start-of-run move of an old layout's files, `migrate_layout`, and of an old `backlog.md`, `migrate_debt`, follow no link; add the debt module's name to the sentence that lists the shared home's formats.
+- [x] 5.4 In `THREAT_MODEL.md` add to the findings-files bullet that the debt write holds its folder and its lock's token, and that the start-of-run move of an old layout's files, `migrate_layout`, and of an old `backlog.md`, `migrate_debt`, follow no link; add the debt module's name to the sentence that lists the shared home's formats.
   Verify: `git grep -n -F "migrate_debt" -- THREAT_MODEL.md` prints a line.

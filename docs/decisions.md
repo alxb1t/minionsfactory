@@ -71,7 +71,7 @@ conductor. The world is reached through named seams — the platform, whose file
 executor, the host and the tooling. `docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds
 the map, the loads, the private names, the cycles, the OS commands, the state paths spelled outside
 `skills/mflib/layout.py`, the format names spelled outside `skills/mflib/` — the card head `- **`, written by
-`skills/mflib/findings.py`, among them — the seed line its folder fixes before a script's first `mflib` import, and a threat-model
+`skills/mflib/findings.py` and `skills/mflib/debtfile.py`, among them — the seed line its folder fixes before a script's first `mflib` import, and a threat-model
 surface for each Python file under `skills/`, in `make gate` and `make check`.**
 
 - **Why:** the refactoring series moves code one region at a time, and a shape no gate holds drifts back with the next
@@ -356,7 +356,8 @@ by plan` or `<role>: skipped`.**
 checked by one verify pass that is no round ([D71](#d71--the-cut-and-converge-read-what-changed)). Everything else,
 save an amend card ([D15](#d15--anchored-harms-block-drift-never-does)), becomes a card — why, when, what,
 priority, fix and size, trigger, still true? — in the gitignored `.minions/debt.md`: one file per repository, in
-the primary's `.minions/`, shared by every worktree and written under `.minions/debt.lock`. A card is a finding of
+the primary's `.minions/`, shared by every worktree, written and parsed by `skills/mflib/debtfile.py`, and written
+under `.minions/debt.lock`, a lock that knows its holder. A card is a finding of
 the check loop, or of the hand read that stands in for it; work with no finding behind it is planning, and lives
 outside the repo. The debt never blocks a release; a paydown change lists the cards it closes and its release
 deletes them.**
@@ -421,8 +422,9 @@ Conformance judges the code against the change's own spec, design, tasks and the
 cites, from the change's artifacts, its bundle and the diff, reading no code beyond the diff's hunks; it grades `blocking` ·
 `drift` · `nit`, on the mid tier. Adversarial tries to break the change — races, edge cases, exploits, security — from the diff,
 the source and tests around it and the threat model; it grades `critical` · `high` · `medium` · `low`, `high` a bug that would
-block, on the strongest tier. Each reads `diff.patch` once. `debt_match.py` writes the debt cards on
-the diff's files to `debt-cards.md`, and no worker reads `.minions/debt.md`. A verify round after a fix reads its open cards, the fix diff and `references/verify.md`.**
+block, on the strongest tier. Each reads `diff.patch` once. `debt_match.py` is a command over the module
+`skills/mflib/debtfile.py`: it writes the debt cards on the diff's files to `debt-cards.md`, and no worker reads
+`.minions/debt.md`. A verify round after a fix reads its open cards, the fix diff and `references/verify.md`.**
 
 - **Why:** of 0072–0089's blockers, spec conformance as text caught 29% and adversarial correctness 60%; review and security
   found 11 issues twice; the debt was 11.4% of a round-1 review's reads, cited by no blocker; a verify spent 40–50% re-reading
@@ -1152,7 +1154,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 `conformance.md` and `adversarial.md` are written and parsed by `skills/mflib/findings.py`, found through
 `findings_file` of `skills/mflib/layout.py`. `grants/`,
 `runs/`, `gate/`, `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
-`runs/<stamp>/`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
+`runs/<stamp>/`; `debt.md` is written and parsed by `skills/mflib/debtfile.py`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
 old `review.md` and `security.md` among it — and a file beside its new one or a link halts it; a hand-run station or
 script on an old layout halts, naming `/mf-ship`, each reading the one old-layout table of `skills/mflib/layout.py`, and
 `review_metrics.py` reads both.**
