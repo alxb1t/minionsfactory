@@ -11,6 +11,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from mflib import debtfile
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-converge" / "scripts" / "debt_match.py"
@@ -133,13 +134,64 @@ def test_debt_match_refuses_what_it_cannot_read(
     assert cards.read_text() == "# t\n"
     # A debt file that cannot be read is no missing one.
     patch.write_text(_PATCH)
-    debt.write_bytes(b"\xff")
+    debt.unlink()
+    debt.mkdir()
     code, said = _run(capsys, debt, patch, cards)
     assert code == 2 and said.startswith(f"debt: cannot match — {debt}: ")
     assert cards.read_text() == "# t\n"
+    debt.rmdir()
     # A staged file that cannot be written leaves the cards file as it stood.
     debt.write_text(_DEBT)
     (tmp_path / "debt-cards.md.tmp").mkdir()
     code, said = _run(capsys, debt, patch, cards)
     assert code == 2 and said.startswith(f"debt: cannot match — {cards}: ")
     assert cards.read_text() == "# t\n"
+
+
+def test_debt_pin_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Why: 0139-debt design D1, the pin of `debt_match.py` as it stands.
+    assert debtfile.paths(
+        "diff --git a/old.md b/new.md\n diff --git a/no.md b/no.md\n"
+        "diff --git a/src/a.py b/src/a.py\n"
+    ) == {"old.md", "new.md", "src/a.py"}
+    # A blank line does not end a card; a line at column 0 does.
+    debt = (
+        "# Debt\n\n## 0001-a\n\n- **0001·R1 — one**\n  - **Fix:** x\n\n"
+        "  - **What it affects:** `a.py`\nloose prose\n  - **Round:** 1\n"
+        "- **R2 — two**\n  - **What it affects:** `b.py`\n### a note\n"
+        "  - **Status:** open\n"
+    )
+    assert debtfile.blocks(debt) == [
+        "- **0001·R1 — one**\n  - **Fix:** x\n\n  - **What it affects:** `a.py`\n",
+    ]
+    assert debtfile.matched(debtfile.blocks(debt)[0], {"a.py"})
+    card = (
+        "- **0001·R1 — a**\n"
+        "  - **What it affects:** `save()` in `src/a.py:12`, `docs/x.md:3-9`\n"
+        "  - **Fix:** `src/c.py`\n"
+    )
+    for changed in ({"src/a.py"}, {"docs/x.md"}, {"save()"}):
+        assert debtfile.matched(card, changed), changed
+    assert not debtfile.matched(card, {"src/c.py"})
+    flat = "- **0001·R1 — a**\n- **What it affects:** `src/a.py`\n"
+    assert not debtfile.matched(flat, {"src/a.py"})
+
+    patch, cards = tmp_path / "diff.patch", tmp_path / "debt-cards.md"
+    patch.write_text(_PATCH)
+    # A link halts, dangling or not, and is never followed.
+    linked, target = tmp_path / "debt.md", tmp_path / "target.md"
+    linked.symlink_to(target)
+    refused = (2, f"debt: cannot match — {linked}: it is a link\n")
+    assert _run(capsys, linked, patch, cards) == refused
+    assert not cards.exists()
+    target.write_text(_DEBT)
+    assert _run(capsys, linked, patch, cards) == refused
+    assert not cards.exists()
+    linked.unlink()
+    # A bad byte is replaced, and the cards still match.
+    linked.write_bytes(_DEBT.encode() + b"\xff\n")
+    assert _run(capsys, linked, patch, cards) == (
+        0,
+        "debt: 2 cards on the diff's files\n",
+    )
+    assert cards.read_text() == f"{_HEADING}\n\n{_A}{_X}"

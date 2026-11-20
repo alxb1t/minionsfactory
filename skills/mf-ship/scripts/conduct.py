@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from markdown_it.token import Token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.debtfile
 import mflib.findings
 import mflib.layout
 import mflib.platform
@@ -1084,19 +1085,10 @@ def _is_event(line: str, event: str) -> bool:
 def _clear_stale_lock(primary: Path, name: str) -> int | None:
     """Remove the lock `name` older than `LOCK_STALE`; return its age in seconds.
 
-    A lock younger, or one `rmdir` refuses, stays. Why: 0053-sandbox-patch design D3.
+    The break is `debtfile.break_stale`'s. Why: 0053-sandbox-patch design D3;
+    0139-debt design D6.
     """
-    lock = primary / name
-    if not lock.is_dir():
-        return None
-    age = round(time.time() - lock.stat().st_mtime)
-    if age <= LOCK_STALE:
-        return None
-    try:
-        lock.rmdir()
-    except OSError:
-        return None
-    return age
+    return mflib.debtfile.break_stale(primary / name, LOCK_STALE)
 
 
 def _fresh_tmp(primary: Path) -> str | None:
@@ -6616,11 +6608,14 @@ class Run:
         if old.is_file() and new.exists():
             return both
         self.unlock(old_lock_name)
-        if not old.is_file():
+        if not os.path.lexists(old):
             return None
         if old.is_symlink():
             # A link would make the debt a second name of the file it names.
             return f"{old_name} is a link: a person settles what it names"
+        if not old.is_file():
+            # why: 0139-debt design D8
+            return f"{old_name} is no regular file: a person settles what it is"
         if old_lock.is_dir():
             return f"{old_lock_name} is held: a person or a hand-run writer holds it"
         if old_lock.exists():
@@ -6629,17 +6624,14 @@ class Run:
         if lock.is_symlink() or (lock.exists() and not lock.is_dir()):
             return f"{lock_name} is a file, not a lock: a person removes it"
         try:
-            lock.mkdir()
-        except FileExistsError:
+            with mflib.debtfile.lock(lock):
+                # A link never replaces: a debt file made since the check stands.
+                os.link(old, new)
+                old.unlink()
+        except mflib.debtfile.Held:
             return f"{lock_name} is held: a person or a hand-run writer holds it"
-        try:
-            # A link never replaces: a debt file made since the check stands.
-            os.link(old, new)
-            old.unlink()
         except FileExistsError:
             return both
-        finally:
-            lock.rmdir()
         self.log.event("run", "move", f"{old_name} → {new_name}")
         return None
 
@@ -8133,16 +8125,21 @@ def _merge_commit(primary: Path, version: Version) -> str | None:
 def _cards(debt: Path, change: str) -> list[str]:
     """Return the ids of the cards under the change's debt heading.
 
-    e.g. "- **0016·R5 — a title**" → "0016·R5"
+    A debt it may not read raises `Unreadable`. e.g. "- **0016·R5 — a title**" →
+    "0016·R5"
     """
-    ids: list[str] = []
-    inside = False
-    for line in debt.read_text().splitlines() if debt.is_file() else []:
-        if line.startswith("## "):
-            inside = line.strip() == f"## {change}"
-        elif inside and (card := re.match(r"- \*\*([^\s*]+) — ", line)):
-            ids.append(card[1])
-    return ids
+    return mflib.debtfile.ids(mflib.debtfile.read(debt), change)
+
+
+def _cards_part(debt: Path, change: str) -> str:
+    """Return the report's part for a change's debt cards, or why it may not read it.
+
+    e.g. "cards 0016·R5", "debt unreadable: it is a link". Why: 0139-debt design D9.
+    """
+    try:
+        return f"cards {' '.join(_cards(debt, change)) or 'none'}"
+    except mflib.debtfile.Unreadable as unread:
+        return f"debt unreadable: {unread.reason}"
 
 
 def _log_order(log: Path) -> tuple[str, int, str]:
@@ -8232,7 +8229,7 @@ def report(cwd: Path) -> str:
             else None
         )
         page = mflib.layout.metrics_page(primary, change)
-        cards = _cards(mflib.layout.debt_file(primary), change)
+        cards = _cards_part(mflib.layout.debt_file(primary), change)
         lines.append(
             " · ".join(
                 [
@@ -8241,7 +8238,7 @@ def report(cwd: Path) -> str:
                     f"merge {merge or 'none'}",
                     word,
                     f"round {round_ or 'none'}",
-                    f"cards {' '.join(cards) or 'none'}",
+                    cards,
                     f"denied {', '.join(denied.get(change, [])) or 'none'}",
                     f".minions/metrics/{change}.html"
                     if page.is_file()

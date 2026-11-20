@@ -19,6 +19,7 @@ from types import ModuleType
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.debtfile
 import mflib.layout
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -27,14 +28,12 @@ RUNNER = ("uv", "run", "--script")
 BRIEF_CHECK = SCRIPTS.parents[1] / "mf-plan" / "scripts" / "brief_check.py"
 FACTS = SCRIPTS / "facts.py"
 BUNDLE = SCRIPTS.parents[1] / "mf-converge" / "scripts" / "bundle.py"
-DEBT_MATCH = SCRIPTS.parents[1] / "mf-converge" / "scripts" / "debt_match.py"
 SLICE_LINES = 80
 TIMEOUT_SECONDS = 60
 FOR_THE_CUT = "## For the cut"
 ITEM_HEAD = re.compile(r"\d+\. (\S.*)")
 REQUIREMENT = "### Requirement: "
 FENCE = "~~~~"
-CARD_ID = re.compile(r"- \*\*([^\s*]+) — ")
 CHANGE_ID = re.compile(r"\d+-[a-z0-9]+(?:-[a-z0-9]+)*")
 PHASES = "## Phases"
 DECISIONS = "## Decisions"
@@ -347,18 +346,20 @@ def run_dir() -> Path:
 def debt_section(item: list[str] | None, placed: list[Any]) -> str:
     """Return the `## Debt cards` text: cards on a cited path or listed by the item.
 
-    The cards are the run directory's `debt.md`, read by `debt_match.py`.
+    The cards are the run directory's `debt.md`, read and cut by
+    `skills/mflib/debtfile.py`; a debt it may not read stops with exit 2.
     """
     path = mflib.layout.debt_file(_primary())
-    if not path.exists():
-        return _section("Debt cards", [])
-    debt_match = _load(DEBT_MATCH)
+    try:
+        text = mflib.debtfile.read(path)
+    except mflib.debtfile.Unreadable as unread:
+        raise Stop(2, f"cut_context: cannot write — {path}: {unread.reason}") from None
     cited = {cite.path for one in placed for cite in one.cites}
     listed = set(_ids(item_flags(item or []).get("debt", "")))
     kept = [
         card.strip()
-        for card in debt_match.cards(_read(path))
-        if debt_match.matched(card, cited) or _card_id(card) in listed
+        for card in mflib.debtfile.blocks(text)
+        if mflib.debtfile.matched(card, cited) or mflib.debtfile.card_id(card) in listed
     ]
     return _section("Debt cards", kept)
 
@@ -378,15 +379,6 @@ def _ids(value: str) -> list[str]:
     e.g. "[0113·S4, 0114·S1]" → ["0113·S4", "0114·S1"]
     """
     return [one for entry in value.split(",") if (one := entry.strip("[]` "))]
-
-
-def _card_id(card: str) -> str:
-    """Return the id a card's title opens with, or none.
-
-    e.g. "- **0113·S4 — a title**" → "0113·S4"
-    """
-    found = CARD_ID.match(card)
-    return found[1] if found else ""
 
 
 def skeletons_section() -> str:

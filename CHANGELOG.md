@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.111.0] - 2026-11-20
+
+Gate: local 6m32s · CI not read under mf-ship · 0.110.0: local 5m37s · CI not read under mf-ship
+
+- Pin tests hold each copy of the debt file's rules as it stands: converge's read, lock, file, unfile, write and
+  freeze, `debt_match.py`, `cut_context.py`'s debt section, and the conductor's card reader, stale break and migration,
+  before the copies move into one module (0139-debt, phase 1).
+- `skills/mflib/debtfile.py` holds each copy of the debt file's rules as it stands — the read, the title, the card,
+  the file and unfile, the spoiled card, the lock and the staged write — with no caller yet, so the stations can move
+  onto it with no assert changed (0139-debt, phase 2).
+- Converge, `debt_match.py`, `cut_context.py` and the conductor read and write the debt file through
+  `skills/mflib/debtfile.py`, and hold no copy of its rules; no behaviour or assert changed, so the fix can turn one
+  rule at a time (0139-debt, phase 3).
+- The debt file's copies agree: a card has a qualified id and `findings.cards`'s extent, a heading's trailing blanks
+  are forgiven, every reader follows no link, the freeze halts on a debt it may not read, the lock knows its holder,
+  the debt write holds its folder, and `report` names a debt it may not read (0139-debt, phase 4).
+- D16, D57, D66, D83, the state-file recipe and the threat model name `skills/mflib/debtfile.py` as the debt file's
+  writer and parser, its lock's holder, and the start-of-run moves that follow no link (0139-debt, phase 5).
+- A debt card's title reads its change's number at any width, as converge files it, so a card of `1-…` or
+  `10000-…` is counted and matched again (0139-debt, phase 6).
+
 ## [0.110.0] - 2026-11-20
 
 Gate: local 5m37s · CI not read under mf-ship · 0.109.0: local 6m40s · CI not read under mf-ship

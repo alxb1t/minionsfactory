@@ -277,7 +277,8 @@ def test_the_debt_cards_on_cited_files_and_listed_ids(
         f"## Debt cards\n\n{cited}\n\n{listed}"
     )
     assert cut_context.debt_section(["debt: none"], []) == "## Debt cards\n\nNone."
-    (root / ".minions" / "debt.md").write_bytes(b"\xff\xfe")
+    (root / ".minions" / "debt.md").unlink()
+    (root / ".minions" / "debt.md").mkdir()
     with pytest.raises(cut_context.Stop) as stop:
         cut_context.debt_section(None, placed)
     assert stop.value.code == 2
@@ -287,6 +288,33 @@ def test_the_debt_cards_on_cited_files_and_listed_ids(
     with pytest.raises(cut_context.Stop) as stop:
         cut_context.run_dir()
     assert (stop.value.code, "git rev-parse" in str(stop.value)) == (2, True)
+
+
+def test_debt_pin_section(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Why: 0139-debt design D1, the pin of `debt_section` as it stands.
+    root = tmp_path / "repo"
+    _repo(root, {"src/a.py": "one\n"})
+    monkeypatch.chdir(root)
+    debt = root / ".minions" / "debt.md"
+    debt.parent.mkdir()
+    listed = "- **0113·S4 — listed**\n  - **What it affects:** `src/y.py`"
+    bare = "- **S9 — unqualified**\n  - **What it affects:** `src/z.py`"
+    debt.write_text(f"# Debt\n\n## 0113-x\n\n{listed}\n\n{bare}\n")
+    item = ["**`x`**", "`minor`", "after: none", "debt: [`0113·S4`, `S9`]"]
+    assert cut_context.debt_section(item, []) == f"## Debt cards\n\n{listed}"
+    debt.unlink()
+    debt.symlink_to(debt.with_name("gone.md"))
+    with pytest.raises(cut_context.Stop) as linked:
+        cut_context.debt_section(item, [])
+    assert (linked.value.code, str(linked.value)) == (
+        2,
+        f"cut_context: cannot write — {debt}: it is a link",
+    )
+    debt.unlink()
+    debt.write_bytes(f"{listed}\n  - **Fix:** ".encode() + b"\xff\n")
+    assert cut_context.debt_section(item, []) == (
+        f"## Debt cards\n\n{listed}\n  - **Fix:** �"
+    )
 
 
 def _headings(text: str) -> list[str]:

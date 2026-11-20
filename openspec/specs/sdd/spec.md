@@ -1063,11 +1063,11 @@ Every station and bundled script SHALL resolve the run directory as `.minions/` 
 directory — `git rev-parse --path-format=absolute --git-common-dir`, its parent — from any worktree of the
 repository, the parent taken by `primary_of` and the join by `run_dir` of the shared home, `skills/mflib/layout.py`. Each script SHALL keep its own git call, its guard and its error text. `conduct.py` alone SHALL halt on that answer outside the repo it names until a run has kept that repo's URLs: a worker
 can write what steers it. Converge and the release SHALL write `.minions/debt.md` only while holding `.minions/debt.lock`,
-created with `mkdir`, halting after ten minutes of waiting and naming the lock. A run holding the claim SHALL remove a
+created with `mkdir`, halting after ten minutes of waiting and naming the lock; converge SHALL take and release the lock through `skills/mflib/debtfile.py`, whose lock knows its holder. A run holding the claim SHALL remove a
 `debt.lock` older than ten minutes before its first worker, and log it. A run SHALL move an old `.minions/backlog.md` to `debt.md`, and remove a stale `backlog.lock`, at its start, under its
 claim, and halt naming them when both files stand, or when beside the old file the old lock is a file or younger than
-ten minutes; with no old file, no old lock halts. An old file that is a link SHALL halt, naming it, and the move SHALL NOT
-follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting naming it when it is held, and naming it a
+ten minutes; with no old file, no old lock halts. An old file that is a link, or is no regular file, SHALL halt, naming it, and the move SHALL NOT
+follow it. The move SHALL hold `.minions/debt.lock`, created with `mkdir`, halting at once, naming it, when it is held, and naming it a
 file, not a lock, when a file or a link stands there; it SHALL NOT replace a `debt.md`. Everything about one change SHALL live in `.minions/changes/<change-id>/` — its conformance, adversarial and status
 log files, its diff patch, its models file, the cutter's `cut.halt`, integrate's notes, build's marks, rescue's diagnosis, release's `held`, its gate-check
 export and its worker logs — each script finding it through `change_dir(primary, id)` of the shared home; `grants/`, `runs/`, `gate/`,
@@ -1110,6 +1110,10 @@ layouts.
 - **THEN** the run halts, naming `.minions/debt.lock` a file, not a lock, and starts no worker
 - **AND WHEN** no old file stands beside a young `backlog.lock`, or a file there
 - **THEN** the run goes on
+
+#### Scenario: An old backlog that is no file
+- **WHEN** a run starts beside a `.minions/backlog.md` that is a dangling link or a folder
+- **THEN** the run halts, naming `.minions/backlog.md`, and starts no worker
 
 #### Scenario: A run moves an old layout
 - **WHEN** a run starts beside `.minions/findings/<id>_review.md`, `models/<id>.toml`, `build/<id>.done` and a stray `findings/notes.txt`
@@ -3156,7 +3160,7 @@ collector's station values.
 ### Requirement: Converge keeps deferred work in one repository debt file
 
 `skills/mf-converge/scripts/converge.py` SHALL write every non-blocking card it does not fix, whose **Still true?** check still
-shows the defect, to one file, `.minions/debt.md`, under a heading for its change — save an amend card that halts, as *The
+shows the defect, to one file, `.minions/debt.md`, under a heading for its change, through `skills/mflib/debtfile.py` and the folder it opens from the primary — save an amend card that halts, as *The
 converge fixer leaves the plan to the person* says; an amend card whose id an answered `amend needed` halt logged
 since the newest `round 1 · start` line named, or whose qualified id already stands in the debt, SHALL go on as every
 other card. After both verdicts are
@@ -3191,6 +3195,10 @@ it was fixed and the card's **Still true?** check shows the defect gone.
 - **AND** it names each moot card, whose check shows the defect gone, in its report
 - **AND** it deletes an older card only when a verified repeat of it fixed the defect and its **Still true?**
   check shows the defect gone
+
+#### Scenario: A change's heading with trailing blanks
+- **WHEN** the debt holds the change's heading followed by trailing blanks and converge writes a card for that change
+- **THEN** the card goes under that heading and no second heading is written
 
 #### Scenario: An amend card after its amend
 - **WHEN** Step 9 finds an amend card whose **Still true?** check still shows the defect, and an answered `amend needed` halt
@@ -4017,12 +4025,12 @@ as `[converge.conformance]` and `[converge.adversarial]` when the new table is a
 
 ### Requirement: Converge bundles the debt cards on the diff's files
 
-At each freeze, after `bundle.py`, converge SHALL run `skills/mf-converge/scripts/debt_match.py`, which writes
+At each freeze, after `bundle.py`, converge SHALL run `skills/mf-converge/scripts/debt_match.py`, a command over `skills/mflib/debtfile.py`, which writes
 `.minions/changes/<change-id>/debt-cards.md` whole: a `# Debt cards on the diff's files` title, then each card of
 `.minions/debt.md`, in full, whose **What it affects** field names in backticks a path the frozen patch changes, a `:<line>`
 suffix dropped; `None.` when no card matches, or no debt file stands. No worker SHALL read `.minions/debt.md`; the repeat
-rule SHALL match the cards `debt-cards.md` holds. `debt_match.py` SHALL refuse to write through a link, and SHALL exit 2,
-writing nothing, when the debt file or the patch cannot be read.
+rule SHALL match the cards `debt-cards.md` holds. `debt_match.py` SHALL read the debt as the module reads it, following no link and replacing a byte that is not UTF-8, SHALL refuse to write through a link, and SHALL exit 2,
+writing nothing, when the debt file is a link or cannot be opened, or the patch cannot be read; a freeze that gets a non-zero exit from it SHALL halt, naming `debt_match.py`, and SHALL NOT write an empty `debt-cards.md`.
 
 #### Scenario: A card on a file the diff touches
 - **WHEN** the debt holds a card whose **What it affects** names `` `src/a.py:12` `` and another naming `` `src/b.py` ``, and the
@@ -4036,6 +4044,14 @@ writing nothing, when the debt file or the patch cannot be read.
 #### Scenario: A bundle that is a link
 - **WHEN** `debt-cards.md`, the debt cards beside the bundle, is a link
 - **THEN** `debt_match.py` exits 2 naming it, and the link's target is unchanged
+
+#### Scenario: A debt that is a link
+- **WHEN** `.minions/debt.md` is a link
+- **THEN** `debt_match.py` exits 2 naming it, and the freeze halts naming `debt_match.py`, with no empty `debt-cards.md`
+
+#### Scenario: A bad byte in the debt
+- **WHEN** `.minions/debt.md` holds a byte that is not UTF-8
+- **THEN** `debt_match.py` replaces it, matches the cards and exits 0
 
 ### Requirement: A verify worker reads its open cards and the fix diff
 
@@ -4839,14 +4855,13 @@ under `conduct.py`'s sandbox runner, never bare. It SHALL read a findings file's
 whose id is outside `R<n>` and `S<n>`, SHALL be malformed. `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py`
 and `skip_stub.py` SHALL read a findings file's cards and frontmatter through `skills/mflib/findings.py`, a card's title a line that
 starts `- **<id> — ` with an id holding no `*`, so a bullet that closes its bold after its first word, as `- **stale-claim** — ran.`,
-is no card; `debt_match.py` and `cut_context.py` SHALL read a debt card's title by that rule. The status log's events and their text
+is no card; `skills/mflib/debtfile.py` SHALL read a debt card's title, a line that starts `- **<digits>·<id> — ` with an id holding no `*`, and `debt_match.py` and `cut_context.py` SHALL read it through the module. The status log's events and their text
 SHALL stay as before.
 
 The script SHALL go on where it can: a worker that exits non-zero or leaves no file SHALL get one fresh retry; a malformed
 findings file SHALL get one rewrite worker, then a debt card for it, and the run SHALL go on; a fixer whose gate is red or whose tree
-is dirty SHALL get one more fix pass, then the halt `cap reached`; `debt_match.py` or `replay` exiting 2 SHALL leave an empty
-`debt-cards.md` or send a worker round; the debt lock SHALL be waited for 10 minutes. The environment, a loop outcome, a gate that
-stays red and a security card SHALL still halt.
+is dirty SHALL get one more fix pass, then the halt `cap reached`; `replay` exiting 2 SHALL send a worker round; the debt lock SHALL be waited for 10 minutes. The environment, a loop outcome, a gate that
+stays red, a security card and a debt the freeze may not read SHALL still halt.
 
 #### Scenario: A version converges with no conducting worker
 - **WHEN** a run takes a built version to converge on the fake hosts
@@ -4878,6 +4893,10 @@ stays red and a security card SHALL still halt.
 #### Scenario: A check command writes outside the trees
 - **WHEN** a card's **Still true?** command tries to write a file outside the worktrees
 - **THEN** the sandbox denies it, the card goes to the debt unchecked, and nothing is written outside
+
+#### Scenario: A debt the freeze may not read
+- **WHEN** `.minions/debt.md` is a link at a freeze
+- **THEN** converge halts naming `debt_match.py`, and writes no empty `debt-cards.md`
 
 #### Scenario: By hand
 - **WHEN** a person runs `conduct.py converge <change-id> fix=claude-sonnet-5-5/medium` in a version's worktree
@@ -5787,3 +5806,35 @@ The **frontmatter** SHALL be the block at the start of the file, closed by its f
 #### Scenario: Which Status clears
 - **WHEN** a findings file holds a card whose Status is `accepted`
 - **THEN** converge clears it and `skip_stub.py` does not
+
+### Requirement: One module writes and parses the debt file
+
+`skills/mflib/debtfile.py` SHALL be the one writer and parser of `.minions/debt.md`: its read, a card's id, extent and count, the file and unfile of cards, the spoiled card's text, its lock, the patch's paths and the match of a card to them, the page of `debt-cards.md`, and the clear of a paid card. `converge.py`, `cut_context.py` and `conduct.py` SHALL read and write the debt through it, and `debt_match.py` SHALL be a command over it with its arguments, output and exits as they were. The module SHALL name no state path: its callers find the file and its lock through `skills/mflib/layout.py`.
+
+A debt card SHALL be a title line `- **<digits>·<id> — <title>**`, its number at any width, and the indented lines after it, a blank line not ending it, and a count SHALL be of the file or of the cards under one heading. A heading SHALL be `## <change>` as the writer writes it, trailing blanks forgiven on the read, and a section SHALL end at the next `## ` line alone; the writer's own lookup of a heading SHALL be a read. Every reader SHALL follow no link and replace a byte that is not UTF-8, a link SHALL halt it, and a missing file SHALL read as no card.
+
+The lock SHALL be one function of the module: it SHALL make `.minions/debt.lock` by `mkdir`, wait the caller's seconds by five and raise when it is still held, write its holder's token into the lock, and renew the lock's time after each **Still true?** command. Its release SHALL remove only a lock that holds that token, and a lock gone or another's SHALL be no error. The break of a stale lock SHALL go through the module and remove the token before the folder.
+
+#### Scenario: A heading with trailing blanks
+- **WHEN** the debt holds `## 0139-debt` followed by trailing blanks and converge files a card under that change
+- **THEN** the card goes under that heading, and no second heading is written
+
+#### Scenario: A card runs through a blank line
+- **WHEN** a debt card's **What it affects** follows a blank line after its title's field lines
+- **THEN** every reader reads it as the card's own
+
+#### Scenario: A title with no qualified id
+- **WHEN** the debt holds a line `- **R1 — a title**`
+- **THEN** no reader counts it as a card
+
+#### Scenario: A debt that is a link
+- **WHEN** `.minions/debt.md` is a link
+- **THEN** each reader refuses it, and the debt write and the freeze halt naming it
+
+#### Scenario: A lock another holder made
+- **WHEN** a holder's lock was broken as stale and a second holder took it, and the first holder releases
+- **THEN** the second holder's lock stands, and the first release raises no error
+
+#### Scenario: A live hold past ten minutes
+- **WHEN** a **Still true?** command runs past ten minutes and the holder renews the lock after it
+- **THEN** a run's start finds the lock younger than ten minutes and leaves it

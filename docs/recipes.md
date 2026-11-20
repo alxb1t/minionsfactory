@@ -50,6 +50,8 @@ A writer stages the file through `write` of `skills/mflib/statefile.py`, which r
 `WriteFailed` for the writer to word; a reader takes `statefile.read`, which follows no link. The status log is
 written and parsed through `skills/mflib/statuslog.py`, its path `layout.status_log(primary, change)`. The findings
 files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
+The debt file is written and parsed through `skills/mflib/debtfile.py`, its path `layout.debt_file(primary)`, and its
+lock taken through `debtfile.lock`.
 
 - **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
 - **Rules:** `check_layout` holds that `.minions` is joined in `skills/mflib/layout.py` alone: a string constant

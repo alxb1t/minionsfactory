@@ -28,6 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import mflib.debtfile
 import mflib.findings
 import pytest
 from conduct_load import conduct as _conduct
@@ -14844,3 +14845,152 @@ def test_fix_read_conduct_refuses_a_link(tmp_path: Path) -> None:
     assert conduct["_unjudged"](runs, root, "0001-a", skips=frozenset()) is None
     assert conduct["_amendable"](runs, "0001-a", "halt — cap reached")
     assert conduct["_open_blockers"](runs, "0001-a") == []
+
+
+# The pin: the conductor's copy of the debt file's rules, as it stands.
+# Why: 0139-debt design D1.
+
+
+def test_debt_pin_cards(tmp_path: Path) -> None:
+    conduct = _conduct()
+    cards, part = conduct["_cards"], conduct["_cards_part"]
+    debt = tmp_path / "debt.md"
+    assert cards(debt, "0001-a") == []
+    assert part(debt, "0001-a") == "cards none"
+    # A debt it may not read is named in the change's line, and the report goes on.
+    debt.mkdir()
+    with pytest.raises(mflib.debtfile.Unreadable):
+        cards(debt, "0001-a")
+    assert part(debt, "0001-a") in {
+        "debt unreadable: it is not a file",
+        "debt unreadable: Is a directory",
+    }
+    debt.rmdir()
+    text = (
+        "# Debt\n\n## 0000-z\n\n- **0000·R1 — z**\n\n## 0001-a  \n\n"
+        "- **0001·R1 — a**\n  - **0001·R9 — indented**\n### a note\n"
+        "- **R2 — unqualified**\n## 0002-b\n\n- **0002·R1 — b**\n"
+    )
+    target = tmp_path / "target.md"
+    target.write_text(text)
+    debt.symlink_to(target)
+    assert part(debt, "0001-a") == "debt unreadable: it is a link"
+    debt.unlink()
+    debt.write_text(text)
+    assert cards(debt, "0001-a") == ["0001·R1"]
+    assert part(debt, "0001-a") == "cards 0001·R1"
+    debt.write_bytes(text.encode() + b"## 0001-a\n\n- **0001\xff - a**\n")
+    assert cards(debt, "0001-a") == ["0001·R1"]
+
+
+def test_debt_pin_stale_lock(tmp_path: Path) -> None:
+    conduct = _conduct()
+    clear, stale = conduct["_clear_stale_lock"], conduct["LOCK_STALE"]
+    name = ".minions/debt.lock"
+    lock = tmp_path / name
+    assert clear(tmp_path, name) is None
+    lock.mkdir(parents=True)
+    at = time.time() - stale
+    os.utime(lock, (at, at))
+    assert clear(tmp_path, name) is None
+    assert lock.is_dir()
+    past = time.time() - stale - 1
+    os.utime(lock, (past, past))
+    assert clear(tmp_path, name) == stale + 1
+    assert not lock.exists()
+    # A stale lock's token goes, then the lock; a lock with another entry stays.
+    lock.mkdir()
+    (lock / "owner").write_text("x\n")
+    os.utime(lock, (past, past))
+    assert clear(tmp_path, name) == stale + 1
+    assert not lock.exists()
+    lock.mkdir()
+    (lock / "owner").write_text("x\n")
+    (lock / "other").write_text("")
+    os.utime(lock, (past, past))
+    assert clear(tmp_path, name) is None
+    assert (lock / "owner").is_file()
+
+
+def test_debt_pin_migration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    minions = root / ".minions"
+    minions.mkdir(exist_ok=True)
+    old, new = minions / "backlog.md", minions / "debt.md"
+    old_lock, lock = minions / "backlog.lock", minions / "debt.lock"
+    conductor = conduct["Run"](root, "claude")
+    move = conductor.migrate_debt
+    both = (
+        ".minions/backlog.md and .minions/debt.md both stand: a person settles which"
+        " to keep"
+    )
+    held = "is held: a person or a hand-run writer holds it"
+    no_lock = "is a file, not a lock: a person removes it"
+
+    # A backlog.md that is no regular file halts, naming it.
+    old.symlink_to(minions / "gone.md")
+    assert move() == ".minions/backlog.md is a link: a person settles what it names"
+    assert old.is_symlink() and not new.exists()
+    old.unlink()
+    old.mkdir()
+    assert move() == (
+        ".minions/backlog.md is no regular file: a person settles what it is"
+    )
+    assert old.is_dir() and not new.exists()
+    old.rmdir()
+
+    # Both files beside a held old lock: both stand wins.
+    old.write_text("# Backlog\n")
+    new.write_text("# Debt\n")
+    old_lock.mkdir()
+    assert move() == both
+    new.unlink()
+    assert move() == f".minions/backlog.lock {held}"
+    old_lock.rmdir()
+    old_lock.write_text("")
+    assert move() == f".minions/backlog.lock {no_lock}"
+    old_lock.unlink()
+    lock.mkdir()
+    assert move() == f".minions/debt.lock {held}"
+    lock.rmdir()
+    lock.write_text("")
+    assert move() == f".minions/debt.lock {no_lock}"
+    lock.unlink()
+    lock.symlink_to(tmp_path)
+    assert move() == f".minions/debt.lock {no_lock}"
+    lock.unlink()
+    old.unlink()
+    target = tmp_path / "target.md"
+    target.write_text("# Backlog\n")
+    old.symlink_to(target)
+    assert move() == ".minions/backlog.md is a link: a person settles what it names"
+    old.unlink()
+    assert not new.exists() and target.read_text() == "# Backlog\n"
+
+    # The link-then-unlink runs under the debt lock, which it then releases.
+    real, seen = os.link, []
+
+    def link(source: str | Path, to: str | Path) -> None:
+        seen.append(lock.is_dir())
+        real(source, to)
+
+    monkeypatch.setattr(os, "link", link)
+    old.write_text("# Backlog\n\n## 0001-a\n")
+    assert move() is None
+    assert seen == [True] and not lock.exists() and not old.exists()
+    assert new.read_text() == "# Backlog\n\n## 0001-a\n"
+    moved = " · run · move — .minions/backlog.md → .minions/debt.md\n"
+    assert moved in conductor.log.path.read_text()
+
+    # A debt file made between the check and the link stands.
+    def late(source: str | Path, to: str | Path) -> None:
+        Path(to).write_text("# Debt\n")
+        real(source, to)
+
+    monkeypatch.setattr(os, "link", late)
+    new.unlink()
+    old.write_text("# Backlog\n")
+    assert move() == both
+    assert not lock.exists() and old.is_file()
+    assert new.read_text() == "# Debt\n"
