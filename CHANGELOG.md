@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin tests hold each copy of the debt file's rules as it stands: converge's read, lock, file, unfile, write and
+  freeze, `debt_match.py`, `cut_context.py`'s debt section, and the conductor's card reader, stale break and migration,
+  before the copies move into one module (0139-debt, phase 1).
+
 ## [0.110.0] - 2026-11-20
 
 Gate: local 5m37s · CI not read under mf-ship · 0.109.0: local 6m40s · CI not read under mf-ship

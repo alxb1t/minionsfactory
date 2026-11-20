@@ -2960,3 +2960,275 @@ def test_fix_frontmatter_converge_ruled_edits_the_block_alone(tmp_path: Path) ->
         f"---\nhead: {'b' * 40}\nmode: by-rule\n---\n\nround: 7\nworkers: 3\n"
         "## By rule\n\n- a rule.\n2026-11-19 · round 2 · by rule — clean\n"
     )
+
+
+# The pin: converge's copy of the debt file's rules, as it stands.
+# Why: 0139-debt design D1.
+
+_PREAMBLE = (
+    "# Debt\n\n*Deferred work from converge, one heading per change; a paydown change"
+    " lists the ids it closes under `debt:`.*"
+)
+_OLD_BACKLOG = (
+    ".minions/debt.lock not taken — an old .minions/backlog.md stands;"
+    " /mf-ship moves it at a run's start"
+)
+
+
+def test_debt_pin_still_true(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    host.exits.update({"true": 1, "ls": 2})
+    still = converge["still_true"]
+
+    assert still(context, "  `true`  ") == (1, "true")
+    assert still(context, "`ls src` then `true`") == (2, "ls src")
+    assert still(context, "`true -x 'a b'`") == (1, "true -x 'a b'")
+    assert still(context, "read `true` and its caller") == (None, "")
+    assert still(context, "`'unbalanced`") == (None, "'unbalanced")
+    assert still(context, "` `") == (None, " ")
+    assert [argv for argv in host.ran if argv[0] in ("true", "ls")] == [
+        ["true"],
+        ["ls", "src"],
+        ["true", "-x", "a b"],
+    ]
+
+
+def test_debt_pin_lock(host: Host, monkeypatch: pytest.MonkeyPatch) -> None:
+    converge = _converge()
+    lock, primary = _debt(host).with_name("debt.lock"), host.primary
+    with converge["debt_lock"](primary):
+        assert lock.is_dir()
+    assert not lock.exists()
+    with pytest.raises(ValueError, match="the body"), converge["debt_lock"](primary):
+        raise ValueError("the body")
+    assert not lock.exists()
+
+    naps: list[float] = []
+    monkeypatch.setattr(time, "sleep", naps.append)
+    lock.mkdir()
+    with pytest.raises(converge["Halt"]) as held, converge["debt_lock"](primary):
+        pass
+    assert str(held.value) == ".minions/debt.lock held for 10 minutes"
+    poll, wait = converge["LOCK_POLL"], converge["LOCK_WAIT"]
+    assert naps == [poll] * (wait // poll)
+    assert lock.is_dir()
+    lock.rmdir()
+
+    old = lock.with_name("backlog.md")
+    old.symlink_to(lock.with_name("gone.md"))
+    with pytest.raises(converge["Halt"]) as dangling, converge["debt_lock"](primary):
+        pass
+    assert str(dangling.value) == _OLD_BACKLOG
+    assert not lock.exists()
+    old.unlink()
+
+    # The release removes what stands at the name, another holder's lock too.
+    with converge["debt_lock"](primary):
+        lock.rmdir()
+        lock.mkdir()
+    assert not lock.exists()
+    with pytest.raises(FileNotFoundError), converge["debt_lock"](primary):
+        lock.rmdir()
+
+
+def test_debt_pin_read(tmp_path: Path) -> None:
+    converge = _converge()
+    read, halt = converge["_debt_text"], converge["Halt"]
+    debt = tmp_path / "debt.md"
+    assert read(debt) == ""
+    debt.write_bytes(b"# Debt\n\xff\n")
+    assert read(debt) == "# Debt\n�\n"
+    debt.unlink()
+    target = tmp_path / "target.md"
+    target.write_text("# Debt\n")
+    debt.symlink_to(target)
+    with pytest.raises(halt) as linked:
+        read(debt)
+    assert str(linked.value) == ".minions/debt.md cannot be read: it is a link"
+    debt.unlink()
+    debt.mkdir()
+    with pytest.raises(halt) as folder:
+        read(debt)
+    # why: Linux opens a folder and the read names its kind; macOS refuses the open
+    assert str(folder.value) in {
+        ".minions/debt.md cannot be read: it is not a file",
+        ".minions/debt.md cannot be read: Is a directory",
+    }
+    debt.rmdir()
+
+    os.mkfifo(debt)
+    said: list[str] = []
+
+    def piped() -> None:
+        try:
+            read(debt)
+        except halt as halted:
+            said.append(str(halted))
+
+    reader = threading.Thread(target=piped)
+    reader.start()
+    reader.join(10)
+    assert not reader.is_alive()
+    assert said == [".minions/debt.md cannot be read: it is not a file"]
+
+    text = (
+        "- **0001·R1 — a**\n- **R2 — b**\n  - **0001·R3 — c**\n"
+        "-  **0001·R4 — d**\n- **0001·R5 —e**\n"
+    )
+    assert converge["DEBT_TITLE"].findall(text) == ["0001·R1", "R2"]
+
+
+def test_debt_pin_filed() -> None:
+    converge = _converge()
+    filed, unfiled = converge["_filed"], converge["_unfiled"]
+    card = "- **0001·R2 — new**\n  - **Status:** open\n"
+    old = "- **0001·R1 — old**\n  - **Status:** open\n"
+    assert filed("# Debt\n", _CHANGE, []) == "# Debt\n"
+    assert filed("# Debt\n\n", _CHANGE, [card]) == f"# Debt\n\n## 0001-a\n\n{card}"
+    # The heading is matched exactly: one with trailing blanks gets a second.
+    blank = f"# Debt\n\n## 0001-a  \n\n{old}"
+    assert filed(blank, _CHANGE, [card]) == (f"{blank.rstrip()}\n\n## 0001-a\n\n{card}")
+    # A `### ` line or a `#` line is inside; the cards go after the last non-blank.
+    inner = f"# Debt\n\n## 0001-a\n\n{old}### a note\n#no heading\n"
+    other = "## 0000-z\n\n- **0000·R1 — z**\n"
+    assert filed(f"{inner}\n\n{other}", _CHANGE, [card]) == (
+        f"{inner}{card}\n\n{other}"
+    )
+    assert filed(f"{inner}{other}", _CHANGE, [card]) == f"{inner}{card}\n{other}"
+    assert filed(inner, _CHANGE, [card]) == f"{inner}{card}"
+
+    # A blank line inside the card does not end it; the id is matched whole.
+    kept = "- **0001·R10 — kept**\n  - **Status:** open\n"
+    paid = "- **0001·R1 — paid**\n  - **Fix:** x\n\n  - **Status:** open\n"
+    debt = f"# Debt\n\n## 0001-a\n\n{paid}{kept}\n{other}"
+    left = f"# Debt\n\n## 0001-a\n\n{kept}\n{other}"
+    assert unfiled(debt, "0001·R1") == left
+    assert unfiled(left, "0001·R10") == f"# Debt\n\n{other}"
+    with pytest.raises(StopIteration):
+        unfiled(debt, "0001·R9")
+
+
+def test_debt_pin_write(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    head = _head(host)
+    filed = _card("R1 nit", size=_DESIGN)
+    body = (
+        filed
+        + _card("R2 blocking", status="fixed")
+        + _card("R3 nit", size=_DESIGN, status="verified")
+    )
+    host.write("conformance", findings("conformance", head, body=body))
+    host.write("adversarial", findings("adversarial", head, files=None))
+    debt = _debt(host)
+    where = f".minions/changes/{_CHANGE}/adversarial.md"
+    spoilt = (
+        "- **0001·M1 — adversarial's findings file was malformed after a rewrite**\n"
+        "  - **Why it's a problem:** converge read the role as clean at HEAD with"
+        " no card, so a finding in the file went unjudged.\n"
+        "  - **When you'd hit it:** the release reads the file's own verdict.\n"
+        f"  - **What it affects:** `{where}`.\n"
+        "  - **Evidence:** adversarial.md is malformed: files is missing · read.\n"
+        "  - **Verdict:** confirmed.\n"
+        "  - **Priority:** medium · conformance · maintainability — the role's"
+        " verdict this run is the script's, not its checker's.\n"
+        "  - **Round:** 1\n"
+        "  - **Fix:** rewrite the file to the findings file contract, then converge"
+        " again · size: a design change.\n"
+        "  - **Amend:** no\n"
+        f"  - **Trigger:** the release of {_CHANGE}.\n"
+        f"  - **Still true?** read `{where}` against the contract.\n"
+        "  - **Related:** none.\n"
+        "  - **Status:** open\n"
+    )
+
+    assert converge["debt"](context) == (["0001·R1", "0001·M1"], [], [], 2, {})
+
+    text = f"{_PREAMBLE}\n\n## 0001-a\n\n{_filed(filed)}{spoilt}"
+    assert debt.read_text() == text
+
+    assert converge["debt"](context) == ([], [], [], 2, {})
+
+    assert debt.read_text() == text
+
+    host.exits.update({"true": 1, "false": 0, "ls": 2})
+    old = {
+        n: _filed(_card(f"R{n} nit", still=f"`{command}`"), "0000")
+        for n, command in ((1, "true"), (2, "false"), (3, "ls"))
+    }
+    debt.write_text(f"{text}\n## 0000-z\n\n{''.join(old.values())}")
+    repeats = "".join(
+        _card(f"R{n + 3} nit", status="verified", related=f"repeat of `0000·R{n}`.")
+        for n in old
+    )
+    host.write("conformance", findings("conformance", head, body=filed + repeats))
+
+    assert converge["debt"](context) == ([], [], ["0000·R1"], 4, {"0000·R1": "true"})
+
+    assert debt.read_text() == f"{text}\n## 0000-z\n\n{old[2]}{old[3]}"
+
+
+def test_debt_pin_debted(host: Host) -> None:
+    converge = _converge()
+    context = _pin_context(converge, host)
+    _debt(host).write_text(
+        "# Debt\n\n## 0001-a\n\n- **0001·R1 — a**\n- **R2 — b**\n  - **0001·R3 — c**\n"
+    )
+    converge["stamp"](
+        context, "debt — written 0001·R1, 0001·R2 · moot R3 · cleared 0000·R1"
+    )
+
+    assert converge["debted"](context) == (
+        ["0001·R1", "0001·R2"],
+        ["R3"],
+        ["0000·R1"],
+        2,
+        {},
+    )
+
+    converge["stamp"](context, "debt — none")
+
+    assert converge["debted"](context) == ([], [], [], 2, {})
+
+    locked = statuslog.names_lock
+    assert locked("halt — .minions/debt.lock held for 10 minutes")
+    assert locked("halt — .minions/backlog.lock is held")
+    assert not locked("halt — .minions/queue.lock is held")
+
+
+def test_debt_pin_empty_page(host: Host) -> None:
+    converge = _converge()
+    debt = _debt(host)
+    debt.symlink_to(debt.with_name("gone.md"))
+    base = _git(host.tree, "merge-base", "main", "HEAD")
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    converge["open_run"](context)
+
+    converge["freeze"](context, base, _head(host))
+
+    assert (host.folder() / "debt-cards.md").read_text() == (
+        "# Debt cards on the diff's files\n\nNone.\n"
+    )
+    assert events(host)[-1].startswith("round 1 · freeze — ")
+
+
+def test_debt_pin_backlog_no_file(host: Host) -> None:
+    converge = _converge()
+    old = _debt(host).with_name("backlog.md")
+    old.symlink_to(old.with_name("gone.md"))
+    with (
+        pytest.raises(converge["Halt"]) as dangling,
+        converge["debt_lock"](host.primary),
+    ):
+        pass
+    assert str(dangling.value) == _OLD_BACKLOG
+    old.unlink()
+    old.write_text("# Backlog\n")
+    with (
+        pytest.raises(converge["Halt"]) as regular,
+        converge["debt_lock"](host.primary),
+    ):
+        pass
+    assert str(regular.value) == _OLD_BACKLOG
+    assert not old.with_name("debt.lock").exists()

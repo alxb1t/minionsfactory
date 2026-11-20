@@ -289,6 +289,30 @@ def test_the_debt_cards_on_cited_files_and_listed_ids(
     assert (stop.value.code, "git rev-parse" in str(stop.value)) == (2, True)
 
 
+def test_debt_pin_section(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Why: 0139-debt design D1, the pin of `debt_section` as it stands.
+    root = tmp_path / "repo"
+    _repo(root, {"src/a.py": "one\n"})
+    monkeypatch.chdir(root)
+    debt = root / ".minions" / "debt.md"
+    debt.parent.mkdir()
+    listed = "- **0113·S4 — listed**\n  - **What it affects:** `src/y.py`"
+    bare = "- **S9 — unqualified**\n  - **What it affects:** `src/z.py`"
+    debt.write_text(f"# Debt\n\n## 0113-x\n\n{listed}\n\n{bare}\n")
+    item = ["**`x`**", "`minor`", "after: none", "debt: [`0113·S4`, `S9`]"]
+    assert cut_context.debt_section(item, []) == (
+        f"## Debt cards\n\n{listed}\n\n{bare}"
+    )
+    debt.unlink()
+    debt.symlink_to(debt.with_name("gone.md"))
+    assert cut_context.debt_section(item, []) == "## Debt cards\n\nNone."
+    debt.unlink()
+    debt.write_bytes(b"- **S9 \xff unqualified**\n")
+    with pytest.raises(cut_context.Stop) as stop:
+        cut_context.debt_section(item, [])
+    assert stop.value.code == 2
+
+
 def _headings(text: str) -> list[str]:
     return [line for line in text.splitlines() if line.startswith("#")]
 

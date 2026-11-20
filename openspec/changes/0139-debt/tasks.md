@@ -4,7 +4,7 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
@@ -14,33 +14,33 @@ The phases: the pin on today's code, the module with no caller, the stations thr
 
 Each case below is green on the code as it stands and seen red under the change it names, per [D1](design.md#d1). A test's name starts `test_debt_pin_` and the task's word, so its `-k` finds it.
 
-- [ ] 1.1 **HALT CHECK** The functions the pin reaches stand in converge as the design reads them.
+- [x] 1.1 **HALT CHECK** The functions the pin reaches stand in converge as the design reads them.
   Verify: `git grep -n -e "^def still_true" -e "^def amends" -e "^def debted" -e "^def spoiled" -- skills/mf-converge/scripts/converge.py` prints a line for each.
-- [ ] 1.2 In `tests/test_converge.py` add `test_debt_pin_still_true`: `still_true` strips the value; the command is the first backticked span at its start, split by `shlex`; prose runs nothing; an unbalanced quote and a blank span read `None`.
+- [x] 1.2 In `tests/test_converge.py` add `test_debt_pin_still_true`: `still_true` strips the value; the command is the first backticked span at its start, split by `shlex`; prose runs nothing; an unbalanced quote and a blank span read `None`.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_still_true` passes.
-- [ ] 1.3 In `tests/test_converge.py` add `test_debt_pin_lock`: `debt_lock` makes `.minions/debt.lock` by `mkdir` and holds it through the body; an error in the body releases it; a held lock gets waits of `LOCK_POLL` seconds up to `LOCK_WAIT`, then the halt, and stays; a dangling `backlog.md` halts; the release removes a lock another holder made, and raises when the lock was broken.
+- [x] 1.3 In `tests/test_converge.py` add `test_debt_pin_lock`: `debt_lock` makes `.minions/debt.lock` by `mkdir` and holds it through the body; an error in the body releases it; a held lock gets waits of `LOCK_POLL` seconds up to `LOCK_WAIT`, then the halt, and stays; a dangling `backlog.md` halts; the release removes a lock another holder made, and raises when the lock was broken.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_lock` passes.
-- [ ] 1.4 In `tests/test_converge.py` add `test_debt_pin_read`: `_debt_text` reads no file as `""`, replaces a bad byte, and halts on a link, a folder and a pipe, each by its reason, the pipe case bounded by a thread joined in ten seconds; the title pattern counts any `- **<id> — ` line at column 0, an unqualified id too.
+- [x] 1.4 In `tests/test_converge.py` add `test_debt_pin_read`: `_debt_text` reads no file as `""`, replaces a bad byte, and halts on a link, a folder and a pipe, each by its reason, the pipe case bounded by a thread joined in ten seconds; the title pattern counts any `- **<id> — ` line at column 0, an unqualified id too.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_read` passes.
-- [ ] 1.5 In `tests/test_converge.py` add `test_debt_pin_filed`: the section is `## <change>` exactly, so a heading with trailing blanks gets a second heading; a section ends at a `## ` line alone; cards go after its last non-blank line; `_unfiled` takes the title and its indented lines, the id whole, and an emptied section's heading too, and an unknown id raises. The rows 0138 changed are proved again here.
+- [x] 1.5 In `tests/test_converge.py` add `test_debt_pin_filed`: the section is `## <change>` exactly, so a heading with trailing blanks gets a second heading; a section ends at a `## ` line alone; cards go after its last non-blank line; `_unfiled` takes the title and its indented lines, the id whole, and an emptied section's heading too, and an unknown id raises. The rows 0138 changed are proved again here.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_filed` passes.
-- [ ] 1.6 In `tests/test_converge.py` add `test_debt_pin_write`: `debt` files each non-blocking card that is not `verified`; a held spoiled card is not filed twice; a `verified` card with `repeat of <id>` clears that card on exit 1 alone; the preamble's text, and the spoiled card's id and fields, are held.
+- [x] 1.6 In `tests/test_converge.py` add `test_debt_pin_write`: `debt` files each non-blocking card that is not `verified`; a held spoiled card is not filed twice; a `verified` card with `repeat of <id>` clears that card on exit 1 alone; the preamble's text, and the spoiled card's id and fields, are held.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_write` passes.
-- [ ] 1.7 In `tests/test_converge.py` add `test_debt_pin_debted`: `debted` splits parts at ` · ` and ids at `, `, reads `none` as nothing, and counts the file's titles; `statuslog.names_lock` is true for the debt lock and the old backlog lock alone.
+- [x] 1.7 In `tests/test_converge.py` add `test_debt_pin_debted`: `debted` splits parts at ` · ` and ids at `, `, reads `none` as nothing, and counts the file's titles; `statuslog.names_lock` is true for the debt lock and the old backlog lock alone.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_debted` passes.
-- [ ] 1.8 In `tests/test_debt_match.py` add `test_debt_pin_match`: the paths are both sides of each `diff --git` line; a card runs to the next title or `#` line; **What it affects** is indented; every span counts, a `:n` suffix dropped; a dangling link exits 2; a link to a file is followed.
+- [x] 1.8 In `tests/test_debt_match.py` add `test_debt_pin_match`: the paths are both sides of each `diff --git` line; a card runs to the next title or `#` line; **What it affects** is indented; every span counts, a `:n` suffix dropped; a dangling link exits 2; a link to a file is followed.
   Verify: `uv run pytest tests/test_debt_match.py -q -k debt_pin_match` passes.
-- [ ] 1.9 In `tests/test_cut_context.py` add `test_debt_pin_section`: `debt_section` keeps a listed id with its backticks stripped, an unqualified id too; a dangling link reads `None.`; a bad byte exits 2.
+- [x] 1.9 In `tests/test_cut_context.py` add `test_debt_pin_section`: `debt_section` keeps a listed id with its backticks stripped, an unqualified id too; a dangling link reads `None.`; a bad byte exits 2.
   Verify: `uv run pytest tests/test_cut_context.py -q -k debt_pin_section` passes.
-- [ ] 1.10 In `tests/test_conduct.py` add `test_debt_pin_cards`: the conductor's `_cards` strips the heading, reads the section to the next `## `, takes a title at column 0 alone, reads no file and a folder as `[]`, follows a link, and raises on a bad byte.
+- [x] 1.10 In `tests/test_conduct.py` add `test_debt_pin_cards`: the conductor's `_cards` strips the heading, reads the section to the next `## `, takes a title at column 0 alone, reads no file and a folder as `[]`, follows a link, and raises on a bad byte.
   Verify: `uv run pytest tests/test_conduct.py -q -k debt_pin_cards` passes.
-- [ ] 1.11 In `tests/test_conduct.py` add `test_debt_pin_stale_lock`: `_clear_stale_lock` leaves a lock at `LOCK_STALE` seconds, removes it one second past and returns its age, and leaves a lock `rmdir` refuses.
+- [x] 1.11 In `tests/test_conduct.py` add `test_debt_pin_stale_lock`: `_clear_stale_lock` leaves a lock at `LOCK_STALE` seconds, removes it one second past and returns its age, and leaves a lock `rmdir` refuses.
   Verify: `uv run pytest tests/test_conduct.py -q -k debt_pin_stale_lock` passes.
-- [ ] 1.12 In `tests/test_conduct.py` add `test_debt_pin_migration`: `migrate_debt` reads a `backlog.md` that is no regular file as `None` and moves nothing; with both files and a held old lock, `both stand` wins; each halt is held, and so is the locked link-then-unlink.
+- [x] 1.12 In `tests/test_conduct.py` add `test_debt_pin_migration`: `migrate_debt` reads a `backlog.md` that is no regular file as `None` and moves nothing; with both files and a held old lock, `both stand` wins; each halt is held, and so is the locked link-then-unlink.
   Verify: `uv run pytest tests/test_conduct.py -q -k debt_pin_migration` passes.
-- [ ] 1.13 In `tests/test_converge.py` add `test_debt_pin_empty_page`: with `.minions/debt.md` a dangling link, which `debt_match.py` cannot read, the freeze writes `None.` to `debt-cards.md` and halts nothing.
+- [x] 1.13 In `tests/test_converge.py` add `test_debt_pin_empty_page`: with `.minions/debt.md` a dangling link, which `debt_match.py` cannot read, the freeze writes `None.` to `debt-cards.md` and halts nothing.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_empty_page` passes.
-- [ ] 1.14 In `tests/test_converge.py` add `test_debt_pin_backlog_no_file`: a `backlog.md` that is a dangling link halts converge's `debt_lock` naming the old file, as a regular one does.
+- [x] 1.14 In `tests/test_converge.py` add `test_debt_pin_backlog_no_file`: a `backlog.md` that is a dangling link halts converge's `debt_lock` naming the old file, as a regular one does.
   Verify: `uv run pytest tests/test_converge.py -q -k debt_pin_backlog_no_file` passes.
 
 ## 2 — The module

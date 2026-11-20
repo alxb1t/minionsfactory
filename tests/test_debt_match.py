@@ -143,3 +143,46 @@ def test_debt_match_refuses_what_it_cannot_read(
     code, said = _run(capsys, debt, patch, cards)
     assert code == 2 and said.startswith(f"debt: cannot match — {cards}: ")
     assert cards.read_text() == "# t\n"
+
+
+def test_debt_pin_match(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Why: 0139-debt design D1, the pin of `debt_match.py` as it stands.
+    assert debt_match.paths(
+        "diff --git a/old.md b/new.md\n diff --git a/no.md b/no.md\n"
+        "diff --git a/src/a.py b/src/a.py\n"
+    ) == {"old.md", "new.md", "src/a.py"}
+    debt = (
+        "# Debt\n\n## 0001-a\n\n- **0001·R1 — one**\n  - **Fix:** x\n\nloose prose\n"
+        "- **R2 — two**\n  - **What it affects:** `b.py`\n### a note\n"
+        "  - **Status:** open\n"
+    )
+    assert debt_match.cards(debt) == [
+        "- **0001·R1 — one**\n  - **Fix:** x\n\nloose prose\n",
+        "- **R2 — two**\n  - **What it affects:** `b.py`\n",
+    ]
+    card = (
+        "- **0001·R1 — a**\n"
+        "  - **What it affects:** `save()` in `src/a.py:12`, `docs/x.md:3-9`\n"
+        "  - **Fix:** `src/c.py`\n"
+    )
+    for changed in ({"src/a.py"}, {"docs/x.md"}, {"save()"}):
+        assert debt_match.matched(card, changed), changed
+    assert not debt_match.matched(card, {"src/c.py"})
+    flat = "- **0001·R1 — a**\n- **What it affects:** `src/a.py`\n"
+    assert not debt_match.matched(flat, {"src/a.py"})
+
+    patch, cards = tmp_path / "diff.patch", tmp_path / "debt-cards.md"
+    patch.write_text(_PATCH)
+    linked, target = tmp_path / "debt.md", tmp_path / "target.md"
+    linked.symlink_to(target)
+    assert _run(capsys, linked, patch, cards) == (
+        2,
+        f"debt: cannot match — {linked}: No such file or directory\n",
+    )
+    assert not cards.exists()
+    target.write_text(_DEBT)
+    assert _run(capsys, linked, patch, cards) == (
+        0,
+        "debt: 2 cards on the diff's files\n",
+    )
+    assert cards.read_text() == f"{_HEADING}\n\n{_A}{_X}"
