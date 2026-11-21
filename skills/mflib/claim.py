@@ -25,11 +25,6 @@ class Refused(Exception):
         self.path = path
 
 
-def _parent(active: Path) -> int:
-    """Return a descriptor on the claim's parent folder, made when it is missing."""
-    return statefile.folder(active.parent)
-
-
 def _open(active: Path) -> int | None:
     """Return a descriptor on the claim folder, never made; None when none stands.
 
@@ -37,7 +32,7 @@ def _open(active: Path) -> int | None:
     """
     if not active.parent.is_dir():
         return None
-    parent = _parent(active)
+    parent = statefile.folder(active.parent)
     try:
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
         return os.open(active.name, flags, dir_fd=parent)
@@ -62,7 +57,7 @@ def _entry(fd: int, name: str) -> str | None:
 
 def take(active: Path) -> None:
     """Make the claim's folder at once; what stands there raises `FileExistsError`."""
-    parent = _parent(active)
+    parent = statefile.folder(active.parent)
     try:
         os.mkdir(active.name, dir_fd=parent)
     finally:
@@ -152,7 +147,7 @@ def remove(active: Path) -> None:
     if (fd := _open(active)) is None:
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(active))
     os.close(fd)
-    parent = _parent(active)
+    parent = statefile.folder(active.parent)
     try:
         shutil.rmtree(active.name, dir_fd=parent)
     finally:

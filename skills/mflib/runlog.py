@@ -112,9 +112,8 @@ def release_died(runs: Path, change: str) -> bool:
     A person's no ran no worker, and a release that stopped on purpose exits 0.
     """
     for log in sorted(_logs(runs), key=order, reverse=True):
-        for text in reversed(_lines(log)):
-            event = parse(text)
-            if event and event.who == change and event.detail.startswith("release · "):
+        for event in reversed(events(log)):
+            if event.who == change and event.detail.startswith("release · "):
                 if event.name == "spawn":
                     return True
                 if event.name == "finish":
@@ -130,9 +129,8 @@ def rescuing(runs: Path, change: str) -> bool:
     log = newest(runs)
     names = [
         event.name
-        for text in (_lines(log) if log else [])
-        if (event := parse(text))
-        and event.who == change
+        for event in (events(log) if log else [])
+        if event.who == change
         and event.name in ("spawn", "finish")
         and event.detail.startswith(("rescue · ", "supervise · "))
     ]
