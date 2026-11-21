@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mflib/runlog.py` and `skills/mflib/claim.py` hold the run log and the claim with the conductor's behaviour
   of today, and `skills/mflib/statefile.py` gains `append`, `open_regular` and a read's `offset`; the conductor moves
   onto them next (0140-run-log, phase 2).
+- The conductor writes and reads the run log through `skills/mflib/runlog.py` and the claim through
+  `skills/mflib/claim.py`, with no assert changed; it keeps `EVENT`, `last_log` and `_claim` for the viewer
+  (0140-run-log, phase 3).
 
 ## [0.111.0] - 2026-11-20
 

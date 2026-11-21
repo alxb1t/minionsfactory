@@ -23,14 +23,20 @@ _DONE = "10:09:00 · run · done — 0 versions"
 
 
 def _verify(tmp_path: Path, *lines: str) -> str | None:
-    """Return `verify_log` of a log holding a title, then `lines`."""
+    """Return the verify of a log holding a title, then `lines`."""
     log = tmp_path / "verified.md"
     log.write_text("# Ship run 20261101-100000\n\n" + "".join(f"{x}\n" for x in lines))
-    return conduct["verify_log"](log)
+    return runlog.verify(log)
+
+
+def _log(runs: Path, stamp: str) -> runlog.RunLog:
+    """Return the run log the conductor makes, its held lock the conductor's stop."""
+    return runlog.RunLog(runs, stamp, conduct["_busy"])
 
 
 def test_case_a_the_event_list_is_exactly_its_names() -> None:
-    assert conduct["EVENTS"] == (
+    listed = runlog.EVENTS
+    assert listed == (
         *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
         *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
         *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
@@ -42,7 +48,7 @@ def test_case_a_the_event_list_is_exactly_its_names() -> None:
 def test_case_a_a_log_holding_each_listed_event_before_a_done_passes(
     tmp_path: Path,
 ) -> None:
-    for name in conduct["EVENTS"]:
+    for name in runlog.EVENTS:
         line = f"10:00:01 · 0001-a · {name} — build · x"
         closed = ["10:00:02 · 0001-a · finish — build · exit 0 · 1s"]
         lines = [line, *closed] if name == "spawn" else [line]
@@ -178,7 +184,7 @@ _EXIT_0 = "10:00:02 · 0001-a · finish — release · exit 0 · 1s"
 
 
 def _died(runs: Path) -> bool:
-    return conduct["_release_died"](runs, "0001-a")
+    return runlog.release_died(runs, "0001-a")
 
 
 def test_case_b_the_newest_log_is_read_first_and_a_suffix_is_newer(
@@ -229,7 +235,7 @@ def test_case_b_a_newer_log_with_no_release_line_passes_the_read_on(
 
 
 def _rescuing(runs: Path) -> bool:
-    return conduct["_rescuing"](runs, "0001-a")
+    return runlog.rescuing(runs, "0001-a")
 
 
 def test_case_f_spawn_and_finish_alone_count_for_rescue_and_supervise(
@@ -281,7 +287,7 @@ def test_case_d_logs_made_on_one_stamp_take_suffixes_titles_and_locks(
     tmp_path: Path,
 ) -> None:
     runs = tmp_path / "runs"
-    made = [conduct["RunLog"](runs, "20261101-100000") for _ in "abc"]
+    made = [_log(runs, "20261101-100000") for _ in "abc"]
 
     stamps = ["20261101-100000", "20261101-100000-2", "20261101-100000-3"]
     assert [log.stamp for log in made] == stamps
@@ -298,7 +304,7 @@ def test_case_d_a_standing_file_is_never_written_over(tmp_path: Path) -> None:
     runs.mkdir()
     (runs / "20261101-100000.md").write_text("kept\n")
 
-    log = conduct["RunLog"](runs, "20261101-100000")
+    log = _log(runs, "20261101-100000")
 
     assert log.path.name == "20261101-100000-2.md"
     assert (runs / "20261101-100000.md").read_text() == "kept\n"
@@ -308,7 +314,7 @@ def test_case_d_a_standing_file_is_never_written_over(tmp_path: Path) -> None:
 def test_case_d_an_event_folds_its_detail_and_a_held_event_writes_nothing(
     tmp_path: Path,
 ) -> None:
-    log = conduct["RunLog"](tmp_path / "runs", "20261101-100000")
+    log = _log(tmp_path / "runs", "20261101-100000")
     title = "# Ship run 20261101-100000\n\n"
 
     log.event("0001-a", "spawn", "build ·\n  model\tdefault ")
@@ -326,7 +332,7 @@ def test_case_d_an_event_folds_its_detail_and_a_held_event_writes_nothing(
 def test_case_d_a_held_lock_is_waited_for_and_past_the_limit_stops_with_2(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    log = conduct["RunLog"](tmp_path / "runs", "20261101-100000")
+    log = _log(tmp_path / "runs", "20261101-100000")
     title = log.path.read_text()
     log.lock.mkdir()
     threading.Timer(0.3, log.lock.rmdir).start()
@@ -334,7 +340,7 @@ def test_case_d_a_held_lock_is_waited_for_and_past_the_limit_stops_with_2(
     log.event("run", "start", "x")
     assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
 
-    monkeypatch.setitem(_NAMES, "LOCK_SECONDS", 0.1)
+    monkeypatch.setattr(runlog, "LOCK_SECONDS", 0.1)
     log.lock.mkdir()
     with pytest.raises(conduct["Stop"]) as stopped:
         log.event("run", "done", "y")
@@ -352,19 +358,19 @@ def test_case_e_the_stop_line_goes_to_the_newest_log_alone(tmp_path: Path) -> No
     newest = runs / "20261101-100002.md"
     held = newest.read_text()
 
-    assert conduct["_log_stop"](runs) == newest
+    assert runlog.stop(runs) == newest
     assert newest.read_text() == held + _STOP_LINE
     assert (runs / "20261101-100001.md").read_text() == older
-    assert conduct["verify_log"](newest) is None
+    assert runlog.verify(newest) is None
 
 
 def test_case_e_a_stop_with_no_log_makes_no_file(tmp_path: Path) -> None:
     runs = tmp_path / "runs"
-    assert conduct["_log_stop"](runs) is None
+    assert runlog.stop(runs) is None
     assert not runs.exists()
     runs.mkdir()
     (runs / "detached.log").write_text("run: done\n")
-    assert conduct["_log_stop"](runs) is None
+    assert runlog.stop(runs) is None
     assert sorted(path.name for path in runs.iterdir()) == ["detached.log"]
 
 
@@ -488,7 +494,7 @@ def test_case_e_a_group_that_survives_still_gets_the_stop_line(
 def test_case_h_the_order_key_and_the_newest_by_stamp_then_suffix(
     tmp_path: Path,
 ) -> None:
-    assert conduct["_log_order"](Path("20261029-163000-2.md")) == (
+    assert runlog.order(Path("20261029-163000-2.md")) == (
         "20261029-163000",
         17,
         "20261029-163000-2",
@@ -693,7 +699,7 @@ def test_pin_a_bad_byte_raises_in_the_verify_the_death_and_report(
     log.write_bytes(f"{_START}\n{_SPAWN}".encode() + b" \xff\n")
 
     for read in (
-        lambda: conduct["verify_log"](log),
+        lambda: runlog.verify(log),
         lambda: _died(runs),
         lambda: conduct["report"](root),
     ):
@@ -728,14 +734,14 @@ def test_pin_the_append_and_the_stop_line_write_through_a_link(
     tmp_path: Path,
 ) -> None:
     runs = tmp_path / "runs"
-    log = conduct["RunLog"](runs, "20261101-100001")
+    log = _log(runs, "20261101-100001")
     outside = tmp_path / "outside.md"
     outside.write_text("outside\n")
     log.path.unlink()
     log.path.symlink_to(outside)
 
     log.event("run", "start", "x")
-    conduct["_log_stop"](runs)
+    runlog.stop(runs)
 
     assert outside.read_text() == ("outside\n10:20:30 · run · start — x\n" + _STOP_LINE)
     assert log.path.is_symlink()
@@ -748,7 +754,7 @@ def test_pin_the_create_refuses_a_dangling_link_and_takes_the_next_suffix(
     runs.mkdir()
     (runs / "20261101-100001.md").symlink_to(runs / "gone.md")
 
-    log = conduct["RunLog"](runs, "20261101-100001")
+    log = _log(runs, "20261101-100001")
 
     assert log.path == runs / "20261101-100001-2.md"
     assert not (runs / "gone.md").exists()
@@ -797,7 +803,7 @@ def test_pin_each_reader_blocks_on_a_pipe_at_the_log(
 
     children = _children(
         {
-            "verify": lambda: conduct["verify_log"](pipe),
+            "verify": lambda: runlog.verify(pipe),
             "death": lambda: _died(runs),
             "rescue": lambda: _rescuing(runs),
             "report": lambda: conduct["report"](root),
@@ -821,14 +827,14 @@ def test_pin_the_append_and_the_stop_line_block_on_a_pipe_at_the_log(
     tmp_path: Path,
 ) -> None:
     runs = tmp_path / "runs"
-    log = conduct["RunLog"](runs, "20261101-100001")
+    log = _log(runs, "20261101-100001")
     log.path.unlink()
     os.mkfifo(log.path)
 
     children = _children(
         {
             "append": lambda: log.event("run", "start", "x"),
-            "stop": lambda: conduct["_log_stop"](runs),
+            "stop": lambda: runlog.stop(runs),
         }
     )
 
@@ -855,7 +861,7 @@ def test_pin_a_name_that_is_no_stamp_is_the_newest_log(tmp_path: Path) -> None:
     assert _rescuing(runs)
     assert _died(runs)
     assert conduct["report"](root).splitlines()[-1] == "10:00:04 · run · done — notes"
-    assert conduct["_log_stop"](runs) == notes
+    assert runlog.stop(runs) == notes
     assert notes.read_text() == held + _STOP_LINE
 
 
@@ -889,17 +895,17 @@ def test_pin_a_planted_lock_stops_the_append_and_not_the_stop_line(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runs = tmp_path / "runs"
-    log = conduct["RunLog"](runs, "20261101-100001")
+    log = _log(runs, "20261101-100001")
     title = log.path.read_text()
     log.lock.mkdir()
-    monkeypatch.setitem(_NAMES, "LOCK_SECONDS", 0.1)
+    monkeypatch.setattr(runlog, "LOCK_SECONDS", 0.1)
 
     with pytest.raises(conduct["Stop"]) as stopped:
         log.event("run", "start", "x")
     assert stopped.value.code == 2
     assert log.path.read_text() == title
 
-    assert conduct["_log_stop"](runs) == log.path
+    assert runlog.stop(runs) == log.path
     assert log.path.read_text() == title + _STOP_LINE
     assert log.lock.is_dir()
 

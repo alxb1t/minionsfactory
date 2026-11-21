@@ -6,7 +6,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 
 - [x] 1 — The pin · hard
 - [x] 2 — The modules · hard
-- [ ] 3 — The stations · moderate
+- [x] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
@@ -56,19 +56,19 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 
 ## 3 — The stations
 
-- [ ] 3.1 **HALT CHECK** The viewer takes `EVENT`, `last_log`, `_claim` and `Stop` alone from the loaded conductor for the run log and the claim.
+- [x] 3.1 **HALT CHECK** The viewer takes `EVENT`, `last_log`, `_claim` and `Stop` alone from the loaded conductor for the run log and the claim.
   Verify: `git grep -n -F -e 'conduct["_claim"]' -- skills/mf-ui/scripts/viewer.py` prints a line.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` import `mflib.runlog`, bind `EVENT` and `last_log` to the module's, and remove `class RunLog`; `Run.__init__` builds the module's `RunLog` with the `busy` error of [D2](design.md#d2).
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` import `mflib.runlog`, bind `EVENT` and `last_log` to the module's, and remove `class RunLog`; `Run.__init__` builds the module's `RunLog` with the `busy` error of [D2](design.md#d2).
   Verify: `git grep -n -e "class RunLog" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.3 In `skills/mf-ship/scripts/conduct.py` replace `def verify_log`, `def _release_died` and `def _rescuing` with calls to `mflib.runlog`, and remove `EVENTS`, `STOPPED` and the lock wait constant.
+- [x] 3.3 In `skills/mf-ship/scripts/conduct.py` replace `def verify_log`, `def _release_died` and `def _rescuing` with calls to `mflib.runlog`, and remove `EVENTS`, `STOPPED` and the lock wait constant.
   Verify: `git grep -n -e "def verify_log" -e "def _release_died" -e "def _rescuing" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` replace `def _log_stop` and `def _log_order` with the module's `stop` and `order`; `wait_run` polls a `Tail` and `report` reads the module's `events`.
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` replace `def _log_stop` and `def _log_order` with the module's `stop` and `order`; `wait_run` polls a `Tail` and `report` reads the module's `events`.
   Verify: `git grep -n -e "def _log_stop" -e "def _log_order" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.5 In `skills/mf-ship/scripts/conduct.py` replace each pathname access of the claim — `active / "pid"`, `active / "start"`, `active.exists()`, `active.mkdir()`, `active.iterdir()`, `group.write_text`, `claim / str(worker.pid)` and `shutil.rmtree(active)` — with a call to `mflib.claim`.
+- [x] 3.5 In `skills/mf-ship/scripts/conduct.py` replace each pathname access of the claim — `active / "pid"`, `active / "start"`, `active.exists()`, `active.mkdir()`, `active.iterdir()`, `group.write_text`, `claim / str(worker.pid)` and `shutil.rmtree(active)` — with a call to `mflib.claim`.
   Verify: `git grep -n -F -e 'active / "pid"' -e 'active / "start"' -e 'active.exists()' -e 'active.mkdir()' -e 'active.iterdir()' -e 'group.write_text' -e 'claim / str(worker.pid)' -e 'shutil.rmtree(active)' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.6 Add `claim.py` and `runlog.py` to the `names` cell of the conductor's row in `docs/modules.md`, each in its place in the order.
+- [x] 3.6 Add `claim.py` and `runlog.py` to the `names` cell of the conductor's row in `docs/modules.md`, each in its place in the order.
   Verify: `git grep -n -e "brief_check.py, claim.py" -- docs/modules.md` prints a line.
-- [ ] 3.7 Re-point each line of `tests/test_conduct.py`, `tests/test_runlog.py` and `tests/test_claim.py` that reaches a name the conductor no longer defines to the module's; no assert changes.
+- [x] 3.7 Re-point each line of `tests/test_conduct.py`, `tests/test_runlog.py` and `tests/test_claim.py` that reaches a name the conductor no longer defines to the module's; no assert changes.
   Verify: `uv run pytest tests/test_runlog.py tests/test_claim.py tests/test_viewer.py -q` exits 0.
 
 ## 4 — The fix

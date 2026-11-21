@@ -41,7 +41,7 @@ from fake_worker import (
     _findings,
     _git,
 )
-from mflib import layout, platform
+from mflib import layout, platform, runlog
 from old_layout import ENTRIES, LOG, ROLES
 from old_layout import plant as plant_old
 
@@ -1155,7 +1155,9 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
         assert (got, capsys.readouterr().out.strip()) == (code, printed), name
 
     runs = tmp_path / "runs"
-    first, second = (conduct["RunLog"](runs, "20261029-163000") for _ in "ab")
+    first, second = (
+        runlog.RunLog(runs, "20261029-163000", conduct["_busy"]) for _ in "ab"
+    )
     assert (first.path.name, second.path.name) == (
         "20261029-163000.md",
         "20261029-163000-2.md",
@@ -3738,7 +3740,7 @@ def test_a_refused_supervisor_amend_is_not_the_persons(
 
 def test_a_grant_waits_for_the_supervisor(tmp_path: Path) -> None:
     # Why: 0089-supervisor design D6.
-    rescuing, runs = _conduct()["_rescuing"], tmp_path / "runs"
+    rescuing, runs = runlog.rescuing, tmp_path / "runs"
     runs.mkdir()
     log = runs / "20261107-120000.md"
     log.write_text(

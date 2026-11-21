@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 from conduct_load import conduct as _conduct
-from mflib import claim, layout, platform
+from mflib import claim, layout, platform, runlog
 
 conduct = _conduct()
 _NAMES = conduct["main"].__globals__
@@ -578,7 +578,7 @@ def test_case_m_the_spawn_finish_denied_and_limited_lines(
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
     root = _repo(tmp_path)
     runs = root / ".minions" / "runs"
-    log = conduct["RunLog"](runs, "20261101-100001")
+    log = runlog.RunLog(runs, "20261101-100001", conduct["_busy"])
     host = types.SimpleNamespace(
         repo=None,
         lines=None,
