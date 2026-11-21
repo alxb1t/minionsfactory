@@ -1,6 +1,6 @@
-"""The run log as the conductor writes and reads it, pinned as the code stands.
+"""The run log as the conductor writes and reads it, pinned, and its module's cases.
 
-Cases a to i and the log's pins of 0140-run-log design's pin.
+Cases a to i and the log's pins of 0140-run-log design's pin; the module's, by function.
 """
 
 import os
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from conduct_load import conduct as _conduct
-from mflib import platform
+from mflib import platform, runlog
 
 conduct = _conduct()
 _NAMES = conduct["main"].__globals__
@@ -902,3 +902,174 @@ def test_pin_a_planted_lock_stops_the_append_and_not_the_stop_line(
     assert conduct["_log_stop"](runs) == log.path
     assert log.path.read_text() == title + _STOP_LINE
     assert log.lock.is_dir()
+
+
+class _Busy(Exception):
+    pass
+
+
+def _module_log(runs: Path, stamp: str = "20261101-100000") -> runlog.RunLog:
+    return runlog.RunLog(runs, stamp, _Busy)
+
+
+def test_module_title_names_the_stamp() -> None:
+    assert runlog.title("20261101-100000") == "# Ship run 20261101-100000"
+
+
+@pytest.mark.usefixtures("clock")
+def test_module_line_folds_the_detail_and_ends_on_no_newline() -> None:
+    assert runlog.line("0001-a", "spawn", " build ·\n model\tx ") == (
+        "10:20:30 · 0001-a · spawn — build · model x"
+    )
+
+
+def test_module_parse_reads_who_name_and_detail() -> None:
+    text = "10:00:00 · 0001-to-do · converge skipped — plan — a"
+
+    assert runlog.parse(text) == runlog.Event(
+        text, "0001-to-do", "converge skipped", "plan — a"
+    )
+    assert runlog.parse("10:00 · run · done — x") is None
+    assert runlog.parse("10:00:00 · run · retry — x") == runlog.Event(
+        "10:00:00 · run · retry — x", "run", "retry", "x"
+    )
+
+
+def test_module_order_sorts_by_stamp_then_suffix(tmp_path: Path) -> None:
+    names = ["20261101-100000-10", "20261101-100001", "20261101-100000-9"]
+    logs = [tmp_path / f"{name}.md" for name in names]
+
+    assert runlog.order(logs[0]) == ("20261101-100000", 18, "20261101-100000-10")
+    assert [log.stem for log in sorted(logs, key=runlog.order)] == [
+        "20261101-100000-9",
+        "20261101-100000-10",
+        "20261101-100001",
+    ]
+
+
+def test_module_newest_takes_the_last_log_by_order(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    assert runlog.newest(runs) is None
+    _logs(runs, s1=[], s1_2=[])
+    (runs / "detached.log").write_text("run: done\n")
+
+    assert runlog.newest(runs) == runs / "20261101-100001-2.md"
+
+
+def test_module_events_returns_each_line_that_parses(tmp_path: Path) -> None:
+    runs = _logs(tmp_path / "runs", s1=[_START, "not an event", _DONE])
+
+    assert runlog.events(runs / "20261101-100001.md") == [
+        runlog.Event(_START, "run", "start", "executor claude"),
+        runlog.Event(_DONE, "run", "done", "0 versions"),
+    ]
+
+
+def test_module_release_died_reads_the_last_release_line(tmp_path: Path) -> None:
+    assert runlog.release_died(_logs(tmp_path / "a", s1=[_EXIT_0, _SPAWN]), "0001-a")
+    assert not runlog.release_died(
+        _logs(tmp_path / "b", s1=[_SPAWN, _EXIT_0]), "0001-a"
+    )
+    assert not runlog.release_died(_logs(tmp_path / "c", s1=[_SPAWN]), "0002-b")
+    assert not runlog.release_died(tmp_path / "none", "0001-a")
+
+
+def test_module_rescuing_reads_the_newest_log(tmp_path: Path) -> None:
+    rescue = "10:00:01 · 0001-a · spawn — rescue · model default"
+    done = "10:00:02 · 0001-a · finish — rescue · exit 0"
+
+    assert runlog.rescuing(_logs(tmp_path / "a", s1=[_START], s2=[rescue]), "0001-a")
+    assert not runlog.rescuing(_logs(tmp_path / "b", s1=[rescue, done]), "0001-a")
+    assert not runlog.rescuing(_logs(tmp_path / "c", s1=[rescue], s2=[]), "0001-a")
+    assert not runlog.rescuing(tmp_path / "none", "0001-a")
+
+
+def test_module_verify_names_what_is_incomplete(tmp_path: Path) -> None:
+    spawn = "10:00:01 · 0001-a · spawn — build · model default"
+    stopped = f"10:00:02 · run · halt — {runlog.STOPPED}"
+    cases = {
+        "complete": ([_START, _DONE], None),
+        "unknown": ([_START, "10:00:01 · run · retry — x", _DONE], "unknown event: "),
+        "open": ([_START, spawn, _DONE], "a spawn with no finish: 0001-a build"),
+        "stopped": ([_START, spawn, stopped], None),
+        "no end": ([_START], "the run ends on neither halt nor done"),
+    }
+    for name, (lines, why) in cases.items():
+        runs = _logs(tmp_path / name, s1=lines)
+        said = runlog.verify(runs / "20261101-100001.md")
+        if why is None:
+            assert said is None, name
+        else:
+            assert said is not None, name
+            assert said.startswith(why), name
+
+
+@pytest.mark.usefixtures("clock")
+def test_module_stop_appends_the_stop_line_to_the_newest_log(tmp_path: Path) -> None:
+    runs = _logs(tmp_path / "runs", s1=[_START], s2=[_START])
+    held = (runs / "20261101-100002.md").read_text()
+
+    assert runlog.stop(runs) == runs / "20261101-100002.md"
+    assert (runs / "20261101-100002.md").read_text() == held + _STOP_LINE
+    assert runlog.stop(tmp_path / "none") is None
+    assert not (tmp_path / "none").exists()
+
+
+@pytest.mark.usefixtures("clock")
+def test_module_run_log_makes_a_titled_log_and_appends_events(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    first, second = _module_log(runs), _module_log(runs)
+
+    assert (first.stamp, second.stamp) == ("20261101-100000", "20261101-100000-2")
+    assert second.lock == runs / "20261101-100000-2.lock"
+    first.event("run", "start", "a\nb")
+    first.held = []
+    first.event("run", "done", "c")
+
+    title = "# Ship run 20261101-100000\n\n"
+    assert first.path.read_text() == f"{title}10:20:30 · run · start — a b\n"
+    assert first.held == [("run", "done", "c")]
+    assert not first.lock.exists()
+
+
+@pytest.mark.usefixtures("clock")
+def test_module_run_log_raises_its_callers_error_past_the_wait(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = _module_log(tmp_path / "runs")
+    title = log.path.read_text()
+    log.lock.mkdir()
+    threading.Timer(0.3, log.lock.rmdir).start()
+
+    log.event("run", "start", "x")
+    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
+
+    monkeypatch.setattr(runlog, "LOCK_SECONDS", 0.1)
+    log.lock.mkdir()
+    with pytest.raises(_Busy, match=r"^20261101-100000\.lock$"):
+        log.event("run", "done", "y")
+    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
+
+
+def test_module_tail_polls_whole_lines_and_a_newer_log(tmp_path: Path) -> None:
+    runs = _logs(tmp_path / "runs", s1=[_START])
+    log = runs / "20261101-100001.md"
+    tail = runlog.Tail(runs)
+    assert tail.poll() == []
+
+    _gain(log, "10:00:01 · run · a\n10:00:02 · run · pa")()
+    assert tail.poll() == ["10:00:01 · run · a"]
+    _gain(log, "rt\n")()
+    assert tail.poll() == ["10:00:02 · run · part"]
+    _gain(runs / "20261101-100001-2.md", "x\ny\n")()
+    assert tail.poll() == ["x", "y"]
+    tail.close()
+
+
+def test_module_tail_reads_a_first_log_from_its_start(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    tail = runlog.Tail(runs)
+    assert tail.poll() == []
+
+    _logs(runs, s1=[_START])
+    assert tail.poll() == ["# Ship run 20261101-100001", "", _START]

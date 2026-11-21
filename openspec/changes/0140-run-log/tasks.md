@@ -5,7 +5,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 ## Progress
 
 - [x] 1 — The pin · hard
-- [ ] 2 — The modules · hard
+- [x] 2 — The modules · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
@@ -33,25 +33,25 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 
 ## 2 — The modules
 
-- [ ] 2.1 Add `def append(path, text, folder=None)`, `def open_regular(path, folder=None)` and an `offset` argument to the reads of `skills/mflib/statefile.py`, as [D6](design.md#d6) says.
+- [x] 2.1 Add `def append(path, text, folder=None)`, `def open_regular(path, folder=None)` and an `offset` argument to the reads of `skills/mflib/statefile.py`, as [D6](design.md#d6) says.
   Verify: `grep -n -e "def append" skills/mflib/statefile.py` prints a line.
-- [ ] 2.2 Add `def test_append` cases and the cases of the open and the offset to `tests/test_statefile.py`: a link refused, a pipe refused, the folder's descriptor, the offset.
+- [x] 2.2 Add `def test_append` cases and the cases of the open and the offset to `tests/test_statefile.py`: a link refused, a pipe refused, the folder's descriptor, the offset.
   Verify: `uv run pytest tests/test_statefile.py -q` exits 0 and `grep -n -e "def test_append" tests/test_statefile.py` prints a line.
-- [ ] 2.3 Add `skills/mflib/runlog.py` born with today's behaviour ([D2](design.md#d2)): `STOPPED`, `EVENT`, `EVENTS`, `class Event`, `def title`, `def line`, `def parse`, `def order` and `def newest`.
+- [x] 2.3 Add `skills/mflib/runlog.py` born with today's behaviour ([D2](design.md#d2)): `STOPPED`, `EVENT`, `EVENTS`, `class Event`, `def title`, `def line`, `def parse`, `def order` and `def newest`.
   Verify: `grep -n -e "def newest" skills/mflib/runlog.py` prints a line.
-- [ ] 2.4 Add to `skills/mflib/runlog.py` the readers as the conductor has them: `def events`, `def release_died`, `def rescuing`, `def verify` and `class Tail`, which `wait` polls.
+- [x] 2.4 Add to `skills/mflib/runlog.py` the readers as the conductor has them: `def events`, `def release_died`, `def rescuing`, `def verify` and `class Tail`, which `wait` polls.
   Verify: `grep -n -e "def release_died" skills/mflib/runlog.py` prints a line.
-- [ ] 2.5 Add to `skills/mflib/runlog.py` `class RunLog` and `def stop`, with the lock folder, its wait, the caller's `busy` error and the held list of [D2](design.md#d2).
+- [x] 2.5 Add to `skills/mflib/runlog.py` `class RunLog` and `def stop`, with the lock folder, its wait, the caller's `busy` error and the held list of [D2](design.md#d2).
   Verify: `grep -n -e "class RunLog" skills/mflib/runlog.py` prints a line.
-- [ ] 2.6 Add the module's unit cases to `tests/test_runlog.py`, one for each function of `skills/mflib/runlog.py`, reached as `mflib.runlog`.
+- [x] 2.6 Add the module's unit cases to `tests/test_runlog.py`, one for each function of `skills/mflib/runlog.py`, reached as `mflib.runlog`.
   Verify: `uv run pytest tests/test_runlog.py -q` exits 0.
-- [ ] 2.7 Add `skills/mflib/claim.py`: `def take`, `def present`, `def mark`, `def conductor`, `def groups`, `def enter`, `def leave` and `def remove`, the conductor's access to the claim as it stands.
+- [x] 2.7 Add `skills/mflib/claim.py`: `def take`, `def present`, `def mark`, `def conductor`, `def groups`, `def enter`, `def leave` and `def remove`, the conductor's access to the claim as it stands.
   Verify: `grep -n -e "def groups" skills/mflib/claim.py` prints a line.
-- [ ] 2.8 Add the module's unit cases to `tests/test_claim.py`, one for each function of `skills/mflib/claim.py`, reached as `mflib.claim`.
+- [x] 2.8 Add the module's unit cases to `tests/test_claim.py`, one for each function of `skills/mflib/claim.py`, reached as `mflib.claim`.
   Verify: `uv run pytest tests/test_claim.py -q` exits 0.
-- [ ] 2.9 Add a row for `skills/mflib/runlog.py` and one for `skills/mflib/claim.py` to `docs/modules.md`: layer `home`, names `—`, since neither imports `statefile` until phase 4 ([D2](design.md#d2)).
+- [x] 2.9 Add a row for `skills/mflib/runlog.py` and one for `skills/mflib/claim.py` to `docs/modules.md`: layer `home`, names `—`, since neither imports `statefile` until phase 4 ([D2](design.md#d2)).
   Verify: `git grep -n -e "mflib/runlog.py" -- docs/modules.md` prints a line and `git grep -n -e "mflib/claim.py" -- docs/modules.md` prints a line.
-- [ ] 2.10 Name the modules in `skills/mf-ship/SKILL.md`, in a sentence after "Its exits": the run log through `../../mflib/runlog.py`, the claim through `../../mflib/claim.py`.
+- [x] 2.10 Name the modules in `skills/mf-ship/SKILL.md`, in a sentence after "Its exits": the run log through `../../mflib/runlog.py`, the claim through `../../mflib/claim.py`.
   Verify: `git grep -n -F -e "../../mflib/claim.py" -- skills/mf-ship/SKILL.md` prints a line.
 
 ## 3 — The stations

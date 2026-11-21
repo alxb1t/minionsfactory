@@ -49,7 +49,8 @@ in it.
 
 **The script** is `scripts/conduct.py`, beside this file, run as
 `uv run --script <this package>/scripts/conduct.py <command>`, `<this package>` resolved from this installed
-skill. Its exits: 0 done · 1 halt · 2 cannot run.
+skill. Its exits: 0 done · 1 halt · 2 cannot run. It writes and reads the run log through `../../mflib/runlog.py`
+and the claim through `../../mflib/claim.py`, from its folder.
 
 | command | prints |
 |---|---|

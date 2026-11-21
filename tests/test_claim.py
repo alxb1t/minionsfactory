@@ -1,6 +1,6 @@
-"""The claim as the conductor takes, reads and clears it, pinned as the code stands.
+"""The claim as the conductor takes, reads and clears it, pinned, and its module's.
 
-Cases j to m and the claim's pins of 0140-run-log design's pin.
+Cases j to m and the claim's pins of 0140-run-log design's pin; the module's cases.
 """
 
 import contextlib
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 from conduct_load import conduct as _conduct
-from mflib import layout, platform
+from mflib import claim, layout, platform
 
 conduct = _conduct()
 _NAMES = conduct["main"].__globals__
@@ -611,3 +611,72 @@ def test_case_m_the_spawn_finish_denied_and_limited_lines(
         "10:20:30 · run · limited — codex limited until a reset it did not name",
     ]
     assert re.fullmatch(r"10:20:30 · 0001-a · finish — build · exit 3 · \d+s", lines[1])
+
+
+def test_module_take_makes_the_claim_once(tmp_path: Path) -> None:
+    active = tmp_path / "active"
+
+    claim.take(active)
+
+    assert active.is_dir()
+    with pytest.raises(FileExistsError):
+        claim.take(active)
+
+
+def test_module_present_says_whether_a_claim_stands(tmp_path: Path) -> None:
+    active = tmp_path / "active"
+    assert not claim.present(active)
+
+    active.mkdir()
+    assert claim.present(active)
+
+
+def test_module_mark_writes_the_start_and_the_pid(tmp_path: Path) -> None:
+    active = tmp_path / "active"
+    active.mkdir()
+
+    claim.mark(active, "S", 4242)
+
+    assert (active / "start").read_text() == "S"
+    assert (active / "pid").read_text() == "4242"
+
+
+def test_module_conductor_reads_the_pid_and_the_start(tmp_path: Path) -> None:
+    assert claim.conductor(_claim_of(tmp_path / "a", " 1 \n", "S\n")) == (1, "S")
+    assert claim.conductor(_claim_of(tmp_path / "b", "x", "S")) is None
+    assert claim.conductor(tmp_path / "none") is None
+    (tmp_path / "file").write_text("4242\n")
+    assert claim.conductor(tmp_path / "file") is None
+
+
+def test_module_groups_reads_each_decimal_entry(tmp_path: Path) -> None:
+    active = _claim_of(tmp_path, "x", "S")
+    for name in ("abc", "²", "12a"):
+        (active / name).write_text("S")
+    (active / "4243").write_text("S\n")
+    (active / "1").write_bytes(b"\xff")
+    (active / "4244").mkdir()
+
+    assert sorted(claim.groups(active)) == [(1, "�"), (4243, "S")]
+
+
+def test_module_enter_and_leave_hold_a_groups_entry(tmp_path: Path) -> None:
+    active = tmp_path / "active"
+    active.mkdir()
+
+    entry = claim.enter(active, 4243, "S")
+    assert entry == active / "4243"
+    assert entry.read_text() == "S"
+
+    claim.leave(entry)
+    assert not entry.exists()
+    claim.leave(entry)
+
+
+def test_module_remove_removes_the_claim_whole(tmp_path: Path) -> None:
+    active = _claim_of(tmp_path, "4242", "S")
+    (active / "4243").write_text("S")
+
+    claim.remove(active)
+
+    assert not active.exists()

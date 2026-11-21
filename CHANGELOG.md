@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pin tests hold the run log and the claim as the conductor writes and reads them today — the event line, the
   verify, the release's death, the rescue's read, `wait`, `report`, `run`, `_clear`, `_close`, `stop_run` and a
   worker's entry, a link, a pipe and a bad byte among them — before both move into modules (0140-run-log, phase 1).
+- `skills/mflib/runlog.py` and `skills/mflib/claim.py` hold the run log and the claim with the conductor's behaviour
+  of today, and `skills/mflib/statefile.py` gains `append`, `open_regular` and a read's `offset`; the conductor moves
+  onto them next (0140-run-log, phase 2).
 
 ## [0.111.0] - 2026-11-20
 

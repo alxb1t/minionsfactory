@@ -1,6 +1,6 @@
-"""Write a staged state file, and read a regular one, following no link.
+"""Write a staged state file, append to one, and read a regular one, following no link.
 
-Why: 0136-status-log design D1, D4 and D5.
+Why: 0136-status-log design D1, D4 and D5; 0140-run-log design D6.
 """
 
 import contextlib
@@ -71,26 +71,54 @@ def write(
         raise WriteFailed(step, error) from error
 
 
+def _regular(path: Path | str, flags: int, folder: int | None) -> int:
+    """Return a descriptor on a regular file, opened with `flags` through no link.
+
+    The open does not block. A file that is no regular file raises `OSError` `EINVAL`.
+    """
+    fd = _open(Path(path), flags | os.O_NOFOLLOW | os.O_NONBLOCK, folder)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise OSError(errno.EINVAL, "it is not a file")
+    return fd
+
+
+def open_regular(path: Path | str, folder: int | None = None) -> int:
+    """Return a descriptor to read a regular file through, following no link."""
+    return _regular(path, os.O_RDONLY, folder)
+
+
+def append(path: Path | str, text: str, folder: int | None = None) -> None:
+    """Append `text` to a regular file in one write, following no link.
+
+    The file must stand: the open makes nothing, and does not block.
+    """
+    fd = _regular(path, os.O_WRONLY | os.O_APPEND, folder)
+    try:
+        os.write(fd, text.encode())
+    finally:
+        os.close(fd)
+
+
 def read_bytes(
     path: Path | str,
     *,
     folder: int | None = None,
     limit: int | None = None,
     tail: bool = False,
+    offset: int = 0,
 ) -> bytes:
-    """Return a file's bytes, read through one descriptor that follows no link.
+    """Return a file's bytes from `offset`, read through one descriptor and no link.
 
     `limit` bounds the bytes, the last ones under `tail`. The open does not block, and
     a file that is no regular file raises `OSError` `EINVAL`.
     """
-    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
-    fd = _open(Path(path), flags, folder)
+    fd = open_regular(path, folder)
     with os.fdopen(fd, "rb") as file:
-        status = os.fstat(fd)
-        if not stat.S_ISREG(status.st_mode):
-            raise OSError(errno.EINVAL, "it is not a file")
-        if tail and limit is not None and status.st_size > limit:
-            file.seek(status.st_size - limit)
+        size = os.fstat(fd).st_size
+        if tail and limit is not None:
+            offset = max(offset, size - limit)
+        file.seek(offset)
         return file.read(limit)
 
 
@@ -100,12 +128,13 @@ def read(
     folder: int | None = None,
     limit: int | None = None,
     tail: bool = False,
+    offset: int = 0,
 ) -> str:
     """Return `read_bytes` of `path` as text, a bad byte replaced.
 
     e.g. the bytes 61 ff → "a�"
     """
-    data = read_bytes(path, folder=folder, limit=limit, tail=tail)
+    data = read_bytes(path, folder=folder, limit=limit, tail=tail, offset=offset)
     return data.decode(errors="replace")
 
 
