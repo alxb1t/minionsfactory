@@ -4,7 +4,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 
 ## Progress
 
-- [ ] 1 — The pin · hard
+- [x] 1 — The pin · hard
 - [ ] 2 — The modules · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
@@ -26,9 +26,9 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
   Verify: `uv run pytest tests/test_runlog.py -q` exits 0.
 - [x] 1.7 Add `tests/test_claim.py` with cases j and k of [the pin's cases](design.md#the-pins-cases) and its own fake `ps`, which exits 1 for a pid it does not know.
   Verify: `uv run pytest tests/test_claim.py -q` exits 0.
-- [ ] 1.8 Add cases l and m of [the pin's cases](design.md#the-pins-cases) to `tests/test_claim.py`; `run`'s own pid and start go through the file's own fake `ps`, which knows the test's own pid with a start of its own and exits 1 for any other ([D3](design.md#d3)).
+- [x] 1.8 Add cases l and m of [the pin's cases](design.md#the-pins-cases) to `tests/test_claim.py`; `run`'s own pid and start go through the file's own fake `ps`, which knows the test's own pid with a start of its own and exits 1 for any other ([D3](design.md#d3)).
   Verify: `uv run pytest tests/test_claim.py -q` exits 0.
-- [ ] 1.9 **HALT CHECK** Add to `tests/test_claim.py` each pin of the claim listed under [the pin's cases](design.md#the-pins-cases), a pipe in a child marked `slow`; a pin that runs `run` registers the test's own pid with the file's fake `ps`, as 1.8's do.
+- [x] 1.9 **HALT CHECK** Add to `tests/test_claim.py` each pin of the claim listed under [the pin's cases](design.md#the-pins-cases), a pipe in a child marked `slow`; a pin that runs `run` registers the test's own pid with the file's fake `ps`, as 1.8's do.
   Verify: `uv run pytest tests/test_claim.py -q` exits 0.
 
 ## 2 — The modules

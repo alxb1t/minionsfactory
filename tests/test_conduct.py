@@ -842,7 +842,7 @@ def test_each_check_passes_only_on_disk_evidence(
     assert check("release") == (1, "check: release · fail — v0.1.0 is not on origin")
     runs = root / ".minions" / "runs"
     runs.mkdir()
-    (runs / "1.md").write_text("10:00:00 · 0001-todo · spawn — release\n")
+    (runs / "20261101-100000.md").write_text("10:00:00 · 0001-todo · spawn — release\n")
 
     def pushed() -> str:
         capsys.readouterr()
@@ -928,7 +928,7 @@ def _released_on_origin(
     conduct["_keep_origin"](root)
     runs = layout.runs_dir(root)
     runs.mkdir(parents=True)
-    (runs / "1.md").write_text("10:00:00 · 0001-todo · spawn — release\n")
+    (runs / "20261101-100000.md").write_text("10:00:00 · 0001-todo · spawn — release\n")
     ship = layout.ship_file()
     ship.parent.mkdir(parents=True, exist_ok=True)
     ship.write_text("[push]\ntags = false\n")
@@ -1089,7 +1089,7 @@ def test_wait_reads_no_origin_at_a_poll(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     conduct, root, _ = _released_on_origin(tmp_path, monkeypatch)
-    log = layout.runs_dir(root) / "1.md"
+    log = layout.runs_dir(root) / "20261101-100000.md"
     claims = ["live"] * 3 + ["none"]
     poll = _waiting(conduct, monkeypatch, claims, [_gain(log, "10:00:01 · run · x\n")])
     module = conduct["main"].__globals__
@@ -10076,7 +10076,7 @@ def test_a_repo_inside_a_worktree_reads_only_local(
     _git(inside, "update-ref", "refs/remotes/origin/main", "main")
     _git(inside, "update-ref", "refs/heads/0001-todo", "v0.1.0^{commit}")
     (tree / ".minions" / "runs").mkdir(parents=True)
-    (tree / ".minions" / "runs" / "1.md").write_text(
+    (tree / ".minions" / "runs" / "20261101-100000.md").write_text(
         "10:00:00 · 0001-todo · finish — release · exit 0 · 1s\n"
     )
 

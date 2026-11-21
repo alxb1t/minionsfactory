@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin tests hold the run log and the claim as the conductor writes and reads them today — the event line, the
+  verify, the release's death, the rescue's read, `wait`, `report`, `run`, `_clear`, `_close`, `stop_run` and a
+  worker's entry, a link, a pipe and a bad byte among them — before both move into modules (0140-run-log, phase 1).
+
 ## [0.111.0] - 2026-11-20
 
 Gate: local 6m32s · CI not read under mf-ship · 0.110.0: local 5m37s · CI not read under mf-ship

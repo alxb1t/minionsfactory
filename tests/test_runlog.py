@@ -1,0 +1,904 @@
+"""The run log as the conductor writes and reads it, pinned as the code stands.
+
+Cases a to i and the log's pins of 0140-run-log design's pin.
+"""
+
+import os
+import signal
+import subprocess
+import threading
+import time
+from collections.abc import Callable, Iterator
+from pathlib import Path
+
+import pytest
+from conduct_load import conduct as _conduct
+from mflib import platform
+
+conduct = _conduct()
+_NAMES = conduct["main"].__globals__
+_STOP_LINE = "10:20:30 · run · halt — stopped by the person\n"
+_START = "10:00:00 · run · start — executor claude"
+_DONE = "10:09:00 · run · done — 0 versions"
+
+
+def _verify(tmp_path: Path, *lines: str) -> str | None:
+    """Return `verify_log` of a log holding a title, then `lines`."""
+    log = tmp_path / "verified.md"
+    log.write_text("# Ship run 20261101-100000\n\n" + "".join(f"{x}\n" for x in lines))
+    return conduct["verify_log"](log)
+
+
+def test_case_a_the_event_list_is_exactly_its_names() -> None:
+    assert conduct["EVENTS"] == (
+        *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
+        *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
+        *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
+        "limited",
+        "converge skipped",
+    )
+
+
+def test_case_a_a_log_holding_each_listed_event_before_a_done_passes(
+    tmp_path: Path,
+) -> None:
+    for name in conduct["EVENTS"]:
+        line = f"10:00:01 · 0001-a · {name} — build · x"
+        closed = ["10:00:02 · 0001-a · finish — build · exit 0 · 1s"]
+        lines = [line, *closed] if name == "spawn" else [line]
+        assert _verify(tmp_path, _START, *lines, _DONE) is None, name
+
+
+def test_case_a_the_pattern_reads_its_parts() -> None:
+    event = conduct["EVENT"]
+
+    skipped = event.match("10:00:00 · 0001-to-do · converge skipped — plan")
+    assert skipped is not None
+    assert (skipped[1], skipped[2]) == ("0001-to-do", "converge skipped")
+    found = event.match("10:00:00 · run · halt — a — b")
+    assert found is not None
+    assert found.string[found.end() :] == "a — b"
+    for refused in (
+        "10:00 · run · done — x",
+        "10:00:00 - run · done — x",
+        "10:00:00 · run - done — x",
+        "10:00:00 · run · done - x",
+        "10:00:00 · run · done —x",
+        "10:00:00 run · done — x",
+        "10:00:00 · run done — x",
+    ):
+        assert event.match(refused) is None, refused
+
+
+def test_case_a_an_unlisted_name_matches_the_pattern_and_the_list_refuses_it(
+    tmp_path: Path,
+) -> None:
+    line = "10:00:01 · run · retry — build"
+
+    assert conduct["EVENT"].match(line) is not None
+    assert _verify(tmp_path, _START, line, _DONE) == f"unknown event: {line}"
+
+
+def test_case_c_the_verify_skips_blank_and_title_lines_alone(tmp_path: Path) -> None:
+    assert _verify(tmp_path, "", "   ", "# another title", _START, _DONE) is None
+    for line in ("## Run", "#title", " # title"):
+        assert _verify(tmp_path, _START, line, _DONE) == f"unknown event: {line}"
+
+
+def test_case_c_a_finish_with_no_spawn_passes_and_banks_nothing(
+    tmp_path: Path,
+) -> None:
+    finish = "10:00:01 · 0001-a · finish — build · exit 0 · 1s"
+    spawn = "10:00:02 · 0001-a · spawn — build · model default"
+
+    assert _verify(tmp_path, _START, finish, _DONE) is None
+    assert (
+        _verify(tmp_path, _START, finish, spawn, _DONE)
+        == "a spawn with no finish: 0001-a build"
+    )
+
+
+def test_case_c_a_finish_by_another_who_or_station_closes_nothing(
+    tmp_path: Path,
+) -> None:
+    spawn = "10:00:01 · 0001-a · spawn — build · model default"
+    for finish in (
+        "10:00:02 · 0002-b · finish — build · exit 0 · 1s",
+        "10:00:02 · 0001-a · finish — release · exit 0 · 1s",
+    ):
+        assert (
+            _verify(tmp_path, _START, spawn, finish, _DONE)
+            == "a spawn with no finish: 0001-a build"
+        ), finish
+
+
+def test_case_c_the_station_is_the_detail_up_to_its_first_separator(
+    tmp_path: Path,
+) -> None:
+    spawn = "10:00:01 · 0001-a · spawn — build · model default"
+    bare = "10:00:01 · 0001-a · spawn — build"
+    finish = "10:00:02 · 0001-a · finish — build · exit 0 · 1s"
+    assert _verify(tmp_path, _START, spawn, finish, _DONE) is None
+    assert _verify(tmp_path, _START, bare, finish, _DONE) is None
+
+    spaced = "10:00:01 · 0001-a · spawn — build x · model default"
+    other = "10:00:02 · 0001-a · finish — build y · exit 0 · 1s"
+    assert (
+        _verify(tmp_path, _START, spaced, other, _DONE)
+        == "a spawn with no finish: 0001-a build x"
+    )
+
+
+def test_case_c_an_open_spawn_passes_only_under_the_stop_text(
+    tmp_path: Path,
+) -> None:
+    spawn = "10:00:01 · 0001-a · spawn — build · model default"
+    for last in (
+        "10:00:02 · run · halt — stopped by the person",
+        "10:00:02 · 0001-a · halt — stopped by the person",
+    ):
+        assert _verify(tmp_path, _START, spawn, last) is None, last
+    for last in (
+        "10:00:02 · run · halt — stopped by the person!",
+        "10:00:02 · run · halt — not stopped by the person",
+        "10:00:02 · run · halt — build: phase 1 unticked",
+    ):
+        assert (
+            _verify(tmp_path, _START, spawn, last)
+            == "a spawn with no finish: 0001-a build"
+        ), last
+
+
+def test_case_c_a_complete_log_returns_none_and_an_open_end_names_itself(
+    tmp_path: Path,
+) -> None:
+    assert _verify(tmp_path, _START, _DONE) is None
+    assert _verify(tmp_path, _START, "10:00:01 · 0001-a · halt — x") is None
+    assert (
+        _verify(tmp_path, _START, "10:00:01 · 0001-a · check — build · pass")
+        == "the run ends on neither halt nor done"
+    )
+
+
+def _logs(runs: Path, **logs: list[str]) -> Path:
+    """Write each run log, by its stamp, holding its lines; return `runs`.
+
+    e.g. `s1=[…]` → `20261101-100001.md`, `s1_2=[…]` → `20261101-100001-2.md`
+    """
+    runs.mkdir(parents=True, exist_ok=True)
+    for key, lines in logs.items():
+        stamp = f"20261101-10000{key[1]}" + key[2:].replace("_", "-")
+        text = f"# Ship run {stamp}\n\n" + "".join(f"{line}\n" for line in lines)
+        (runs / f"{stamp}.md").write_text(text)
+    return runs
+
+
+_SPAWN = "10:00:01 · 0001-a · spawn — release · model default"
+_EXIT_0 = "10:00:02 · 0001-a · finish — release · exit 0 · 1s"
+
+
+def _died(runs: Path) -> bool:
+    return conduct["_release_died"](runs, "0001-a")
+
+
+def test_case_b_the_newest_log_is_read_first_and_a_suffix_is_newer(
+    tmp_path: Path,
+) -> None:
+    assert _died(_logs(tmp_path / "a", s1=[_EXIT_0], s1_2=[_SPAWN]))
+    assert not _died(_logs(tmp_path / "b", s1=[_SPAWN], s1_2=[_EXIT_0]))
+    assert not _died(_logs(tmp_path / "c", s1=[_SPAWN], s2=[_EXIT_0]))
+    assert _died(_logs(tmp_path / "d", s1=[_EXIT_0], s2=[_SPAWN]))
+
+
+def test_case_b_the_changes_last_release_line_decides(tmp_path: Path) -> None:
+    finish = "10:00:03 · 0001-a · finish — release · "
+    cases = {
+        "spawn last": ([_EXIT_0, _SPAWN], True),
+        "exit 0 last": ([_SPAWN, _EXIT_0], False),
+        "exit 1": ([_SPAWN, f"{finish}exit 1 · 1s"], True),
+        "exit 0 bare": ([_SPAWN, f"{finish}exit 0"], True),
+        "exit 00": ([_SPAWN, f"{finish}exit 00 · 1s"], True),
+        "check": ([_SPAWN, "10:00:03 · 0001-a · check — release · pass"], True),
+        "denied": (
+            [_SPAWN, _EXIT_0, "10:00:03 · 0001-a · denied — release · Bash(x)"],
+            False,
+        ),
+        "other change": (
+            [_EXIT_0, "10:00:03 · 0002-b · spawn — release · model default"],
+            False,
+        ),
+        "releaser": (
+            [_EXIT_0, "10:00:03 · 0001-a · spawn — releaser · model default"],
+            False,
+        ),
+        "no finish": ([_SPAWN], True),
+        "no release": ([_START], False),
+    }
+    for name, (lines, died) in cases.items():
+        assert _died(_logs(tmp_path / name, s1=lines)) is died, name
+    assert not _died(tmp_path / "none")
+
+
+def test_case_b_a_newer_log_with_no_release_line_passes_the_read_on(
+    tmp_path: Path,
+) -> None:
+    newer = [_START, "10:00:01 · 0001-a · spawn — build · model default"]
+
+    assert _died(_logs(tmp_path / "a", s1=[_SPAWN], s2=newer))
+    assert not _died(_logs(tmp_path / "b", s1=[_SPAWN, _EXIT_0], s2=newer))
+
+
+def _rescuing(runs: Path) -> bool:
+    return conduct["_rescuing"](runs, "0001-a")
+
+
+def test_case_f_spawn_and_finish_alone_count_for_rescue_and_supervise(
+    tmp_path: Path,
+) -> None:
+    rescue = "10:00:01 · 0001-a · spawn — rescue · model default"
+    supervise = "10:00:01 · 0001-a · spawn — supervise · model default"
+    cases = {
+        "rescue": ([rescue], True),
+        "supervise": ([supervise], True),
+        "denied": ([rescue, "10:00:02 · 0001-a · denied — rescue · Bash(x)"], True),
+        "rescued": ([rescue, "10:00:02 · 0001-a · finish — rescue · exit 0"], False),
+        "supervised": (
+            [supervise, "10:00:02 · 0001-a · finish — supervise · exit 0"],
+            False,
+        ),
+        "mixed": ([rescue, "10:00:02 · 0001-a · finish — supervise · exit 0"], False),
+        "other change": (
+            ["10:00:01 · 0002-b · spawn — rescue · model default"],
+            False,
+        ),
+        "rescuer": (["10:00:01 · 0001-a · spawn — rescuer · model default"], False),
+        "none": ([_START], False),
+    }
+    for name, (lines, rescuing) in cases.items():
+        assert _rescuing(_logs(tmp_path / name, s1=lines)) is rescuing, name
+    assert not _rescuing(tmp_path / "no log")
+
+
+def test_case_f_only_the_newest_log_is_read(tmp_path: Path) -> None:
+    rescue = "10:00:01 · 0001-a · spawn — rescue · model default"
+
+    assert not _rescuing(_logs(tmp_path / "a", s1=[rescue], s2=[_START]))
+    assert _rescuing(_logs(tmp_path / "b", s1=[_START], s2=[rescue]))
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read every clock the conductor writes as `10:20:30`."""
+    real = time.strftime
+    monkeypatch.setattr(
+        time,
+        "strftime",
+        lambda form, *at: "10:20:30" if form == "%H:%M:%S" else real(form, *at),
+    )
+
+
+def test_case_d_logs_made_on_one_stamp_take_suffixes_titles_and_locks(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    made = [conduct["RunLog"](runs, "20261101-100000") for _ in "abc"]
+
+    stamps = ["20261101-100000", "20261101-100000-2", "20261101-100000-3"]
+    assert [log.stamp for log in made] == stamps
+    assert [log.path for log in made] == [runs / f"{s}.md" for s in stamps]
+    assert [log.lock for log in made] == [runs / f"{s}.lock" for s in stamps]
+    assert [log.path.read_text() for log in made] == [
+        f"# Ship run {s}\n\n" for s in stamps
+    ]
+    assert [log.held for log in made] == [None] * 3
+
+
+def test_case_d_a_standing_file_is_never_written_over(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "20261101-100000.md").write_text("kept\n")
+
+    log = conduct["RunLog"](runs, "20261101-100000")
+
+    assert log.path.name == "20261101-100000-2.md"
+    assert (runs / "20261101-100000.md").read_text() == "kept\n"
+
+
+@pytest.mark.usefixtures("clock")
+def test_case_d_an_event_folds_its_detail_and_a_held_event_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    log = conduct["RunLog"](tmp_path / "runs", "20261101-100000")
+    title = "# Ship run 20261101-100000\n\n"
+
+    log.event("0001-a", "spawn", "build ·\n  model\tdefault ")
+    line = "10:20:30 · 0001-a · spawn — build · model default\n"
+    assert log.path.read_text() == title + line
+    assert not log.lock.exists()
+
+    log.held = []
+    log.event("run", "start", "a\nb")
+    assert log.path.read_text() == title + line
+    assert log.held == [("run", "start", "a\nb")]
+
+
+@pytest.mark.usefixtures("clock")
+def test_case_d_a_held_lock_is_waited_for_and_past_the_limit_stops_with_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = conduct["RunLog"](tmp_path / "runs", "20261101-100000")
+    title = log.path.read_text()
+    log.lock.mkdir()
+    threading.Timer(0.3, log.lock.rmdir).start()
+
+    log.event("run", "start", "x")
+    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
+
+    monkeypatch.setitem(_NAMES, "LOCK_SECONDS", 0.1)
+    log.lock.mkdir()
+    with pytest.raises(conduct["Stop"]) as stopped:
+        log.event("run", "done", "y")
+    assert stopped.value.code == 2
+    assert str(stopped.value) == "conduct: cannot run — 20261101-100000.lock held"
+    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
+    assert log.lock.is_dir()
+
+
+@pytest.mark.usefixtures("clock")
+def test_case_e_the_stop_line_goes_to_the_newest_log_alone(tmp_path: Path) -> None:
+    spawn = "10:00:01 · 0001-a · spawn — build · model default"
+    runs = _logs(tmp_path / "runs", s1=[_START, spawn], s2=[_START, spawn])
+    older = (runs / "20261101-100001.md").read_text()
+    newest = runs / "20261101-100002.md"
+    held = newest.read_text()
+
+    assert conduct["_log_stop"](runs) == newest
+    assert newest.read_text() == held + _STOP_LINE
+    assert (runs / "20261101-100001.md").read_text() == older
+    assert conduct["verify_log"](newest) is None
+
+
+def test_case_e_a_stop_with_no_log_makes_no_file(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    assert conduct["_log_stop"](runs) is None
+    assert not runs.exists()
+    runs.mkdir()
+    (runs / "detached.log").write_text("run: done\n")
+    assert conduct["_log_stop"](runs) is None
+    assert sorted(path.name for path in runs.iterdir()) == ["detached.log"]
+
+
+def _repo(tmp_path: Path) -> Path:
+    """Return a primary checkout on `main` holding one commit, `.minions/` ignored."""
+    root = (tmp_path / "main").resolve()
+    root.mkdir()
+    for args in (
+        ("init", "-q", "-b", "main"),
+        ("config", "user.name", "mf"),
+        ("config", "user.email", "mf@example.invalid"),
+        ("config", "commit.gpgsign", "false"),
+    ):
+        subprocess.run(["git", *args], cwd=root, check=True)
+    (root / ".gitignore").write_text(".minions/\n")
+    subprocess.run(["git", "add", ".gitignore"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=root, check=True)
+    return root
+
+
+@pytest.fixture
+def claimed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[tuple[Path, subprocess.Popen[bytes]]]:
+    """Return a primary whose claim names a live `sleep` as its conductor, and it."""
+    root = _repo(tmp_path)
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    conductor = subprocess.Popen(["sleep", "60"], start_new_session=True)
+    (active / "pid").write_text(str(conductor.pid))
+    (active / "start").write_text("S")
+    monkeypatch.setitem(_NAMES, "_started", lambda pid: "S")
+    yield root, conductor
+    conductor.kill()
+    conductor.wait(timeout=10)
+
+
+@pytest.mark.usefixtures("clock")
+def test_case_e_stop_run_kills_removes_the_claim_and_names_the_log(
+    claimed: tuple[Path, subprocess.Popen[bytes]],
+) -> None:
+    root, conductor = claimed
+    runs = root / ".minions" / "runs"
+    _logs(runs, s1=[_START])
+
+    said = conduct["stop_run"](root)
+
+    assert said == "stop: stopped · .minions/runs/20261101-100001.md"
+    assert conductor.wait(timeout=10) == -signal.SIGKILL
+    assert not (runs / "active").exists()
+    assert (runs / "20261101-100001.md").read_text().endswith(_STOP_LINE)
+
+
+def test_case_e_a_conductor_gone_reads_stopped_with_no_run_log(
+    claimed: tuple[Path, subprocess.Popen[bytes]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = claimed
+
+    def gone(pid: int, sig: int) -> None:
+        raise ProcessLookupError(pid)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "kill", gone)
+        said = conduct["stop_run"](root)
+
+    assert said == "stop: stopped · no run log"
+    assert not (root / ".minions" / "runs" / "active").exists()
+
+
+def test_case_e_a_conductor_that_refuses_the_kill_keeps_the_claim(
+    claimed: tuple[Path, subprocess.Popen[bytes]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, conductor = claimed
+
+    def refuse(pid: int, sig: int) -> None:
+        raise PermissionError(1, "not permitted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "kill", refuse)
+        with pytest.raises(conduct["Stop"]) as stopped:
+            conduct["stop_run"](root)
+
+    assert stopped.value.code == 2
+    assert str(stopped.value) == (
+        "stop: cannot run — the conductor survives: [Errno 1] not permitted"
+    )
+    assert (root / ".minions" / "runs" / "active" / "pid").is_file()
+    assert conductor.poll() is None
+
+
+@pytest.mark.usefixtures("clock")
+def test_case_e_a_group_that_survives_still_gets_the_stop_line(
+    claimed: tuple[Path, subprocess.Popen[bytes]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, conductor = claimed
+    runs = root / ".minions" / "runs"
+    _logs(runs, s1=[_START])
+    (runs / "active" / "4242").write_text("S")
+    killed: list[int] = []
+
+    def refuse(group: int, sig: int) -> None:
+        raise PermissionError(1, "not permitted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "kill", lambda pid, sig: killed.append(pid))
+        patch.setattr(os, "killpg", refuse)
+        patch.setattr(platform, "process", lambda pid, field: "claude")
+        with pytest.raises(conduct["Stop"]) as stopped:
+            conduct["stop_run"](root)
+
+    assert stopped.value.code == 2
+    assert str(stopped.value) == (
+        "stop: conductor stopped · conduct: cannot clear the claim — worker group"
+        " 4242 survives: [Errno 1] not permitted"
+    )
+    assert killed == [conductor.pid]
+    assert (runs / "active" / "4242").is_file()
+    assert (runs / "20261101-100001.md").read_text().endswith(_STOP_LINE)
+
+
+def test_case_h_the_order_key_and_the_newest_by_stamp_then_suffix(
+    tmp_path: Path,
+) -> None:
+    assert conduct["_log_order"](Path("20261029-163000-2.md")) == (
+        "20261029-163000",
+        17,
+        "20261029-163000-2",
+    )
+    runs = _logs(tmp_path / "a", s1=[], s1_2=[], s1_9=[], s1_10=[])
+    assert conduct["last_log"](runs) == runs / "20261101-100001-10.md"
+    _logs(runs, s2=[])
+    assert conduct["last_log"](runs) == runs / "20261101-100002.md"
+
+
+def test_case_h_the_newest_is_by_name_never_by_modification_time(
+    tmp_path: Path,
+) -> None:
+    runs = _logs(tmp_path / "runs", s1=[], s2=[])
+    later = time.time() + 3600
+    os.utime(runs / "20261101-100001.md", (later, later))
+
+    assert conduct["last_log"](runs) == runs / "20261101-100002.md"
+
+
+def test_case_h_folders_the_claim_and_the_detached_log_are_passed_over(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    (runs / "active").mkdir(parents=True)
+    (runs / "20261102-000000").mkdir()
+    (runs / "detached.log").write_text("run: done\n")
+    assert conduct["last_log"](runs) is None
+    assert conduct["last_log"](tmp_path / "missing") is None
+
+    _logs(runs, s1=[])
+    assert conduct["last_log"](runs) == runs / "20261101-100001.md"
+
+
+def _polls(
+    monkeypatch: pytest.MonkeyPatch,
+    claims: list[str],
+    steps: list[Callable[[], object]],
+) -> None:
+    """Answer `_claim` from `claims`, the last kept; run `steps` at each poll."""
+    answers = iter(claims)
+    monkeypatch.setitem(_NAMES, "_claim", lambda active: next(answers, claims[-1]))
+    planned = iter(steps)
+    real = time.sleep
+
+    def sleep(seconds: float) -> None:
+        if seconds != conduct["WAIT_SECONDS"]:
+            real(seconds)
+            return
+        next(planned, lambda: None)()
+
+    monkeypatch.setattr(time, "sleep", sleep)
+
+
+def _gain(log: Path, text: str) -> Callable[[], object]:
+    """Return a step that appends `text` to `log`, making it when it stands not."""
+
+    def step() -> None:
+        with log.open("a") as handle:
+            handle.write(text)
+
+    return step
+
+
+_ENDED = "wait: ended\nstatus: none — no open version\n"
+
+
+def test_case_g_a_stale_claim_is_no_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    active = root / ".minions" / "runs" / "active"
+    active.mkdir(parents=True)
+    (active / "pid").write_text("x")
+
+    assert conduct["wait_run"](root) == 0
+    assert capsys.readouterr().out == "wait: none — no run is live\n"
+
+
+def test_case_g_old_lines_are_not_printed_and_a_part_line_waits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    runs = _logs(root / ".minions" / "runs", s1=[_START])
+    log = runs / "20261101-100001.md"
+    spawn = "10:00:01 · 0001-a · spawn — build · model default\n"
+    steps = [_gain(log, f"{spawn}10:00:02 · run · pa"), _gain(log, "rt\n")]
+    _polls(monkeypatch, ["live"] * 3 + ["none"], steps)
+
+    assert conduct["wait_run"](root) == 0
+    assert capsys.readouterr().out == (
+        f"{spawn}wait: live · +1 lines\n"
+        "10:00:02 · run · part\nwait: live · +1 lines\n" + _ENDED
+    )
+
+
+def test_case_g_a_first_log_and_a_newer_log_are_read_from_their_start(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    first = f"# Ship run 20261101-100001\n\n{_START}\n"
+    newer = "10:05:00 · run · start — executor codex\n"
+    steps = [
+        _gain(runs / "20261101-100001.md", first),
+        _gain(runs / "20261101-100001-2.md", newer),
+    ]
+    _polls(monkeypatch, ["live"] * 3 + ["none"], steps)
+
+    assert conduct["wait_run"](root) == 0
+    assert capsys.readouterr().out == (
+        f"# Ship run 20261101-100001\n\n{_START}\nwait: live · +3 lines\n"
+        f"{newer}wait: live · +1 lines\n" + _ENDED
+    )
+
+
+def _report(root: Path, *lines: str) -> list[str]:
+    """Return `report`'s lines over one run log holding a title, then `lines`."""
+    _logs(root / ".minions" / "runs", s1=list(lines))
+    return conduct["report"](root).splitlines()
+
+
+def test_case_i_the_runs_denials_waits_versions_and_tail(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    halt = "10:00:05 · 10000-b · halt — build: phase 1 unticked"
+    skipped = "10:00:09 · run · rejoin — skipped — 9999-a is live"
+    closing = "10:00:14 · run · halt — run: the last"
+
+    assert _report(
+        root,
+        _START,
+        "10:00:01 · run · denied — probe · Bash(a)",
+        "a line that is no event",
+        "10:00:02 · run · denied — probe · Bash(b · c)",
+        "10:00:03 · run · push — waiting: origin unreachable",
+        "10:00:04 · run · push — pushed main",
+        halt,
+        "10:00:06 · 9999-a · spawn — build · model default",
+        "10:00:07 · run · rejoin — 9999-a: build",
+        "10:00:08 · run · rejoin — 9999-a: still halted",
+        skipped,
+        "10:00:10 · run · rescue — 9999-a: fixed · tasks.md amended",
+        "10:00:11 · run · rescue — 9999-a: diagnosed · rescue.md",
+        "10:00:12 · run · supervise — 9999-a: decided · D3",
+        "10:00:13 · run · supervise — 9999-a: spent · two rounds",
+        closing,
+    ) == [
+        "run · denied Bash(a), Bash(b · c)",
+        "run · waited origin unreachable",
+        "9999-a · no version branch",
+        "10000-b · no version branch",
+        halt,
+        "9999-a · rejoined build",
+        skipped,
+        "9999-a · rescued tasks.md amended",
+        "9999-a · diagnosed rescue.md",
+        "9999-a · supervised D3",
+        "9999-a · spent two rounds",
+        closing,
+    ]
+
+
+def test_case_i_each_versions_blocked_part(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    for change in ("0001-a", "0002-b"):
+        subprocess.run(["git", "branch", change], cwd=root, check=True)
+
+    lines = _report(
+        root,
+        _START,
+        "10:00:01 · 0001-a · blocked — by 0003-c",
+        "10:00:02 · 0001-a · blocked — by 0002-b",
+        "10:00:03 · 0002-b · spawn — build · model default",
+        _DONE,
+    )
+
+    assert [line.split(" · ")[0] for line in lines[:2]] == ["0001-a", "0002-b"]
+    assert lines[0].endswith(" · metrics: none · blocked by 0002-b")
+    assert lines[1].endswith(" · metrics: none")
+    assert lines[2:] == [_DONE]
+
+
+def test_case_i_no_run_and_a_log_with_no_event(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    assert conduct["report"](root) == "report: none — no run yet"
+
+    assert _report(root, "no event here") == ["20261101-100001.md: no event"]
+
+
+def test_pin_a_bad_byte_raises_in_the_verify_the_death_and_report(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path)
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    log = runs / "20261101-100001.md"
+    log.write_bytes(f"{_START}\n{_SPAWN}".encode() + b" \xff\n")
+
+    for read in (
+        lambda: conduct["verify_log"](log),
+        lambda: _died(runs),
+        lambda: conduct["report"](root),
+    ):
+        with pytest.raises(UnicodeDecodeError):
+            read()
+
+
+def test_pin_a_bad_byte_is_replaced_in_the_rescues_read_and_the_wait(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    log = runs / "20261101-100001.md"
+    log.write_bytes("10:00:01 · 0001-a · spawn — rescue · x".encode() + b" \xff\n")
+    assert _rescuing(runs)
+
+    def gain() -> None:
+        with log.open("ab") as handle:
+            handle.write(b"10:00:03 \xff\n")
+
+    _polls(monkeypatch, ["live", "live", "none"], [gain])
+
+    assert conduct["wait_run"](root) == 0
+    assert capsys.readouterr().out == ("10:00:03 �\nwait: live · +1 lines\n" + _ENDED)
+
+
+@pytest.mark.usefixtures("clock")
+def test_pin_the_append_and_the_stop_line_write_through_a_link(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    log = conduct["RunLog"](runs, "20261101-100001")
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside\n")
+    log.path.unlink()
+    log.path.symlink_to(outside)
+
+    log.event("run", "start", "x")
+    conduct["_log_stop"](runs)
+
+    assert outside.read_text() == ("outside\n10:20:30 · run · start — x\n" + _STOP_LINE)
+    assert log.path.is_symlink()
+
+
+def test_pin_the_create_refuses_a_dangling_link_and_takes_the_next_suffix(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "20261101-100001.md").symlink_to(runs / "gone.md")
+
+    log = conduct["RunLog"](runs, "20261101-100001")
+
+    assert log.path == runs / "20261101-100001-2.md"
+    assert not (runs / "gone.md").exists()
+
+
+def _children(calls: dict[str, Callable[[], object]]) -> dict[str, threading.Thread]:
+    """Start each call in a daemon thread; return them, joined within 10 s in all."""
+    children = {
+        name: threading.Thread(target=call, daemon=True) for name, call in calls.items()
+    }
+    for child in children.values():
+        child.start()
+    # A pipe opened blocking waits for its other end: the deadline bounds the run.
+    deadline = time.monotonic() + 10
+    for child in children.values():
+        child.join(timeout=max(0.0, deadline - time.monotonic()))
+    return children
+
+
+def _release(pipe: Path, children: dict[str, threading.Thread], flags: int) -> None:
+    """Open the pipe's other end by `flags` until every child has ended."""
+    deadline = time.monotonic() + 10
+    while any(child.is_alive() for child in children.values()):
+        assert time.monotonic() < deadline
+        try:
+            fd = os.open(pipe, flags | os.O_NONBLOCK)
+        except OSError:
+            time.sleep(0.01)
+            continue
+        time.sleep(0.05)
+        os.close(fd)
+
+
+@pytest.mark.slow
+def test_pin_each_reader_blocks_on_a_pipe_at_the_log(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    pipe = runs / "20261101-100001.md"
+    os.mkfifo(pipe)
+    _polls(monkeypatch, ["live", "live", "none"], [])
+
+    children = _children(
+        {
+            "verify": lambda: conduct["verify_log"](pipe),
+            "death": lambda: _died(runs),
+            "rescue": lambda: _rescuing(runs),
+            "report": lambda: conduct["report"](root),
+            "wait": lambda: conduct["wait_run"](root),
+        }
+    )
+
+    assert [name for name, child in children.items() if child.is_alive()] == [
+        "verify",
+        "death",
+        "rescue",
+        "report",
+        "wait",
+    ]
+    _release(pipe, children, os.O_WRONLY)
+    assert "wait: ended\n" in capsys.readouterr().out
+
+
+@pytest.mark.slow
+def test_pin_the_append_and_the_stop_line_block_on_a_pipe_at_the_log(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    log = conduct["RunLog"](runs, "20261101-100001")
+    log.path.unlink()
+    os.mkfifo(log.path)
+
+    children = _children(
+        {
+            "append": lambda: log.event("run", "start", "x"),
+            "stop": lambda: conduct["_log_stop"](runs),
+        }
+    )
+
+    assert [name for name, child in children.items() if child.is_alive()] == [
+        "append",
+        "stop",
+    ]
+    _release(log.path, children, os.O_RDONLY)
+    assert not log.lock.exists()
+
+
+@pytest.mark.usefixtures("clock")
+def test_pin_a_name_that_is_no_stamp_is_the_newest_log(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    runs = _logs(root / ".minions" / "runs", s1=[_EXIT_0])
+    notes = runs / "notes.md"
+    held = (
+        "10:00:03 · 0001-a · spawn — rescue · model default\n"
+        f"{_SPAWN}\n10:00:04 · run · done — notes\n"
+    )
+    notes.write_text(held)
+
+    assert conduct["last_log"](runs) == notes
+    assert _rescuing(runs)
+    assert _died(runs)
+    assert conduct["report"](root).splitlines()[-1] == "10:00:04 · run · done — notes"
+    assert conduct["_log_stop"](runs) == notes
+    assert notes.read_text() == held + _STOP_LINE
+
+
+def test_pin_a_digit_led_name_sorts_before_a_stamp(tmp_path: Path) -> None:
+    runs = _logs(tmp_path / "runs", s1=[_EXIT_0])
+    (runs / "1.md").write_text(f"{_SPAWN}\n")
+
+    assert conduct["last_log"](runs) == runs / "20261101-100001.md"
+    assert not _died(runs)
+
+
+def test_pin_a_sync_or_codex_line_fails_the_verify(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    for line in (
+        "10:00:01 · run · sync — mf-ship scripts synced",
+        "10:00:01 · run · codex — not on PATH: checkers run on claude",
+    ):
+        log = tmp_path / "sync.md"
+        log.write_text(f"# Ship run x\n\n{_START}\n{line}\n{_DONE}\n")
+        assert conduct["main"](["log", "--verify", str(log)]) == 1
+        said = capsys.readouterr().out
+        assert said == f"log: incomplete — unknown event: {line}\n"
+
+
+@pytest.mark.usefixtures("clock")
+def test_pin_a_planted_lock_stops_the_append_and_not_the_stop_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runs = tmp_path / "runs"
+    log = conduct["RunLog"](runs, "20261101-100001")
+    title = log.path.read_text()
+    log.lock.mkdir()
+    monkeypatch.setitem(_NAMES, "LOCK_SECONDS", 0.1)
+
+    with pytest.raises(conduct["Stop"]) as stopped:
+        log.event("run", "start", "x")
+    assert stopped.value.code == 2
+    assert log.path.read_text() == title
+
+    assert conduct["_log_stop"](runs) == log.path
+    assert log.path.read_text() == title + _STOP_LINE
+    assert log.lock.is_dir()
