@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.113.0] - 2026-11-21
+
+Gate: local 8m55s · CI not read under mf-ship · 0.112.1: local 7m43s · CI not read under mf-ship
+
+- `tests/test_modelsfile.py` pins what the conductor and `brief_check.py` do with a models file today: its parser,
+  key readers, hash, writer and text, and a link, a pipe, a folder or a bad byte at it, so the move to one module
+  can change no assert. The test of the halt a build's spawn removes reaches the spawn through `run` (0142-models, phase 1).
+- `skills/mflib/modelsfile.py` holds the models file's map, text, parser, key readers, hash and writer, each as its copy
+  behaves today; nothing loads it yet. `statefile.open_folder` opens a folder and makes nothing, and the claim opens
+  through it; `layout.models_file` names the file (0142-models, phase 2).
+- The conductor and `brief_check.py` read, hash, write and print the models file through `skills/mflib/modelsfile.py`;
+  their own copies, the token pattern and the old-name map go, and no assert changed (0142-models, phase 3).
+- A models file is read once, through no link, bounded and strictly decoded, and every table's words are tokens: a
+  broken file halts its version alone, fails the cut's check naming why, and `status` names it; `[converge.review]`
+  and `[converge.security]` are read no more. The write is staged and refuses a link; `brief_check.py --write` writes
+  the file for the attended cut. Pays card 0111·S1 (0142-models, phase 4).
+- A round-trip case reads back every table and key the models text writes, holding the one map where no gate rule
+  can. D57, D77, D41, the threat model and the state-file recipe name `skills/mflib/modelsfile.py`
+  (0142-models, phase 5).
+
 ## [0.112.1] - 2026-11-21
 
 Gate: local 7m43s · CI not read under mf-ship · 0.112.0: local 7m50s · CI not read under mf-ship

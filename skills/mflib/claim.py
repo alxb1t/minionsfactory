@@ -32,18 +32,14 @@ def _open(active: Path) -> int | None:
     """
     if not active.parent.is_dir():
         return None
-    parent = statefile.folder(active.parent)
     try:
-        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        return os.open(active.name, flags, dir_fd=parent)
+        return statefile.open_folder(active.parent, active.name)
     except FileNotFoundError:
         return None
     except OSError as error:
         if error.errno in (errno.ELOOP, errno.ENOTDIR):
             raise Refused(active) from None
         raise
-    finally:
-        os.close(parent)
 
 
 def _entry(fd: int, name: str) -> str | None:

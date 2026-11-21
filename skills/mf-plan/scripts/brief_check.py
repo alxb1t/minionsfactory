@@ -13,11 +13,16 @@ import html
 import json
 import re
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 from markdown_it import MarkdownIt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
+import mflib.modelsfile
 
 VERIFY_CHECK = (
     Path(__file__).resolve().parents[2]
@@ -33,7 +38,6 @@ MARKER = re.compile(r"(?:[-*+]|\d+[.)])(?:\s|$)|\|")
 ACCEPTANCE = "- **Acceptance:** "
 CUT = re.compile(r"Cut \d{4}-\d{2}-\d{2} as \d+-[a-z0-9-]+ at [0-9a-f]{7,40}\.")
 LABEL = re.compile(r"\*\*Acceptance:\*\*|Verify:")
-TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 TAG = re.compile(r"<[^>]*>")
 LONE = re.compile(r"\r(?!\n)")
 INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
@@ -48,17 +52,6 @@ FACT = re.compile(
     r" at `(?P<sha>[0-9a-f]{7,40})`\)$"
 )
 CITE = re.compile(rf"`(?P<path>{PATH}):(?P<start>\d+)(?:-(?P<end>\d+))?`")
-# The tables of a models file, by the part that names each.
-# Why: 0106-cut-scripts design D2.
-TABLES = {
-    "build": "build",
-    "build-moderate": "build.moderate",
-    "converge": "converge",
-    "conformance": "converge.conformance",
-    "adversarial": "converge.adversarial",
-    "fix": "converge.fix",
-    "release": "release",
-}
 # The parser the brief is read with: CommonMark, and GFM's tables.
 # Why: 0103-fewer-rounds design D6.
 MARKDOWN = MarkdownIt("commonmark").enable("table")
@@ -269,7 +262,7 @@ def models(number: str, text: str) -> list[str]:
         found += [
             f"item {number} — not a model or effort: `{token}`"
             for token in (word, effort)
-            if not TOKEN.fullmatch(token)
+            if not mflib.modelsfile.TOKEN.fullmatch(token)
         ]
     if shadowed and skipped:
         found.append(f"item {number} — a skip is not beside shadow")
@@ -311,30 +304,20 @@ def chosen(lines: list[str], name: str) -> tuple[re.Match[str], list[str]] | Non
     return opened, lines[start : start + 1 + stop]
 
 
-def models_toml(opened: re.Match[str], item: list[str]) -> str:
-    """Return the models file of a checked `## For the cut` item, as TOML.
+def models_of(
+    opened: re.Match[str], item: list[str]
+) -> tuple[bool, dict[str, list[str]], bool]:
+    """Return a checked `## For the cut` item's switch, its parts' words and its shadow.
 
-    One table per stage of `TABLES`, in order; its shape is in 0106 design D2.
+    e.g. `- models: build m e · … · shadow` → (False, {"build": ["m", "e"], …}, True)
+    Why: 0106 design D2; 0142-models design D9.
     """
     line = next(line for line in item if modelled(line, len(opened[1]) + 2))
     parts = [part.split() for part in line.lstrip(" ")[len("- models:") :].split(" · ")]
     named = {name: rest for name, *rest in parts}
     shadowed = parts[-1:] == [SHADOW]
     decided = "decide: recommended" in opened[2].rstrip().split(" · ")
-    blocks = ['decide = "recommended"'] if decided else []
-    for name, table in TABLES.items():
-        if (rest := named.get(name)) is None:
-            continue
-        lines = [f"[{table}]"]
-        if rest == ["skip"]:
-            lines.append("skip = true")
-        else:
-            host, slash, model = rest[0].rpartition("/")
-            lines += [f'model = "{model}"', f'effort = "{rest[1]}"']
-            lines += [f'executor = "{host}"'] if slash else []
-        lines += ["shadow = true"] if name == "converge" and shadowed else []
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks) + "\n"
+    return decided, named, shadowed
 
 
 def fields(lines: list[str], slug: re.Pattern[str]) -> list[str]:
@@ -511,6 +494,38 @@ def carriage(brief: str) -> list[str]:
     ]
 
 
+def write(change: str, text: str, conduct: dict[str, Any]) -> int:
+    """Write `text` as the change's models file in this directory's repository.
+
+    Return the exit code: 0 written, 2 not. Why: 0142-models design D9.
+    """
+    if not conduct["CHANGE_ID"].fullmatch(change):
+        print(f"brief: cannot write — not a change id: `{change}`")
+        return 2
+    shown = mflib.layout.models_file(Path(), change)
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=conduct["GIT_TIMEOUT"],
+        ).stdout.strip()
+        mflib.modelsfile.write(mflib.layout.primary_of(common), change, text)
+    except subprocess.CalledProcessError as error:
+        why = next(iter(error.stderr.splitlines()), f"git exit {error.returncode}")
+    except (OSError, subprocess.TimeoutExpired) as error:
+        why = str(error)
+    except mflib.modelsfile.statefile.WriteFailed as error:
+        why = f"{shown}: {error.error.strerror}"
+    else:
+        print(f"brief: wrote {shown}")
+        return 0
+    print(f"brief: cannot write — {why}")
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     """Check a brief; return the exit code."""
     parser = argparse.ArgumentParser(
@@ -526,9 +541,16 @@ def main(argv: list[str] | None = None) -> int:
     form.add_argument(
         "--models", action="store_true", help="print the item's models file as TOML"
     )
+    parser.add_argument(
+        "--write",
+        metavar="CHANGE_ID",
+        help="with --models, write the item's models file for the change",
+    )
     args = parser.parse_args(argv)
     if args.models != (args.slug is not None):
         parser.error("--models takes a brief and a slug, and a slug only --models")
+    if args.write is not None and not args.models:
+        parser.error("--write goes beside --models alone")
     path = args.brief
     try:
         with path.open(newline="") as handle:
@@ -563,9 +585,13 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         for line in (broken := fields(item[1], slug)):
             print(f"brief: halt — {line}")
-        if not broken:
-            print(models_toml(*item), end="")
-        return 1 if broken else 0
+        if broken:
+            return 1
+        text = mflib.modelsfile.text(*models_of(*item))
+        if args.write is not None:
+            return write(args.write, text, conduct)
+        print(text, end="")
+        return 0
     found: list[str] = []
     if title := depth(brief):
         found.append(title)

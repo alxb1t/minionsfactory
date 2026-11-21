@@ -52,7 +52,8 @@ written and parsed through `skills/mflib/statuslog.py`, its path `layout.status_
 files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
 The debt file is written and parsed through `skills/mflib/debtfile.py`, its path `layout.debt_file(primary)`, and its
 lock taken through `debtfile.lock`. The run log is written and parsed through `skills/mflib/runlog.py`, its folder
-`layout.runs_dir(primary)`, and the claim through `skills/mflib/claim.py`, its path `layout.claim_file(primary)`.
+`layout.runs_dir(primary)`, and the claim through `skills/mflib/claim.py`, its path `layout.claim_file(primary)`. The
+models file is written and parsed through `skills/mflib/modelsfile.py`, its path `layout.models_file(primary, change)`.
 
 - **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
 - **Rules:** `check_layout` holds that `.minions` is joined in `skills/mflib/layout.py` alone: a string constant
@@ -60,7 +61,8 @@ lock taken through `debtfile.lock`. The run log is written and parsed through `s
   folder's names there too: a string constant elsewhere that contains `.mf-ship-origin`, or equals `XDG_CONFIG_HOME`,
   `XDG_DATA_HOME` or `XDG_STATE_HOME`, fails whatever the list holds, and `LAYOUT_SITES` lists neither.
   `check_formats` holds the format names in `skills/mflib/`: a string constant elsewhere equal to `status_log.md`, or
-  containing `## Run`, or the card head `- **` or `- \*\*`, fails unless `FORMAT_SITES` lists the pair.
+  containing `## Run`, `# Ship run`, the card head `- **` or `- \*\*`, or the run log's clock `\d\d:\d\d:\d\d` or
+  `(\d\d):(\d\d):(\d\d)`, fails unless `FORMAT_SITES` lists the pair.
 
 ## An OS
 

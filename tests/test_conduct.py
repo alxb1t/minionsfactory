@@ -30,6 +30,8 @@ from typing import Any
 
 import mflib.debtfile
 import mflib.findings
+import mflib.modelsfile
+import mflib.statefile
 import pytest
 from conduct_load import conduct as _conduct
 from fake_worker import (
@@ -1531,19 +1533,31 @@ def test_a_dependents_delta_halts_as_integrating(
     assert note.read_text() == held
 
     # A link at the change's folder halts the version, not the run; nothing written.
+    # The take's read of the models file meets it first: 0142-models design D6.
     marks, aside = note.parent, tmp_path / "aside"
     marks.rename(aside)
     (aside / "integrate.md").unlink()
     marks.symlink_to(aside)
     log = again(1)
     assert (
-        " · 0002-marks · halt — conduct: halt — cannot write"
-        " .minions/changes/0002-marks/integrate.md — "
+        " · 0002-marks · halt — conduct: halt — changes/0002-marks/models.toml:"
+        " its folder cannot be opened: "
     ) in log
     assert " · run · halt — halted 0002-marks · blocked none · " in log
     assert not (aside / "integrate.md").exists()
     marks.unlink()
     aside.rename(marks)
+    # A link at the note is refused by the note's own write; nothing written.
+    gone = tmp_path / "gone.md"
+    note.symlink_to(gone)
+    log = again(1)
+    assert (
+        " · 0002-marks · halt — conduct: halt — cannot write"
+        " .minions/changes/0002-marks/integrate.md — "
+    ) in log
+    assert " · run · halt — halted 0002-marks · blocked none · " in log
+    assert not gone.exists()
+    note.unlink()
     note.write_text(held)
 
     _git(tree, "commit", "-q", "-m", "chore(integrate): merge main into 0002-marks")
@@ -2431,6 +2445,7 @@ def test_run_halts_on_a_human_phase(
     conductor.log.path.unlink()
 
 
+@pytest.mark.slow
 def test_a_build_spawn_removes_the_halt_the_last_build_left(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2446,10 +2461,8 @@ def test_a_build_spawn_removes_the_halt_the_last_build_left(
     rescue = folder / "rescue.md"
     rescue.write_text("diagnosis\n")
 
-    conductor = conduct["Run"](root, "claude")
-    version = conduct["find_version"](root, "0001-todo")
-    conductor.read_plan([version])
-    conductor.advance(version, ())
+    # why: the run sets up what a spawn needs on every host. 0142-models design D14.
+    _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
 
     assert "build 0001-todo" in _calls(calls)
     assert not halt.exists()
@@ -2548,12 +2561,20 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
         _main(conduct, crashed, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert "converge-conformance-r1 0002-marks" not in _calls(calls)
+    # A bad byte halts its version alone: the other goes on to its release.
+    assert "build 0001-todo" not in _calls(calls)
+    assert "release 0002-marks" in _calls(calls)
     lines = _log(crashed)
-    assert any(" · run · halt — conduct.py failed: " in line for line in lines)
-    assert lines[-1].endswith(
-        " · run · halt — halted run · blocked none · released none"
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml:"
+            " it is not UTF-8"
+        )
+        for line in lines
     )
+    assert not any(" · run · halt — conduct.py failed: " in line for line in lines)
+    halted = " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
+    assert halted in lines[-1]
 
 
 @pytest.mark.slow
@@ -2959,26 +2980,33 @@ def test_a_rescue_amends_at_amend_needed(
 
 
 def test_a_link_planted_after_the_removal_truncates_no_models_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
-    # Why: 0119-debt-paydown-3b design D5.
+    # A hard link planted before the write: the name is replaced, the other kept.
+    # Why: 0119-debt-paydown-3b design D5; 0142-models design D8.
     conduct = _conduct()
     root = _primary(tmp_path)
     victim = tmp_path / "victim.md"
     victim.write_text("keep me\n")
-    write = conduct["_write_models"]
-    real = write.__globals__["_remove_in"]
 
-    def plant(base: Path, *parts: str, name: str) -> None:
-        real(base, *parts, name=name)
-        folder = root / ".minions" / "changes" / "0001-todo"
-        os.link(victim, folder / "models.toml")
+    def write(primary: Path, change: str, text: str) -> None:
+        try:
+            mflib.modelsfile.write(primary, change, text)
+        except mflib.statefile.WriteFailed as error:
+            raise conduct["_unwritten"](change, error) from None
 
-    monkeypatch.setitem(write.__globals__, "_remove_in", plant)
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    os.link(victim, folder / "models.toml")
+    write(root, "0001-todo", "[build]\n")
+    assert (folder / "models.toml").read_text() == "[build]\n"
+    assert victim.read_text() == "keep me\n"
+    # A folder at the file is a write that fails: the cut stops with exit 2.
+    (folder / "models.toml").unlink()
+    (folder / "models.toml").mkdir()
     with pytest.raises(conduct["Stop"]) as stopped:
         write(root, "0001-todo", "[build]\n")
     assert stopped.value.code == 2
-    assert victim.read_text() == "keep me\n"
 
 
 def test_a_stub_bars_no_rescue(tmp_path: Path) -> None:
@@ -4521,12 +4549,13 @@ def test_a_cut_queues_its_models_file(
     assert written.read_text() == _MODELS
     assert conduct["_cuts"](root)["0001-a"]["models"] == _MODELS
     # The check reads the file by hash, through no link.
-    hashed = conduct["_models_hash"]
+    hashed = mflib.modelsfile.digest
     assert hashed(root, "0001-a") == hashlib.sha256(_MODELS.encode()).hexdigest()
     written.unlink()
     assert hashed(root, "0001-a") is None
     written.symlink_to(tmp_path / "brief.md")
-    assert hashed(root, "0001-a") is None
+    with pytest.raises(mflib.modelsfile.Broken, match=r"^it is a link$"):
+        hashed(root, "0001-a")
     written.unlink()
     written.write_text(_MODELS)
 
@@ -6227,14 +6256,16 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
         ("[converge]\nskip = false\n", frozenset()),
         ('[converge]\nskip = "true"\n', frozenset()),
         ("[converge.adversarial]\nskip = 1\n", frozenset()),
-        ("[converge\n", frozenset()),
         ("[rescue]\nskip = true\n", frozenset()),
         ("[converge.adversarial]\nskip = true\n", {"converge.adversarial"}),
     ):
         table.write_text(text)
         assert skips(minions, "0001-todo") == held, text
+    table.write_text("[converge\n")
+    with pytest.raises(conduct["Stop"]):
+        skips(minions, "0001-todo")
 
-    # Each worker table is read as its station, an old table's name kept.
+    # Each worker table is read as its station; an old table is read no more.
     minions = tmp_path / "tables" / ".minions"
     table = minions / "changes" / "0001-todo" / "models.toml"
     table.parent.mkdir(parents=True)
@@ -6248,20 +6279,20 @@ def test_a_checker_on_another_host_is_planned_and_probed(tmp_path: Path) -> None
         "claude-opus-5-5",
         "high",
     )
-    # A cut's old table names the worker it was written for.
+    # A cut's old table stands for no worker: both read their defaults.
     table.write_text(
         '[converge.review]\nmodel = "claude-sonnet-5-5"\n'
         '[converge.security]\neffort = "max"\n'
     )
     assert models(minions, "0001-todo", "converge.conformance", "claude") == (
         "claude",
-        "claude-sonnet-5-5",
+        None,
         None,
     )
     assert models(minions, "0001-todo", "converge.adversarial", "claude") == (
         "claude",
         None,
-        "max",
+        None,
     )
     file = "conduct: halt — changes/0001-todo/models.toml"
     for station, text, said in (

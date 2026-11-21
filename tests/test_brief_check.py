@@ -286,6 +286,78 @@ def test_models_prints_the_items_toml(
         capsys.readouterr()
 
 
+def _git_init(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    return root.resolve()
+
+
+def test_write_writes_the_items_models_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0142-models design D9.
+    root = _git_init(tmp_path)
+    bad = (
+        "2. **bad** · major · after: none\n"
+        "   - models: build a b · converge a b · release a b · cut a b\n"
+    )
+    brief = str(_write(tmp_path, _READY + bad))
+    slug = "0083-plan-queues"
+    sub = root / "sub"
+    sub.mkdir()
+    monkeypatch.chdir(sub)
+    assert brief_check.main(["--models", brief, slug]) == 0
+    printed = capsys.readouterr().out
+    assert brief_check.main(["--models", brief, slug, "--write", "0001-a"]) == 0
+    said = "brief: wrote .minions/changes/0001-a/models.toml\n"
+    assert capsys.readouterr().out == said
+    models = root / ".minions" / "changes" / "0001-a" / "models.toml"
+    assert models.read_text() == printed
+    # An item out of shape writes nothing and exits 1; no item exits 2.
+    assert brief_check.main(["--models", brief, "bad", "--write", "0002-b"]) == 1
+    assert brief_check.main(["--models", brief, "nope", "--write", "0002-b"]) == 2
+    assert not (root / ".minions" / "changes" / "0002-b").exists()
+    capsys.readouterr()
+    # A failed write, and a word that is no change id, exit 2.
+    target = tmp_path / "target.toml"
+    target.write_text("keep me\n")
+    models.unlink()
+    models.symlink_to(target)
+    assert brief_check.main(["--models", brief, slug, "--write", "0001-a"]) == 2
+    out = capsys.readouterr().out
+    assert out.startswith("brief: cannot write — .minions/changes/0001-a/models.toml: ")
+    assert target.read_text() == "keep me\n"
+    assert brief_check.main(["--models", brief, slug, "--write", "../x"]) == 2
+    assert capsys.readouterr().out == "brief: cannot write — not a change id: `../x`\n"
+    # The flag goes beside `--models` alone, and writes nothing then.
+    for argv in ([brief, "--write", "0003-c"], ["--facts", brief, "--write", "0003-c"]):
+        with pytest.raises(SystemExit) as stop:
+            brief_check.main(argv)
+        assert stop.value.code == 2
+        capsys.readouterr()
+    assert not (root / ".minions" / "changes" / "0003-c").exists()
+
+
+def test_write_stops_with_2_when_git_finds_no_repository(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brief = str(_write(tmp_path, _READY))
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    argv = ["--models", brief, "0083-plan-queues", "--write", "0001-a"]
+    assert brief_check.main(argv) == 2
+    out = capsys.readouterr().out
+    assert out.startswith("brief: cannot write — fatal: not a git repository"), out
+    # A git that cannot start is a failed git too.
+    monkeypatch.setenv("PATH", str(tmp_path / "nowhere"))
+    assert brief_check.main(argv) == 2
+    assert capsys.readouterr().out.startswith("brief: cannot write — [Errno 2] ")
+    assert not (outside / ".minions").exists()
+
+
 def test_the_sections_flag_prints_each_section_as_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

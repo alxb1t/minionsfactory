@@ -31,6 +31,14 @@ def test_the_layout_names_the_log_of_a_change(tmp_path: Path) -> None:
     assert layout.STATUS_LOG == "status_log.md"
 
 
+def test_the_layout_names_the_models_file_of_a_change(tmp_path: Path) -> None:
+    assert layout.models_file(tmp_path, "0001-todo") == (
+        tmp_path / ".minions" / "changes" / "0001-todo" / "models.toml"
+    )
+    assert layout.MODELS == "models.toml"
+    assert layout.OLD_LAYOUT["models/{}.toml"] == layout.MODELS
+
+
 @pytest.mark.parametrize("role", ["conformance", "adversarial"])
 def test_layout_findings_name_is_the_roles_file(role: str) -> None:
     assert layout.findings_name(role) == f"{role}.md"
