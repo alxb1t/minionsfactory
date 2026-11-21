@@ -109,7 +109,7 @@ This change adds unit cases and no end-to-end test ([T1](../../../skills/mf-buil
 | unit | the listed load | `tests/test_structure.py` | `uv run pytest tests/test_structure.py --collect-only -q` |
 | unit | a released `after` at the cut | `tests/test_cut_pre.py` | `uv run pytest tests/test_cut_pre.py --collect-only -q` |
 | unit | the decisions compare, the build halt, the second read, the released `after` at the queue, the cascade | `tests/test_conduct.py` | `uv run pytest tests/test_conduct.py --collect-only -q` |
-| unit | a conflicted and an ambiguous path | `tests/test_integrate.py` | `uv run pytest tests/test_integrate.py --collect-only -q` |
+| unit | a conflicted, an ambiguous and an unreadable path | `tests/test_integrate.py` | `uv run pytest tests/test_integrate.py --collect-only -q` |
 | unit | nits alone, a verdict with no card | `tests/test_converge.py` | `uv run pytest tests/test_converge.py --collect-only -q` |
 
 End-to-end runs added: none.
