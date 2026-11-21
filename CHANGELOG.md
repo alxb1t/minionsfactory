@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.112.1] - 2026-11-21
+
+Gate: local 7m43s · CI not read under mf-ship · 0.112.0: local 7m50s · CI not read under mf-ship
+
 - The plan check reads every span after an output verb as output until `then`, `;` or a sentence end, holds a command to
   the exit its `Verify:` names with `exits`, and runs each command without `VIRTUAL_ENV`. `verify_check.py` loads that
   parser in place of its copy, so the cut and the build read a `Verify:` alike (0141-halt-fixes, phase 1).

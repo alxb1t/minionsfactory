@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: v0.112.1
 ---
 
 # Halt fixes
