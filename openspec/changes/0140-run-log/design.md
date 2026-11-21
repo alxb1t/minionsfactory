@@ -93,7 +93,8 @@ Where the conductor's copies differ from the right side, the module is born with
 
 - the log object takes a lock folder and a wait, `LOCK_SECONDS`, and both are removed in phase 4; the error a held lock raises is its caller's, `busy`, and the conductor passes one that makes `Stop` with code 2 and today's text;
 - every reader reads by pathname, and the newest log is any `*.md`;
-- the claim's reads follow a link, and a file at the claim reads as a stale claim.
+- the claim's reads follow a link, and a file at the claim reads as a stale claim;
+- neither module imports `statefile`, so each row of `docs/modules.md` names `—`; the fix turns each to `statefile.py` in the task that brings `statefile` in, `runlog.py`'s in 4.3 and `claim.py`'s in 4.7.
 
 The conductor binds `EVENT` and `last_log` to the module's and keeps `_claim` as its own function over the module's reads. The viewer is not edited.
 

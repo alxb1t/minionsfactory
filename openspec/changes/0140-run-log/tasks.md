@@ -49,7 +49,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
   Verify: `grep -n -e "def groups" skills/mflib/claim.py` prints a line.
 - [ ] 2.8 Add the module's unit cases to `tests/test_claim.py`, one for each function of `skills/mflib/claim.py`, reached as `mflib.claim`.
   Verify: `uv run pytest tests/test_claim.py -q` exits 0.
-- [ ] 2.9 Add a row for `skills/mflib/runlog.py` and one for `skills/mflib/claim.py` to `docs/modules.md`: layer `home`, names `statefile.py`.
+- [ ] 2.9 Add a row for `skills/mflib/runlog.py` and one for `skills/mflib/claim.py` to `docs/modules.md`: layer `home`, names `—`, since neither imports `statefile` until phase 4 ([D2](design.md#d2)).
   Verify: `git grep -n -e "mflib/runlog.py" -- docs/modules.md` prints a line and `git grep -n -e "mflib/claim.py" -- docs/modules.md` prints a line.
 - [ ] 2.10 Name the modules in `skills/mf-ship/SKILL.md`, in a sentence after "Its exits": the run log through `../../mflib/runlog.py`, the claim through `../../mflib/claim.py`.
   Verify: `git grep -n -F -e "../../mflib/claim.py" -- skills/mf-ship/SKILL.md` prints a line.
@@ -77,7 +77,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
   Verify: `git grep -n -e '"sync"' -- skills/mflib/runlog.py` prints a line.
 - [ ] 4.2 In `skills/mflib/runlog.py` and `skills/mf-ship/scripts/conduct.py` remove the lock folder, its wait and the held error; the log object takes a lock of the process, and the stop line takes the module's append ([D5](design.md#d5), [D2](design.md#d2)).
   Verify: `git grep -n -e "LOCK_SECONDS" -- skills scripts` prints nothing.
-- [ ] 4.3 In `skills/mflib/runlog.py` open the create, the append and the stop line under the runs folder's descriptor, as [D6](design.md#d6) says, and turn the write pins to the one side: a link and a pipe at the log, for the append and for the stop line.
+- [ ] 4.3 In `skills/mflib/runlog.py` open the create, the append and the stop line under the runs folder's descriptor, as [D6](design.md#d6) says, and turn the write pins to the one side: a link and a pipe at the log, for the append and for the stop line. Turn the `names` cell of `skills/mflib/runlog.py`'s row in `docs/modules.md` from `—` to `statefile.py`.
   Verify: `uv run pytest tests/test_runlog.py tests/test_statefile.py -q` exits 0.
 - [ ] 4.4 In `skills/mflib/runlog.py` read each log through `statefile.read`, and make `Tail` open its log once, read each span with `os.pread` and pass over a line longer than the bound ([D7](design.md#d7)), so no read of a log is the whole-file slice `read_bytes()[offset:]`. Turn the readers' pins to the one side: a bad byte, a pipe and a planted newer link.
   Verify: `git grep -n -F -e "os.pread" -- skills/mflib/runlog.py` prints a line and `git grep -n -F -e "read_bytes()[offset:]" -- skills scripts` prints nothing.
@@ -85,7 +85,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
   Verify: `uv run pytest tests/test_runlog.py -q` exits 0.
 - [ ] 4.6 In `skills/mflib/runlog.py` make the verify pass an open spawn only under the stop line of the run itself ([D10](design.md#d10)), and turn its pin to the one side.
   Verify: `uv run pytest tests/test_runlog.py -q` exits 0.
-- [ ] 4.7 In `skills/mflib/claim.py` read each entry through `statefile.read` by a bound, write each through `statefile.write` under the descriptor of `active` opened as [D9](design.md#d9) says, and raise `Refused` for a claim that is no folder. In `skills/mf-ship/scripts/conduct.py` turn `Refused` into `Stop` in `_conductor` and `_clear`, print it in `_close`, and end the worker's group in `work`, so `run` and `stop_run` halt naming the claim and `stop_run` kills nothing and writes no stop line. Turn the claim's pins to the one side.
+- [ ] 4.7 In `skills/mflib/claim.py` read each entry through `statefile.read` by a bound, write each through `statefile.write` under the descriptor of `active` opened as [D9](design.md#d9) says, and raise `Refused` for a claim that is no folder. In `skills/mf-ship/scripts/conduct.py` turn `Refused` into `Stop` in `_conductor` and `_clear`, print it in `_close`, and end the worker's group in `work`, so `run` and `stop_run` halt naming the claim and `stop_run` kills nothing and writes no stop line. Turn the claim's pins to the one side, and the `names` cell of `skills/mflib/claim.py`'s row in `docs/modules.md` from `—` to `statefile.py`.
   Verify: `uv run pytest tests/test_claim.py tests/test_viewer.py -q` exits 0.
 - [ ] 4.8 Lift the `slow` marker from each pin of `tests/test_runlog.py` and `tests/test_claim.py` that the fix makes end at once, and turn each assert of `tests/test_conduct.py` that holds a changed behaviour.
   Verify: `uv run pytest tests/test_runlog.py tests/test_claim.py -q` exits 0.
