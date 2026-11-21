@@ -4,7 +4,7 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
@@ -12,23 +12,23 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 
 ## 1 — The pin
 
-- [ ] 1.1 In `tests/test_conduct.py`, rewrite `test_a_build_spawn_removes_the_halt_the_last_build_left` to reach the build's spawn through `_main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)`, as the HUMAN-phase case above it does ([D14](design.md#d14)). It keeps its assertions: the spawn, the halt file gone, `rescue.md` kept.
+- [x] 1.1 In `tests/test_conduct.py`, rewrite `test_a_build_spawn_removes_the_halt_the_last_build_left` to reach the build's spawn through `_main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)`, as the HUMAN-phase case above it does ([D14](design.md#d14)). It keeps its assertions: the spawn, the halt file gone, `rescue.md` kept.
   Verify: `uv run pytest tests/test_conduct.py::test_a_build_spawn_removes_the_halt_the_last_build_left -q` exits 0.
-- [ ] 1.2 Create `tests/test_modelsfile.py`: a docstring `Why: 0142-models design D3.`, the conductor loaded by `conduct_load`, `brief_check.py` loaded as `tests/test_brief_check.py` loads it, and a helper that writes a change's `models.toml` under a repository in `tmp_path`. A case that would block on a pipe runs the read in a child process, killed after 10 s. Stage the file with `git add`, so the searches below see it.
+- [x] 1.2 Create `tests/test_modelsfile.py`: a docstring `Why: 0142-models design D3.`, the conductor loaded by `conduct_load`, `brief_check.py` loaded as `tests/test_brief_check.py` loads it, and a helper that writes a change's `models.toml` under a repository in `tmp_path`. A case that would block on a pipe runs the read in a child process, killed after 10 s. Stage the file with `git add`, so the searches below see it.
   Verify: `git grep -n -F -e "0142-models design D3" -- tests` prints a line.
-- [ ] 1.3 Write cases a, b and c of [the cases](design.md#the-cases) as `def test_case_a_…`, `def test_case_b_…` and `def test_case_c_a_folder_at_the_models_file`, each by key from the loaded conductor. Each is seen red under the change its row names, then green; the commit's body names the line changed.
+- [x] 1.3 Write cases a, b and c of [the cases](design.md#the-cases) as `def test_case_a_…`, `def test_case_b_…` and `def test_case_c_a_folder_at_the_models_file`, each by key from the loaded conductor. Each is seen red under the change its row names, then green; the commit's body names the line changed.
   Verify: `git grep -n -e "def test_case_c_a_folder_at_the_models_file" -- tests` prints a line.
-- [ ] 1.4 Write cases d, e and f the same way, as `def test_case_d_…`, `def test_case_e_…` and `def test_case_f_only_a_top_level_decide`, the key readers and the parser reached by key.
+- [x] 1.4 Write cases d, e and f the same way, as `def test_case_d_…`, `def test_case_e_…` and `def test_case_f_only_a_top_level_decide`, the key readers and the parser reached by key.
   Verify: `git grep -n -e "def test_case_f_only_a_top_level_decide" -- tests` prints a line.
-- [ ] 1.5 Write case g as `def test_case_g_integrate_reads_the_release_table` and its siblings, one test a row of its list: integrate, the rescue, the worker tables, the token check, the moderate table's executor, the executor defaults, wrong-typed words, the supervisor's defaults and a `claude` model on Codex.
+- [x] 1.5 Write case g as `def test_case_g_integrate_reads_the_release_table` and its siblings, one test a row of its list: integrate, the rescue, the worker tables, the token check, the moderate table's executor, the executor defaults, wrong-typed words, the supervisor's defaults and a `claude` model on Codex.
   Verify: `git grep -n -e "def test_case_g_integrate_reads_the_release_table" -- tests` prints a line.
-- [ ] 1.6 Write cases h, i, j and k as `def test_case_h_…`, `def test_case_i_…`, `def test_case_j_…` and `def test_case_k_only_auto_grant_false`, each a table of values and the answer each gives.
+- [x] 1.6 Write cases h, i, j and k as `def test_case_h_…`, `def test_case_i_…`, `def test_case_j_…` and `def test_case_k_only_auto_grant_false`, each a table of values and the answer each gives.
   Verify: `git grep -n -e "def test_case_k_only_auto_grant_false" -- tests` prints a line.
-- [ ] 1.7 Write cases l, m, n and o as `def test_case_l_…`, `def test_case_m_…`, `def test_case_n_…` and `def test_case_o_a_moved_worker_table` at the run level: a `Run` on a repository in `tmp_path`, the worker spawns recorders, so no worker starts. Case m runs `take`, case n `read_plan`, case o the rejoin's take-back.
+- [x] 1.7 Write cases l, m, n and o as `def test_case_l_…`, `def test_case_m_…`, `def test_case_n_…` and `def test_case_o_a_moved_worker_table` at the run level: a `Run` on a repository in `tmp_path`, the worker spawns recorders, so no worker starts. Case m runs `take`, case n `read_plan`, case o the rejoin's take-back.
   Verify: `git grep -n -e "def test_case_o_a_moved_worker_table" -- tests` prints a line.
-- [ ] 1.8 Write cases q and r as `def test_case_q_…` and `def test_case_r_the_models_text`: the conductor's child run of `brief_check.py` with a timeout, a failure and a bad byte in the child's output; the text `brief_check.py --models` prints for an item with every optional part, byte for byte.
+- [x] 1.8 Write cases q and r as `def test_case_q_…` and `def test_case_r_the_models_text`: the conductor's child run of `brief_check.py` with a timeout, a failure and a bad byte in the child's output; the text `brief_check.py --models` prints for an item with every optional part, byte for byte.
   Verify: `git grep -n -e "def test_case_r_the_models_text" -- tests` prints a line.
-- [ ] 1.9 Write a `def test_pin_…` for each row of [the pins](design.md#the-pins), as the code behaves today, the pipe row as `def test_pin_a_pipe_at_the_models_file`. A row whose read would block on a pipe runs it in a child process.
+- [x] 1.9 Write a `def test_pin_…` for each row of [the pins](design.md#the-pins), as the code behaves today, the pipe row as `def test_pin_a_pipe_at_the_models_file`. A row whose read would block on a pipe runs it in a child process.
   Verify: `git grep -n -e "def test_pin_a_pipe_at_the_models_file" -- tests` prints a line.
 
 ## 2 — The module

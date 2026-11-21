@@ -2431,6 +2431,7 @@ def test_run_halts_on_a_human_phase(
     conductor.log.path.unlink()
 
 
+@pytest.mark.slow
 def test_a_build_spawn_removes_the_halt_the_last_build_left(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2446,10 +2447,8 @@ def test_a_build_spawn_removes_the_halt_the_last_build_left(
     rescue = folder / "rescue.md"
     rescue.write_text("diagnosis\n")
 
-    conductor = conduct["Run"](root, "claude")
-    version = conduct["find_version"](root, "0001-todo")
-    conductor.read_plan([version])
-    conductor.advance(version, ())
+    # why: the run sets up what a spawn needs on every host. 0142-models design D14.
+    _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
 
     assert "build 0001-todo" in _calls(calls)
     assert not halt.exists()
