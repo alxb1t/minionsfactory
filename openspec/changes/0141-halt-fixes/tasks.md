@@ -8,7 +8,7 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 - [x] 2 — The conductor · moderate
 - [x] 3 — The queue · moderate
 - [x] 4 — Integrate and converge · moderate
-- [ ] 5 — The rule · moderate
+- [x] 5 — The rule · moderate
 - [ ] 6 — The fixtures [D11](design.md#d11) turns red · moderate
 
 ## 1 — The plan check

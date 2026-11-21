@@ -77,6 +77,10 @@ The first row that fits decides. A halt that fits no row is a diagnosis.
 | converge's cap | diagnosis | — |
 | integrate's red gate or note | diagnosis | — |
 
+A `Verify:` that cannot pass is **retargeted** at what the task's result does, or split into one check per part, and
+never replaced by one that proves less. An exact count stays exact: `prints 3` becomes `prints 4`, never a search that
+accepts any. Where neither fits, the halt is a diagnosis.
+
 An `amend needed` halt naming a security card of severity `critical` or `high` is a diagnosis, whatever the switch. Its
 commit's `Rescue:` trailer names the card ids: `Rescue: R4`; a plan-check halt's names `Rescue: plan check`.
 

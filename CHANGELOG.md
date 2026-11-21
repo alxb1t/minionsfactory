@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `integrate.py decisions` renumbers the changelog first, skips and names a path git left conflicted, and halts once after
   every ambiguous path. Converge counts a `changes-requested` file no open card blocks as clean and writes `clean` into
   it; a file with no open card is rewritten, no longer a halt (0141-halt-fixes, phase 4).
+- `mf-rescue` and `mf-supervise` state the rule: a `Verify:` that cannot pass is retargeted or split, never replaced by
+  one that proves less, and an exact count stays exact (0141-halt-fixes, phase 5).
 
 ## [0.112.0] - 2026-11-21
 
