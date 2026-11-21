@@ -44,6 +44,7 @@ import mflib.claim
 import mflib.debtfile
 import mflib.findings
 import mflib.layout
+import mflib.modelsfile
 import mflib.platform
 import mflib.runlog
 import mflib.statefile
@@ -127,11 +128,6 @@ FIXER = "converge.fix"
 WORKERS = ("converge.conformance", "converge.adversarial", FIXER)
 # The stations a missing Codex does not halt. Why: 0132-cloud-run design D5.
 CHECKERS = tuple(name for name in WORKERS if name != FIXER)
-# A cut's worker table under its old name. Why: 0095-converge-roles design D2.
-OLD_WORKERS = {
-    "converge.conformance": "converge.review",
-    "converge.adversarial": "converge.security",
-}
 # A phase the cut rates moderate builds on this table.
 # Why: 0102-build-per-phase design D5.
 MODERATE = "build.moderate"
@@ -150,7 +146,6 @@ PAST = {
     "integrating": _CONVERGED,
     "release": (*_CONVERGED, "integrate"),
 }
-TOKEN = re.compile(r"[A-Za-z0-9._-]+")
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
 SUPERVISES = 2
@@ -761,23 +756,6 @@ def _cut_answer(change: str, brief: str) -> str:
     )
 
 
-def _models_hash(primary: Path, change: str) -> str | None:
-    """Return the sha256 of the change's `models.toml`, read through no link.
-
-    None when the file is missing, a link, or its folder is one. Why: 0106 design D7.
-    """
-    try:
-        fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
-        try:
-            file = os.open("models.toml", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-        finally:
-            os.close(fd)
-    except OSError:
-        return None
-    with os.fdopen(file, "rb") as models:
-        return hashlib.sha256(models.read()).hexdigest()
-
-
 def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
 
@@ -799,7 +777,8 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     queued = _cuts(primary).get(change, {}).get("models")
     if (
         queued is not None
-        and _models_hash(primary, change) != hashlib.sha256(queued.encode()).hexdigest()
+        and mflib.modelsfile.digest(primary, change)
+        != hashlib.sha256(queued.encode()).hexdigest()
     ):
         return f"changes/{change}/models.toml changed since the cut was queued"
     return None
@@ -2584,36 +2563,27 @@ def _unentered(
     )
 
 
-def _models_file(runs: Path, change: str) -> dict[str, object]:
-    """Return the cut's models file as TOML reads it; {} with no file."""
-    path = mflib.layout.change_dir(runs.parent, change) / "models.toml"
-    if not path.is_file():
-        return {}
+def _models_data(runs: Path, change: str) -> dict[str, object]:
+    """Return the cut's models file parsed; {} with no file, a `Stop` when it is broken.
+
+    Why: 0142-models design D2.
+    """
     try:
-        return tomllib.loads(path.read_text())
-    except tomllib.TOMLDecodeError as error:
+        return mflib.modelsfile.read(runs.parent, change)
+    except mflib.modelsfile.Broken as error:
         raise Stop(
             1, f"conduct: halt — changes/{change}/models.toml: {error}"
         ) from None
 
 
 def _table(runs: Path, change: str, name: str) -> dict[str, object] | None:
-    """Return a table of the cut's models file; None with no file or no such table.
-
-    A dotted name walks in: e.g. "converge.fix" → `[converge]`'s `fix` table.
-    """
-    table: object = _models_file(runs, change)
-    for part in name.split("."):
-        table = table.get(part) if isinstance(table, dict) else None
-    return table if isinstance(table, dict) else None
+    """Return a table of the cut's models file; None with no file or no such table."""
+    return mflib.modelsfile.table(_models_data(runs, change), name)
 
 
 def _decides(runs: Path, change: str) -> bool:
-    """Return whether the cut's models file says `decide = "recommended"` at its top.
-
-    Why: 0085-self-healing-ship design D3.
-    """
-    return _models_file(runs, change).get("decide") == "recommended"
+    """Return whether the cut's models file says `decide = "recommended"` at its top."""
+    return mflib.modelsfile.decides(_models_data(runs, change))
 
 
 def _models(
@@ -2625,7 +2595,8 @@ def _models(
     Why: 0067 D5; 0089 D2; 0094 D1; 0095 D2; 0097 D3; 0100 D8; 0102 D5; 0108 D8; 0117 D2
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
-    names |= {worker: (worker, old) for worker, old in OLD_WORKERS.items()}
+    old_names = mflib.modelsfile.OLD_WORKERS.items()
+    names |= {worker: (worker, old) for worker, old in old_names}
     tables = (_table(runs, change, name) for name in names.get(station, (station,)))
     table = next((table for table in tables if table is not None), {})
     executor = table.get("executor", run)
@@ -2636,7 +2607,7 @@ def _models(
         if own and station == MODERATE:
             raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
         for value in (model, effort):
-            if isinstance(value, str) and not TOKEN.fullmatch(value):
+            if isinstance(value, str) and not mflib.modelsfile.TOKEN.fullmatch(value):
                 raise Stop(
                     1,
                     f"conduct: halt — {file}: {station} {value!r}"
@@ -2661,12 +2632,8 @@ def _models(
 
 
 def _shadows(runs: Path, change: str) -> bool:
-    """Return whether the cut's models file says `[converge] shadow = true`.
-
-    Why: 0097-cross-model design D3.
-    """
-    table = _table(runs, change, "converge")
-    return table is not None and table.get("shadow") is True
+    """Return whether the cut's models file says `[converge] shadow = true`."""
+    return mflib.modelsfile.shadows(_models_data(runs, change))
 
 
 def _shadow(
@@ -2689,34 +2656,23 @@ def _skips(runs: Path, change: str) -> frozenset[str]:
     Why: 0105-converge-switches design D2.
     e.g. `[converge.adversarial] skip = true` → {"converge.adversarial"}
     """
-    checkers = [name for name in WORKERS if name != FIXER]
+    checkers = tuple(name for name in WORKERS if name != FIXER)
     try:
-        tables = {name: _table(runs, change, name) for name in ("converge", *checkers)}
+        data = _models_data(runs, change)
     except (Stop, ValueError):
         return frozenset()
-    skipping = {
-        name for name, table in tables.items() if table and table.get("skip") is True
-    }
-    return (
-        frozenset(("converge", *WORKERS))
-        if "converge" in skipping
-        else frozenset(skipping)
-    )
+    skipping = mflib.modelsfile.skipping(data, ("converge", *checkers))
+    return frozenset(("converge", *WORKERS)) if "converge" in skipping else skipping
 
 
 def _skips_rescue(runs: Path, change: str) -> bool:
     """Return whether the cut's models file says `[rescue] skip = true`."""
-    table = _table(runs, change, "rescue")
-    return table is not None and table.get("skip") is True
+    return mflib.modelsfile.rescue_skips(_models_data(runs, change))
 
 
 def _auto_grants(runs: Path, change: str) -> bool:
-    """Return whether the run may grant a cap: no `[converge] auto_grant = false`.
-
-    Why: 0070-cap-policy design D4.
-    """
-    table = _table(runs, change, "converge")
-    return table is None or table.get("auto_grant") is not False
+    """Return whether the run may grant a cap: no `[converge] auto_grant = false`."""
+    return mflib.modelsfile.auto_grants(_models_data(runs, change))
 
 
 def _is_cap(stage: str, halt: str) -> bool:
@@ -5864,7 +5820,10 @@ class Run:
         primary = self.primary
         tree = (self.worktrees / change).resolve()
         if (queued := entry.get("models")) is not None:
-            _write_models(primary, change, queued)
+            try:
+                mflib.modelsfile.write(primary, change, queued)
+            except OSError as error:
+                raise _unwritten(change, error) from None
         branch = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/heads/{change}")
         _remove_in(
             mflib.layout.run_dir(primary), mflib.layout.CHANGES, change, name="cut.halt"
@@ -7563,26 +7522,16 @@ def _models_text(brief: Path, slug: str) -> str:
     return done.stdout
 
 
-def _write_models(primary: Path, change: str, text: str) -> None:
-    """Write the change's `models.toml` from `text`; a refused write stops with 2.
+def _unwritten(change: str, error: OSError) -> Stop:
+    """Return the stop of a cut whose models file was not written.
 
-    Why: 0106-cut-scripts design D7.
+    Why: 0106-cut-scripts design D7; 0142-models design D2.
     """
-    try:
-        # A fresh file: truncating the old one would write through a hard link.
-        _remove_in(
-            mflib.layout.run_dir(primary),
-            mflib.layout.CHANGES,
-            change,
-            name="models.toml",
-        )
-        _write_in_change(primary, change, "models.toml", text, fresh=True)
-    except OSError as error:
-        raise Stop(
-            2,
-            f"cut: cannot run — changes/{change}/models.toml cannot be written:"
-            f" {error.strerror}",
-        ) from None
+    return Stop(
+        2,
+        f"cut: cannot run — changes/{change}/models.toml cannot be written:"
+        f" {error.strerror}",
+    )
 
 
 def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
@@ -7672,7 +7621,10 @@ def cut(
         if not live:
             preconditions(cwd, executor)
         change = f"{_next_id(primary):04d}-{slug}"
-        _write_models(primary, change, models)
+        try:
+            mflib.modelsfile.write(primary, change, models)
+        except OSError as error:
+            raise _unwritten(change, error) from None
         fd = _folder_fd(mflib.layout.run_dir(primary), "cuts")
         try:
             flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
@@ -7974,8 +7926,8 @@ def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) ->
         elif (
             role in (*ROLES, "fix")
             and slash
-            and TOKEN.fullmatch(model)
-            and TOKEN.fullmatch(effort)
+            and mflib.modelsfile.TOKEN.fullmatch(model)
+            and mflib.modelsfile.TOKEN.fullmatch(effort)
         ):
             named[role] = (
                 executor,

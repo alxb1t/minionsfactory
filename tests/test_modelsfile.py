@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -29,9 +30,9 @@ import sys
 from pathlib import Path
 
 sys.path[:0] = sys.argv[1:3]
-from conduct_load import conduct
+from mflib import modelsfile
 
-print(conduct()["_models_hash"](Path(sys.argv[3]), sys.argv[4]))
+print(modelsfile.digest(Path(sys.argv[3]), sys.argv[4]))
 """
 _EVERY_PART: str = (
     "build codex/gpt-6.1-sol high · converge claude-opus-5-5 high"
@@ -137,7 +138,7 @@ def _queue(primary: Path, change: str, models: str | None) -> None:
 
 
 def _hash_in_child(primary: Path, change: str) -> str | None:
-    """Return what the conductor's hash prints in a child; None when it was killed."""
+    """Return what the module's digest prints in a child; None when it was killed."""
     paths = [str(_REPO / "tests"), str(_REPO / "skills")]
     child = subprocess.Popen(
         [sys.executable, "-c", _HASH_IN_CHILD, *paths, str(primary), change],
@@ -151,6 +152,18 @@ def _hash_in_child(primary: Path, change: str) -> str | None:
         child.communicate()
         return None
     return out.strip()
+
+
+def _writer(conduct: dict[str, Any]) -> Callable[[Path, str, str], None]:
+    """Return the cut's write of the models file: the module's, a failure a `Stop`."""
+
+    def write(primary: Path, change: str, text: str) -> None:
+        try:
+            modelsfile.write(primary, change, text)
+        except OSError as error:
+            raise conduct["_unwritten"](change, error) from None
+
+    return write
 
 
 def _open_fds() -> int:
@@ -185,7 +198,7 @@ def _ran(conduct: dict[str, Any], primary: Path) -> Any:  # noqa: ANN401
 def test_case_a_the_token_and_the_moderate_table(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
-    token = conduct["TOKEN"]
+    token = modelsfile.TOKEN
     for taken in ("a_b", "ABC", "gpt-6.1-sol", "x"):
         assert token.fullmatch(taken), taken
     for refused in ("", "a b", "a;b", "a/b", "é"):
@@ -202,7 +215,7 @@ def test_case_a_the_token_and_the_moderate_table(
 def test_case_b_the_hash_leaks_no_descriptor(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
-    hashed = conduct["_models_hash"]
+    hashed = modelsfile.digest
     _models_toml(tmp_path, "[build]\n")
     before = _open_fds()
     for _ in range(20):
@@ -222,7 +235,7 @@ def test_case_c_a_folder_at_the_models_file(
 def test_case_d_the_parser_reads_a_folder_bad_toml_and_a_bad_byte(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
-    parsed, minions = conduct["_models_file"], tmp_path / ".minions"
+    parsed, minions = conduct["_models_data"], tmp_path / ".minions"
     (layout.change_dir(tmp_path, _CHANGE) / "models.toml").mkdir(parents=True)
     assert parsed(minions, _CHANGE) == {}
     (layout.change_dir(tmp_path, _CHANGE) / "models.toml").rmdir()
@@ -575,7 +588,7 @@ def test_pin_a_bad_byte(tmp_path: Path, conduct: dict[str, Any]) -> None:
     minions = root / ".minions"
     _models_toml(root, b'[build]\nmodel = "\xff"\n')
     for name, args in (
-        ("_models_file", ()),
+        ("_models_data", ()),
         ("_table", ("build",)),
         ("_decides", ()),
         ("_models", ("build", "claude")),
@@ -587,7 +600,7 @@ def test_pin_a_bad_byte(tmp_path: Path, conduct: dict[str, Any]) -> None:
             conduct[name](minions, _CHANGE, *args)
     assert conduct["_skips"](minions, _CHANGE) == frozenset()
     wanted = hashlib.sha256(b'[build]\nmodel = "\xff"\n').hexdigest()
-    assert conduct["_models_hash"](root, _CHANGE) == wanted
+    assert modelsfile.digest(root, _CHANGE) == wanted
     run = _ran(conduct, root)
     assert run.models(_CHANGE, "build") is None
     run.read_plan([version])
@@ -605,7 +618,7 @@ def test_pin_text_that_is_not_toml(tmp_path: Path, conduct: dict[str, Any]) -> N
     minions = root / ".minions"
     _models_toml(root, "[converge\n")
     for name, args in (
-        ("_models_file", ()),
+        ("_models_data", ()),
         ("_table", ("build",)),
         ("_decides", ()),
         ("_models", ("build", "claude")),
@@ -640,7 +653,7 @@ def test_pin_a_link_at_the_models_file(
         "m",
         None,
     )
-    assert conduct["_models_hash"](primary, "0001-a") is None
+    assert modelsfile.digest(primary, "0001-a") is None
     check = conduct["_check_cut"]
     _queue(primary, "0001-a", target.read_text())
     changed = "changes/0001-a/models.toml changed since the cut was queued"
@@ -650,21 +663,22 @@ def test_pin_a_link_at_the_models_file(
     # A dangling link reads as no file.
     models.unlink()
     models.symlink_to(tmp_path / "gone.toml")
-    assert conduct["_models_file"](minions, "0001-a") == {}
+    assert conduct["_models_data"](minions, "0001-a") == {}
     # The writer removes a link that stands, and refuses one planted after it.
     models.unlink()
     models.symlink_to(target)
-    write = conduct["_write_models"]
+    write = _writer(conduct)
     write(primary, "0001-a", "[release]\n")
     assert (models.is_symlink(), models.read_text()) == (False, "[release]\n")
     assert target.read_text() == '[build]\nmodel = "m"\n'
-    real = write.__globals__["_remove_in"]
+    names = modelsfile.write.__globals__
+    real = names["_remove"]
 
-    def plant(base: Path, *parts: str, name: str) -> None:
-        real(base, *parts, name=name)
+    def plant(primary: Path, change: str) -> None:
+        real(primary, change)
         models.symlink_to(target)
 
-    monkeypatch.setitem(write.__globals__, "_remove_in", plant)
+    monkeypatch.setitem(names, "_remove", plant)
     with pytest.raises(conduct["Stop"]) as stopped:
         write(primary, "0001-a", "[build]\n")
     assert stopped.value.code == 2
@@ -679,7 +693,7 @@ def test_pin_a_hard_link_at_the_models_file(
     models = layout.change_dir(tmp_path, _CHANGE) / "models.toml"
     models.parent.mkdir(parents=True)
     os.link(other, models)
-    conduct["_write_models"](tmp_path, _CHANGE, "[release]\n")
+    _writer(conduct)(tmp_path, _CHANGE, "[release]\n")
     assert (models.read_text(), other.read_text()) == ("[release]\n", "[build]\n")
     assert models.stat().st_nlink == other.stat().st_nlink == 1
 
@@ -691,12 +705,12 @@ def test_pin_a_pipe_at_the_models_file(tmp_path: Path, conduct: dict[str, Any]) 
     models = layout.change_dir(root, _CHANGE) / "models.toml"
     models.parent.mkdir(parents=True)
     os.mkfifo(models)
-    assert conduct["_models_file"](root / ".minions", _CHANGE) == {}
+    assert conduct["_models_data"](root / ".minions", _CHANGE) == {}
     run = _ran(conduct, root)
     run.read_plan([version])
     assert run.plan[_CHANGE, "build"] == _DEFAULTS
     assert _hash_in_child(root, _CHANGE) is None
-    conduct["_write_models"](root, _CHANGE, "[build]\n")
+    _writer(conduct)(root, _CHANGE, "[build]\n")
     assert models.read_text() == "[build]\n"
 
 
@@ -705,14 +719,14 @@ def test_pin_a_folder_at_the_models_file(
 ) -> None:
     primary = _cut(tmp_path)
     (layout.change_dir(primary, "0001-a") / "models.toml").mkdir(parents=True)
-    assert conduct["_models_file"](primary / ".minions", "0001-a") == {}
+    assert conduct["_models_data"](primary / ".minions", "0001-a") == {}
     said = conduct["_check_cut"](primary, "0001-a", primary)
     assert said == "no .minions/changes/0001-a/models.toml"
     with pytest.raises(conduct["Stop"]) as stopped:
-        conduct["_write_models"](primary, "0001-a", "[build]\n")
+        _writer(conduct)(primary, "0001-a", "[build]\n")
     assert stopped.value.code == 2
     with pytest.raises(IsADirectoryError):
-        conduct["_models_hash"](primary, "0001-a")
+        modelsfile.digest(primary, "0001-a")
 
 
 def test_pin_a_word_that_is_no_token(tmp_path: Path, conduct: dict[str, Any]) -> None:
@@ -757,7 +771,7 @@ def test_pin_the_cut_part(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
         _brief(tmp_path, "**x** · minor · after: none", line), "x", capsys
     )
     assert "cut" not in printed and "opus" not in printed
-    assert "cut" not in brief_check.TABLES
+    assert "cut" not in modelsfile.TABLES
 
 
 def test_pin_where_skip_and_shadow_count(
@@ -844,7 +858,7 @@ def test_pin_models_text_and_its_written_file(
     conduct["main"].__globals__["UV_RUN"] = (sys.executable,)
     text = conduct["_models_text"](brief, "full")
     assert text == _EVERY_TABLE
-    conduct["_write_models"](tmp_path, _CHANGE, text)
+    _writer(conduct)(tmp_path, _CHANGE, text)
     written = layout.change_dir(tmp_path, _CHANGE) / "models.toml"
     assert written.read_bytes() == _EVERY_TABLE.encode()
 

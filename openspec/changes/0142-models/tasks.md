@@ -6,7 +6,7 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The stations · moderate
+- [x] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
@@ -52,17 +52,17 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 
 ## 3 — The stations
 
-- [ ] 3.1 In `brief_check.py` move the parse of an item's models line into `models_of(opened, item)` returning `decided`, `named` and `shadowed`, print `modelsfile.text(...)` under `--models`, and take `modelsfile.TOKEN` and `modelsfile.TABLES`. Its text writer, its tables map and its token pattern go. Put `import mflib.modelsfile` directly after the seed line of 2.4, as `conduct.py` does with its own.
+- [x] 3.1 In `brief_check.py` move the parse of an item's models line into `models_of(opened, item)` returning `decided`, `named` and `shadowed`, print `modelsfile.text(...)` under `--models`, and take `modelsfile.TOKEN` and `modelsfile.TABLES`. Its text writer, its tables map and its token pattern go. Put `import mflib.modelsfile` directly after the seed line of 2.4, as `conduct.py` does with its own.
   Verify: `git grep -n -e "^def models_toml" -e "^TABLES = " -e "^TOKEN = " -- skills/mf-plan/scripts/brief_check.py` prints nothing.
-- [ ] 3.2 In `conduct.py` add `_models_data(runs, change)`, which words `modelsfile.Broken` as the `Stop` the copy raised, and `_unwritten(change, error)`, which returns the `Stop` that words a failed write as [D2](design.md#d2) says. The conductor's models-file parser, hash and writer go; `_check_cut`, `cutting` and `cut` call `modelsfile.digest` and `modelsfile.write`.
+- [x] 3.2 In `conduct.py` add `_models_data(runs, change)`, which words `modelsfile.Broken` as the `Stop` the copy raised, and `_unwritten(change, error)`, which returns the `Stop` that words a failed write as [D2](design.md#d2) says. The conductor's models-file parser, hash and writer go; `_check_cut`, `cutting` and `cut` call `modelsfile.digest` and `modelsfile.write`.
   Verify: `git grep -n -e "^def _models_file" -e "^def _write_models" -e "^def _models_hash" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.3 In `conduct.py` let `_table`, `_decides`, `_shadows`, `_skips_rescue`, `_auto_grants` and `_skips` read `_models_data` through the module's `table`, `decides`, `shadows`, `rescue_skips`, `auto_grants` and `skipping`; `_models` takes the module's old-name map and `modelsfile.TOKEN`, and the conductor's old-name map and token pattern go; the by-hand converge check takes `modelsfile.TOKEN`.
+- [x] 3.3 In `conduct.py` let `_table`, `_decides`, `_shadows`, `_skips_rescue`, `_auto_grants` and `_skips` read `_models_data` through the module's `table`, `decides`, `shadows`, `rescue_skips`, `auto_grants` and `skipping`; `_models` takes the module's old-name map and `modelsfile.TOKEN`, and the conductor's old-name map and token pattern go; the by-hand converge check takes `modelsfile.TOKEN`.
   Verify: `git grep -n -e "^TOKEN = " -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.4 In `tests/test_conduct.py` re-point the line that takes the conductor's models-file hash by key to `mflib.modelsfile.digest`. Replace the line that takes its models-file writer by key with a local `write` that calls `mflib.modelsfile.write` and raises `conduct["_unwritten"](change, error)` on its `OSError`, and point the `__globals__` patch at `mflib.modelsfile.write.__globals__` and the module's `_remove`, its `plant` taking that step's arguments. No assert changes.
+- [x] 3.4 In `tests/test_conduct.py` re-point the line that takes the conductor's models-file hash by key to `mflib.modelsfile.digest`. Replace the line that takes its models-file writer by key with a local `write` that calls `mflib.modelsfile.write` and raises `conduct["_unwritten"](change, error)` on its `OSError`, and point the `__globals__` patch at `mflib.modelsfile.write.__globals__` and the module's `_remove`, its `plant` taking that step's arguments. No assert changes.
   Verify: `git grep -n -e "conduct\[\"_models_hash\"\]" -e "conduct\[\"_write_models\"\]" -- tests/test_conduct.py` prints nothing.
-- [ ] 3.5 Re-point `tests/test_modelsfile.py`'s cases of phase 1 that take the conductor's models-file hash and writer by key to `mflib.modelsfile.digest` and `mflib.modelsfile.write`, the writer through the same local `write` as in 3.4, by their new lines only; the cases through `_models`, `_skips` and the run stay on the conductor.
+- [x] 3.5 Re-point `tests/test_modelsfile.py`'s cases of phase 1 that take the conductor's models-file hash and writer by key to `mflib.modelsfile.digest` and `mflib.modelsfile.write`, the writer through the same local `write` as in 3.4, by their new lines only; the cases through `_models`, `_skips` and the run stay on the conductor.
   Verify: `git grep -n -e "conduct\[\"_models_hash\"\]" -e "conduct\[\"_write_models\"\]" -- tests/test_modelsfile.py` prints nothing.
-- [ ] 3.6 In `docs/modules.md` add `modelsfile.py` to the `names` cells of the `skills/mf-ship/scripts/conduct.py` row and the `skills/mf-plan/scripts/brief_check.py` row, each in its alphabetical place.
+- [x] 3.6 In `docs/modules.md` add `modelsfile.py` to the `names` cells of the `skills/mf-ship/scripts/conduct.py` row and the `skills/mf-plan/scripts/brief_check.py` row, each in its alphabetical place.
   Verify: `git grep -c -e "modelsfile.py" -- docs/modules.md` prints `3`.
 
 ## 4 — The fix

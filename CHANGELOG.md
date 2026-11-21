@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/mflib/modelsfile.py` holds the models file's map, text, parser, key readers, hash and writer, each as its copy
   behaves today; nothing loads it yet. `statefile.open_folder` opens a folder and makes nothing, and the claim opens
   through it; `layout.models_file` names the file (0142-models, phase 2).
+- The conductor and `brief_check.py` read, hash, write and print the models file through `skills/mflib/modelsfile.py`;
+  their own copies, the token pattern and the old-name map go, and no assert changed (0142-models, phase 3).
 
 ## [0.112.1] - 2026-11-21
 

@@ -30,6 +30,7 @@ from typing import Any
 
 import mflib.debtfile
 import mflib.findings
+import mflib.modelsfile
 import pytest
 from conduct_load import conduct as _conduct
 from fake_worker import (
@@ -2965,15 +2966,22 @@ def test_a_link_planted_after_the_removal_truncates_no_models_file(
     root = _primary(tmp_path)
     victim = tmp_path / "victim.md"
     victim.write_text("keep me\n")
-    write = conduct["_write_models"]
-    real = write.__globals__["_remove_in"]
 
-    def plant(base: Path, *parts: str, name: str) -> None:
-        real(base, *parts, name=name)
+    def write(primary: Path, change: str, text: str) -> None:
+        try:
+            mflib.modelsfile.write(primary, change, text)
+        except OSError as error:
+            raise conduct["_unwritten"](change, error) from None
+
+    names = mflib.modelsfile.write.__globals__
+    real = names["_remove"]
+
+    def plant(primary: Path, change: str) -> None:
+        real(primary, change)
         folder = root / ".minions" / "changes" / "0001-todo"
         os.link(victim, folder / "models.toml")
 
-    monkeypatch.setitem(write.__globals__, "_remove_in", plant)
+    monkeypatch.setitem(names, "_remove", plant)
     with pytest.raises(conduct["Stop"]) as stopped:
         write(root, "0001-todo", "[build]\n")
     assert stopped.value.code == 2
@@ -4520,7 +4528,7 @@ def test_a_cut_queues_its_models_file(
     assert written.read_text() == _MODELS
     assert conduct["_cuts"](root)["0001-a"]["models"] == _MODELS
     # The check reads the file by hash, through no link.
-    hashed = conduct["_models_hash"]
+    hashed = mflib.modelsfile.digest
     assert hashed(root, "0001-a") == hashlib.sha256(_MODELS.encode()).hexdigest()
     written.unlink()
     assert hashed(root, "0001-a") is None
