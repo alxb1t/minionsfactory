@@ -1048,14 +1048,11 @@ def test_a_blocker_is_fixed_verified_and_cleared(host: Host) -> None:
 
     for case, why in (
         ("failed", "converge-fix-r1 worker exit 1"),
-        ("no card", "changes requested with no blocking card open"),
         ("status", "open cards: cannot read — card R1: Status maybe"),
     ):
         card = _card("R1 blocking", status="maybe" if case == "status" else "open")
-        host.answers["converge-conformance-r1"] = (
-            answer(host, "conformance", verdict="changes-requested")
-            if case == "no card"
-            else answer(host, "conformance", card, blocking=1)
+        host.answers["converge-conformance-r1"] = answer(
+            host, "conformance", card, blocking=1
         )
         host.fixers = [lambda host: 1] * 2 if case == "failed" else []
 
@@ -2408,6 +2405,46 @@ def test_a_malformed_file_gets_a_rewrite_then_a_debt_card(host: Host) -> None:
     assert run(host) == 1
 
     assert " · halt — converge-conformance-r1 timed out after " in events(host)[-1]
+
+
+def test_changes_requested_with_nits_alone_counts_clean(host: Host) -> None:
+    nit = _card("R1 nit", size="a module")
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", nit, verdict="changes-requested"
+    )
+
+    assert run(host) == 0
+
+    assert host.fixed == []
+    assert [station for station, *_ in host.checks].count(
+        "converge-conformance-r1"
+    ) == 1
+    text = (host.folder() / "conformance.md").read_text()
+    assert "verdict: clean\n" in text
+    assert "open_blocking: 0\n" in text
+    assert "changes-requested" not in text
+    assert events(host)[3] == _verdicts("conformance", verdict="changes-requested")
+
+
+def test_changes_requested_with_no_card_gets_a_rewrite(host: Host) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", verdict="changes-requested"
+    )
+
+    assert run(host) == 0
+
+    why = "conformance.md is malformed: verdict is changes-requested with no open card"
+    assert f"round 1 · fan-out — rewrite — conformance: {why}" in events(host)
+    assert [station for station, *_ in host.checks].count(
+        "converge-conformance-r1"
+    ) == 2
+    text = (host.folder() / "conformance.md").read_text()
+    assert "verdict: clean\n" in text
+    assert "changes-requested" not in text
+    assert events(host)[-2:] == [
+        "round 1 · debt — none",
+        "round 1 · done — converged in 1 round · 0 cards to debt",
+    ]
 
 
 def test_the_report_names_the_verdicts(

@@ -61,6 +61,7 @@ PLACEHOLDERS = (
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 FALLBACK = "fallback: codex usage limit"
+NO_OPEN_CARD = "verdict is changes-requested with no open card"
 REWRITE = (
     "role: {role}\nchange: {change}\nround: {round}\n\n"
     "Your findings file {findings} breaks the findings file contract of"
@@ -532,6 +533,13 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
     unmarked = (card for card in cards if card.word("Amend") not in ("yes", "no"))
     if fault is None and (card := next(unmarked, None)):
         fault = f"card {card.id} has no Amend line"
+    if (
+        fault is None
+        and not stub
+        and front["verdict"] == "changes-requested"
+        and all(card.status in ("verified", "accepted") for card in cards)
+    ):
+        fault = NO_OPEN_CARD
     if fault is not None:
         return Verdict(role, malformed=f"{name} is malformed: {fault}")
     verdict = Verdict(
@@ -613,7 +621,8 @@ def held(
 ) -> dict[str, Verdict]:
     """Return each role's verdict; a malformed file gets one rewrite worker first.
 
-    A file missing, or not clean, halts. Why: design D5.
+    A file missing, or not clean, halts. A `changes-requested` file no open card
+    blocks is written `clean`. Why: design D5; 0141-halt-fixes design D11.
     """
     kept: dict[str, Verdict] = {}
     for role in ROLES:
@@ -624,8 +633,18 @@ def held(
             raise Halt(f"{role}.md is missing: its checker left no findings file")
         if verdict.unclean is not None:
             raise Halt(verdict.unclean)
+        if verdict.verdict == "changes-requested" and not blockers({role: verdict}):
+            cleared(context, role)
+            verdict = verdict._replace(verdict="clean", open_blocking=0)
         kept[role] = verdict
     return kept
+
+
+def cleared(context: Context, role: str) -> None:
+    """Write `verdict: clean` and `open_blocking: 0` into a role's findings file."""
+    path = context.folder / f"{role}.md"
+    keys = {"verdict": "clean", "open_blocking": 0}
+    BUNDLE["write"](path, mflib.findings.keyed(mflib.findings.read(path) or "", keys))
 
 
 def verdicts(
@@ -656,6 +675,8 @@ def rewrite(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | 
         raise Halt(fault)
     again = read_findings(path, role, frozen)
     if again is not None and again.malformed is not None:
+        if again.malformed.endswith(NO_OPEN_CARD):
+            cleared(context, role)
         return Verdict(role, "clean", head(context), context.round)
     return again
 
@@ -830,8 +851,6 @@ def rounds(context: Context, frozen: Freeze, read: dict[str, Verdict]) -> int:
     """
     while not converged(read):
         ids = [card.id for card in blockers(read)]
-        if not ids:
-            raise Halt("changes requested with no blocking card open")
         if context.round >= context.cap:
             cap(context, read)
         if context.round == 1 and context.mark is None and not context.picked:

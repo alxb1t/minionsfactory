@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A released `after` is met: `cut_pre.py` passes an id the default branch archived and the cutter is no longer handed it.
   `rejoin` of a cut clears and requests each dependent halted `after <id> is cut-halted`, down the chain, and names each
   in its line (0141-halt-fixes, phase 3).
+- `integrate.py decisions` renumbers the changelog first, skips and names a path git left conflicted, and halts once after
+  every ambiguous path. Converge counts a `changes-requested` file no open card blocks as clean and writes `clean` into
+  it; a file with no open card is rewritten, no longer a halt (0141-halt-fixes, phase 4).
 
 ## [0.112.0] - 2026-11-21
 

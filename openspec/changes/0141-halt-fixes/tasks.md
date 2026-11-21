@@ -7,7 +7,7 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 - [x] 1 — The plan check · moderate
 - [x] 2 — The conductor · moderate
 - [x] 3 — The queue · moderate
-- [ ] 4 — Integrate and converge · moderate
+- [x] 4 — Integrate and converge · moderate
 - [ ] 5 — The rule · moderate
 
 ## 1 — The plan check
@@ -63,18 +63,18 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 ## 4 — Integrate and converge
 
-- [ ] 4.1 **HALT CHECK** Confirm `integrate.py` defines `_unmerged`, which [D10](design.md#d10) skips by.
+- [x] 4.1 **HALT CHECK** Confirm `integrate.py` defines `_unmerged`, which [D10](design.md#d10) skips by.
   Verify: `git grep -n "def _unmerged" -- skills/mf-integrate/scripts/integrate.py` prints the definition.
-- [ ] 4.2 In `skills/mf-integrate/scripts/integrate.py` `decisions` renumbers the changelog first, skips a conflicted path, collects an
+- [x] 4.2 In `skills/mf-integrate/scripts/integrate.py` `decisions` renumbers the changelog first, skips a conflicted path, collects an
   ambiguous one and halts once ([D10](design.md#d10)); add `test_decisions_skips_a_conflicted_file_and_goes_on` and `test_decisions_halts_once_after_every_ambiguous_file` to `tests/test_integrate.py`.
   Verify: `uv run pytest tests/test_integrate.py::test_decisions_skips_a_conflicted_file_and_goes_on tests/test_integrate.py::test_decisions_halts_once_after_every_ambiguous_file tests/test_integrate.py::test_decisions_renumbers_a_colliding_decision_and_its_citations -q` exits 0.
-- [ ] 4.3 In `skills/mf-integrate/SKILL.md` add to the `decisions` row that a path git left conflicted is skipped and printed as
+- [x] 4.3 In `skills/mf-integrate/SKILL.md` add to the `decisions` row that a path git left conflicted is skipped and printed as
   `decisions: conflicted` with its renumber, for the note.
   Verify: `git grep -n "decisions: conflicted" -- skills/mf-integrate/SKILL.md` prints the row.
-- [ ] 4.4 In `skills/mf-converge/scripts/converge.py` `read_findings` reads a `changes-requested` file with no open card as malformed, as
+- [x] 4.4 In `skills/mf-converge/scripts/converge.py` `read_findings` reads a `changes-requested` file with no open card as malformed, as
   `verdict is changes-requested with no open card`, and `held` and a failed `rewrite` write `clean` as [D11](design.md#d11) says; the halt in `rounds` goes.
   Verify: `git grep -n -F "changes-requested with no open card" -- skills/mf-converge/scripts/converge.py` prints the reason.
-- [ ] 4.5 In `tests/test_converge.py` add `test_changes_requested_with_nits_alone_counts_clean` (the file reads `clean` after) and
+- [x] 4.5 In `tests/test_converge.py` add `test_changes_requested_with_nits_alone_counts_clean` (the file reads `clean` after) and
   `test_changes_requested_with_no_card_gets_a_rewrite` (one rewrite worker, then the file reads `clean`); drop the `no card` row from the loop of halts in `test_a_blocker_is_fixed_verified_and_cleared`.
   Verify: `uv run pytest tests/test_converge.py::test_changes_requested_with_nits_alone_counts_clean tests/test_converge.py::test_changes_requested_with_no_card_gets_a_rewrite tests/test_converge.py::test_a_blocker_is_fixed_verified_and_cleared -q` exits 0.
 
