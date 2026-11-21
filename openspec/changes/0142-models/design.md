@@ -55,7 +55,7 @@ The module is `skills/mflib/modelsfile.py`, standard library only. It finds the 
 | `TOKEN` | the token pattern `[A-Za-z0-9._-]+` | 2 |
 | `PERSON` | the person's tables, `rescue` and `supervise`, which no tool writes | 4 |
 | `BOUND` | the most bytes the read takes, `65536` | 4 |
-| `OLD_WORKERS` | the old checker tables by the worker each stands for | 2, gone in 4 |
+| the old-name map | the old checker tables by the worker each stands for | 2, gone in 4 |
 | `Broken` | a `ValueError`: the file's problem, as a phrase | 2 |
 | `text(decided, named, shadowed)` | the text `--models` prints: `named` maps a part to its words, `["skip"]` or `[<host/>model, effort]` | 2 |
 | `read(primary, change)` | the file parsed; `{}` with no file | 2 |

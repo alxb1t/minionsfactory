@@ -63,7 +63,7 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 - [x] 3.5 Re-point `tests/test_modelsfile.py`'s cases of phase 1 that take the conductor's models-file hash and writer by key to `mflib.modelsfile.digest` and `mflib.modelsfile.write`, the writer through the same local `write` as in 3.4, by their new lines only; the cases through `_models`, `_skips` and the run stay on the conductor.
   Verify: `git grep -n -e "conduct\[\"_models_hash\"\]" -e "conduct\[\"_write_models\"\]" -- tests/test_modelsfile.py` prints nothing.
 - [x] 3.6 In `docs/modules.md` add `modelsfile.py` to the `names` cells of the `skills/mf-ship/scripts/conduct.py` row and the `skills/mf-plan/scripts/brief_check.py` row, each in its alphabetical place.
-  Verify: `git grep -c -e "modelsfile.py" -- docs/modules.md` prints `3`.
+  Verify: `git grep -h -c -e "modelsfile.py" -- docs/modules.md` prints `3`.
 
 ## 4 — The fix
 
