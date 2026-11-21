@@ -8,7 +8,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 - [x] 2 — The modules · hard
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
-- [ ] 5 — The rule and the record · moderate
+- [x] 5 — The rule and the record · moderate
 
 ## 1 — The pin
 
@@ -92,15 +92,15 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 
 ## 5 — The rule and the record
 
-- [ ] 5.1 In `tests/test_structure.py` make `_format_name` name a string that contains `# Ship run` and one that holds the clock in either spelling, and add the clock pairs of `run.py` and `review_metrics.py` to `FORMAT_SITES` ([D12](design.md#d12)).
+- [x] 5.1 In `tests/test_structure.py` make `_format_name` name a string that contains `# Ship run` and one that holds the clock in either spelling, and add the clock pairs of `run.py` and `review_metrics.py` to `FORMAT_SITES` ([D12](design.md#d12)).
   Verify: `uv run pytest tests/test_structure.py -q` exits 0 and `git grep -n -F -e "# Ship run" -- tests/test_structure.py` prints a line.
-- [ ] 5.2 Add to `tests/test_structure.py` the planted-breach twins of the run log's names, `def test_check_formats_run_log_…`: the title, each spelling of the clock, and a listed site that is gone.
+- [x] 5.2 Add to `tests/test_structure.py` the planted-breach twins of the run log's names, `def test_check_formats_run_log_…`: the title, each spelling of the clock, and a listed site that is gone.
   Verify: `uv run pytest tests/test_structure.py -q` exits 0 and `git grep -n -e "def test_check_formats_run_log" -- tests/test_structure.py` prints a line.
-- [ ] 5.3 Amend D83 in `docs/decisions.md`: its format names gain the run log's title `# Ship run` and the event's clock, beside the card head.
+- [x] 5.3 Amend D83 in `docs/decisions.md`: its format names gain the run log's title `# Ship run` and the event's clock, beside the card head.
   Verify: `git grep -n -F -e "# Ship run" -- docs/decisions.md` prints a line.
-- [ ] 5.4 Amend D57 in `docs/decisions.md`: the run log is written and parsed by `skills/mflib/runlog.py` and the claim by `skills/mflib/claim.py`, beside the debt file's sentence.
+- [x] 5.4 Amend D57 in `docs/decisions.md`: the run log is written and parsed by `skills/mflib/runlog.py` and the claim by `skills/mflib/claim.py`, beside the debt file's sentence.
   Verify: `git grep -n -e "mflib/claim.py" -- docs/decisions.md` prints a line.
-- [ ] 5.5 In `THREAT_MODEL.md` name `skills/mflib/runlog.py` and `skills/mflib/claim.py` in the sentence on the conductor's writes and in the surface sentence of the shared home, and say that the claim and the log follow no link.
+- [x] 5.5 In `THREAT_MODEL.md` name `skills/mflib/runlog.py` and `skills/mflib/claim.py` in the sentence on the conductor's writes and in the surface sentence of the shared home, and say that the claim and the log follow no link.
   Verify: `git grep -n -e "mflib/runlog.py" -- THREAT_MODEL.md` prints a line.
-- [ ] 5.6 Add a sentence to `docs/recipes.md` after the debt file's: the run log is written and parsed through `skills/mflib/runlog.py` and the claim through `skills/mflib/claim.py`.
+- [x] 5.6 Add a sentence to `docs/recipes.md` after the debt file's: the run log is written and parsed through `skills/mflib/runlog.py` and the claim through `skills/mflib/claim.py`.
   Verify: `git grep -n -e "mflib/runlog.py" -- docs/recipes.md` prints a line.

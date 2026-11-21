@@ -524,6 +524,51 @@ def test_pin_close_prints_a_link_and_leaves_it(
     assert target.is_dir()
 
 
+def test_clear_stops_on_a_link_swapped_in_before_the_removal(
+    tmp_path: Path, ps: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    active = _claim_of(tmp_path / "runs", str(_dead()), "S")
+    target = tmp_path / "elsewhere"
+    remove = claim.remove
+
+    def swapped(path: Path) -> None:
+        path.rename(target)
+        path.symlink_to(target)
+        remove(path)
+
+    monkeypatch.setattr(claim, "remove", swapped)
+
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_clear"](active)
+
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
+    assert active.is_symlink()
+    assert target.is_dir()
+
+
+def test_close_prints_a_link_at_the_claim_and_its_stop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    active = root / ".minions" / "runs" / "active"
+    target = _linked(tmp_path, active, "4242")
+
+    def refused(primary: Path) -> contextlib.AbstractContextManager[None]:
+        raise conduct["Stop"](2, "conduct: cannot run — the home folder refuses")
+
+    monkeypatch.setitem(_NAMES, "_queue_lock", refused)
+
+    conduct["_close"](root, active, "claude", set())
+
+    assert capsys.readouterr().out == (
+        f"{_REFUSED}\nconduct: cannot run — the home folder refuses\n"
+    )
+    assert active.is_symlink()
+    assert target.is_dir()
+
+
 def test_pin_stop_over_a_link_kills_nothing_and_writes_no_stop_line(
     tmp_path: Path, ps: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -743,6 +788,38 @@ def test_module_each_read_and_write_refuses_a_claim_that_is_no_folder(
     assert claim.present(active)
     assert _entries(target) == held
     assert not (tmp_path / "gone").exists()
+
+
+def test_module_a_write_with_no_claim_raises_and_makes_nothing(tmp_path: Path) -> None:
+    active = tmp_path / "active"
+
+    for call in (
+        lambda: claim.mark(active, "S", 4242),
+        lambda: claim.enter(active, 4243, "S"),
+    ):
+        with pytest.raises(FileNotFoundError):
+            call()
+
+    assert not claim.present(active)
+
+
+def test_module_another_error_at_the_claims_open_is_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    active = _claim_of(tmp_path, "4242", "S")
+    real = os.open
+
+    def denied(
+        path: str, flags: int, mode: int = 0o777, *, dir_fd: int | None = None
+    ) -> int:
+        if path == active.name:
+            raise PermissionError(13, "denied", path)
+        return real(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", denied)
+
+    with pytest.raises(PermissionError):
+        claim.conductor(active)
 
 
 def test_module_a_missing_parent_is_no_claim_and_makes_nothing(tmp_path: Path) -> None:

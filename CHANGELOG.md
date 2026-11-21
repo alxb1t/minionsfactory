@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only a stamp-named `*.md` is a log. The verify passes an open spawn only under the person's stop, and `wait` reads a
   bounded span through one open file. A claim that is a link or a file halts `run`, `stop` and a worker's start
   (0140-run-log, phase 4).
+- The gate's format rule holds the run log's title `# Ship run` and the event's clock outside `skills/mflib/`, and
+  tests reach the claim's refusals the fix left untested. D83, D57, the threat model and the recipes name both
+  modules (0140-run-log, phase 5).
 
 ## [0.111.0] - 2026-11-20
 
