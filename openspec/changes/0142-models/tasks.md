@@ -8,7 +8,7 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 - [x] 2 — The module · hard
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
-- [ ] 5 — The rule and the record · moderate
+- [x] 5 — The rule and the record · moderate
 
 ## 1 — The pin
 
@@ -92,11 +92,11 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 
 ## 5 — The rule and the record
 
-- [ ] 5.1 Add `def test_the_one_map_round_trips` to `tests/test_modelsfile.py` ([D12](design.md#d12)): every table and key `modelsfile.text` writes for an item with every part, the switch and the shadow is read back by `modelsfile.read`, and the person's keys `[rescue]`, `[supervise]` and `auto_grant` are read though `text` writes none.
+- [x] 5.1 Add `def test_the_one_map_round_trips` to `tests/test_modelsfile.py` ([D12](design.md#d12)): every table and key `modelsfile.text` writes for an item with every part, the switch and the shadow is read back by `modelsfile.read`, and the person's keys `[rescue]`, `[supervise]` and `auto_grant` are read though `text` writes none.
   Verify: `git grep -n -e "def test_the_one_map_round_trips" -- tests` prints a line.
-- [ ] 5.2 In `docs/decisions.md` edit D57, D77 and D41 as [D15](design.md#d15) says: the file is written and parsed by `skills/mflib/modelsfile.py`; `brief_check.py --models --write` writes it for the attended cut; no prose calls it yet.
+- [x] 5.2 In `docs/decisions.md` edit D57, D77 and D41 as [D15](design.md#d15) says: the file is written and parsed by `skills/mflib/modelsfile.py`; `brief_check.py --models --write` writes it for the attended cut; no prose calls it yet.
   Verify: `git grep -n -F -e "modelsfile.py" -- docs/decisions.md` prints a line.
-- [ ] 5.3 In `THREAT_MODEL.md` say in the change folder's bullet that the models file is read through no link, bounded, and written staged refusing a link by `skills/mflib/modelsfile.py`, and add the module to the home folder's entry in the surfaces list, among the format modules.
+- [x] 5.3 In `THREAT_MODEL.md` say in the change folder's bullet that the models file is read through no link, bounded, and written staged refusing a link by `skills/mflib/modelsfile.py`, and add the module to the home folder's entry in the surfaces list, among the format modules.
   Verify: `git grep -n -F -e "modelsfile.py" -- THREAT_MODEL.md` prints a line.
-- [ ] 5.4 In `docs/recipes.md` add the models file, written and parsed through `skills/mflib/modelsfile.py`, to the state-file recipe's line of modules, its path `layout.models_file(primary, change)`, and bring the rule line up to the format kinds `check_formats` holds: `status_log.md`, `## Run`, `# Ship run`, the card head and the run log's clock.
+- [x] 5.4 In `docs/recipes.md` add the models file, written and parsed through `skills/mflib/modelsfile.py`, to the state-file recipe's line of modules, its path `layout.models_file(primary, change)`, and bring the rule line up to the format kinds `check_formats` holds: `status_log.md`, `## Run`, `# Ship run`, the card head and the run log's clock.
   Verify: `git grep -n -F -e "modelsfile.py" -- docs/recipes.md` prints a line.

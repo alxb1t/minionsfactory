@@ -1194,3 +1194,39 @@ def test_module_write(tmp_path: Path) -> None:
     with pytest.raises(statefile.WriteFailed) as failed:
         modelsfile.write(tmp_path, _CHANGE, "[build]\n")
     assert (failed.value.step, os.listdir(elsewhere)) == ("create", [])
+
+
+def test_the_one_map_round_trips(tmp_path: Path) -> None:
+    """Read back every key `text` writes, and the person's keys it writes none of.
+
+    Why: 0142-models design D12.
+    """
+    named = {name: rest for name, *rest in map(str.split, _EVERY_PART.split(" · "))}
+    written = modelsfile.text(True, named, True)
+    modelsfile.write(tmp_path, _CHANGE, written)
+    data = modelsfile.read(tmp_path, _CHANGE)
+    assert (modelsfile.decides(data), modelsfile.shadows(data)) == (True, True)
+    for name, table in modelsfile.TABLES.items():
+        host, slash, model = named[name][0].rpartition("/")
+        want: dict[str, object] = {"model": model, "effort": named[name][1]}
+        want |= {"executor": host} if slash else {}
+        want |= {"shadow": True} if name == "converge" else {}
+        found = modelsfile.table(data, table) or {}
+        assert {k: v for k, v in found.items() if not isinstance(v, dict)} == want
+        skip = modelsfile.text(False, {name: ["skip"]}, False)
+        modelsfile.write(tmp_path, _CHANGE, skip)
+        skipped = modelsfile.read(tmp_path, _CHANGE)
+        assert modelsfile.skipping(skipped, (table,)) == {table}
+    assert not any(f"[{name}]" in written for name in modelsfile.PERSON)
+    assert "auto_grant" not in written
+    person = (
+        '[rescue]\nmodel = "m"\neffort = "high"\nskip = true\n\n'
+        '[supervise]\nmodel = "s"\neffort = "low"\nexecutor = "codex"\n\n'
+        "[converge]\nauto_grant = false\n"
+    )
+    modelsfile.write(tmp_path, _CHANGE, person)
+    data = modelsfile.read(tmp_path, _CHANGE)
+    assert modelsfile.rescue_skips(data)
+    assert not modelsfile.auto_grants(data)
+    supervise = {"model": "s", "effort": "low", "executor": "codex"}
+    assert modelsfile.table(data, "supervise") == supervise

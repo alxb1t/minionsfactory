@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   broken file halts its version alone, fails the cut's check naming why, and `status` names it; `[converge.review]`
   and `[converge.security]` are read no more. The write is staged and refuses a link; `brief_check.py --write` writes
   the file for the attended cut. Pays card 0111·S1 (0142-models, phase 4).
+- A round-trip case reads back every table and key the models text writes, holding the one map where no gate rule
+  can. D57, D77, D41, the threat model and the state-file recipe name `skills/mflib/modelsfile.py`
+  (0142-models, phase 5).
 
 ## [0.112.1] - 2026-11-21
 

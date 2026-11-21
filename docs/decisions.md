@@ -254,7 +254,8 @@ moved base.**
 **The cut's preconditions, the context it reads and the placing of the brief's facts in it, the scaffold of its artifacts,
 the readers of a deleted name, the self-check's mechanical rows and the models file are scripts; the cut's LLM writes the
 plan and judges what no script can check. `conduct.py cut` writes
-`models.toml` from `brief_check.py --models` when it queues the cut, and a cut halts on a changed file.**
+`models.toml` from `brief_check.py --models`, through `skills/mflib/modelsfile.py`, when it queues the cut;
+`brief_check.py --models --write` writes it for the attended cut; and a cut halts on a changed file.**
 
 - **Why:** the cut's main session was $3.39 of a $6.99 cut, most of it turns that ran a rule: the preconditions, a fact's
   moved state, the self-check table. A script holds a rule the same way each run.
@@ -769,7 +770,8 @@ writes it to `.minions/changes/<change-id>/models.toml`, converge's worker table
 the change, for `mf-ship`; model selection
 and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close:
 `conduct.py` writes those when it queues the cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and a cut
-by hand writes what `brief_check.py --models` prints.**
+by hand writes what `brief_check.py --models` prints, which `--write` writes through `skills/mflib/modelsfile.py`; no
+station's prose calls `--write` yet.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
@@ -1152,7 +1154,8 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 `build.{done,halt,closing,discarded.patch}`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through `change_dir` of `skills/mflib/layout.py`;
 `status_log.md` is written and parsed by `skills/mflib/statuslog.py`, found through `change_dir`;
-`conformance.md` and `adversarial.md` are written and parsed by `skills/mflib/findings.py`, found through
+`models.toml` is written and parsed by `skills/mflib/modelsfile.py`, found through `models_file` of
+`skills/mflib/layout.py`; `conformance.md` and `adversarial.md` are written and parsed by `skills/mflib/findings.py`, found through
 `findings_file` of `skills/mflib/layout.py`. `grants/`,
 `runs/`, `gate/`, `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`; `debt.md` is written and parsed by `skills/mflib/debtfile.py`, the run log `runs/<stamp>.md` by
