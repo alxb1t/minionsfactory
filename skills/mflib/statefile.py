@@ -1,6 +1,6 @@
-"""Write a staged state file, append to one, and read a regular one, following no link.
+"""Write a staged state file, append to one, read a regular one, open a folder: no link.
 
-Why: 0136-status-log design D1, D4 and D5; 0140-run-log design D6.
+Why: 0136-status-log design D1, D4 and D5; 0140-run-log design D6; 0142-models D13.
 """
 
 import contextlib
@@ -163,6 +163,33 @@ def folder(root: Path, *parts: str) -> int:
             inner = os.open(
                 part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
             )
+            os.close(fd)
+            fd = inner
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def open_folder(root: Path, *parts: str) -> int:
+    """Return a descriptor on `root`'s folder `parts`, none made, none read as a link.
+
+    `root` is followed. A missing part raises `FileNotFoundError`, a link `OSError`
+    `ELOOP` and a file `NotADirectoryError`. Why: 0142-models design D13.
+    """
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts:
+            try:
+                flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+                inner = os.open(part, flags, dir_fd=fd)
+            except OSError as error:
+                if error.errno not in (errno.ELOOP, errno.ENOTDIR):
+                    raise
+                # why: Linux says ENOTDIR for a link under O_DIRECTORY, macOS ELOOP
+                held = os.stat(part, dir_fd=fd, follow_symlinks=False)
+                code = errno.ELOOP if stat.S_ISLNK(held.st_mode) else errno.ENOTDIR
+                raise OSError(code, os.strerror(code), part) from None
             os.close(fd)
             fd = inner
     except BaseException:

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_modelsfile.py` pins what the conductor and `brief_check.py` do with a models file today: its parser,
   key readers, hash, writer and text, and a link, a pipe, a folder or a bad byte at it, so the move to one module
   can change no assert. The test of the halt a build's spawn removes reaches the spawn through `run` (0142-models, phase 1).
+- `skills/mflib/modelsfile.py` holds the models file's map, text, parser, key readers, hash and writer, each as its copy
+  behaves today; nothing loads it yet. `statefile.open_folder` opens a folder and makes nothing, and the claim opens
+  through it; `layout.models_file` names the file (0142-models, phase 2).
 
 ## [0.112.1] - 2026-11-21
 

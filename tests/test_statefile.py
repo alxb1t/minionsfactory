@@ -404,3 +404,54 @@ def test_folder_follows_a_link_at_its_root(tmp_path: Path) -> None:
     os.close(fd)
 
     assert (real / "a").is_dir()
+
+
+def test_open_folder_returns_a_descriptor_on_the_folder(tmp_path: Path) -> None:
+    (tmp_path / "a" / "b").mkdir(parents=True)
+    fd = statefile.open_folder(tmp_path, "a", "b")
+    try:
+        assert os.path.samestat(os.fstat(fd), (tmp_path / "a" / "b").stat())
+    finally:
+        os.close(fd)
+
+
+def test_open_folder_raises_file_not_found_on_a_missing_part_and_makes_nothing(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    (root / "a").mkdir(parents=True)
+
+    with pytest.raises(FileNotFoundError):
+        statefile.open_folder(root, "a", "b", "c")
+    with pytest.raises(FileNotFoundError):
+        statefile.open_folder(root / "gone", "a")
+
+    assert sorted(root.rglob("*")) == [root / "a"]
+
+
+def test_open_folder_raises_eloop_on_a_link_at_a_part(tmp_path: Path) -> None:
+    (tmp_path / "real").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "real")
+
+    with pytest.raises(OSError, match="symbolic links") as raised:
+        statefile.open_folder(tmp_path, "link")
+
+    assert raised.value.errno == errno.ELOOP
+
+
+def test_open_folder_raises_not_a_directory_on_a_file_at_a_part(tmp_path: Path) -> None:
+    (tmp_path / "file").write_text("x")
+
+    with pytest.raises(NotADirectoryError):
+        statefile.open_folder(tmp_path, "file")
+
+
+def test_open_folder_follows_a_link_at_its_root(tmp_path: Path) -> None:
+    (tmp_path / "real" / "a").mkdir(parents=True)
+    (tmp_path / "root").symlink_to(tmp_path / "real")
+
+    fd = statefile.open_folder(tmp_path / "root", "a")
+    try:
+        assert os.path.samestat(os.fstat(fd), (tmp_path / "real" / "a").stat())
+    finally:
+        os.close(fd)

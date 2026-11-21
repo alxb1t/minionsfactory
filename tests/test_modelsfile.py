@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -16,7 +17,7 @@ from typing import Any
 import pytest
 from conduct_load import conduct as _conduct
 from fake_worker import _commit, _git
-from mflib import layout
+from mflib import layout, modelsfile
 
 _REPO = Path(__file__).resolve().parent.parent
 _BRIEF_CHECK = _REPO / "skills" / "mf-plan" / "scripts" / "brief_check.py"
@@ -32,7 +33,7 @@ from conduct_load import conduct
 
 print(conduct()["_models_hash"](Path(sys.argv[3]), sys.argv[4]))
 """
-_EVERY_PART = (
+_EVERY_PART: str = (
     "build codex/gpt-6.1-sol high · converge claude-opus-5-5 high"
     " · release claude-sonnet-5-5 medium · cut claude-opus-5-5 high"
     " · build-moderate claude-sonnet-5-5 high · conformance codex/gpt-6.1-sol high"
@@ -846,3 +847,180 @@ def test_pin_models_text_and_its_written_file(
     conduct["_write_models"](tmp_path, _CHANGE, text)
     written = layout.change_dir(tmp_path, _CHANGE) / "models.toml"
     assert written.read_bytes() == _EVERY_TABLE.encode()
+
+
+# The module: each function gives what the pins of its copy hold.
+
+
+def test_module_text(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    parts = [part.split() for part in _EVERY_PART.split(" · ")]
+    named = {name: rest for name, *rest in parts}
+    head = "**full** · minor · after: none · debt: none · decide: recommended"
+    printed = _printed(_brief(tmp_path, head, _EVERY_PART), "full", capsys)
+    assert modelsfile.text(True, named, parts[-1:] == [["shadow"]]) == printed
+    assert printed == _EVERY_TABLE
+    skipped = {"converge": ["skip"], "cut": ["opus", "high"]}
+    assert modelsfile.text(False, skipped, False) == "[converge]\nskip = true\n"
+    assert "cut" not in modelsfile.TABLES
+
+
+def test_module_read(tmp_path: Path) -> None:
+    assert modelsfile.read(tmp_path, _CHANGE) == {}
+    path = _models_toml(tmp_path, '[build]\nmodel = "m"\n')
+    assert modelsfile.read(tmp_path, _CHANGE) == {"build": {"model": "m"}}
+    _models_toml(tmp_path, "[converge\n")
+    with pytest.raises(modelsfile.Broken) as broken:
+        modelsfile.read(tmp_path, _CHANGE)
+    with pytest.raises(tomllib.TOMLDecodeError) as refused:
+        tomllib.loads("[converge\n")
+    assert str(broken.value) == str(refused.value)
+    _models_toml(tmp_path, b"\xff")
+    with pytest.raises(UnicodeDecodeError):
+        modelsfile.read(tmp_path, _CHANGE)
+    target = tmp_path / "target.toml"
+    target.write_text("decide = 1\n")
+    path.unlink()
+    path.symlink_to(target)
+    assert modelsfile.read(tmp_path, _CHANGE) == {"decide": 1}
+    path.unlink()
+    path.symlink_to(tmp_path / "gone.toml")
+    assert modelsfile.read(tmp_path, _CHANGE) == {}
+    path.unlink()
+    os.mkfifo(path)
+    assert modelsfile.read(tmp_path, _CHANGE) == {}
+    path.unlink()
+    path.mkdir()
+    assert modelsfile.read(tmp_path, _CHANGE) == {}
+
+
+def test_module_table() -> None:
+    data = tomllib.loads('build = "x"\nconverge = "y"\n[release.fix]\nmodel = "m"\n')
+    assert modelsfile.table(data, "build") is None
+    assert modelsfile.table(data, "converge.fix") is None
+    assert modelsfile.table(data, "release.fix") == {"model": "m"}
+    assert modelsfile.table(data, "rescue") is None
+    assert modelsfile.table({}, "build") is None
+
+
+def test_module_decides() -> None:
+    for text, held in (
+        ("", False),
+        ('decide = "recommended"\n', True),
+        ('decide = "Recommended"\n', False),
+        ("decide = true\n", False),
+        ('[converge]\ndecide = "recommended"\n', False),
+    ):
+        assert modelsfile.decides(tomllib.loads(text)) is held, text
+
+
+def test_module_shadows() -> None:
+    for text, held in (
+        ("", False),
+        ("[converge]\nshadow = true\n", True),
+        ('[converge]\nshadow = "true"\n', False),
+        ("[converge]\nshadow = 1\n", False),
+        ("[converge]\nshadow = false\n", False),
+        ("shadow = true\n", False),
+        ("[converge.conformance]\nshadow = true\n", False),
+    ):
+        assert modelsfile.shadows(tomllib.loads(text)) is held, text
+
+
+def test_module_rescue_skips() -> None:
+    for text, held in (
+        ("", False),
+        ("[rescue]\nskip = true\n", True),
+        ('[rescue]\nskip = "true"\n', False),
+        ("[rescue]\nskip = 1\n", False),
+        ("skip = true\n", False),
+        ("[build]\nskip = true\n", False),
+    ):
+        assert modelsfile.rescue_skips(tomllib.loads(text)) is held, text
+
+
+def test_module_auto_grants() -> None:
+    for text, held in (
+        ("", True),
+        ("[converge]\nauto_grant = false\n", False),
+        ("[converge]\nauto_grant = true\n", True),
+        ('[converge]\nauto_grant = "false"\n', True),
+        ("[converge]\nauto_grant = 0\n", True),
+        ("auto_grant = false\n", True),
+        ("[converge.fix]\nauto_grant = false\n", True),
+    ):
+        assert modelsfile.auto_grants(tomllib.loads(text)) is held, text
+
+
+def test_module_skipping() -> None:
+    names = ("converge", "converge.conformance", "converge.adversarial")
+    for text, held in (
+        ("", set()),
+        ("[converge.fix]\nskip = true\n", set()),
+        ("[converge]\nskip = true\n", {"converge"}),
+        ('[converge.adversarial]\nskip = true\nmodel = "m"\n', {names[2]}),
+        ('[converge]\nskip = "yes"\n', set()),
+        ("[converge.conformance]\nskip = 1\n", set()),
+        ("[build]\nskip = true\n", set()),
+    ):
+        assert modelsfile.skipping(tomllib.loads(text), names) == held, text
+    fix = tomllib.loads("[converge.fix]\nskip = true\n")
+    assert modelsfile.skipping(fix, ("converge.fix",)) == {"converge.fix"}
+
+
+def test_module_digest(tmp_path: Path) -> None:
+    assert modelsfile.digest(tmp_path, _CHANGE) is None
+    path = _models_toml(tmp_path, b'[build]\nmodel = "\xff"\n')
+    wanted = hashlib.sha256(b'[build]\nmodel = "\xff"\n').hexdigest()
+    before = _open_fds()
+    for _ in range(20):
+        assert modelsfile.digest(tmp_path, _CHANGE) == wanted
+    assert _open_fds() == before
+    target = tmp_path / "target.toml"
+    target.write_text("[build]\n")
+    path.unlink()
+    path.symlink_to(target)
+    assert modelsfile.digest(tmp_path, _CHANGE) is None
+    path.unlink()
+    path.mkdir()
+    with pytest.raises(IsADirectoryError):
+        modelsfile.digest(tmp_path, _CHANGE)
+
+
+def test_module_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = layout.models_file(tmp_path, _CHANGE)
+    modelsfile.write(tmp_path, _CHANGE, _EVERY_TABLE)
+    assert path.read_bytes() == _EVERY_TABLE.encode()
+    target = tmp_path / "target.toml"
+    target.write_text('[build]\nmodel = "m"\n')
+    path.unlink()
+    path.symlink_to(target)
+    modelsfile.write(tmp_path, _CHANGE, "[release]\n")
+    assert (path.is_symlink(), path.read_text()) == (False, "[release]\n")
+    assert target.read_text() == '[build]\nmodel = "m"\n'
+    path.unlink()
+    os.link(target, path)
+    modelsfile.write(tmp_path, _CHANGE, "[build]\n")
+    assert (path.read_text(), target.read_text()) == (
+        "[build]\n",
+        '[build]\nmodel = "m"\n',
+    )
+    assert path.stat().st_nlink == target.stat().st_nlink == 1
+    path.unlink()
+    os.mkfifo(path)
+    modelsfile.write(tmp_path, _CHANGE, "[build]\n")
+    assert path.read_text() == "[build]\n"
+    path.unlink()
+    path.mkdir()
+    with pytest.raises((PermissionError, IsADirectoryError)):
+        modelsfile.write(tmp_path, _CHANGE, "[build]\n")
+    path.rmdir()
+    real = modelsfile._remove
+
+    def plant(primary: Path, change: str) -> None:
+        real(primary, change)
+        path.symlink_to(target)
+
+    monkeypatch.setattr(modelsfile, "_remove", plant)
+    with pytest.raises(FileExistsError):
+        modelsfile.write(tmp_path, _CHANGE, "[build]\n")
+    assert target.read_text() == '[build]\nmodel = "m"\n'

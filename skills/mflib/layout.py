@@ -15,6 +15,7 @@ SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 MINIONS = ".minions"
 CHANGES = "changes"
 STATUS_LOG = "status_log.md"
+MODELS = "models.toml"
 # Each old-layout path of a change, by its name in the change's folder.
 # Why: 0080-minions-layout design D1, D4; 0095-converge-roles design D2.
 OLD_LAYOUT = {
@@ -22,7 +23,7 @@ OLD_LAYOUT = {
     "findings/{}_security.md": "adversarial.md",
     "findings/{}_status_log.md": "status_log.md",
     "findings/{}_diff.patch": "diff.patch",
-    "models/{}.toml": "models.toml",
+    "models/{}.toml": MODELS,
     "integrate/{}.md": "integrate.md",
     "integrate/{}.red": "integrate.red",
     "integrate/{}.resolved": "integrate.resolved",
@@ -73,6 +74,15 @@ def status_log(primary: Path, change: str) -> Path:
     e.g. "0001-todo" → <primary>/.minions/changes/0001-todo/status_log.md
     """
     return change_dir(primary, change) / STATUS_LOG
+
+
+def models_file(primary: Path, change: str) -> Path:
+    """Return the change's models file.
+
+    e.g. "0001-todo" → <primary>/.minions/changes/0001-todo/models.toml
+    Why: 0142-models design D1.
+    """
+    return change_dir(primary, change) / MODELS
 
 
 def findings_name(role: str) -> str:

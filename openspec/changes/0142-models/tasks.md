@@ -5,7 +5,7 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
@@ -33,21 +33,21 @@ Pin the models file's code as it stands, give it a module, move the stations ont
 
 ## 2 — The module
 
-- [ ] 2.1 In `skills/mflib/statefile.py` add `open_folder(root, *parts)` as [D13](design.md#d13) says, and its cases to `tests/test_statefile.py`: a missing part, a link at a part, a file at a part, a link at `root` followed, and nothing made.
+- [x] 2.1 In `skills/mflib/statefile.py` add `open_folder(root, *parts)` as [D13](design.md#d13) says, and its cases to `tests/test_statefile.py`: a missing part, a link at a part, a file at a part, a link at `root` followed, and nothing made.
   Verify: `git grep -n -e "^def open_folder" -- skills/mflib/statefile.py` prints a line.
-- [ ] 2.2 In `skills/mflib/claim.py`, open the claim folder through `statefile.open_folder`: a missing parent and a missing claim read as no claim, a link at the claim and a file at it raise `Refused`, as today. No assert of `tests/test_claim.py` changes.
+- [x] 2.2 In `skills/mflib/claim.py`, open the claim folder through `statefile.open_folder`: a missing parent and a missing claim read as no claim, a link at the claim and a file at it raise `Refused`, as today. No assert of `tests/test_claim.py` changes.
   Verify: `git grep -n -e "open_folder" -- skills/mflib/claim.py` prints a line.
-- [ ] 2.3 In `skills/mflib/layout.py` add `MODELS = "models.toml"` and `models_file(primary, change)`, and let `OLD_LAYOUT`'s models entry take `MODELS`; add the case to `tests/test_layout.py`.
+- [x] 2.3 In `skills/mflib/layout.py` add `MODELS = "models.toml"` and `models_file(primary, change)`, and let `OLD_LAYOUT`'s models entry take `MODELS`; add the case to `tests/test_layout.py`.
   Verify: `git grep -n -e "^def models_file" -- skills/mflib/layout.py` prints a line.
-- [ ] 2.4 Create `skills/mflib/modelsfile.py` with the names of [D1](design.md#d1) that phase 2 lists, `TABLES` to `text`, each as its copy behaves today: `text` is `brief_check.py`'s text writer's body, `TABLES` its map. Seed `brief_check.py` with the line `sys.path.insert(0, str(Path(__file__).resolve().parents[2]))` after its imports; nothing loads the module yet. Stage the module with `git add`, so the searches see it.
+- [x] 2.4 Create `skills/mflib/modelsfile.py` with the names of [D1](design.md#d1) that phase 2 lists, `TABLES` to `text`, each as its copy behaves today: `text` is `brief_check.py`'s text writer's body, `TABLES` its map. Seed `brief_check.py` with the line `sys.path.insert(0, str(Path(__file__).resolve().parents[2]))` after its imports; nothing loads the module yet. Stage the module with `git add`, so the searches see it.
   Verify: `git grep -n -e "^def text(decided" -- skills/mflib` prints a line.
-- [ ] 2.5 Add `read`, `table`, `decides`, `shadows`, `rescue_skips`, `auto_grants` and `skipping`, each the body of the conductor's copy: `read` is its models-file parser, following a link, raising `Broken` for text that is not TOML and letting a bad byte rise.
+- [x] 2.5 Add `read`, `table`, `decides`, `shadows`, `rescue_skips`, `auto_grants` and `skipping`, each the body of the conductor's copy: `read` is its models-file parser, following a link, raising `Broken` for text that is not TOML and letting a bad byte rise.
   Verify: `git grep -n -e "^def skipping" -- skills/mflib` prints a line.
-- [ ] 2.6 Add `def digest(primary: Path, change: str)` and `write`, each the body of the conductor's copy: `digest` is its hash, open `O_NOFOLLOW`, `None` on an open error; `write` is its writer, remove then create, raising `OSError` as the copy does. Both go through `statefile.folder`, and `write` removes the file in its own `_remove(primary, change)`.
+- [x] 2.6 Add `def digest(primary: Path, change: str)` and `write`, each the body of the conductor's copy: `digest` is its hash, open `O_NOFOLLOW`, `None` on an open error; `write` is its writer, remove then create, raising `OSError` as the copy does. Both go through `statefile.folder`, and `write` removes the file in its own `_remove(primary, change)`.
   Verify: `git grep -n -F -e "def digest(primary: Path, change: str)" -- skills/mflib` prints a line.
-- [ ] 2.7 Write the module's unit cases in `tests/test_modelsfile.py` as `def test_module_…`, one per function of [D1](design.md#d1), `digest` as `def test_module_digest…`: `text` equals what `brief_check.py --models` prints for an item with every part, and each other function gives what the pins of its copy hold. Re-point no test of the conductor yet.
+- [x] 2.7 Write the module's unit cases in `tests/test_modelsfile.py` as `def test_module_…`, one per function of [D1](design.md#d1), `digest` as `def test_module_digest…`: `text` equals what `brief_check.py --models` prints for an item with every part, and each other function gives what the pins of its copy hold. Re-point no test of the conductor yet.
   Verify: `git grep -n -e "def test_module_digest" -- tests` prints a line.
-- [ ] 2.8 In `docs/modules.md` add the row `skills/mflib/modelsfile.py`, layer `home`, names `layout.py, statefile.py`, after the `layout.py` row.
+- [x] 2.8 In `docs/modules.md` add the row `skills/mflib/modelsfile.py`, layer `home`, names `layout.py, statefile.py`, after the `layout.py` row.
   Verify: `git grep -n -e "skills/mflib/modelsfile.py" -- docs/modules.md` prints a line.
 
 ## 3 — The stations

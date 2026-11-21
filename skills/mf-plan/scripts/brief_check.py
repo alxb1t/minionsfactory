@@ -19,6 +19,8 @@ from typing import Any
 
 from markdown_it import MarkdownIt
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 VERIFY_CHECK = (
     Path(__file__).resolve().parents[2]
     / "mf-cut-change"
