@@ -1,14 +1,17 @@
 """Write and parse a ship run's log: its title, its events, its order and its readers.
 
-Why: 0140-run-log design D1 and D2; the log's form is the sdd spec's.
+Why: 0140-run-log design D1 and D5 to D8, D10; the log's form is the sdd spec's.
 """
 
 import itertools
+import os
 import re
+import threading
 import time
-from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
+
+from . import statefile
 
 STOPPED = "stopped by the person"
 # why: the plan's skipped converge logs `converge skipped — plan`, the spec's words;
@@ -18,10 +21,12 @@ EVENTS = (
     *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
     *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
     *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
-    "limited",
+    *("limited", "sync", "codex"),
     "converge skipped",
 )
-LOCK_SECONDS = 30
+_STAMPED = re.compile(r"\d{8}-\d{6}(-\d+)?")
+# The most bytes `wait` reads of a log at one poll. Why: 0140-run-log design D7.
+BOUND = 262_144
 
 
 class Event(NamedTuple):
@@ -69,20 +74,36 @@ def order(log: Path) -> tuple[str, int, str]:
     return log.stem[:15], len(log.stem), log.stem
 
 
+def _logs(runs: Path) -> list[Path]:
+    """Return the run logs in `runs`: each `*.md` named by a stamp, suffixed or not.
+
+    e.g. `20261029-163000-2.md` is one, `notes.md` is none
+    """
+    return [log for log in runs.glob("*.md") if _STAMPED.fullmatch(log.stem)]
+
+
 def newest(runs: Path) -> Path | None:
     """Return the newest run log in `runs`, or None.
 
     e.g. `20261029-163000.md`, `20261029-163000-2.md` → the second
     """
-    logs = list(runs.glob("*.md"))
+    logs = _logs(runs)
     if not logs:
         return None
     return max(logs, key=order)
 
 
+def _lines(log: Path) -> list[str]:
+    """Return a log's lines, a bad byte replaced; none for a log it may not read."""
+    try:
+        return statefile.read(log).splitlines()
+    except OSError:
+        return []
+
+
 def events(log: Path) -> list[Event]:
     """Return each line of the log that holds an event, in order."""
-    return [event for text in log.read_text().splitlines() if (event := parse(text))]
+    return [event for text in _lines(log) if (event := parse(text))]
 
 
 def release_died(runs: Path, change: str) -> bool:
@@ -90,8 +111,8 @@ def release_died(runs: Path, change: str) -> bool:
 
     A person's no ran no worker, and a release that stopped on purpose exits 0.
     """
-    for log in sorted(runs.glob("*.md"), key=order, reverse=True):
-        for text in reversed(log.read_text().splitlines()):
+    for log in sorted(_logs(runs), key=order, reverse=True):
+        for text in reversed(_lines(log)):
             event = parse(text)
             if event and event.who == change and event.detail.startswith("release · "):
                 if event.name == "spawn":
@@ -107,10 +128,9 @@ def rescuing(runs: Path, change: str) -> bool:
     e.g. `… · 0001-todo · spawn — rescue · model default`, no `finish — rescue` after
     """
     log = newest(runs)
-    lines = log.read_text(errors="replace").splitlines() if log else []
     names = [
         event.name
-        for text in lines
+        for text in (_lines(log) if log else [])
         if (event := parse(text))
         and event.who == change
         and event.name in ("spawn", "finish")
@@ -120,102 +140,151 @@ def rescuing(runs: Path, change: str) -> bool:
 
 
 def verify(log: Path) -> str | None:
-    """Return why a run log is incomplete, or None when it is complete."""
+    """Return why a run log is incomplete, or None when it is complete.
+
+    A log it may not read, a link or a pipe, raises `OSError`.
+    """
     lines = [
         text
-        for text in log.read_text().splitlines()
+        for text in statefile.read(log).splitlines()
         if text.strip() and not text.startswith("# ")
     ]
     spawned: dict[tuple[str, str], int] = {}
-    last = detail = ""
+    last: Event | None = None
     for text in lines:
-        event = parse(text)
-        if event is None or event.name not in EVENTS:
+        last = parse(text)
+        if last is None or last.name not in EVENTS:
             return f"unknown event: {text}"
-        who, last, detail = event.who, event.name, event.detail
-        station = detail.split(" · ")[0]
-        if last == "spawn":
-            spawned[who, station] = spawned.get((who, station), 0) + 1
-        elif last == "finish" and spawned.get((who, station)):
-            spawned[who, station] -= 1
+        station = last.detail.split(" · ")[0]
+        if last.name == "spawn":
+            spawned[last.who, station] = spawned.get((last.who, station), 0) + 1
+        elif last.name == "finish" and spawned.get((last.who, station)):
+            spawned[last.who, station] -= 1
+    stopped = last is not None and (last.who, last.name, last.detail) == (
+        "run",
+        "halt",
+        STOPPED,
+    )
     for (who, station), count in spawned.items():
-        if count and detail != STOPPED:
+        if count and not stopped:
             return f"a spawn with no finish: {who} {station}"
-    if last not in ("halt", "done"):
+    if last is None or last.name not in ("halt", "done"):
         return "the run ends on neither halt nor done"
     return None
 
 
 def stop(runs: Path) -> Path | None:
-    """Append the stop to the newest run log; return that log, or None with none."""
+    """Append the stop to the newest run log; return that log, or None with none.
+
+    A link or a pipe at the log raises `OSError`, and nothing is written.
+    """
     if (log := newest(runs)) is not None:
-        with log.open("a") as file:
-            file.write(f"{line('run', 'halt', STOPPED)}\n")
+        folder = statefile.folder(runs)
+        try:
+            statefile.append(log.name, f"{line('run', 'halt', STOPPED)}\n", folder)
+        finally:
+            os.close(folder)
     return log
 
 
 class RunLog:
-    """The run log: one event per line, appended under a lock folder."""
+    """The run log: one event per line, each one append under the process's lock."""
 
-    def __init__(
-        self, runs: Path, stamp: str, busy: Callable[[str], Exception]
-    ) -> None:
+    def __init__(self, runs: Path, stamp: str) -> None:
         """Create `<stamp>.md` in `runs`, titled; `<stamp>-2.md`, … when taken.
 
-        `busy` makes the error an append raises, from the lock's name, past its wait.
+        The create follows no link: a name that stands, a link or not, is taken.
         """
-        runs.mkdir(parents=True, exist_ok=True)
-        for n in itertools.count(1):
-            self.stamp = stamp if n == 1 else f"{stamp}-{n}"
-            self.path = runs / f"{self.stamp}.md"
-            try:
-                with self.path.open("x") as log:
-                    log.write(f"{title(self.stamp)}\n\n")
-                break
-            except FileExistsError:
-                continue
-        self.lock = runs / f"{self.stamp}.lock"
-        self.busy = busy
+        self.runs = runs
+        self.lock = threading.Lock()
         self.held: list[tuple[str, str, str]] | None = None
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        folder = statefile.folder(runs)
+        try:
+            for n in itertools.count(1):
+                self.stamp = stamp if n == 1 else f"{stamp}-{n}"
+                self.path = runs / f"{self.stamp}.md"
+                try:
+                    fd = os.open(self.path.name, flags, 0o644, dir_fd=folder)
+                except FileExistsError:
+                    continue
+                try:
+                    os.write(fd, f"{title(self.stamp)}\n\n".encode())
+                finally:
+                    os.close(fd)
+                break
+        finally:
+            os.close(folder)
 
     def event(self, who: str, event: str, detail: str) -> None:
-        """Append the event's line; while `held` is a list, the event waits there."""
+        """Append the event's line; while `held` is a list, the event waits there.
+
+        A link or a pipe at the log raises `OSError`, and nothing is written.
+        """
         if self.held is not None:
             self.held.append((who, event, detail))
             return
-        deadline = time.monotonic() + LOCK_SECONDS
-        while True:
+        with self.lock:
+            folder = statefile.folder(self.runs)
             try:
-                self.lock.mkdir()
-                break
-            except FileExistsError:
-                if time.monotonic() > deadline:
-                    raise self.busy(self.lock.name) from None
-                time.sleep(0.05)
-        try:
-            with self.path.open("a") as log:
-                log.write(f"{line(who, event, detail)}\n")
-        finally:
-            self.lock.rmdir()
+                statefile.append(
+                    self.path.name, f"{line(who, event, detail)}\n", folder
+                )
+            finally:
+                os.close(folder)
 
 
 class Tail:
-    """The newest run log's new whole lines, read at each poll."""
+    """The newest run log's new whole lines, read at each poll, `BOUND` bytes at most.
+
+    The log stays open across the polls of one log. Why: 0140-run-log design D7.
+    """
 
     def __init__(self, runs: Path) -> None:
         """Hold the newest log in `runs` and its end; its old lines are not read."""
         self.runs = runs
         self.held = newest(runs)
-        self.offset = self.held.stat().st_size if self.held else 0
+        self.fd = self._open()
+        self.offset = os.fstat(self.fd).st_size if self.fd is not None else 0
+        self.skipping = False
+
+    def _open(self) -> int | None:
+        """Return a descriptor on the held log; None for none, a link or a pipe."""
+        if self.held is None:
+            return None
+        try:
+            return statefile.open_regular(self.held)
+        except OSError:
+            return None
 
     def poll(self) -> list[str]:
-        """Return the whole lines written since the last poll, a newer log's all."""
+        """Return the whole lines written since the last poll, a newer log's all.
+
+        A line longer than `BOUND` is passed over whole, nothing of it returned.
+        """
         if (log := newest(self.runs)) != self.held:
-            self.held, self.offset = log, 0
-        gained = self.held.read_bytes()[self.offset :] if self.held else b""
+            self.close()
+            self.held, self.offset, self.skipping = log, 0, False
+            self.fd = self._open()
+        if self.fd is None:
+            return []
+        gained = os.pread(self.fd, BOUND, self.offset)
+        if self.skipping:
+            end = gained.find(b"\n")
+            self.offset += len(gained) if end < 0 else end + 1
+            if end < 0:
+                return []
+            self.skipping, gained = False, gained[end + 1 :]
+        elif len(gained) == BOUND and b"\n" not in gained:
+            self.offset += BOUND
+            self.skipping = True
+            return []
         whole = gained[: gained.rfind(b"\n") + 1]
         self.offset += len(whole)
         return whole.decode(errors="replace").splitlines()
 
     def close(self) -> None:
-        """Let the log go; the tail holds nothing open."""
+        """Close the held log's descriptor, when one is open."""
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None

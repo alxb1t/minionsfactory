@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The conductor writes and reads the run log through `skills/mflib/runlog.py` and the claim through
   `skills/mflib/claim.py`, with no assert changed; it keeps `EVENT`, `last_log` and `_claim` for the viewer
   (0140-run-log, phase 3).
+- The run log follows no link and blocks on no pipe. `sync` and `codex` are known events, the lock folder is gone, and
+  only a stamp-named `*.md` is a log. The verify passes an open spawn only under the person's stop, and `wait` reads a
+  bounded span through one open file. A claim that is a link or a file halts `run`, `stop` and a worker's start
+  (0140-run-log, phase 4).
 
 ## [0.111.0] - 2026-11-20
 

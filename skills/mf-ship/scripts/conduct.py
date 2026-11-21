@@ -2557,9 +2557,14 @@ def check(
     return _check_integrate(primary, version, version.tree)
 
 
-def _busy(lock: str) -> Stop:
-    """Return the stop of a run whose log's lock stays held past its wait."""
-    return Stop(2, f"conduct: cannot run — {lock} held")
+def _refused(error: mflib.claim.Refused) -> Stop:
+    """Return the stop of a run whose claim is no folder: a link or a file.
+
+    Why: 0140-run-log design D9.
+    """
+    return Stop(
+        2, f"conduct: cannot run — .minions/runs/{error.path.name} is no folder"
+    )
 
 
 def _models_file(runs: Path, change: str) -> dict[str, object]:
@@ -3581,16 +3586,23 @@ def work(
             raise Stop(2, f"conduct: cannot run — {command[0]} is missing") from None
         group = None
         try:
-            if claim:
-                start = mflib.platform.process(worker.pid, "lstart")
-                group = mflib.claim.enter(claim, worker.pid, start)
-            return worker.wait(timeout=limit), False
-        except subprocess.TimeoutExpired:
-            os.killpg(worker.pid, signal.SIGKILL)
-            return worker.wait(), True
-        finally:
-            if group:
-                mflib.claim.leave(group)
+            try:
+                if claim:
+                    start = mflib.platform.process(worker.pid, "lstart")
+                    group = mflib.claim.enter(claim, worker.pid, start)
+                return worker.wait(timeout=limit), False
+            except subprocess.TimeoutExpired:
+                os.killpg(worker.pid, signal.SIGKILL)
+                return worker.wait(), True
+            finally:
+                if group:
+                    mflib.claim.leave(group)
+        except mflib.claim.Refused as refused:
+            # why: the worker started before its entry; 0140-run-log design D9
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(worker.pid, signal.SIGKILL)
+            worker.wait()
+            raise _refused(refused) from None
 
 
 def _text(content: object) -> str:
@@ -4066,7 +4078,11 @@ def _conductor(active: Path) -> int | None:
     After a reboot the number can name any process, and a worker can write the claim:
     to `kill`, 0 is the caller's group and -1 every process the operator owns.
     """
-    if (claimed := mflib.claim.conductor(active)) is None:
+    try:
+        claimed = mflib.claim.conductor(active)
+    except mflib.claim.Refused as refused:
+        raise _refused(refused) from None
+    if claimed is None:
         return None
     pid, held = claimed
     return pid if pid > 1 and held and held == _started(pid) else None
@@ -4081,8 +4097,12 @@ def _claim(active: Path) -> str:
 
 def _clear(active: Path) -> None:
     """Kill the stale claim's worker groups, then remove it."""
+    try:
+        groups = mflib.claim.groups(active)
+    except mflib.claim.Refused as refused:
+        raise _refused(refused) from None
     foreign = []
-    for group, held in mflib.claim.groups(active):
+    for group, held in groups:
         # A worker can write the claim, and group 0 is this process's own.
         if group <= 1 or not held or held != _started(group):
             continue
@@ -4107,7 +4127,10 @@ def _clear(active: Path) -> None:
             " names no executor: read it, then kill it or remove its entry in"
             " .minions/runs/active",
         )
-    mflib.claim.remove(active)
+    try:
+        mflib.claim.remove(active)
+    except mflib.claim.Refused as refused:
+        raise _refused(refused) from None
 
 
 def _pin() -> dict[str, Any]:
@@ -4298,7 +4321,7 @@ class Run:
         self.codex_said: bool = False
         # Each queued cut that waits for room, with its reason.
         self.waiting: dict[str, str] = {}
-        self.log = mflib.runlog.RunLog(self.runs, time.strftime(STAMP), _busy)
+        self.log = mflib.runlog.RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
         self.unblocked: set[tuple[str, threading.Thread]] = set()
@@ -6882,9 +6905,15 @@ def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) ->
             if not (unread or _requested(mflib.layout.queue_dir(primary))):
                 return
             pid = _start_run(primary, executor)
+    except mflib.claim.Refused as refused:
+        print(_refused(refused))
+        return
     except Stop as stop:
-        if mflib.claim.present(active):
-            mflib.claim.remove(active)
+        try:
+            if mflib.claim.present(active):
+                mflib.claim.remove(active)
+        except mflib.claim.Refused as refused:
+            print(_refused(refused))
         print(stop)
         return
     print(f"run: next started · pid {pid}")

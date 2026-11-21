@@ -1155,9 +1155,7 @@ def test_log_verify_finds_an_unpaired_spawn_and_an_open_end(
         assert (got, capsys.readouterr().out.strip()) == (code, printed), name
 
     runs = tmp_path / "runs"
-    first, second = (
-        runlog.RunLog(runs, "20261029-163000", conduct["_busy"]) for _ in "ab"
-    )
+    first, second = (runlog.RunLog(runs, "20261029-163000") for _ in "ab")
     assert (first.path.name, second.path.name) == (
         "20261029-163000.md",
         "20261029-163000-2.md",

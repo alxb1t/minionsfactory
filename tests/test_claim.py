@@ -6,7 +6,6 @@ Cases j to m and the claim's pins of 0140-run-log design's pin; the module's cas
 import contextlib
 import os
 import re
-import signal
 import subprocess
 import sys
 import threading
@@ -98,14 +97,19 @@ def test_case_j_the_pids_floor_is_above_1(tmp_path: Path, ps: Path) -> None:
         assert conduct["_claim"](active) == "stale", pid
 
 
-def test_case_j_no_claim_is_none_and_a_file_at_the_claim_is_stale(
+_REFUSED = "conduct: cannot run — .minions/runs/active is no folder"
+
+
+def test_case_j_no_claim_is_none_and_a_file_at_the_claim_stops(
     tmp_path: Path, ps: Path
 ) -> None:
     active = tmp_path / "active"
     assert conduct["_claim"](active) == "none"
 
     active.write_text("4242\n")
-    assert conduct["_claim"](active) == "stale"
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_claim"](active)
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
 
 
 @pytest.fixture
@@ -437,8 +441,7 @@ def test_pin_a_bad_byte_in_pid_or_start_reads_stale_and_clear_removes_it_whole(
     assert killed == []
 
 
-@pytest.mark.slow
-def test_pin_a_pipe_at_pid_blocks_the_claims_read(tmp_path: Path, ps: Path) -> None:
+def test_pin_a_pipe_at_pid_reads_stale_at_once(tmp_path: Path, ps: Path) -> None:
     active = tmp_path / "active"
     active.mkdir()
     (active / "start").write_text("S")
@@ -448,16 +451,10 @@ def test_pin_a_pipe_at_pid_blocks_the_claims_read(tmp_path: Path, ps: Path) -> N
         target=lambda: read.append(conduct["_claim"](active)), daemon=True
     )
     child.start()
-    # A pipe opened blocking waits for its other end: the join bounds the run.
+    # A pipe opened blocking would wait for its other end: the join bounds the run.
     child.join(timeout=10)
 
-    assert child.is_alive()
-    deadline = time.monotonic() + 10
-    while child.is_alive():
-        assert time.monotonic() < deadline
-        with contextlib.suppress(OSError):
-            os.close(os.open(active / "pid", os.O_WRONLY | os.O_NONBLOCK))
-        time.sleep(0.01)
+    assert not child.is_alive()
     assert read == ["stale"]
 
 
@@ -469,28 +466,31 @@ def _linked(tmp_path: Path, active: Path, pid: str) -> Path:
     return target
 
 
-def test_pin_the_claims_read_follows_a_link(tmp_path: Path, ps: Path) -> None:
+def test_pin_the_claims_read_stops_on_a_link(tmp_path: Path, ps: Path) -> None:
     _known(ps, 4242, "S")
     active = tmp_path / "runs" / "active"
     _linked(tmp_path, active, "4242")
 
-    assert conduct["_claim"](active) == "live"
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_claim"](active)
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
 
 
-def test_pin_clear_raises_on_a_link_and_leaves_link_and_target(
+def test_pin_clear_stops_on_a_link_and_leaves_link_and_target(
     tmp_path: Path, ps: Path
 ) -> None:
     active = tmp_path / "runs" / "active"
     target = _linked(tmp_path, active, str(_dead()))
 
-    with pytest.raises(OSError, match="runs/active"):
+    with pytest.raises(conduct["Stop"]) as stopped:
         conduct["_clear"](active)
 
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
     assert active.is_symlink()
     assert _entries(target) == {"pid": (target / "pid").read_text(), "start": "S"}
 
 
-def test_pin_a_dangling_link_reads_none_and_the_take_then_raises(
+def test_pin_a_dangling_link_stops_the_claims_read_and_run(
     tmp_path: Path, ps: Path, shipped: list[dict[str, str]]
 ) -> None:
     _known(ps, os.getpid(), _OWN_START)
@@ -498,33 +498,33 @@ def test_pin_a_dangling_link_reads_none_and_the_take_then_raises(
     active = root / ".minions" / "runs" / "active"
     active.parent.mkdir(parents=True)
     active.symlink_to(tmp_path / "gone")
-    assert conduct["_claim"](active) == "none"
+    with pytest.raises(conduct["Stop"]):
+        conduct["_claim"](active)
 
     with pytest.raises(conduct["Stop"]) as stopped:
         conduct["run"](root, "claude", False)
 
-    assert stopped.value.code == 2
-    assert str(stopped.value) == (
-        "run: cannot run — a run is live: .minions/runs/active exists"
-    )
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
     assert shipped == []
     assert active.is_symlink()
     assert not (tmp_path / "gone").exists()
 
 
-def test_pin_close_lets_the_error_of_a_link_out(tmp_path: Path) -> None:
+def test_pin_close_prints_a_link_and_leaves_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     root = _repo(tmp_path)
     active = root / ".minions" / "runs" / "active"
     target = _linked(tmp_path, active, "4242")
 
-    with pytest.raises(OSError, match="runs/active"):
-        conduct["_close"](root, active, "claude", None)
+    conduct["_close"](root, active, "claude", None)
 
+    assert capsys.readouterr().out == f"{_REFUSED}\n"
     assert active.is_symlink()
     assert target.is_dir()
 
 
-def test_pin_stop_kills_the_conductor_then_a_link_escapes_before_the_stop_line(
+def test_pin_stop_over_a_link_kills_nothing_and_writes_no_stop_line(
     tmp_path: Path, ps: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _known(ps, 4242, "S")
@@ -537,12 +537,39 @@ def test_pin_stop_kills_the_conductor_then_a_link_escapes_before_the_stop_line(
     kills: list[tuple[int, int]] = []
     monkeypatch.setattr(os, "kill", lambda pid, sig: kills.append((pid, sig)))
 
-    with pytest.raises(OSError, match="runs/active"):
+    with pytest.raises(conduct["Stop"]) as stopped:
         conduct["stop_run"](root)
 
-    assert kills == [(4242, signal.SIGKILL)]
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
+    assert kills == []
     assert log.read_text() == "# Ship run 20261101-100001\n"
     assert active.is_symlink()
+
+
+_SLEEPER = "import time; print('up', flush=True); time.sleep(60)"
+
+
+@pytest.mark.parametrize("plant", ["link", "file"])
+def test_work_ends_its_worker_when_the_claim_is_no_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plant: str
+) -> None:
+    monkeypatch.setattr(platform, "process", lambda pid, field: f"start-{pid}")
+    active = tmp_path / "active"
+    if plant == "link":
+        (tmp_path / "elsewhere").mkdir()
+        active.symlink_to(tmp_path / "elsewhere")
+    else:
+        active.write_text("x")
+    out = tmp_path / "worker.log"
+    started = time.monotonic()
+
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["work"]([sys.executable, "-c", _SLEEPER], tmp_path, out, active)
+
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
+    assert time.monotonic() - started < 30
+    if plant == "link":
+        assert list((tmp_path / "elsewhere").iterdir()) == []
 
 
 _DENIED = """
@@ -578,7 +605,7 @@ def test_case_m_the_spawn_finish_denied_and_limited_lines(
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
     root = _repo(tmp_path)
     runs = root / ".minions" / "runs"
-    log = runlog.RunLog(runs, "20261101-100001", conduct["_busy"])
+    log = runlog.RunLog(runs, "20261101-100001")
     host = types.SimpleNamespace(
         repo=None,
         lines=None,
@@ -646,7 +673,10 @@ def test_module_conductor_reads_the_pid_and_the_start(tmp_path: Path) -> None:
     assert claim.conductor(_claim_of(tmp_path / "b", "x", "S")) is None
     assert claim.conductor(tmp_path / "none") is None
     (tmp_path / "file").write_text("4242\n")
-    assert claim.conductor(tmp_path / "file") is None
+    with pytest.raises(claim.Refused) as refused:
+        claim.conductor(tmp_path / "file")
+    assert refused.value.path == tmp_path / "file"
+    assert not isinstance(refused.value, OSError)
 
 
 def test_module_groups_reads_each_decimal_entry(tmp_path: Path) -> None:
@@ -680,3 +710,65 @@ def test_module_remove_removes_the_claim_whole(tmp_path: Path) -> None:
     claim.remove(active)
 
     assert not active.exists()
+    with pytest.raises(FileNotFoundError):
+        claim.remove(active)
+
+
+@pytest.mark.parametrize("plant", ["link", "file", "dangling link"])
+def test_module_each_read_and_write_refuses_a_claim_that_is_no_folder(
+    tmp_path: Path, plant: str
+) -> None:
+    target = _claim_of(tmp_path / "elsewhere", "4242", "S")
+    (target / "4243").write_text("S")
+    active = tmp_path / "active"
+    if plant == "file":
+        active.write_text("4242\n")
+    else:
+        active.symlink_to(target if plant == "link" else tmp_path / "gone")
+    held = _entries(target)
+
+    for call in (
+        lambda: claim.conductor(active),
+        lambda: claim.groups(active),
+        lambda: claim.mark(active, "S", 1),
+        lambda: claim.enter(active, 4244, "S"),
+        lambda: claim.leave(active / "4243"),
+        lambda: claim.remove(active),
+    ):
+        with pytest.raises(claim.Refused):
+            call()
+    with pytest.raises(FileExistsError):
+        claim.take(active)
+
+    assert claim.present(active)
+    assert _entries(target) == held
+    assert not (tmp_path / "gone").exists()
+
+
+def test_module_a_missing_parent_is_no_claim_and_makes_nothing(tmp_path: Path) -> None:
+    active = tmp_path / "runs" / "active"
+
+    assert not claim.present(active)
+    assert claim.conductor(active) is None
+    assert claim.groups(active) == []
+    claim.leave(active / "4243")
+    assert not (tmp_path / "runs").exists()
+
+
+def test_module_an_entry_over_the_bound_is_passed_over(tmp_path: Path) -> None:
+    active = _claim_of(tmp_path, "4242", "S")
+    (active / "4243").write_text("S" * claim.BOUND)
+    (active / "4244").write_text("S" * (claim.BOUND + 1))
+
+    assert claim.groups(active) == [(4243, "S" * claim.BOUND)]
+    (active / "start").write_text("S" * (claim.BOUND + 1))
+    assert claim.conductor(active) is None
+
+
+def test_module_groups_pass_over_a_link_and_a_pipe(tmp_path: Path) -> None:
+    active = _claim_of(tmp_path, "4242", "S")
+    (tmp_path / "outside").write_text("S")
+    (active / "4243").symlink_to(tmp_path / "outside")
+    os.mkfifo(active / "4244")
+
+    assert claim.groups(active) == []

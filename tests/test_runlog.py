@@ -3,6 +3,7 @@
 Cases a to i and the log's pins of 0140-run-log design's pin; the module's, by function.
 """
 
+import errno
 import os
 import signal
 import subprocess
@@ -30,8 +31,8 @@ def _verify(tmp_path: Path, *lines: str) -> str | None:
 
 
 def _log(runs: Path, stamp: str) -> runlog.RunLog:
-    """Return the run log the conductor makes, its held lock the conductor's stop."""
-    return runlog.RunLog(runs, stamp, conduct["_busy"])
+    """Return the run log the conductor makes."""
+    return runlog.RunLog(runs, stamp)
 
 
 def test_case_a_the_event_list_is_exactly_its_names() -> None:
@@ -40,7 +41,7 @@ def test_case_a_the_event_list_is_exactly_its_names() -> None:
         *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
         *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
         *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
-        "limited",
+        *("limited", "sync", "codex"),
         "converge skipped",
     )
 
@@ -139,12 +140,11 @@ def test_case_c_an_open_spawn_passes_only_under_the_stop_text(
     tmp_path: Path,
 ) -> None:
     spawn = "10:00:01 · 0001-a · spawn — build · model default"
+    last = "10:00:02 · run · halt — stopped by the person"
+    assert _verify(tmp_path, _START, spawn, last) is None
     for last in (
-        "10:00:02 · run · halt — stopped by the person",
         "10:00:02 · 0001-a · halt — stopped by the person",
-    ):
-        assert _verify(tmp_path, _START, spawn, last) is None, last
-    for last in (
+        "10:00:02 · run · done — stopped by the person",
         "10:00:02 · run · halt — stopped by the person!",
         "10:00:02 · run · halt — not stopped by the person",
         "10:00:02 · run · halt — build: phase 1 unticked",
@@ -283,7 +283,7 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_case_d_logs_made_on_one_stamp_take_suffixes_titles_and_locks(
+def test_case_d_logs_made_on_one_stamp_take_suffixes_and_titles(
     tmp_path: Path,
 ) -> None:
     runs = tmp_path / "runs"
@@ -292,7 +292,7 @@ def test_case_d_logs_made_on_one_stamp_take_suffixes_titles_and_locks(
     stamps = ["20261101-100000", "20261101-100000-2", "20261101-100000-3"]
     assert [log.stamp for log in made] == stamps
     assert [log.path for log in made] == [runs / f"{s}.md" for s in stamps]
-    assert [log.lock for log in made] == [runs / f"{s}.lock" for s in stamps]
+    assert set(runs.iterdir()) == {runs / f"{s}.md" for s in stamps}
     assert [log.path.read_text() for log in made] == [
         f"# Ship run {s}\n\n" for s in stamps
     ]
@@ -320,7 +320,6 @@ def test_case_d_an_event_folds_its_detail_and_a_held_event_writes_nothing(
     log.event("0001-a", "spawn", "build ·\n  model\tdefault ")
     line = "10:20:30 · 0001-a · spawn — build · model default\n"
     assert log.path.read_text() == title + line
-    assert not log.lock.exists()
 
     log.held = []
     log.event("run", "start", "a\nb")
@@ -329,25 +328,19 @@ def test_case_d_an_event_folds_its_detail_and_a_held_event_writes_nothing(
 
 
 @pytest.mark.usefixtures("clock")
-def test_case_d_a_held_lock_is_waited_for_and_past_the_limit_stops_with_2(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_case_d_an_append_waits_for_the_process_lock(tmp_path: Path) -> None:
     log = _log(tmp_path / "runs", "20261101-100000")
     title = log.path.read_text()
-    log.lock.mkdir()
-    threading.Timer(0.3, log.lock.rmdir).start()
 
-    log.event("run", "start", "x")
-    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
+    with log.lock:
+        child = threading.Thread(target=lambda: log.event("run", "start", "x"))
+        child.start()
+        child.join(timeout=0.3)
+        assert child.is_alive()
+        assert log.path.read_text() == title
+    child.join(timeout=10)
 
-    monkeypatch.setattr(runlog, "LOCK_SECONDS", 0.1)
-    log.lock.mkdir()
-    with pytest.raises(conduct["Stop"]) as stopped:
-        log.event("run", "done", "y")
-    assert stopped.value.code == 2
-    assert str(stopped.value) == "conduct: cannot run — 20261101-100000.lock held"
     assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
-    assert log.lock.is_dir()
 
 
 @pytest.mark.usefixtures("clock")
@@ -689,7 +682,7 @@ def test_case_i_no_run_and_a_log_with_no_event(tmp_path: Path) -> None:
     assert _report(root, "no event here") == ["20261101-100001.md: no event"]
 
 
-def test_pin_a_bad_byte_raises_in_the_verify_the_death_and_report(
+def test_pin_a_bad_byte_is_replaced_in_the_verify_the_death_and_report(
     tmp_path: Path,
 ) -> None:
     root = _repo(tmp_path)
@@ -698,13 +691,12 @@ def test_pin_a_bad_byte_raises_in_the_verify_the_death_and_report(
     log = runs / "20261101-100001.md"
     log.write_bytes(f"{_START}\n{_SPAWN}".encode() + b" \xff\n")
 
-    for read in (
-        lambda: runlog.verify(log),
-        lambda: _died(runs),
-        lambda: conduct["report"](root),
-    ):
-        with pytest.raises(UnicodeDecodeError):
-            read()
+    assert runlog.verify(log) == "a spawn with no finish: 0001-a release"
+    assert _died(runs)
+    assert (
+        conduct["report"](root).splitlines()[-1]
+        == f"{_SPAWN} \N{REPLACEMENT CHARACTER}"
+    )
 
 
 def test_pin_a_bad_byte_is_replaced_in_the_rescues_read_and_the_wait(
@@ -729,8 +721,7 @@ def test_pin_a_bad_byte_is_replaced_in_the_rescues_read_and_the_wait(
     assert capsys.readouterr().out == ("10:00:03 �\nwait: live · +1 lines\n" + _ENDED)
 
 
-@pytest.mark.usefixtures("clock")
-def test_pin_the_append_and_the_stop_line_write_through_a_link(
+def test_pin_the_append_and_the_stop_line_refuse_a_link_naming_it(
     tmp_path: Path,
 ) -> None:
     runs = tmp_path / "runs"
@@ -740,10 +731,12 @@ def test_pin_the_append_and_the_stop_line_write_through_a_link(
     log.path.unlink()
     log.path.symlink_to(outside)
 
-    log.event("run", "start", "x")
-    runlog.stop(runs)
+    for write in (lambda: log.event("run", "start", "x"), lambda: runlog.stop(runs)):
+        with pytest.raises(OSError, match=r"20261101-100001\.md") as refused:
+            write()
+        assert refused.value.filename == log.path.name
 
-    assert outside.read_text() == ("outside\n10:20:30 · run · start — x\n" + _STOP_LINE)
+    assert outside.read_text() == "outside\n"
     assert log.path.is_symlink()
 
 
@@ -760,36 +753,39 @@ def test_pin_the_create_refuses_a_dangling_link_and_takes_the_next_suffix(
     assert not (runs / "gone.md").exists()
 
 
-def _children(calls: dict[str, Callable[[], object]]) -> dict[str, threading.Thread]:
-    """Start each call in a daemon thread; return them, joined within 10 s in all."""
+def _children(calls: dict[str, Callable[[], object]]) -> dict[str, object]:
+    """Run each call in a daemon thread, joined within 10 s in all; return each result.
+
+    A call that raises `OSError` gives its errno; one still running gives `"running"`.
+    """
+    said: dict[str, object] = {}
+
+    def record(name: str, call: Callable[[], object]) -> Callable[[], None]:
+        def run() -> None:
+            try:
+                said[name] = call()
+            except OSError as error:
+                said[name] = error.errno
+
+        return run
+
     children = {
-        name: threading.Thread(target=call, daemon=True) for name, call in calls.items()
+        name: threading.Thread(target=record(name, call), daemon=True)
+        for name, call in calls.items()
     }
     for child in children.values():
         child.start()
-    # A pipe opened blocking waits for its other end: the deadline bounds the run.
+    # A pipe opened blocking would wait for its other end: the deadline bounds the run.
     deadline = time.monotonic() + 10
     for child in children.values():
         child.join(timeout=max(0.0, deadline - time.monotonic()))
-    return children
+    return {
+        name: "running" if child.is_alive() else said.get(name)
+        for name, child in children.items()
+    }
 
 
-def _release(pipe: Path, children: dict[str, threading.Thread], flags: int) -> None:
-    """Open the pipe's other end by `flags` until every child has ended."""
-    deadline = time.monotonic() + 10
-    while any(child.is_alive() for child in children.values()):
-        assert time.monotonic() < deadline
-        try:
-            fd = os.open(pipe, flags | os.O_NONBLOCK)
-        except OSError:
-            time.sleep(0.01)
-            continue
-        time.sleep(0.05)
-        os.close(fd)
-
-
-@pytest.mark.slow
-def test_pin_each_reader_blocks_on_a_pipe_at_the_log(
+def test_pin_each_reader_ends_at_once_on_a_pipe_at_the_log(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -801,7 +797,7 @@ def test_pin_each_reader_blocks_on_a_pipe_at_the_log(
     os.mkfifo(pipe)
     _polls(monkeypatch, ["live", "live", "none"], [])
 
-    children = _children(
+    said = _children(
         {
             "verify": lambda: runlog.verify(pipe),
             "death": lambda: _died(runs),
@@ -811,19 +807,17 @@ def test_pin_each_reader_blocks_on_a_pipe_at_the_log(
         }
     )
 
-    assert [name for name, child in children.items() if child.is_alive()] == [
-        "verify",
-        "death",
-        "rescue",
-        "report",
-        "wait",
-    ]
-    _release(pipe, children, os.O_WRONLY)
-    assert "wait: ended\n" in capsys.readouterr().out
+    assert said == {
+        "verify": errno.EINVAL,
+        "death": False,
+        "rescue": False,
+        "report": "20261101-100001.md: no event",
+        "wait": 0,
+    }
+    assert capsys.readouterr().out.startswith("wait: live · +0 lines\nwait: ended\n")
 
 
-@pytest.mark.slow
-def test_pin_the_append_and_the_stop_line_block_on_a_pipe_at_the_log(
+def test_pin_the_append_and_the_stop_line_end_at_once_on_a_pipe_at_the_log(
     tmp_path: Path,
 ) -> None:
     runs = tmp_path / "runs"
@@ -831,23 +825,26 @@ def test_pin_the_append_and_the_stop_line_block_on_a_pipe_at_the_log(
     log.path.unlink()
     os.mkfifo(log.path)
 
-    children = _children(
+    said = _children(
         {
             "append": lambda: log.event("run", "start", "x"),
             "stop": lambda: runlog.stop(runs),
         }
     )
 
-    assert [name for name, child in children.items() if child.is_alive()] == [
-        "append",
-        "stop",
-    ]
-    _release(log.path, children, os.O_RDONLY)
-    assert not log.lock.exists()
+    assert said == {"append": errno.ENXIO, "stop": errno.ENXIO}
+    reader = os.open(log.path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        assert _children({"append": lambda: log.event("run", "start", "x")}) == {
+            "append": errno.EINVAL
+        }
+        assert os.read(reader, 64) == b""
+    finally:
+        os.close(reader)
 
 
 @pytest.mark.usefixtures("clock")
-def test_pin_a_name_that_is_no_stamp_is_the_newest_log(tmp_path: Path) -> None:
+def test_pin_a_name_that_is_no_stamp_is_no_log(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     runs = _logs(root / ".minions" / "runs", s1=[_EXIT_0])
     notes = runs / "notes.md"
@@ -856,24 +853,30 @@ def test_pin_a_name_that_is_no_stamp_is_the_newest_log(tmp_path: Path) -> None:
         f"{_SPAWN}\n10:00:04 · run · done — notes\n"
     )
     notes.write_text(held)
+    log = runs / "20261101-100001.md"
 
-    assert conduct["last_log"](runs) == notes
-    assert _rescuing(runs)
-    assert _died(runs)
-    assert conduct["report"](root).splitlines()[-1] == "10:00:04 · run · done — notes"
-    assert runlog.stop(runs) == notes
-    assert notes.read_text() == held + _STOP_LINE
+    assert conduct["last_log"](runs) == log
+    assert not _rescuing(runs)
+    assert not _died(runs)
+    assert conduct["report"](root).splitlines()[-1] == _EXIT_0
+    assert runlog.stop(runs) == log
+    assert log.read_text().endswith(_STOP_LINE)
+    assert notes.read_text() == held
 
 
-def test_pin_a_digit_led_name_sorts_before_a_stamp(tmp_path: Path) -> None:
-    runs = _logs(tmp_path / "runs", s1=[_EXIT_0])
+def test_pin_a_digit_led_name_is_no_log(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
     (runs / "1.md").write_text(f"{_SPAWN}\n")
+    assert conduct["last_log"](runs) is None
+    assert not _died(runs)
 
+    _logs(runs, s1=[_EXIT_0])
     assert conduct["last_log"](runs) == runs / "20261101-100001.md"
     assert not _died(runs)
 
 
-def test_pin_a_sync_or_codex_line_fails_the_verify(
+def test_pin_a_sync_or_codex_line_passes_the_verify(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -885,37 +888,46 @@ def test_pin_a_sync_or_codex_line_fails_the_verify(
     ):
         log = tmp_path / "sync.md"
         log.write_text(f"# Ship run x\n\n{_START}\n{line}\n{_DONE}\n")
-        assert conduct["main"](["log", "--verify", str(log)]) == 1
-        said = capsys.readouterr().out
-        assert said == f"log: incomplete — unknown event: {line}\n"
+        assert conduct["main"](["log", "--verify", str(log)]) == 0
+        assert capsys.readouterr().out == "log: complete\n"
 
 
 @pytest.mark.usefixtures("clock")
-def test_pin_a_planted_lock_stops_the_append_and_not_the_stop_line(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_pin_a_planted_lock_folder_stops_neither_the_append_nor_the_stop_line(
+    tmp_path: Path,
 ) -> None:
     runs = tmp_path / "runs"
     log = _log(runs, "20261101-100001")
     title = log.path.read_text()
-    log.lock.mkdir()
-    monkeypatch.setattr(runlog, "LOCK_SECONDS", 0.1)
+    (runs / "20261101-100001.lock").mkdir()
 
-    with pytest.raises(conduct["Stop"]) as stopped:
-        log.event("run", "start", "x")
-    assert stopped.value.code == 2
-    assert log.path.read_text() == title
-
+    log.event("run", "start", "x")
     assert runlog.stop(runs) == log.path
-    assert log.path.read_text() == title + _STOP_LINE
-    assert log.lock.is_dir()
+
+    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n{_STOP_LINE}"
 
 
-class _Busy(Exception):
-    pass
+def test_pin_wait_prints_nothing_from_a_newer_link(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    runs = _logs(root / ".minions" / "runs", s1=[_START])
+    outside = tmp_path / "outside.md"
+    outside.write_text("10:00:09 · run · done — planted\n")
+
+    def plant() -> None:
+        (runs / "20261101-100001-2.md").symlink_to(outside)
+
+    _polls(monkeypatch, ["live", "live", "none"], [plant])
+
+    assert conduct["wait_run"](root) == 0
+    assert capsys.readouterr().out == "wait: live · +0 lines\n" + _ENDED
 
 
 def _module_log(runs: Path, stamp: str = "20261101-100000") -> runlog.RunLog:
-    return runlog.RunLog(runs, stamp, _Busy)
+    return runlog.RunLog(runs, stamp)
 
 
 def test_module_title_names_the_stamp() -> None:
@@ -1027,7 +1039,6 @@ def test_module_run_log_makes_a_titled_log_and_appends_events(tmp_path: Path) ->
     first, second = _module_log(runs), _module_log(runs)
 
     assert (first.stamp, second.stamp) == ("20261101-100000", "20261101-100000-2")
-    assert second.lock == runs / "20261101-100000-2.lock"
     first.event("run", "start", "a\nb")
     first.held = []
     first.event("run", "done", "c")
@@ -1035,26 +1046,6 @@ def test_module_run_log_makes_a_titled_log_and_appends_events(tmp_path: Path) ->
     title = "# Ship run 20261101-100000\n\n"
     assert first.path.read_text() == f"{title}10:20:30 · run · start — a b\n"
     assert first.held == [("run", "done", "c")]
-    assert not first.lock.exists()
-
-
-@pytest.mark.usefixtures("clock")
-def test_module_run_log_raises_its_callers_error_past_the_wait(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    log = _module_log(tmp_path / "runs")
-    title = log.path.read_text()
-    log.lock.mkdir()
-    threading.Timer(0.3, log.lock.rmdir).start()
-
-    log.event("run", "start", "x")
-    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
-
-    monkeypatch.setattr(runlog, "LOCK_SECONDS", 0.1)
-    log.lock.mkdir()
-    with pytest.raises(_Busy, match=r"^20261101-100000\.lock$"):
-        log.event("run", "done", "y")
-    assert log.path.read_text() == f"{title}10:20:30 · run · start — x\n"
 
 
 def test_module_tail_polls_whole_lines_and_a_newer_log(tmp_path: Path) -> None:
@@ -1079,3 +1070,116 @@ def test_module_tail_reads_a_first_log_from_its_start(tmp_path: Path) -> None:
 
     _logs(runs, s1=[_START])
     assert tail.poll() == ["# Ship run 20261101-100001", "", _START]
+    tail.close()
+
+
+def test_module_tail_reads_a_bounded_span_from_its_offset(tmp_path: Path) -> None:
+    runs = _logs(tmp_path / "runs", s1=[])
+    log = runs / "20261101-100001.md"
+    tail = runlog.Tail(runs)
+    line = "x" * 1023
+    _gain(log, f"{line}\n" * 300)()
+
+    first = tail.poll()
+    assert first == [line] * (runlog.BOUND // 1024)
+    assert first + tail.poll() == [line] * 300
+    assert tail.poll() == []
+    tail.close()
+
+
+def test_module_tail_passes_over_a_line_longer_than_the_bound(tmp_path: Path) -> None:
+    runs = _logs(tmp_path / "runs", s1=[])
+    log = runs / "20261101-100001.md"
+    tail = runlog.Tail(runs)
+    _gain(log, "y" * (runlog.BOUND * 2 + 10))()
+
+    assert tail.poll() == []
+    assert tail.poll() == []
+    _gain(log, "y" * 10)()
+    assert tail.poll() == []
+    _gain(log, "yy\nafter\n")()
+    assert tail.poll() == ["after"]
+    _gain(log, "z" * runlog.BOUND + "\nnext\n")()
+    assert tail.poll() == []
+    assert tail.poll() == ["next"]
+    tail.close()
+
+
+def test_module_tail_reads_no_link_and_no_pipe(tmp_path: Path) -> None:
+    runs = _logs(tmp_path / "runs", s1=[_START])
+    outside = tmp_path / "outside.md"
+    outside.write_text(f"{_DONE}\n")
+    tail = runlog.Tail(runs)
+
+    (runs / "20261101-100002.md").symlink_to(outside)
+    assert tail.poll() == []
+    assert tail.fd is None
+    os.mkfifo(runs / "20261101-100003.md")
+    assert tail.poll() == []
+    assert tail.fd is None
+    _logs(runs, s4=[_DONE])
+    assert tail.poll() == ["# Ship run 20261101-100004", "", _DONE]
+    tail.close()
+
+
+def test_module_tail_keeps_one_descriptor_per_log_and_close_closes_it(
+    tmp_path: Path,
+) -> None:
+    runs = _logs(tmp_path / "runs", s1=[_START])
+    tail = runlog.Tail(runs)
+    held = tail.fd
+    assert held is not None
+
+    _gain(runs / "20261101-100001.md", f"{_DONE}\n")()
+    assert tail.poll() == [_DONE]
+    assert tail.fd == held
+    _logs(runs, s2=[])
+    tail.poll()
+    assert tail.fd is not None
+    assert os.fstat(tail.fd).st_ino == (runs / "20261101-100002.md").stat().st_ino
+    last = tail.fd
+    tail.close()
+    assert tail.fd is None
+    with pytest.raises(OSError, match="Bad file descriptor"):
+        os.fstat(last)
+    tail.close()
+
+
+def test_module_newest_and_the_readers_pass_over_a_name_that_is_no_stamp(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    rescue = "10:00:01 · 0001-a · spawn — rescue · model default"
+    for name in ("notes", "20261101-1000", "20261101-100001-a", "x20261101-100001"):
+        (runs / f"{name}.md").write_text(f"{_SPAWN}\n{rescue}\n")
+
+    assert runlog.newest(runs) is None
+    assert not runlog.release_died(runs, "0001-a")
+    assert not runlog.rescuing(runs, "0001-a")
+    assert runlog.stop(runs) is None
+
+
+def test_module_verify_passes_an_open_spawn_under_the_runs_stop_alone(
+    tmp_path: Path,
+) -> None:
+    spawn = "10:00:01 · 0001-a · spawn — build · model default"
+    halted = "10:00:02 · 0001-a · halt — build: phase 1 unticked"
+    stopped = f"10:00:03 · run · halt — {runlog.STOPPED}"
+
+    assert _verify(tmp_path, _START, spawn, stopped) is None
+    assert _verify(tmp_path, _START, spawn, halted) == (
+        "a spawn with no finish: 0001-a build"
+    )
+    assert _verify(tmp_path, _START, spawn, stopped, halted) == (
+        "a spawn with no finish: 0001-a build"
+    )
+
+
+def test_module_verify_raises_on_a_link(tmp_path: Path) -> None:
+    log = tmp_path / "linked.md"
+    (tmp_path / "outside.md").write_text(f"{_START}\n{_DONE}\n")
+    log.symlink_to(tmp_path / "outside.md")
+
+    with pytest.raises(OSError, match=r"linked\.md"):
+        runlog.verify(log)

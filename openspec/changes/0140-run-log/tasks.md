@@ -7,7 +7,7 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 - [x] 1 — The pin · hard
 - [x] 2 — The modules · hard
 - [x] 3 — The stations · moderate
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
 ## 1 — The pin
@@ -73,21 +73,21 @@ The phases: the pin, the modules, the stations, the fix, and the rule with the r
 
 ## 4 — The fix
 
-- [ ] 4.1 Add `"sync"` and `"codex"` to the event list of `skills/mflib/runlog.py` ([D4](design.md#d4)); the pin of the verify over a run that wrote one turns to the passing side.
+- [x] 4.1 Add `"sync"` and `"codex"` to the event list of `skills/mflib/runlog.py` ([D4](design.md#d4)); the pin of the verify over a run that wrote one turns to the passing side.
   Verify: `git grep -n -e '"sync"' -- skills/mflib/runlog.py` prints a line.
-- [ ] 4.2 In `skills/mflib/runlog.py` and `skills/mf-ship/scripts/conduct.py` remove the lock folder, its wait and the held error; the log object takes a lock of the process, and the stop line takes the module's append ([D5](design.md#d5), [D2](design.md#d2)).
+- [x] 4.2 In `skills/mflib/runlog.py` and `skills/mf-ship/scripts/conduct.py` remove the lock folder, its wait and the held error; the log object takes a lock of the process, and the stop line takes the module's append ([D5](design.md#d5), [D2](design.md#d2)).
   Verify: `git grep -n -e "LOCK_SECONDS" -- skills scripts` prints nothing.
-- [ ] 4.3 In `skills/mflib/runlog.py` open the create, the append and the stop line under the runs folder's descriptor, as [D6](design.md#d6) says, and turn the write pins to the one side: a link and a pipe at the log, for the append and for the stop line. Turn the `names` cell of `skills/mflib/runlog.py`'s row in `docs/modules.md` from `—` to `statefile.py`.
+- [x] 4.3 In `skills/mflib/runlog.py` open the create, the append and the stop line under the runs folder's descriptor, as [D6](design.md#d6) says, and turn the write pins to the one side: a link and a pipe at the log, for the append and for the stop line. Turn the `names` cell of `skills/mflib/runlog.py`'s row in `docs/modules.md` from `—` to `statefile.py`.
   Verify: `uv run pytest tests/test_runlog.py tests/test_statefile.py -q` exits 0.
-- [ ] 4.4 In `skills/mflib/runlog.py` read each log through `statefile.read`, and make `Tail` open its log once, read each span with `os.pread` and pass over a line longer than the bound ([D7](design.md#d7)), so no read of a log is the whole-file slice `read_bytes()[offset:]`. Turn the readers' pins to the one side: a bad byte, a pipe and a planted newer link.
+- [x] 4.4 In `skills/mflib/runlog.py` read each log through `statefile.read`, and make `Tail` open its log once, read each span with `os.pread` and pass over a line longer than the bound ([D7](design.md#d7)), so no read of a log is the whole-file slice `read_bytes()[offset:]`. Turn the readers' pins to the one side: a bad byte, a pipe and a planted newer link.
   Verify: `git grep -n -F -e "os.pread" -- skills/mflib/runlog.py` prints a line and `git grep -n -F -e "read_bytes()[offset:]" -- skills scripts` prints nothing.
-- [ ] 4.5 In `skills/mflib/runlog.py` make the order, the newest log, the release's death and the rescue's read pass over a name that is no stamp ([D8](design.md#d8)), and turn that pin to the one side.
+- [x] 4.5 In `skills/mflib/runlog.py` make the order, the newest log, the release's death and the rescue's read pass over a name that is no stamp ([D8](design.md#d8)), and turn that pin to the one side.
   Verify: `uv run pytest tests/test_runlog.py -q` exits 0.
-- [ ] 4.6 In `skills/mflib/runlog.py` make the verify pass an open spawn only under the stop line of the run itself ([D10](design.md#d10)), and turn its pin to the one side.
+- [x] 4.6 In `skills/mflib/runlog.py` make the verify pass an open spawn only under the stop line of the run itself ([D10](design.md#d10)), and turn its pin to the one side.
   Verify: `uv run pytest tests/test_runlog.py -q` exits 0.
-- [ ] 4.7 In `skills/mflib/claim.py` read each entry through `statefile.read` by a bound, write each through `statefile.write` under the descriptor of `active` opened as [D9](design.md#d9) says, and raise `Refused` for a claim that is no folder. In `skills/mf-ship/scripts/conduct.py` turn `Refused` into `Stop` in `_conductor` and `_clear`, print it in `_close`, and end the worker's group in `work`, so `run` and `stop_run` halt naming the claim and `stop_run` kills nothing and writes no stop line. Turn the claim's pins to the one side, and the `names` cell of `skills/mflib/claim.py`'s row in `docs/modules.md` from `—` to `statefile.py`.
+- [x] 4.7 In `skills/mflib/claim.py` read each entry through `statefile.read` by a bound, write each through `statefile.write` under the descriptor of `active` opened as [D9](design.md#d9) says, and raise `Refused` for a claim that is no folder. In `skills/mf-ship/scripts/conduct.py` turn `Refused` into `Stop` in `_conductor` and `_clear`, print it in `_close`, and end the worker's group in `work`, so `run` and `stop_run` halt naming the claim and `stop_run` kills nothing and writes no stop line. Turn the claim's pins to the one side, and the `names` cell of `skills/mflib/claim.py`'s row in `docs/modules.md` from `—` to `statefile.py`.
   Verify: `uv run pytest tests/test_claim.py tests/test_viewer.py -q` exits 0.
-- [ ] 4.8 Lift the `slow` marker from each pin of `tests/test_runlog.py` and `tests/test_claim.py` that the fix makes end at once, and turn each assert of `tests/test_conduct.py` that holds a changed behaviour.
+- [x] 4.8 Lift the `slow` marker from each pin of `tests/test_runlog.py` and `tests/test_claim.py` that the fix makes end at once, and turn each assert of `tests/test_conduct.py` that holds a changed behaviour.
   Verify: `uv run pytest tests/test_runlog.py tests/test_claim.py -q` exits 0.
 
 ## 5 — The rule and the record

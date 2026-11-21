@@ -58,11 +58,11 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py, layout.py |
 | `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, layout.py, platform.py, statefile.py |
 | `skills/mflib/__init__.py` | home | — |
-| `skills/mflib/claim.py` | home | — |
+| `skills/mflib/claim.py` | home | statefile.py |
 | `skills/mflib/debtfile.py` | home | findings.py, statefile.py |
 | `skills/mflib/findings.py` | home | statefile.py |
 | `skills/mflib/layout.py` | home | — |
 | `skills/mflib/platform.py` | home | — |
-| `skills/mflib/runlog.py` | home | — |
+| `skills/mflib/runlog.py` | home | statefile.py |
 | `skills/mflib/statefile.py` | home | — |
 | `skills/mflib/statuslog.py` | home | layout.py, statefile.py |
