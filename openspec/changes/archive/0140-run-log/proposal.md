@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.112
 debt: [0137·S1, 0137·S2]
 ---
 
