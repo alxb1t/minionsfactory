@@ -56,6 +56,8 @@ _EVERY_TABLE = (
     '[release]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n'
 )
 _DEFAULTS = ("claude", None, None)
+# About 10 KB, under the bound, and deeper than the parser recurses on 3.12.
+_NESTED = "a = " + "[" * 5000 + "]" * 5000 + "\n"
 
 
 def _load(path: Path) -> ModuleType:
@@ -680,6 +682,14 @@ def test_pin_text_that_is_not_toml(tmp_path: Path, conduct: dict[str, Any]) -> N
     [(who, why)] = run.halts
     assert (who, run.reached) == (_CHANGE, [])
     assert why.startswith(f"{_FILE}: ")
+    # A file nested past the parser's depth halts its version, not the run.
+    _models_toml(root, _NESTED)
+    run = _ran(conduct, root)
+    run.read_plan([version])
+    run.take(version, {})
+    [(who, why)] = run.halts
+    assert (who, run.reached) == (_CHANGE, [])
+    assert why.startswith(f"{_FILE}: ")
 
 
 def test_pin_a_link_at_the_models_file(tmp_path: Path, conduct: dict[str, Any]) -> None:
@@ -976,6 +986,12 @@ def test_status_names_a_broken_models_file(
     said = "0001-todo · build — changes/0001-todo/models.toml: it is not UTF-8"
     assert said in lines
     assert "0002-marks · build" in lines
+    # A file nested past the parser's depth is named too, and status goes on.
+    _models_toml(root, _NESTED)
+    lines = conduct["status"](root).splitlines()
+    said = "0001-todo · build — changes/0001-todo/models.toml: "
+    assert any(line.startswith(said) for line in lines)
+    assert "0002-marks · build" in lines
 
 
 # The module: each function gives what the pins of its copy hold.
@@ -1005,6 +1021,10 @@ def test_module_read(tmp_path: Path) -> None:
     assert str(broken.value) == str(refused.value)
     _models_toml(tmp_path, b"\xff")
     with pytest.raises(modelsfile.Broken, match=r"^it is not UTF-8$"):
+        modelsfile.read(tmp_path, _CHANGE)
+    # A file nested past the parser's depth is broken, under the bound.
+    _models_toml(tmp_path, _NESTED)
+    with pytest.raises(modelsfile.Broken):
         modelsfile.read(tmp_path, _CHANGE)
     target = tmp_path / "target.toml"
     target.write_text("decide = 1\n")

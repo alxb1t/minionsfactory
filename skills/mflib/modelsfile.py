@@ -97,6 +97,9 @@ def read(primary: Path, change: str) -> dict[str, object]:
         parsed = tomllib.loads(data.decode())
     except tomllib.TOMLDecodeError as error:
         raise Broken(str(error)) from None
+    except RecursionError:
+        # why: 3.12's parser recurses per nested array; 0142-models adversarial S1.
+        raise Broken("it nests too deep") from None
     for name in (*TABLES.values(), *PERSON):
         found = table(parsed, name) or {}
         for word in (found.get("model"), found.get("effort")):

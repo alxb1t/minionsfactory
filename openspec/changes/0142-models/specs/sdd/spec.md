@@ -95,3 +95,31 @@ the one map of the file's tables holds neither.
 #### Scenario: An old worker table
 - **WHEN** a version's models file holds `[converge.review]` and no `[converge.conformance]`
 - **THEN** conformance's worker runs on the checkers' defaults
+
+### Requirement: A queued cut's models file is written by the queue
+
+`conduct.py cut` SHALL run `brief_check.py --models <brief> <slug>` before it reserves an id, and stop with exit 2 reserving
+nothing when it exits other than 0 or prints text TOML does not read. It SHALL write that text to
+`.minions/changes/<id>/models.toml` through no link, and keep it in the queue entry. Each time the run takes the cut, before it
+starts a cutter or checks the branch, the run SHALL write it there again. A cut SHALL pass only when the file's hash is the hash of the entry's text; an entry with no models text,
+queued before this requirement, SHALL pass on a file standing that is not broken, and a broken file SHALL fail it as for any entry. The hash SHALL be checked at the cut alone.
+
+#### Scenario: A cut is queued
+- **WHEN** `conduct.py cut a minor brief=<path>` runs on a brief whose item `a` names its models
+- **THEN** `.minions/changes/<id>/models.toml` holds the TOML `brief_check.py --models` printed, and the entry holds the same text
+
+#### Scenario: A brief with no such item
+- **WHEN** the brief has no `## For the cut` item for the slug
+- **THEN** `conduct.py cut` exits 2, and no reservation or entry stands
+
+#### Scenario: A cutter changes the file
+- **WHEN** the cutter writes `.minions/changes/<id>/models.toml` with other text
+- **THEN** the cut fails at `cut-halted`, naming the file
+
+#### Scenario: A rejoin after a changed file
+- **WHEN** a cut that halted on a changed file is rejoined
+- **THEN** the run writes the entry's text back before it checks the branch, and the cut can pass
+
+#### Scenario: An old entry over a broken file
+- **WHEN** a queued entry holds no models text and its `models.toml` is a link
+- **THEN** the cut fails naming `changes/<id>/models.toml: it is a link`
