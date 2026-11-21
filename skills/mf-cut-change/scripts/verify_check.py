@@ -13,35 +13,29 @@ import argparse
 import io
 import os
 import re
-import shlex
+import runpy
 import subprocess
 import sys
 import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 TIMEOUT_SECONDS = 60
+PLAN_CHECK = (
+    Path(__file__).resolve().parents[2] / "mf-converge" / "scripts" / "plan_check.py"
+)
+PLAN = runpy.run_path(str(PLAN_CHECK))
+SPAN, Unparsed, commands, tokens = (
+    PLAN["SPAN"],
+    PLAN["Unparsed"],
+    PLAN["commands"],
+    PLAN["tokens"],
+)
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
-SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
 VARIABLE = re.compile(r"\$\{?[A-Za-z_]")
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 MATCH = re.compile(r"(.+?):(\d+):(.*)")
-# A span after one of these words is the output a command must give, not a command.
-OUTPUT_VERBS = {
-    "prints",
-    "reports",
-    "outputs",
-    "shows",
-    "lists",
-    "names",
-    "holds",
-    "contains",
-    "returns",
-    "exits",
-    "reads",
-    "says",
-}
 LOOPS = {"for", "while", "until"}
 OPERATOR = set("();<>|&")
 # Flags that hide the matching lines; the search prints them.
@@ -77,17 +71,6 @@ class Stop(Exception):
         """Keep the exit code beside the message."""
         super().__init__(message)
         self.code = code
-
-
-class Unparsed(ValueError):
-    """A `Verify:` that cannot be read or run; the message says why."""
-
-
-class Command(NamedTuple):
-    """One backticked command of a `Verify:`, and the count its output names."""
-
-    text: str
-    count: int | None
 
 
 class Search(NamedTuple):
@@ -139,43 +122,6 @@ def subtasks(tasks: str) -> list[list[str]]:
         else:
             wrapped = False
     return found
-
-
-def commands(verify: str) -> list[Command]:
-    """Return the commands of a `Verify:`'s text, each with the count it must print.
-
-    A span is output when the words before it end in an output verb, or in a bare
-    `and` or `or` after output. e.g. "`grep -c x a` prints `2`" → [("grep -c x a", 2)]
-    """
-    if "`" in SPAN.sub("", verify):
-        raise Unparsed("a backtick opens no span")
-    found: list[Command] = []
-    end, output = 0, False
-    for match in SPAN.finditer(verify):
-        before = verify[end : match.start()]
-        words = before.split()
-        output = (bool(words) and words[-1] in OUTPUT_VERBS) or (
-            output and before.strip() in ("and", "or")
-        )
-        text = match[2]
-        if len(match[1]) > 1 and text.startswith(" ") and text.endswith(" "):
-            text = text[1:-1]
-        if not output:
-            found.append(Command(text, None))
-        elif words[-1:] in (["prints"], ["reports"]) and text.isdigit() and found:
-            found[-1] = found[-1]._replace(count=int(text))
-        end = match.end()
-    return found
-
-
-def tokens(command: str) -> list[str]:
-    """Return a command's shell words, each run of operator characters its own word."""
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
-    lexer.whitespace_split = True
-    try:
-        return list(lexer)
-    except ValueError as error:
-        raise Unparsed(f"{error}: `{command}`") from None
 
 
 def masked(command: str, kinds: str = "'\"") -> str:
@@ -337,7 +283,7 @@ class Head:
         return self.env
 
 
-def check_command(subtask: str, command: Command, head: Head) -> bool:
+def check_command(subtask: str, command: Any, head: Head) -> bool:  # noqa: ANN401
     """Print a command's breaks, else its search's matches; return whether it broke."""
     words, shell = tokens(command.text), tokens(masked(command.text))
     if found := breaks(command.text, shell):

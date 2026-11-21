@@ -4,7 +4,7 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 ## Progress
 
-- [ ] 1 — The plan check · moderate
+- [x] 1 — The plan check · moderate
 - [ ] 2 — The conductor · moderate
 - [ ] 3 — The queue · moderate
 - [ ] 4 — Integrate and converge · moderate
@@ -12,25 +12,25 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 ## 1 — The plan check
 
-- [ ] 1.1 In `skills/mf-converge/scripts/plan_check.py`, `Command` gains `exits: int | None = None`, and `commands` reads spans as
+- [x] 1.1 In `skills/mf-converge/scripts/plan_check.py`, `Command` gains `exits: int | None = None`, and `commands` reads spans as
   [D2](design.md#d2) says and sets `exits` as [D3](design.md#d3) says.
   Verify: `git grep -n "exits: int" -- skills/mf-converge/scripts/plan_check.py` prints the field.
-- [ ] 1.2 In the same file `passed`, `report` and `bare_pytest` hold a command to `command.exits` when it is set, as
+- [x] 1.2 In the same file `passed`, `report` and `bare_pytest` hold a command to `command.exits` when it is set, as
   [D3](design.md#d3) says.
   Verify: `git grep -n "command.exits" -- skills/mf-converge/scripts/plan_check.py` prints the uses.
-- [ ] 1.3 In the same file `run` builds its environment without `VIRTUAL_ENV`, as [D4](design.md#d4) says.
+- [x] 1.3 In the same file `run` builds its environment without `VIRTUAL_ENV`, as [D4](design.md#d4) says.
   Verify: `git grep -n "VIRTUAL_ENV" -- skills/mf-converge/scripts/plan_check.py` prints the line.
-- [ ] 1.4 In `tests/test_plan_check.py` add `test_a_span_after_an_output_verb_is_output`, `test_exits_names_the_exit_a_command_must_have` and `test_a_command_runs_without_virtual_env`, with the cases of [D2](design.md#d2), [D3](design.md#d3) and [D4](design.md#d4).
+- [x] 1.4 In `tests/test_plan_check.py` add `test_a_span_after_an_output_verb_is_output`, `test_exits_names_the_exit_a_command_must_have` and `test_a_command_runs_without_virtual_env`, with the cases of [D2](design.md#d2), [D3](design.md#d3) and [D4](design.md#d4).
   Verify: `uv run pytest tests/test_plan_check.py::test_a_span_after_an_output_verb_is_output tests/test_plan_check.py::test_exits_names_the_exit_a_command_must_have tests/test_plan_check.py::test_a_command_runs_without_virtual_env -q` exits 0.
-- [ ] 1.5 In `skills/mf-cut-change/scripts/verify_check.py` load `plan_check.py` with `runpy` and take `SPAN`, `Unparsed`, `commands` and
+- [x] 1.5 In `skills/mf-cut-change/scripts/verify_check.py` load `plan_check.py` with `runpy` and take `SPAN`, `Unparsed`, `commands` and
   `tokens` from it, deleting its own parser, verbs and `Command`, and importing `Any` for `check_command`, as [D1](design.md#d1) says.
   Verify: `git grep -n "plan_check.py" -- skills/mf-cut-change/scripts/verify_check.py` prints the load.
-- [ ] 1.6 In `tests/test_structure.py` add the pair `("verify_check.py", "plan_check.py")` to `LOADS_OUTSIDE`, between the pairs of
+- [x] 1.6 In `tests/test_structure.py` add the pair `("verify_check.py", "plan_check.py")` to `LOADS_OUTSIDE`, between the pairs of
   `review_metrics.py` and `viewer.py`.
   Verify: `git grep -n -F '("verify_check.py", "plan_check.py")' -- tests/test_structure.py` prints the pair.
-- [ ] 1.7 In `docs/modules.md` set the loads of the `verify_check.py` row to `plan_check.py`, so the row ends `| station | plan_check.py |`.
+- [x] 1.7 In `docs/modules.md` set the loads of the `verify_check.py` row to `plan_check.py`, so the row ends `| station | plan_check.py |`.
   Verify: `git grep -n -F "| station | plan_check.py |" -- docs/modules.md` prints the row.
-- [ ] 1.8 In `tests/test_verify_check.py` add `test_a_span_after_an_output_verb_is_no_command`: a `Verify:` that says a search
+- [x] 1.8 In `tests/test_verify_check.py` add `test_a_span_after_an_output_verb_is_no_command`: a `Verify:` that says a search
   exits `1` with the text `$(date)` breaks no `I19`.
   Verify: `uv run pytest tests/test_verify_check.py::test_a_span_after_an_output_verb_is_no_command -q` exits 0.
 

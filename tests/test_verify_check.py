@@ -137,6 +137,26 @@ def test_a_search_prints_the_lines_it_matches_at_head(
     ]
 
 
+def test_a_span_after_an_output_verb_is_no_command(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repo(tmp_path / "repo", {"a.md": "one\n"})
+    tasks = _tasks(
+        "1.1 x\n  Verify: `grep -n zzz a.md` exits `1` with the text `$(date)`.",
+        "1.2 x\n  Verify: `grep -n one a.md` prints a line, then `grep -n $HOME a.md` "
+        "prints nothing.",
+    )
+    code, out = _run(root, tasks, capsys, monkeypatch)
+    assert code == 1, out
+    assert out.splitlines() == [
+        "1.2: a.md:1: one",
+        "1.2: I19 — a shell variable: `grep -n $HOME a.md`",
+        "verify: halt — I19: 1.2",
+    ]
+
+
 def test_a_check_out_of_shape_breaks_and_is_not_run(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

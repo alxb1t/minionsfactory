@@ -28,6 +28,7 @@ LOADS_OUTSIDE: frozenset[tuple[str, str]] = frozenset(
         ("review_metrics.py", "conduct.py"),
         ("review_metrics.py", "metrics.py"),
         ("review_metrics.py", "overlap.py"),
+        ("verify_check.py", "plan_check.py"),
         ("viewer.py", "conduct.py"),
         ("viewer.py", "converge.py"),
     }
