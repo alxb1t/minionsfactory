@@ -9,7 +9,7 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 - [x] 3 — The queue · moderate
 - [x] 4 — Integrate and converge · moderate
 - [x] 5 — The rule · moderate
-- [ ] 6 — The cases the gate wants · moderate
+- [x] 6 — The cases the gate wants · moderate
 
 ## 1 — The plan check
 
@@ -90,13 +90,13 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 ## 6 — The cases the gate wants
 
-- [ ] 6.1 In `tests/test_conduct.py` `test_a_fix_after_a_cap_halt_gets_one_round` and `test_an_amend_past_the_judged_head_gets_one_round` plant
+- [x] 6.1 In `tests/test_conduct.py` `test_a_fix_after_a_cap_halt_gets_one_round` and `test_an_amend_past_the_judged_head_gets_one_round` plant
   `_findings(..., "changes-requested")` with no card, which [D11](design.md#d11) now reads as malformed, so the amend run starts at round 1.
   Give each fixture an open card after that call — `_card` from `tests/fake_worker.py`, imported beside `_cards`, appended to `conformance.md`
   and `adversarial.md` alike, with the status `open`, since a findings file with no card reads malformed — so each file is a verdict with a card,
   and the run starts at round 2 as before.
   Verify: `uv run pytest tests/test_conduct.py::test_a_fix_after_a_cap_halt_gets_one_round tests/test_conduct.py::test_an_amend_past_the_judged_head_gets_one_round -q` exits 0.
-- [ ] 6.2 In `tests/test_integrate.py` add `test_recite_goes_on_past_a_path_it_cannot_read`, beside `test_decisions_halts_once_after_every_ambiguous_file`:
+- [x] 6.2 In `tests/test_integrate.py` add `test_recite_goes_on_past_a_path_it_cannot_read`, beside `test_decisions_halts_once_after_every_ambiguous_file`:
   `_recite`, loaded through `runpy` as the test at `_write` does, is given a tree holding a file of the bytes `\xff\xfe` and the ids `{45: 46}`;
   it returns `True` and leaves the file's bytes as they were. This covers the `except (OSError, UnicodeDecodeError)` return of `_recite`,
   which [D10](design.md#d10) turns from `return` into `return True`, and which the gate's changed-line coverage holds to 100%.

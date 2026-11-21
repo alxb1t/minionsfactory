@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it; a file with no open card is rewritten, no longer a halt (0141-halt-fixes, phase 4).
 - `mf-rescue` and `mf-supervise` state the rule: a `Verify:` that cannot pass is retargeted or split, never replaced by
   one that proves less, and an exact count stays exact (0141-halt-fixes, phase 5).
+- The conductor's two amend cases plant an open card with each `changes-requested` verdict, which converge now reads as
+  malformed without one; a case covers `_recite` going on past a path it cannot read (0141-halt-fixes, phase 6).
 
 ## [0.112.0] - 2026-11-21
 

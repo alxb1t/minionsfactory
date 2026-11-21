@@ -35,6 +35,7 @@ from conduct_load import conduct as _conduct
 from fake_worker import (
     _IDENTITY,
     _amend_needed,
+    _card,
     _cards,
     _commit,
     _done,
@@ -11468,6 +11469,14 @@ def test_a_grant_buys_one_round(
     shutil.rmtree(active)
 
 
+def _open_card(root: Path, change: str) -> None:
+    """Append an open nit card to each findings file, so each verdict has a card."""
+    for role in _ROLES:
+        path = root / ".minions" / "changes" / change / f"{role}.md"
+        fix = "a fix · size: a design change."
+        path.write_text(path.read_text() + _card("R1", "nit", role, fix, "open"))
+
+
 @pytest.mark.slow
 def test_a_fix_after_a_cap_halt_gets_one_round(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -11479,6 +11488,7 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     judged = _git(tree, "rev-parse", "HEAD")
     _findings(root, "0001-todo", judged, "changes-requested")
+    _open_card(root, "0001-todo")
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
     # A halt after round 1's `start`: one before it is any commit's to answer.
@@ -11758,6 +11768,7 @@ def test_an_amend_past_the_judged_head_gets_one_round(
         tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
         judged = _git(tree, "rev-parse", "HEAD")
         _findings(root, "0001-todo", judged, "changes-requested")
+        _open_card(root, "0001-todo")
         _commit(tree, {"src.txt": "fixed\n"}, "fix(0001-todo): R1")
         fixed = _git(tree, "rev-parse", "HEAD")
         _done(root, "0001-todo", fixed)

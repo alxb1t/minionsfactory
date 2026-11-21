@@ -490,6 +490,15 @@ def test_decisions_halts_once_after_every_ambiguous_file(tmp_path: Path) -> None
     assert (tree / "docs/a.md").read_text() == "Edited by hand, per D45.\n"
 
 
+def test_recite_goes_on_past_a_path_it_cannot_read(tmp_path: Path) -> None:
+    binary = tmp_path / "blob.bin"
+    binary.write_bytes(b"\xff\xfe")
+    recite = runpy.run_path(str(_SCRIPT))["_recite"]
+
+    assert recite(tmp_path, "blob.bin", {45: 46}, "HEAD") is True
+    assert binary.read_bytes() == b"\xff\xfe"
+
+
 @pytest.mark.slow
 def test_decisions_renumbers_a_planned_id_the_default_branch_took(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
