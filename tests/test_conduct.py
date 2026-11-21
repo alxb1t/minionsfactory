@@ -5639,6 +5639,54 @@ def test_a_cut_brief_reaches_the_supervisor(
     assert prompt(root, "0002-none").endswith(" with decide=recommended.")
 
 
+def test_a_cutter_is_handed_no_released_after(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _version(root, "0001-open", "- [ ] 1 — Open\n")
+    _commit(root, {"openspec/changes/archive/0002-old/tasks.md": "x\n"}, "ship")
+    _queued(conduct, root, "0003-c", brief, after=("0001-open", "0002-old"))
+    prompts: list[str] = []
+
+    def cutter(
+        change: str, station: str, tree: Path, prompt: str, *rest: object, **kw: object
+    ) -> None:
+        prompts.append(prompt)
+        conductor.halts.append((change, "a cutter spawned"))
+
+    conductor = conduct["Run"](root, "claude")
+    conductor.spawn = cutter
+    assert conductor.cutting("0003-c") == ("a cutter spawned", True)
+    assert " after=0001-open " in prompts[0]
+    assert "0002-old" not in prompts[0]
+
+
+def test_a_rejoin_clears_a_chain_of_cut_halts(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    halts = {
+        "0001-a": "x",
+        "0002-b": "after 0001-a is cut-halted",
+        "0003-c": "after 0002-b is cut-halted",
+        "0004-d": "after 0001-a is cut-halted",
+        "0005-e": "after 0009-z is cut-halted",
+    }
+    for change, halt in halts.items():
+        _queued(conduct, root, change, brief, halt=halt)
+    _claimed(conduct, root)
+
+    said = conduct["rejoin"](root, "0001-a")
+
+    assert said == "rejoin: requested 0001-a, 0002-b, 0003-c, 0004-d"
+    asked = sorted(p.name for p in (layout.queue_dir(root) / "rejoin").iterdir())
+    assert asked == ["0001-a", "0002-b", "0003-c", "0004-d"]
+    cuts = conduct["_cuts"](root)
+    assert [cuts[name]["halt"] for name in halts] == [None] * 4 + [halts["0005-e"]]
+
+
 @pytest.mark.slow
 def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     tmp_path: Path,
@@ -5696,7 +5744,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     start = names["_start_run"]
     names["_start_run"] = lambda primary, executor: 4242
     assert conduct["rejoin"](root, "0001-a") == (
-        "rejoin: requested 0001-a · run started · pid 4242"
+        "rejoin: requested 0001-a, 0002-b · run started · pid 4242"
     )
     assert conduct["_cuts"](root)["0001-a"]["halt"] is None
     names["_start_run"] = start
@@ -5709,8 +5757,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
 
     # The half-done branch is dropped, cut again, and built with its dependent.
     names["_start_run"] = lambda primary, executor: 4242
-    for change in ("0001-a", "0002-b"):
-        conduct["rejoin"](root, change)
+    conduct["rejoin"](root, "0001-a")
     names["_start_run"] = start
     calls.unlink()
     fake()

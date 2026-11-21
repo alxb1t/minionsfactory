@@ -6,7 +6,7 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 - [x] 1 — The plan check · moderate
 - [x] 2 — The conductor · moderate
-- [ ] 3 — The queue · moderate
+- [x] 3 — The queue · moderate
 - [ ] 4 — Integrate and converge · moderate
 - [ ] 5 — The rule · moderate
 
@@ -48,16 +48,16 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 ## 3 — The queue
 
-- [ ] 3.1 In `skills/mf-cut-change/scripts/cut_pre.py` `after_problem` passes a name whose archive folder the default branch holds
+- [x] 3.1 In `skills/mf-cut-change/scripts/cut_pre.py` `after_problem` passes a name whose archive folder the default branch holds
   ([D8](design.md#d8)); add `test_a_released_after_is_met` to `tests/test_cut_pre.py`: `--after 0001-old` prints `cut_pre: ok — after`.
   Verify: `uv run pytest tests/test_cut_pre.py::test_a_released_after_is_met -q` exits 0.
-- [ ] 3.2 In `Run.cutting` hand the cutter only the `after` ids `_shipped` says have not shipped ([D8](design.md#d8)); add
+- [x] 3.2 In `Run.cutting` hand the cutter only the `after` ids `_shipped` says have not shipped ([D8](design.md#d8)); add
   `test_a_cutter_is_handed_no_released_after` to `tests/test_conduct.py`: an `after` released while its cut waited leaves the prompt.
   Verify: `uv run pytest tests/test_conduct.py::test_a_cutter_is_handed_no_released_after -q` exits 0.
-- [ ] 3.3 In `rejoin` clear and request each dependent halted `after <name> is cut-halted`, down the chain, and name each in the line
+- [x] 3.3 In `rejoin` clear and request each dependent halted `after <name> is cut-halted`, down the chain, and name each in the line
   ([D9](design.md#d9)); add `test_a_rejoin_clears_a_chain_of_cut_halts` to `tests/test_conduct.py`: a chain of queued cuts, rejoined at its head.
   Verify: `uv run pytest tests/test_conduct.py::test_a_rejoin_clears_a_chain_of_cut_halts -q` exits 0.
-- [ ] 3.4 In `tests/test_conduct.py` `test_a_cut_halt_is_shown_and_rejoin_cuts_again` expects the line `rejoin: requested 0001-a, 0002-b · run started · pid 4242` and
+- [x] 3.4 In `tests/test_conduct.py` `test_a_cut_halt_is_shown_and_rejoin_cuts_again` expects the line `rejoin: requested 0001-a, 0002-b · run started · pid 4242` and
   rejoins `0001-a` alone where it rejoined each dependent.
   Verify: `uv run pytest tests/test_conduct.py::test_a_cut_halt_is_shown_and_rejoin_cuts_again -q` exits 0.
 

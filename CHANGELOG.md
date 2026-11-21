@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The conductor reads a design's decisions with each run of whitespace as one space, so a dedented code block is no
   decision; removes `build.halt` when it spawns a build; and reads `origin` once more when the read after its own push
   fails, so one failed read no longer sends the run offline (0141-halt-fixes, phase 2).
+- A released `after` is met: `cut_pre.py` passes an id the default branch archived and the cutter is no longer handed it.
+  `rejoin` of a cut clears and requests each dependent halted `after <id> is cut-halted`, down the chain, and names each
+  in its line (0141-halt-fixes, phase 3).
 
 ## [0.112.0] - 2026-11-21
 
