@@ -2431,6 +2431,30 @@ def test_run_halts_on_a_human_phase(
 
 
 @pytest.mark.slow
+def test_a_build_spawn_removes_the_halt_the_last_build_left(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True, exist_ok=True)
+    head = _git(tree, "rev-parse", "HEAD")
+    halt = folder / "build.halt"
+    halt.write_text(f"sub-task: 1.1\nstop: 3\nevidence: old\nhead: {head}\n")
+    rescue = folder / "rescue.md"
+    rescue.write_text("diagnosis\n")
+
+    code = _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+
+    assert code == 0
+    assert "build 0001-todo" in _calls(calls)
+    assert not halt.exists()
+    assert rescue.is_file()
+
+
+@pytest.mark.slow
 def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3100,6 +3124,19 @@ def test_a_rescue_decides_under_the_switch(
         "",
         False,
     )
+
+
+def test_a_dedent_inside_a_decision_is_no_decision() -> None:
+    decisions = _conduct()["_decisions"]
+    indented = "## Decisions\n\n### D4\n\nRun:\n\n    make gate\n\n## Tests\n"
+    dedented = indented.replace("    make gate", "make gate")
+    assert decisions(indented) == decisions(dedented)
+    rewrapped = indented.replace("Run:\n\n", "Run:\n\n\n")
+    assert decisions(indented) == decisions(rewrapped)
+    reworded = indented.replace("Run:", "Run it:")
+    assert decisions(indented) != decisions(reworded)
+    changed = indented.replace("make gate", "make check")
+    assert decisions(indented) != decisions(changed)
 
 
 @pytest.mark.slow
@@ -10376,6 +10413,35 @@ def test_a_run_goes_on_while_origin_is_down(
     assert _git(away, "rev-parse", "main") == held
     assert _git(away, "tag", "-l") == ""
     assert len(conduct["_ledger_heads"](root)) == 2
+
+
+@pytest.mark.slow
+def test_a_failed_read_after_a_push_is_tried_once_more(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    module = conduct["main"].__globals__
+    check, reads = module["check"], []
+
+    def flaky(*args: object, **kwargs: object) -> str | None:
+        if args[1] == "release":
+            reads.append(args)
+            if len(reads) == 1:
+                raise conduct["Unreachable"](1, "fatal: origin is down")
+        return check(*args, **kwargs)
+
+    monkeypatch.setitem(module, "check", flaky)
+
+    lines = run(0)
+
+    assert len(reads) == 2
+    assert lines.count("run · push — waiting: fatal: origin is down") == 1
+    assert not any("released locally" in line for line in lines)
+    assert not any("origin: unreachable" in line for line in lines)
+    assert "0001-todo · check — release · pass" in lines
 
 
 @pytest.mark.slow

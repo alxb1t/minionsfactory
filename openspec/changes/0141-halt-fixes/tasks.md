@@ -5,7 +5,7 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 ## Progress
 
 - [x] 1 — The plan check · moderate
-- [ ] 2 — The conductor · moderate
+- [x] 2 — The conductor · moderate
 - [ ] 3 — The queue · moderate
 - [ ] 4 — Integrate and converge · moderate
 - [ ] 5 — The rule · moderate
@@ -36,13 +36,13 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 ## 2 — The conductor
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py` `_decisions` reads each run of whitespace as one space ([D5](design.md#d5)); add
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py` `_decisions` reads each run of whitespace as one space ([D5](design.md#d5)); add
   `test_a_dedent_inside_a_decision_is_no_decision` to `tests/test_conduct.py`: a dedented code block in `### D4` is equal, a reworded sentence is not.
   Verify: `uv run pytest tests/test_conduct.py::test_a_dedent_inside_a_decision_is_no_decision tests/test_conduct.py::test_a_rescue_decides_under_the_switch -q` exits 0.
-- [ ] 2.2 In `Run.advance` remove `build.halt` through `_remove_in` just before a stage `build` spawn ([D6](design.md#d6)); add
+- [x] 2.2 In `Run.advance` remove `build.halt` through `_remove_in` just before a stage `build` spawn ([D6](design.md#d6)); add
   `test_a_build_spawn_removes_the_halt_the_last_build_left` to `tests/test_conduct.py`: a `build.halt` naming `HEAD` is gone once the build worker ran.
   Verify: `uv run pytest tests/test_conduct.py::test_a_build_spawn_removes_the_halt_the_last_build_left -q` exits 0.
-- [ ] 2.3 In `Run.advance` try a failed read of the release check once more before the run goes offline ([D7](design.md#d7)); add
+- [x] 2.3 In `Run.advance` try a failed read of the release check once more before the run goes offline ([D7](design.md#d7)); add
   `test_a_failed_read_after_a_push_is_tried_once_more` to `tests/test_conduct.py`, beside `test_a_run_goes_on_while_origin_is_down`.
   Verify: `uv run pytest tests/test_conduct.py::test_a_failed_read_after_a_push_is_tried_once_more tests/test_conduct.py::test_a_run_goes_on_while_origin_is_down -q` exits 0.
 

@@ -2797,7 +2797,7 @@ def _rescue_amends(
 def _decisions(text: str | None) -> str:
     """Return a design's `## ` headings and its `## Decisions` section, or "".
 
-    Why: 0085-self-healing-ship design D4; 0103-fewer-rounds design D3.
+    Whitespace reads as one space. Why: 0085 design D4; 0103 design D3; 0141 design D5.
     """
     text = text or ""
     headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
@@ -2805,7 +2805,8 @@ def _decisions(text: str | None) -> str:
         r"^## Decisions[^\n]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
     )
     parts = re.split(r"^(?=### )", found[1] if found else "", flags=re.MULTILINE)
-    return "\n".join([*headings, "".join(_unnoted(part) for part in parts)])
+    kept = "\n".join([*headings, "".join(_unnoted(part) for part in parts)])
+    return " ".join(kept.split())
 
 
 def _unnoted(part: str) -> str:
@@ -5335,6 +5336,13 @@ class Run:
                 if stage == "converge":
                     denied = self.conducted(change, cwd, workers, grant)
                 else:
+                    if stage == "build":
+                        _remove_in(
+                            mflib.layout.run_dir(self.primary),
+                            mflib.layout.CHANGES,
+                            change,
+                            name="build.halt",
+                        )
                     denied = self.spawn(version.change, stage, cwd, prompt, models)
                 # A phase that failed after its notes still has them cut.
                 if numbered:
@@ -5349,7 +5357,12 @@ class Run:
                 )
                 try:
                     # `offline` skips the check that the tag is on `origin`.
-                    reason = ask(True, self.offline or not self.tags)
+                    # A failed read is tried once more: 0141-halt-fixes design D7.
+                    try:
+                        reason = ask(True, self.offline or not self.tags)
+                    except Unreachable as down:
+                        self.waited(str(down))
+                        reason = ask(True, self.offline or not self.tags)
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True

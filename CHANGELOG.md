@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The plan check reads every span after an output verb as output until `then`, `;` or a sentence end, holds a command to
   the exit its `Verify:` names with `exits`, and runs each command without `VIRTUAL_ENV`. `verify_check.py` loads that
   parser in place of its copy, so the cut and the build read a `Verify:` alike (0141-halt-fixes, phase 1).
+- The conductor reads a design's decisions with each run of whitespace as one space, so a dedented code block is no
+  decision; removes `build.halt` when it spawns a build; and reads `origin` once more when the read after its own push
+  fails, so one failed read no longer sends the run offline (0141-halt-fixes, phase 2).
 
 ## [0.112.0] - 2026-11-21
 
