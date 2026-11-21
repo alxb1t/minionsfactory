@@ -237,6 +237,151 @@ def test_guard_decides_whether_a_file_that_is_no_regular_file_is_read() -> None:
         statefile.read_bytes(os.devnull)
 
 
+def test_a_read_takes_an_offset(tmp_path: Path) -> None:
+    path = tmp_path / "state.md"
+    path.write_bytes(b"abcdef")
+
+    assert statefile.read_bytes(path, offset=2) == b"cdef"
+    assert statefile.read_bytes(path, offset=2, limit=3) == b"cde"
+    assert statefile.read_bytes(path, offset=4, limit=3, tail=True) == b"ef"
+    assert statefile.read_bytes(path, offset=1, limit=3, tail=True) == b"def"
+    assert statefile.read_bytes(path, offset=9) == b""
+    assert statefile.read(path, offset=3) == "def"
+
+
+def test_append_adds_its_text_at_the_end_in_one_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "state.md"
+    path.write_text(_OLD)
+    writes = mock.Mock(wraps=os.write)
+    monkeypatch.setattr(statefile.os, "write", writes)
+
+    statefile.append(path, _TEXT)
+
+    assert path.read_text() == _OLD + _TEXT
+    assert writes.call_count == 1
+
+
+def test_append_makes_no_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        statefile.append(tmp_path / "gone", _TEXT)
+
+    assert not (tmp_path / "gone").exists()
+
+
+def test_append_refuses_a_link(tmp_path: Path) -> None:
+    path = tmp_path / "state.md"
+    outside = tmp_path / "outside"
+    outside.write_text(_OLD)
+    path.symlink_to(outside)
+
+    with pytest.raises(OSError, match="symbolic links") as raised:
+        statefile.append(path, _TEXT)
+
+    assert raised.value.errno == errno.ELOOP
+    assert outside.read_text() == _OLD
+
+
+def test_append_refuses_a_pipe_inside_ten_seconds(tmp_path: Path) -> None:
+    pipe = tmp_path / "pipe"
+    os.mkfifo(pipe)
+    reader = os.open(pipe, os.O_RDONLY | os.O_NONBLOCK)
+    said: list[OSError] = []
+
+    def run() -> None:
+        try:
+            statefile.append(pipe, _TEXT)
+        except OSError as error:
+            said.append(error)
+
+    writer = threading.Thread(target=run, daemon=True)
+    writer.start()
+    writer.join(timeout=10)
+    try:
+        assert not writer.is_alive()
+        [error] = said
+        assert error.errno == errno.EINVAL
+        assert os.read(reader, 64) == b""
+    finally:
+        os.close(reader)
+
+
+def test_append_goes_through_the_folder_given(tmp_path: Path) -> None:
+    held = tmp_path / "held"
+    held.mkdir()
+    (held / "state.md").write_text(_OLD)
+    fd = os.open(held, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        statefile.append("state.md", _TEXT, folder=fd)
+    finally:
+        os.close(fd)
+
+    assert (held / "state.md").read_text() == _OLD + _TEXT
+    assert not (tmp_path / "state.md").exists()
+
+
+def test_open_regular_returns_a_descriptor_on_the_file(tmp_path: Path) -> None:
+    held = tmp_path / "held"
+    held.mkdir()
+    (held / "state.md").write_text(_OLD)
+    folder = os.open(held, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fd = statefile.open_regular("state.md", folder=folder)
+    finally:
+        os.close(folder)
+    try:
+        assert os.pread(fd, 64, 0) == _OLD.encode()
+    finally:
+        os.close(fd)
+
+
+def test_open_regular_refuses_a_link_and_a_pipe(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.write_text(_OLD)
+    (tmp_path / "link").symlink_to(outside)
+    os.mkfifo(tmp_path / "pipe")
+
+    with pytest.raises(OSError, match="symbolic links") as linked:
+        statefile.open_regular(tmp_path / "link")
+    with pytest.raises(OSError, match="not a file") as piped:
+        statefile.open_regular(tmp_path / "pipe")
+
+    assert linked.value.errno == errno.ELOOP
+    assert piped.value.errno == errno.EINVAL
+
+
+def test_open_regular_and_append_refuse_a_second_name_when_asked(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside"
+    outside.write_text(_OLD)
+    os.link(outside, tmp_path / "hard")
+
+    for call in (
+        lambda: statefile.open_regular(tmp_path / "hard", one_name=True),
+        lambda: statefile.append(tmp_path / "hard", _TEXT, one_name=True),
+    ):
+        with pytest.raises(OSError, match="one name") as refused:
+            call()
+        assert refused.value.errno == errno.EINVAL
+    assert outside.read_text() == _OLD
+    os.close(statefile.open_regular(tmp_path / "hard"))
+
+
+def test_open_regular_closes_the_descriptor_it_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    os.mkfifo(tmp_path / "pipe")
+    closes = mock.Mock(wraps=os.close)
+    monkeypatch.setattr(statefile.os, "close", closes)
+
+    with pytest.raises(OSError, match="not a file"):
+        statefile.open_regular(tmp_path / "pipe")
+
+    assert closes.call_count == 1
+
+
 def test_folder_makes_each_part_and_refuses_a_link(tmp_path: Path) -> None:
     root = tmp_path / "root"
     fd = statefile.folder(root, "a", "b")

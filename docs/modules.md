@@ -54,13 +54,15 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-plan/scripts/brief_check.py` | station | conduct.py, verify_check.py |
 | `skills/mf-release/scripts/next_tag.py` | station | — |
 | `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, layout.py, metrics.py, overlap.py |
-| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, converge.py, debtfile.py, findings.py, integrate.py, layout.py, pin.py, platform.py, statefile.py, statuslog.py |
+| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, claim.py, converge.py, debtfile.py, findings.py, integrate.py, layout.py, pin.py, platform.py, runlog.py, statefile.py, statuslog.py |
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py, layout.py |
 | `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, layout.py, platform.py, statefile.py |
 | `skills/mflib/__init__.py` | home | — |
+| `skills/mflib/claim.py` | home | statefile.py |
 | `skills/mflib/debtfile.py` | home | findings.py, statefile.py |
 | `skills/mflib/findings.py` | home | statefile.py |
 | `skills/mflib/layout.py` | home | — |
 | `skills/mflib/platform.py` | home | — |
+| `skills/mflib/runlog.py` | home | statefile.py |
 | `skills/mflib/statefile.py` | home | — |
 | `skills/mflib/statuslog.py` | home | layout.py, statefile.py |

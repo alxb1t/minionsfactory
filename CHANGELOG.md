@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.112.0] - 2026-11-21
+
+Gate: local 7m50s · CI not read under mf-ship · 0.111.0: local 6m32s · CI not read under mf-ship
+
+- Pin tests hold the run log and the claim as the conductor writes and reads them today — the event line, the
+  verify, the release's death, the rescue's read, `wait`, `report`, `run`, `_clear`, `_close`, `stop_run` and a
+  worker's entry, a link, a pipe and a bad byte among them — before both move into modules (0140-run-log, phase 1).
+- `skills/mflib/runlog.py` and `skills/mflib/claim.py` hold the run log and the claim with the conductor's behaviour
+  of today, and `skills/mflib/statefile.py` gains `append`, `open_regular` and a read's `offset`; the conductor moves
+  onto them next (0140-run-log, phase 2).
+- The conductor writes and reads the run log through `skills/mflib/runlog.py` and the claim through
+  `skills/mflib/claim.py`, with no assert changed; it keeps `EVENT`, `last_log` and `_claim` for the viewer
+  (0140-run-log, phase 3).
+- The run log follows no link and blocks on no pipe. `sync` and `codex` are known events, the lock folder is gone, and
+  only a stamp-named `*.md` is a log. The verify passes an open spawn only under the person's stop, and `wait` reads a
+  bounded span through one open file. A claim that is a link or a file halts `run`, `stop` and a worker's start
+  (0140-run-log, phase 4).
+- The gate's format rule holds the run log's title `# Ship run` and the event's clock outside `skills/mflib/`, and
+  tests reach the claim's refusals the fix left untested. D83, D57, the threat model and the recipes name both
+  modules (0140-run-log, phase 5).
+
 ## [0.111.0] - 2026-11-20
 
 Gate: local 6m32s · CI not read under mf-ship · 0.110.0: local 5m37s · CI not read under mf-ship

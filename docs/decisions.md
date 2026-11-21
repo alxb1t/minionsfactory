@@ -71,7 +71,8 @@ conductor. The world is reached through named seams — the platform, whose file
 executor, the host and the tooling. `docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds
 the map, the loads, the private names, the cycles, the OS commands, the state paths spelled outside
 `skills/mflib/layout.py`, the format names spelled outside `skills/mflib/` — the card head `- **`, written by
-`skills/mflib/findings.py` and `skills/mflib/debtfile.py`, among them — the seed line its folder fixes before a script's first `mflib` import, and a threat-model
+`skills/mflib/findings.py` and `skills/mflib/debtfile.py`, and the run log's title `# Ship run` and the event's
+clock `\d\d:\d\d:\d\d`, in either spelling, written by `skills/mflib/runlog.py`, among them — the seed line its folder fixes before a script's first `mflib` import, and a threat-model
 surface for each Python file under `skills/`, in `make gate` and `make check`.**
 
 - **Why:** the refactoring series moves code one region at a time, and a shape no gate holds drifts back with the next
@@ -1154,7 +1155,8 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 `conformance.md` and `adversarial.md` are written and parsed by `skills/mflib/findings.py`, found through
 `findings_file` of `skills/mflib/layout.py`. `grants/`,
 `runs/`, `gate/`, `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
-`runs/<stamp>/`; `debt.md` is written and parsed by `skills/mflib/debtfile.py`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
+`runs/<stamp>/`; `debt.md` is written and parsed by `skills/mflib/debtfile.py`, the run log `runs/<stamp>.md` by
+`skills/mflib/runlog.py`, and the claim `runs/active` by `skills/mflib/claim.py`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
 old `review.md` and `security.md` among it — and a file beside its new one or a link halts it; a hand-run station or
 script on an old layout halts, naming `/mf-ship`, each reading the one old-layout table of `skills/mflib/layout.py`, and
 `review_metrics.py` reads both.**

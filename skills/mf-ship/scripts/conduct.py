@@ -40,10 +40,12 @@ if TYPE_CHECKING:
     from markdown_it.token import Token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.claim
 import mflib.debtfile
 import mflib.findings
 import mflib.layout
 import mflib.platform
+import mflib.runlog
 import mflib.statefile
 import mflib.statuslog
 
@@ -55,7 +57,6 @@ PYPI_INDEX = "https://pypi.org/simple"
 PREFETCH_SECONDS = 600
 RETRIES = (0, 10, 30)
 PUSH_RETRIES = (0, 10)
-LOCK_SECONDS = 30
 LOCK_STALE = 600
 REJOIN_POLL = 10
 # The most of a file a worker leaves that `_bounded` reads.
@@ -102,16 +103,9 @@ WAIT_SECONDS = 60
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
-# why: the plan's skipped converge logs `converge skipped — plan`, the spec's words;
-# 0105-converge-switches design D2
-EVENT = re.compile(r"^\d\d:\d\d:\d\d · (\S+) · (converge skipped|\S+) — ")
-EVENTS = (
-    *("start", "spawn", "finish", "check", "denied", "halt", "blocked", "done"),
-    *("push", "ledger", "unlock", "unkept", "kept", "removed", "rejoin", "grant"),
-    *("rescue", "move", "cut", "supervise", "wait", "stacked", "reset", "notes"),
-    "limited",
-    "converge skipped",
-)
+# The viewer borrows both from the loaded conductor. Why: 0140-run-log design D2.
+EVENT = mflib.runlog.EVENT
+last_log = mflib.runlog.newest
 TAG = re.compile(r"v\d+\.\d+\.\d+")
 HALTS = ("integrating", "released", "human", "converge-halted")
 AMENDED = "amended: HEAD past the halted head"
@@ -178,7 +172,6 @@ EXECUTORS = ("claude", "codex")
 SKILLS_DIR = Path(__file__).resolve().parents[2]
 # The longest one script's environment takes to build. Why: 0112-uv-race design D2.
 SYNC_SECONDS = 600
-STOPPED = "stopped by the person"
 CONFIG_CHANGED = "the local git config changed during the run: {file} differs"
 GIT_FILES = (".git/config", ".git/info/attributes")
 SCANNER = "betterleaks"
@@ -1470,23 +1463,6 @@ def _note(tree: Path, change: str, moved: list[str]) -> str:
     return "\n".join(sections)
 
 
-def _release_died(runs: Path, change: str) -> bool:
-    """Return whether the change's newest release worker ended any way but exit 0.
-
-    A person's no ran no worker, and a release that stopped on purpose exits 0.
-    """
-    for log in sorted(runs.glob("*.md"), key=_log_order, reverse=True):
-        for line in reversed(log.read_text().splitlines()):
-            found = EVENT.match(line)
-            detail = line[found.end() :] if found else ""
-            if found and found[1] == change and detail.startswith("release · "):
-                if found[2] == "spawn":
-                    return True
-                if found[2] == "finish":
-                    return not detail.startswith("release · exit 0 · ")
-    return False
-
-
 def _release_tip(
     primary: Path,
     tree: Path,
@@ -1514,7 +1490,7 @@ def _release_tip(
         )
     if why := _unjudged(runs, tree, change, "HEAD~1", skips):
         return "released", f"{tag} {stated}; {why}: a person reads this tip"
-    if _release_died(mflib.layout.runs_dir(primary), change):
+    if mflib.runlog.release_died(mflib.layout.runs_dir(primary), change):
         return "release", f"{tag} {stated}; the merge is left"
     return "released", (
         f"{tag} {stated}; the release stopped before its merge:"
@@ -2581,77 +2557,31 @@ def check(
     return _check_integrate(primary, version, version.tree)
 
 
-def verify_log(path: Path) -> str | None:
-    """Return why a run log is incomplete, or None when it is complete."""
-    lines = [
-        line
-        for line in path.read_text().splitlines()
-        if line.strip() and not line.startswith("# ")
-    ]
-    spawned: dict[tuple[str, str], int] = {}
-    last = detail = ""
-    for line in lines:
-        match = EVENT.match(line)
-        if not match or match[2] not in EVENTS:
-            return f"unknown event: {line}"
-        who, last = match[1], match[2]
-        detail = line[match.end() :]
-        station = detail.split(" · ")[0]
-        if last == "spawn":
-            spawned[who, station] = spawned.get((who, station), 0) + 1
-        elif last == "finish" and spawned.get((who, station)):
-            spawned[who, station] -= 1
-    for (who, station), count in spawned.items():
-        if count and detail != STOPPED:
-            return f"a spawn with no finish: {who} {station}"
-    if last not in ("halt", "done"):
-        return "the run ends on neither halt nor done"
-    return None
+def _refused(error: mflib.claim.Refused) -> Stop:
+    """Return the stop of a run whose claim is no folder: a link or a file.
+
+    Why: 0140-run-log design D9.
+    """
+    return Stop(
+        2, f"conduct: cannot run — .minions/runs/{error.path.name} is no folder"
+    )
 
 
-class RunLog:
-    """The run log: one event per line, appended under a lock directory."""
+def _unentered(
+    claim: Path, error: mflib.claim.Refused | mflib.statefile.WriteFailed | OSError
+) -> Stop:
+    """Return the stop of a run whose worker's entry in the claim was not written.
 
-    def __init__(self, runs: Path, stamp: str) -> None:
-        """Create `<stamp>.md` in `runs`, titled; `<stamp>-2.md`, … when taken."""
-        runs.mkdir(parents=True, exist_ok=True)
-        for n in itertools.count(1):
-            self.stamp = stamp if n == 1 else f"{stamp}-{n}"
-            self.path = runs / f"{self.stamp}.md"
-            try:
-                with self.path.open("x") as log:
-                    log.write(f"# Ship run {self.stamp}\n\n")
-                break
-            except FileExistsError:
-                continue
-        self.lock = runs / f"{self.stamp}.lock"
-        self.held: list[tuple[str, str, str]] | None = None
-
-    def event(self, who: str, event: str, detail: str) -> None:
-        """Append `<HH:MM:SS> · <who> · <event> — <detail>`, the detail on one line.
-
-        While `held` is a list, the event waits there instead.
-        """
-        if self.held is not None:
-            self.held.append((who, event, detail))
-            return
-        detail = " ".join(detail.split())
-        deadline = time.monotonic() + LOCK_SECONDS
-        while True:
-            try:
-                self.lock.mkdir()
-                break
-            except FileExistsError:
-                if time.monotonic() > deadline:
-                    raise Stop(
-                        2, f"conduct: cannot run — {self.lock.name} held"
-                    ) from None
-                time.sleep(0.05)
-        try:
-            with self.path.open("a") as log:
-                log.write(f"{time.strftime('%H:%M:%S')} · {who} · {event} — {detail}\n")
-        finally:
-            self.lock.rmdir()
+    Why: 0140-run-log design D9 and its converge card S4.
+    """
+    if isinstance(error, mflib.claim.Refused):
+        return _refused(error)
+    failed = error.error if isinstance(error, mflib.statefile.WriteFailed) else error
+    return Stop(
+        2,
+        f"conduct: cannot run — a worker's entry in .minions/runs/{claim.name}"
+        f" cannot be written: {failed.strerror or failed}",
+    )
 
 
 def _models_file(runs: Path, change: str) -> dict[str, object]:
@@ -3671,17 +3601,29 @@ def work(
             )
         except FileNotFoundError:
             raise Stop(2, f"conduct: cannot run — {command[0]} is missing") from None
-        group = claim / str(worker.pid) if claim else None
+        group = None
+        if claim:
+            try:
+                start = mflib.platform.process(worker.pid, "lstart")
+                group = mflib.claim.enter(claim, worker.pid, start)
+            except (mflib.claim.Refused, mflib.statefile.WriteFailed, OSError) as error:
+                # why: the worker started before its entry, so no `stop` reaches it;
+                # 0140-run-log design D9 and its converge card S4
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(worker.pid, signal.SIGKILL)
+                worker.wait()
+                raise _unentered(claim, error) from None
         try:
-            if group:
-                group.write_text(mflib.platform.process(worker.pid, "lstart"))
-            return worker.wait(timeout=limit), False
-        except subprocess.TimeoutExpired:
-            os.killpg(worker.pid, signal.SIGKILL)
-            return worker.wait(), True
-        finally:
-            if group:
-                group.unlink(missing_ok=True)
+            try:
+                return worker.wait(timeout=limit), False
+            except subprocess.TimeoutExpired:
+                os.killpg(worker.pid, signal.SIGKILL)
+                return worker.wait(), True
+            finally:
+                if group:
+                    mflib.claim.leave(group)
+        except mflib.claim.Refused as refused:
+            raise _refused(refused) from None
 
 
 def _text(content: object) -> str:
@@ -4158,44 +4100,55 @@ def _conductor(active: Path) -> int | None:
     to `kill`, 0 is the caller's group and -1 every process the operator owns.
     """
     try:
-        pid = int((active / "pid").read_text())
-        held = (active / "start").read_text().strip()
-    except (OSError, ValueError):
+        claimed = mflib.claim.conductor(active)
+    except mflib.claim.Refused as refused:
+        raise _refused(refused) from None
+    except OSError as error:
+        # why: `status`, `grant`, `wait` and the viewer word a `Stop` alone;
+        # 0140-run-log's converge card S5
+        raise Stop(
+            2,
+            f"conduct: cannot run — .minions/runs/{active.name} cannot be read:"
+            f" {error.strerror or error}",
+        ) from None
+    if claimed is None:
         return None
+    pid, held = claimed
     return pid if pid > 1 and held and held == _started(pid) else None
 
 
 def _claim(active: Path) -> str:
     """Return `none`, `live` or `stale`: stale names no conductor still running."""
-    if not active.exists():
+    if not mflib.claim.present(active):
         return "none"
     return "stale" if _conductor(active) is None else "live"
 
 
 def _clear(active: Path) -> None:
     """Kill the stale claim's worker groups, then remove it."""
+    try:
+        groups = mflib.claim.groups(active)
+    except mflib.claim.Refused as refused:
+        raise _refused(refused) from None
     foreign = []
-    for entry in active.iterdir():
+    for group, held in groups:
         # A worker can write the claim, and group 0 is this process's own.
-        if entry.is_file() and entry.name.isdecimal() and int(entry.name) > 1:
-            group = int(entry.name)
-            held = entry.read_text(errors="replace").strip()
-            if not held or held != _started(group):
-                continue
-            leader = mflib.platform.process(group, "comm")
-            if not any(executor in leader for executor in EXECUTORS):
-                foreign.append(f"{group} ({leader})")
-                continue
-            try:
-                os.killpg(group, signal.SIGKILL)
-            except ProcessLookupError:
-                continue
-            except (OSError, OverflowError) as error:
-                raise Stop(
-                    2,
-                    f"conduct: cannot clear the claim — worker group {group}"
-                    f" survives: {error}",
-                ) from None
+        if group <= 1 or not held or held != _started(group):
+            continue
+        leader = mflib.platform.process(group, "comm")
+        if not any(executor in leader for executor in EXECUTORS):
+            foreign.append(f"{group} ({leader})")
+            continue
+        try:
+            os.killpg(group, signal.SIGKILL)
+        except ProcessLookupError:
+            continue
+        except (OSError, OverflowError) as error:
+            raise Stop(
+                2,
+                f"conduct: cannot clear the claim — worker group {group}"
+                f" survives: {error}",
+            ) from None
     if foreign:
         raise Stop(
             2,
@@ -4203,7 +4156,10 @@ def _clear(active: Path) -> None:
             " names no executor: read it, then kill it or remove its entry in"
             " .minions/runs/active",
         )
-    shutil.rmtree(active)
+    try:
+        mflib.claim.remove(active)
+    except mflib.claim.Refused as refused:
+        raise _refused(refused) from None
 
 
 def _pin() -> dict[str, Any]:
@@ -4394,7 +4350,7 @@ class Run:
         self.codex_said: bool = False
         # Each queued cut that waits for room, with its reason.
         self.waiting: dict[str, str] = {}
-        self.log = RunLog(self.runs, time.strftime(STAMP))
+        self.log = mflib.runlog.RunLog(self.runs, time.strftime(STAMP))
         self.halts: list[tuple[str, str]] = []
         self.blocked: list[str] = []
         self.unblocked: set[tuple[str, threading.Thread]] = set()
@@ -6107,7 +6063,7 @@ class Run:
             if not names & {"all", change}:
                 continue
             if thread and thread.is_alive():
-                if change in names and _rescuing(self.runs, change):
+                if change in names and mflib.runlog.rescuing(self.runs, change):
                     _request(self.primary, change)
                     if change not in self.kept:
                         self.kept.add(change)
@@ -6886,7 +6842,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         print(f"run: started · pid {_detach(primary, executor).pid}")
         return 0
     try:
-        active.mkdir()
+        mflib.claim.take(active)
     except FileExistsError:
         _unmark(pin, mark)
         raise Stop(
@@ -6894,8 +6850,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         ) from None
     seen: set[str] | None = None
     try:
-        (active / "start").write_text(started)
-        (active / "pid").write_text(str(os.getpid()))
+        mflib.claim.mark(active, started, os.getpid())
         _record_repo(primary)
         conductor = Run(primary, executor)
         conductor.cap = cap
@@ -6969,7 +6924,7 @@ def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) ->
     """
     try:
         with _queue_lock(primary):
-            shutil.rmtree(active)
+            mflib.claim.remove(active)
             if seen is None:
                 return
             unread = any(
@@ -6979,9 +6934,15 @@ def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) ->
             if not (unread or _requested(mflib.layout.queue_dir(primary))):
                 return
             pid = _start_run(primary, executor)
+    except mflib.claim.Refused as refused:
+        print(_refused(refused))
+        return
     except Stop as stop:
-        if active.exists():
-            shutil.rmtree(active)
+        try:
+            if mflib.claim.present(active):
+                mflib.claim.remove(active)
+        except mflib.claim.Refused as refused:
+            print(_refused(refused))
         print(stop)
         return
     print(f"run: next started · pid {pid}")
@@ -7007,19 +6968,11 @@ def stop_run(cwd: Path) -> str:
     try:
         _clear(active)
     except Stop as stop:
-        _log_stop(runs)
+        mflib.runlog.stop(runs)
         raise Stop(stop.code, f"stop: conductor stopped · {stop}") from None
-    if (log := _log_stop(runs)) is None:
+    if (log := mflib.runlog.stop(runs)) is None:
         return "stop: stopped · no run log"
     return f"stop: stopped · .minions/runs/{log.name}"
-
-
-def _log_stop(runs: Path) -> Path | None:
-    """Append the stop to the newest run log; return that log, or None with none."""
-    if (log := last_log(runs)) is not None:
-        with log.open("a") as file:
-            file.write(f"{time.strftime('%H:%M:%S')} · run · halt — {STOPPED}\n")
-    return log
 
 
 def _ship_file() -> tuple[Path, dict[str, Any]]:
@@ -7823,25 +7776,6 @@ def _request(primary: Path, name: str) -> None:
     (folder / name).touch()
 
 
-def _rescuing(runs: Path, change: str) -> bool:
-    """Return whether the newest run log's last rescue or supervisor event is a spawn.
-
-    e.g. `… · 0001-todo · spawn — rescue · model default`, no `finish — rescue` after
-    Why: 0089-supervisor design D6.
-    """
-    log = last_log(runs)
-    lines = log.read_text(errors="replace").splitlines() if log else []
-    events = [
-        found[2]
-        for line in lines
-        if (found := EVENT.match(line))
-        and found[1] == change
-        and found[2] in ("spawn", "finish")
-        and line[found.end() :].startswith(("rescue · ", "supervise · "))
-    ]
-    return events[-1:] == ["spawn"]
-
-
 def grant(cwd: Path, change: str, executor: str) -> int:
     """Record one more round for a version halted at the cap, then start a run.
 
@@ -7865,7 +7799,7 @@ def grant(cwd: Path, change: str, executor: str) -> int:
     runs = mflib.layout.runs_dir(primary)
     with _queue_lock(primary):
         live = _claim(mflib.layout.claim_file(primary)) == "live"
-        if live and _rescuing(runs, change):
+        if live and mflib.runlog.rescuing(runs, change):
             raise Stop(
                 2,
                 f"grant: cannot run — {change} is at {stage}"
@@ -8077,23 +8011,16 @@ def wait_run(cwd: Path) -> int:
     if _claim(active) != "live":
         print("wait: none — no run is live", flush=True)
         return 0
-    runs = mflib.layout.runs_dir(primary)
-    held = last_log(runs)
-    offset = held.stat().st_size if held else 0
-    while True:
-        time.sleep(WAIT_SECONDS)
-        live = _claim(active) == "live"
-        if (newest := last_log(runs)) != held:
-            held, offset = newest, 0
-        gained = held.read_bytes()[offset:] if held else b""
-        whole = gained[: gained.rfind(b"\n") + 1]
-        offset += len(whole)
-        lines = whole.decode(errors="replace").splitlines()
-        for line in lines:
-            print(line, flush=True)
-        if not live:
-            break
-        print(f"wait: live · +{len(lines)} lines", flush=True)
+    with contextlib.closing(mflib.runlog.Tail(mflib.layout.runs_dir(primary))) as tail:
+        while True:
+            time.sleep(WAIT_SECONDS)
+            live = _claim(active) == "live"
+            lines = tail.poll()
+            for line in lines:
+                print(line, flush=True)
+            if not live:
+                break
+            print(f"wait: live · +{len(lines)} lines", flush=True)
     print("wait: ended", flush=True)
     print(status(cwd), flush=True)
     return 0
@@ -8142,25 +8069,6 @@ def _cards_part(debt: Path, change: str) -> str:
         return f"debt unreadable: {unread.reason}"
 
 
-def _log_order(log: Path) -> tuple[str, int, str]:
-    """Return a run log's sort key, oldest first.
-
-    e.g. `20261029-163000.md` sorts before `20261029-163000-2.md`
-    """
-    return log.stem[:15], len(log.stem), log.stem
-
-
-def last_log(runs: Path) -> Path | None:
-    """Return the newest run log in `runs`, or None.
-
-    e.g. `20261029-163000.md`, `20261029-163000-2.md` → the second
-    """
-    logs = list(runs.glob("*.md"))
-    if not logs:
-        return None
-    return max(logs, key=_log_order)
-
-
 def _change_number(change: str) -> int:
     """Return a change id's number.
 
@@ -8178,27 +8086,20 @@ def report(cwd: Path) -> str:
     push_tags = _pushes_tags()
     if (log := last_log(mflib.layout.runs_dir(primary))) is None:
         return "report: none — no run yet"
-    events = [
-        found for line in log.read_text().splitlines() if (found := EVENT.match(line))
-    ]
-    closing = events[-1].string if events else f"{log.name}: no event"
-    blocked = {
-        found[1]: found.string[found.end() :]
-        for found in events
-        if found[2] == "blocked"
-    }
-    touched = dict.fromkeys(found[1] for found in events if found[1] != "run")
+    events = mflib.runlog.events(log)
+    closing = events[-1].line if events else f"{log.name}: no event"
+    blocked = {event.who: event.detail for event in events if event.name == "blocked"}
+    touched = dict.fromkeys(event.who for event in events if event.who != "run")
     denied: dict[str, list[str]] = {}
-    for found in events:
-        if found[2] == "denied":
-            call = found.string[found.end() :].split(" · ", 1)[-1]
-            denied.setdefault(found[1], []).append(call)
+    for event in events:
+        if event.name == "denied":
+            call = event.detail.split(" · ", 1)[-1]
+            denied.setdefault(event.who, []).append(call)
     lines = [f"run · denied {', '.join(denied['run'])}"] if "run" in denied else []
     lines += [
-        f"run · waited {detail.removeprefix('waiting: ')}"
-        for found in events
-        if found[2] == "push"
-        and (detail := found.string[found.end() :]).startswith("waiting: ")
+        f"run · waited {event.detail.removeprefix('waiting: ')}"
+        for event in events
+        if event.name == "push" and event.detail.startswith("waiting: ")
     ]
     old = mflib.layout.old_files(primary)
     for change in sorted(touched, key=_change_number):
@@ -8247,18 +8148,17 @@ def report(cwd: Path) -> str:
                 ]
             )
         )
-    for found in events[:-1]:
-        detail = found.string[found.end() :]
-        change, _, stage = detail.partition(": ")
-        skipped = found[2] == "rejoin" and detail.startswith("skipped — ")
-        if found[2] == "halt" or skipped:
-            lines.append(found.string)
-        elif found[2] == "rejoin" and not stage.startswith("still "):
+    for event in events[:-1]:
+        change, _, stage = event.detail.partition(": ")
+        skipped = event.name == "rejoin" and event.detail.startswith("skipped — ")
+        if event.name == "halt" or skipped:
+            lines.append(event.line)
+        elif event.name == "rejoin" and not stage.startswith("still "):
             lines.append(f"{change} · rejoined {stage}")
-        elif found[2] == "rescue":
+        elif event.name == "rescue":
             kind, _, rest = stage.partition(" · ")
             lines.append(f"{change} · {'rescued' if kind == 'fixed' else kind} {rest}")
-        elif found[2] == "supervise":
+        elif event.name == "supervise":
             kind, _, rest = stage.partition(" · ")
             said = "supervised" if kind == "decided" else kind
             lines.append(f"{change} · {said} {rest}")
@@ -8334,7 +8234,7 @@ def main(argv_: list[str] | None = None) -> int:
         elif args.command == "check":
             return _check_command(cwd, args.stage, args.change_id)
         elif args.command == "log":
-            if why := verify_log(Path(args.verify)):
+            if why := mflib.runlog.verify(Path(args.verify)):
                 print(f"log: incomplete — {why}")
                 return 1
             print("log: complete")

@@ -91,7 +91,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   `changes/` or a change's folder halts the run or that version, and one at an old-layout folder the start-of-run move
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
-  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)). The status log is written by
+  ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)), and none of the run log or the claim follows a link
+  either: `skills/mflib/runlog.py` writes the log under the runs folder's descriptor and reads it through no link,
+  refusing what is no regular file, and a hard link at its appends, its stop line and `wait`'s reads, and `skills/mflib/claim.py` the claim, which halts the run, a stop and a worker's start when it is no folder. The status log is written by
   `skills/mflib/statuslog.py` through a descriptor held across its read and its write. The findings files are read and
   written by `skills/mflib/findings.py`, through the read and the staged write of `skills/mflib/statefile.py`, which
   follow no link; a malformed one reads, to the conductor's security readers, as a blocking security card. The debt is
@@ -137,7 +139,7 @@ round. A test module stays off it: conformance judges every test edit under *Gat
 hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
-- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write, the status log, the findings files, `findings.py`, and the debt file, `debtfile.py` — loaded by the scripts that run on the operator's machine.
+- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write, the status log, the findings files, `findings.py`, the debt file, `debtfile.py`, the run log, `runlog.py`, and the claim, `claim.py`, each following no link — loaded by the scripts that run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run, and the setup script a cloud environment runs as root.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.

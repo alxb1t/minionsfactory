@@ -80,10 +80,14 @@ FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("review_metrics.py", "- **"),
         ("review_metrics.py", "## Run"),
         ("review_metrics.py", "status_log.md"),
+        # the run log's reader, until the readers' version
+        ("review_metrics.py", r"\d\d:\d\d:\d\d"),
         # the card's reader
         ("run.py", "- **"),
         ("run.py", "## Run"),
         ("run.py", "status_log.md"),
+        # the run log's reader, until the readers' version
+        ("run.py", r"\d\d:\d\d:\d\d"),
         ("viewer.py", "## Run"),
         ("viewer.py", "status_log.md"),
     }
@@ -100,6 +104,9 @@ _LOG = "status_log.md"
 _RUN = "## Run"
 _CARD = "- **"
 _CARD_PATTERN = r"- \*\*"
+_TITLE = "# Ship run"
+_CLOCK = r"\d\d:\d\d:\d\d"
+_CLOCK_GROUPS = r"(\d\d):(\d\d):(\d\d)"
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
 SCRIPTS_SEED = (
     'sys.path.insert(0, str(Path(__file__).resolve().parents[{}] / "skills"))'
@@ -463,13 +470,17 @@ def _format_name(text: str) -> str:
     """Return the format name the string `text` spells, or `""` for none.
 
     e.g. `"status_log.md"` → itself, `"^(## Run\\b.*)$"` → `"## Run"`,
-    `"^- \\*\\*"` → `"- **"`
+    `"^- \\*\\*"` → `"- **"`, `"(\\d\\d):(\\d\\d):(\\d\\d)"` → `"\\d\\d:\\d\\d:\\d\\d"`
     """
     if text == _LOG:
         return text
     if _CARD in text or _CARD_PATTERN in text:
         return _CARD
-    return _RUN if _RUN in text else ""
+    if _RUN in text:
+        return _RUN
+    if _TITLE in text:
+        return _TITLE
+    return _CLOCK if _CLOCK in text or _CLOCK_GROUPS in text else ""
 
 
 def check_formats(
@@ -1094,6 +1105,52 @@ def test_check_formats_card_head_fails_on_a_listed_site_that_is_gone(
     assert check_formats(root, listed=frozenset({("x.py", "- **")})) == [
         "x.py spells - **: listed in FORMAT_SITES, not found"
     ]
+
+
+def test_check_formats_run_log_title_fails_when_planted(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": 'TITLE = "# Ship run {}"\n'})
+    assert check_formats(root, listed=frozenset()) == [
+        "x.py spells # Ship run: a format name outside skills/mflib/, "
+        "not listed in FORMAT_SITES"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'EVENT = r"^\\d\\d:\\d\\d:\\d\\d · (\\S+)"\n',
+        'EVENT = r"^(\\d\\d):(\\d\\d):(\\d\\d) · (\\S+)"\n',
+    ],
+    ids=["plain", "grouped"],
+)
+def test_check_formats_run_log_clock_fails_when_planted(
+    tmp_path: Path, source: str
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": source})
+    assert check_formats(root, listed=frozenset()) == [
+        "x.py spells \\d\\d:\\d\\d:\\d\\d: a format name outside skills/mflib/, "
+        "not listed in FORMAT_SITES"
+    ]
+
+
+def test_check_formats_run_log_fails_on_a_listed_site_that_is_gone(
+    tmp_path: Path,
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": ""})
+    assert check_formats(root, listed=frozenset({("x.py", _CLOCK)})) == [
+        "x.py spells \\d\\d:\\d\\d:\\d\\d: listed in FORMAT_SITES, not found"
+    ]
+
+
+def test_check_formats_run_log_passes_the_runlog_module(tmp_path: Path) -> None:
+    root = _plant(
+        tmp_path,
+        {
+            "skills/mflib/runlog.py": 'TITLE = "# Ship run {}"\n'
+            'EVENT = r"^\\d\\d:\\d\\d:\\d\\d · "\n'
+        },
+    )
+    assert check_formats(root, listed=frozenset()) == []
 
 
 def test_check_formats_card_head_passes_the_findings_module(tmp_path: Path) -> None:

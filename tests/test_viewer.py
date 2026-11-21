@@ -776,7 +776,9 @@ def test_a_project_read_past_its_bound_is_killed(tmp_path: Path) -> None:
     _version(root, "0001-a", "- [ ] 1 — One\n")
     active = root / ".minions" / "runs" / "active"
     active.mkdir(parents=True)
-    os.mkfifo(active / "pid")
+    (active / "pid").write_text("4242")
+    (active / "start").write_text(_START)
+    (tmp_path / "ps-bin" / "ps").write_text("#!/bin/sh\nexec sleep 60\n")
     began = time.monotonic()
     shown = _viewer()["read_project"](root, None, 1)
     assert time.monotonic() - began < 8
