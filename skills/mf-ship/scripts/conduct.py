@@ -667,17 +667,13 @@ def _folder_fd(root: Path, *parts: str) -> int:
     return mflib.statefile.folder(root, *parts)
 
 
-def _write_in_change(
-    primary: Path, change: str, name: str, text: str, fresh: bool = False
-) -> None:
+def _write_in_change(primary: Path, change: str, name: str, text: str) -> None:
     """Write `text` to the change's file `name`, through no link; one raises `OSError`.
 
-    A `fresh` write creates the file and never truncates one.
-    Why: 0071-ship-fixes design D8; 0119-debt-paydown-3b design D5.
+    Why: 0071-ship-fixes design D8.
     """
     fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW
-    flags |= os.O_EXCL if fresh else os.O_TRUNC
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_TRUNC
     try:
         file = os.open(name, flags, 0o644, dir_fd=fd)
     finally:
@@ -2646,9 +2642,8 @@ def _skips(runs: Path, change: str) -> frozenset[str]:
     Why: 0105-converge-switches design D2; 0142-models design D6.
     e.g. `[converge.adversarial] skip = true` → {"converge.adversarial"}
     """
-    checkers = tuple(name for name in WORKERS if name != FIXER)
     data = _models_data(runs, change)
-    skipping = mflib.modelsfile.skipping(data, ("converge", *checkers))
+    skipping = mflib.modelsfile.skipping(data, ("converge", *CHECKERS))
     return frozenset(("converge", *WORKERS)) if "converge" in skipping else skipping
 
 
