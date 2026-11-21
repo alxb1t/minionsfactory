@@ -1,9 +1,9 @@
 """Write and parse a change's models file: its tables, its keys, its hash and its text.
 
-Each function does what the copy it replaces does. Why: 0142-models design D1 and D3.
+Why: 0142-models design D1, D4 to D8.
 """
 
-import contextlib
+import errno
 import hashlib
 import os
 import re
@@ -24,11 +24,10 @@ TABLES = {
     "release": "release",
 }
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
-# A cut's worker table under its old name. Why: 0095-converge-roles design D2.
-OLD_WORKERS = {
-    "converge.conformance": "converge.review",
-    "converge.adversarial": "converge.security",
-}
+# The person's tables: read, and written by no tool. Why: 0142-models design D4.
+PERSON = ("rescue", "supervise")
+BOUND = 65536
+_PHRASES = {errno.ELOOP: "it is a link", errno.EINVAL: "it is not a regular file"}
 
 
 class Broken(ValueError):
@@ -57,18 +56,53 @@ def text(decided: bool, named: dict[str, list[str]], shadowed: bool) -> str:
     return "\n\n".join(blocks) + "\n"
 
 
-def read(primary: Path, change: str) -> dict[str, object]:
-    """Return the change's models file as TOML reads it; {} with no file.
+def load(primary: Path, change: str) -> bytes | None:
+    """Return the change's models file's bytes, read once; None with no file.
 
-    Text TOML refuses raises `Broken`. Why: 0142-models design D1.
+    A link, no regular file, a file over `BOUND` bytes or one not UTF-8 raises
+    `Broken`. Why: 0142-models design D6.
     """
-    path = layout.models_file(primary, change)
-    if not path.is_file():
+    try:
+        fd = statefile.open_folder(layout.run_dir(primary), layout.CHANGES, change)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise Broken(f"its folder cannot be opened: {error.strerror}") from None
+    try:
+        data = statefile.read_bytes(layout.MODELS, folder=fd, limit=BOUND + 1)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise Broken(_PHRASES.get(error.errno, str(error.strerror))) from None
+    finally:
+        os.close(fd)
+    if len(data) > BOUND:
+        raise Broken(f"it is over {BOUND} bytes")
+    try:
+        data.decode()
+    except UnicodeDecodeError:
+        raise Broken("it is not UTF-8") from None
+    return data
+
+
+def read(primary: Path, change: str) -> dict[str, object]:
+    """Return the change's models file parsed; {} with no file.
+
+    A broken file raises `Broken`, as does a `model` or `effort` string of a table of
+    `TABLES` or `PERSON` that is no token. Why: 0142-models design D5 and D6.
+    """
+    if (data := load(primary, change)) is None:
         return {}
     try:
-        return tomllib.loads(path.read_text())
+        parsed = tomllib.loads(data.decode())
     except tomllib.TOMLDecodeError as error:
         raise Broken(str(error)) from None
+    for name in (*TABLES.values(), *PERSON):
+        found = table(parsed, name) or {}
+        for word in (found.get("model"), found.get("effort")):
+            if isinstance(word, str) and not TOKEN.fullmatch(word):
+                raise Broken(f"{name} {word!r} is not a model or effort")
+    return parsed
 
 
 def table(data: dict[str, object], name: str) -> dict[str, object] | None:
@@ -126,49 +160,25 @@ def skipping(data: dict[str, object], names: tuple[str, ...]) -> frozenset[str]:
     )
 
 
-def _folder(primary: Path, change: str) -> int:
-    """Return a descriptor on the change's folder, made, none of its parts a link."""
-    return statefile.folder(layout.run_dir(primary), layout.CHANGES, change)
-
-
 def digest(primary: Path, change: str) -> str | None:
-    """Return the sha256 of the change's models file, read through no link.
+    """Return the sha256 of the bytes `load` reads; None with no file.
 
-    None when the file is missing, a link, or its folder is one. Why: 0106 design D7.
+    A broken file raises `Broken`. Why: 0142-models design D7.
     """
-    try:
-        fd = _folder(primary, change)
-        try:
-            file = os.open(layout.MODELS, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-        finally:
-            os.close(fd)
-    except OSError:
-        return None
-    with os.fdopen(file, "rb") as models:
-        return hashlib.sha256(models.read()).hexdigest()
-
-
-def _remove(primary: Path, change: str) -> None:
-    """Remove the change's models file when it stands, through no link."""
-    fd = _folder(primary, change)
-    try:
-        with contextlib.suppress(FileNotFoundError):
-            os.unlink(layout.MODELS, dir_fd=fd)
-    finally:
-        os.close(fd)
+    data = load(primary, change)
+    return None if data is None else hashlib.sha256(data).hexdigest()
 
 
 def write(primary: Path, change: str, text: str) -> None:
-    """Write the change's models file from `text`, removed then made; raise `OSError`.
+    """Write the change's models file from `text`, staged and refusing a link.
 
-    Truncating the old file would write through a hard link. Why: 0106 design D7.
+    A failure raises `statefile.WriteFailed`. Why: 0142-models design D8.
     """
-    _remove(primary, change)
-    fd = _folder(primary, change)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
     try:
-        file = os.open(layout.MODELS, flags, 0o644, dir_fd=fd)
+        fd = statefile.folder(layout.run_dir(primary), layout.CHANGES, change)
+    except OSError as error:
+        raise statefile.WriteFailed("create", error) from error
+    try:
+        statefile.write(Path(layout.MODELS), text, refuse_link=True, folder=fd)
     finally:
         os.close(fd)
-    with os.fdopen(file, "w") as out:
-        out.write(text)

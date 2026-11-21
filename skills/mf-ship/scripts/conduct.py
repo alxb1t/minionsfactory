@@ -759,8 +759,8 @@ def _cut_answer(change: str, brief: str) -> str:
 def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     """Return why a cut did not pass, the cutter's own halt line first; None on a pass.
 
-    A queued entry that holds `models` fails a file whose bytes differ from its text.
-    Why: 0082-cut-station design D4; 0106-cut-scripts design D7.
+    A broken models file fails, and a queued entry that holds `models` fails a file
+    whose bytes differ from its text. Why: 0082 design D4; 0106 D7; 0142-models D7.
     """
     if (halt := _cutter_halt(primary, change)) is not None:
         return halt
@@ -772,14 +772,14 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
         return f"{change}: the branch holds no openspec/changes/{change}/"
     if _dirty(tree):
         return "the tree is not clean"
-    if not (mflib.layout.change_dir(primary, change) / "models.toml").is_file():
+    try:
+        held = mflib.modelsfile.digest(primary, change)
+    except mflib.modelsfile.Broken as error:
+        return f"changes/{change}/models.toml: {error}"
+    if held is None:
         return f"no .minions/changes/{change}/models.toml"
     queued = _cuts(primary).get(change, {}).get("models")
-    if (
-        queued is not None
-        and mflib.modelsfile.digest(primary, change)
-        != hashlib.sha256(queued.encode()).hexdigest()
-    ):
+    if queued is not None and held != hashlib.sha256(queued.encode()).hexdigest():
         return f"changes/{change}/models.toml changed since the cut was queued"
     return None
 
@@ -1317,7 +1317,7 @@ def _unjudged(
     A converge the plan skips is None: the run's `skips`, read once, else the file's.
     Why: 0105-converge-switches design D2; 0108-converge-script design D8.
     """
-    if "converge" in (_skips(runs, change) if skips is None else skips):
+    if "converge" in _read_skips(runs, change, skips):
         return None
     head = _git(tree, "rev-parse", rev).strip()
     front = mflib.findings.frontmatter
@@ -1539,7 +1539,7 @@ def stage_of(
             " waits for its release",
         )
     # why: a skipped converge has no halt or run to read; 0105-converge-switches D2
-    skipped = "converge" in (_skips(runs, change) if skips is None else skips)
+    skipped = "converge" in _read_skips(runs, change, skips)
     if halt := None if skipped else _converge_halt(runs, change):
         if mflib.statuslog.names_lock(halt):
             return "converge", "halted on the debt lock: resumes at Step 9"
@@ -2595,24 +2595,14 @@ def _models(
     Why: 0067 D5; 0089 D2; 0094 D1; 0095 D2; 0097 D3; 0100 D8; 0102 D5; 0108 D8; 0117 D2
     """
     names = {"integrate": ("release",), "rescue": ("rescue", "build")}
-    old_names = mflib.modelsfile.OLD_WORKERS.items()
-    names |= {worker: (worker, old) for worker, old in old_names}
     tables = (_table(runs, change, name) for name in names.get(station, (station,)))
     table = next((table for table in tables if table is not None), {})
     executor = table.get("executor", run)
     model, effort = table.get("model"), table.get("effort")
     file = f"changes/{change}/models.toml"
     own = "executor" in table
-    if station in (*WORKERS, MODERATE):
-        if own and station == MODERATE:
-            raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
-        for value in (model, effort):
-            if isinstance(value, str) and not mflib.modelsfile.TOKEN.fullmatch(value):
-                raise Stop(
-                    1,
-                    f"conduct: halt — {file}: {station} {value!r}"
-                    " is not a model or effort",
-                )
+    if own and station == MODERATE:
+        raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
     if station == MODERATE:
         executor = _models(runs, change, "build", run)[0]
     if station in WORKERS and not own:
@@ -2651,18 +2641,30 @@ def _shadow(
 
 
 def _skips(runs: Path, change: str) -> frozenset[str]:
-    """Return the converge stations the cut's models file skips; none on a bad file.
+    """Return the converge stations the cut's models file skips; a broken file stops.
 
-    Why: 0105-converge-switches design D2.
+    Why: 0105-converge-switches design D2; 0142-models design D6.
     e.g. `[converge.adversarial] skip = true` → {"converge.adversarial"}
     """
     checkers = tuple(name for name in WORKERS if name != FIXER)
-    try:
-        data = _models_data(runs, change)
-    except (Stop, ValueError):
-        return frozenset()
+    data = _models_data(runs, change)
     skipping = mflib.modelsfile.skipping(data, ("converge", *checkers))
     return frozenset(("converge", *WORKERS)) if "converge" in skipping else skipping
+
+
+def _read_skips(
+    runs: Path, change: str, skips: frozenset[str] | None
+) -> frozenset[str]:
+    """Return the run's `skips`, else the file's; none when the file is broken.
+
+    Why: 0142-models design D6.
+    """
+    if skips is not None:
+        return skips
+    try:
+        return _skips(runs, change)
+    except Stop:
+        return frozenset()
 
 
 def _skips_rescue(runs: Path, change: str) -> bool:
@@ -5822,7 +5824,7 @@ class Run:
         if (queued := entry.get("models")) is not None:
             try:
                 mflib.modelsfile.write(primary, change, queued)
-            except OSError as error:
+            except mflib.statefile.WriteFailed as error:
                 raise _unwritten(change, error) from None
         branch = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/heads/{change}")
         _remove_in(
@@ -7522,15 +7524,15 @@ def _models_text(brief: Path, slug: str) -> str:
     return done.stdout
 
 
-def _unwritten(change: str, error: OSError) -> Stop:
+def _unwritten(change: str, error: mflib.statefile.WriteFailed) -> Stop:
     """Return the stop of a cut whose models file was not written.
 
-    Why: 0106-cut-scripts design D7; 0142-models design D2.
+    Why: 0106-cut-scripts design D7; 0142-models design D2 and D8.
     """
     return Stop(
         2,
         f"cut: cannot run — changes/{change}/models.toml cannot be written:"
-        f" {error.strerror}",
+        f" {error.error.strerror}",
     )
 
 
@@ -7623,7 +7625,7 @@ def cut(
         change = f"{_next_id(primary):04d}-{slug}"
         try:
             mflib.modelsfile.write(primary, change, models)
-        except OSError as error:
+        except mflib.statefile.WriteFailed as error:
             raise _unwritten(change, error) from None
         fd = _folder_fd(mflib.layout.run_dir(primary), "cuts")
         try:
@@ -7983,13 +7985,27 @@ def status(cwd: Path) -> str:
     lines += [
         f"{version.change} · old layout — a run moves it"
         if version.change in old
-        else f"{version.change} · {stage_of(primary, version)[0]}"
+        else _status_line(primary, version)
         for version in open_versions(primary)
         if version.change not in cuts
     ]
     # A queued cut's line stands for its version's. Why: 0082-cut-station design D6.
     lines += [_cut_line(change, entry) for change, entry in cuts.items()]
     return "\n".join(lines) or "status: none — no open version"
+
+
+def _status_line(primary: Path, version: Version) -> str:
+    """Return `<change-id> · <stage>`, then the halt of a broken models file.
+
+    e.g. "0001-todo · build — changes/0001-todo/models.toml: it is not UTF-8".
+    Why: 0142-models design D10.
+    """
+    line = f"{version.change} · {stage_of(primary, version)[0]}"
+    try:
+        _models_data(mflib.layout.run_dir(primary), version.change)
+    except Stop as stop:
+        line += f" — {str(stop).removeprefix('conduct: halt — ')}"
+    return line
 
 
 def wait_run(cwd: Path) -> int:

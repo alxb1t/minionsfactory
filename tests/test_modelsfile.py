@@ -1,6 +1,6 @@
 """The models file: its parser, key readers, hash, writer and text, pinned by key.
 
-Why: 0142-models design D3.
+Why: 0142-models design D3; the turned cases: its D4 to D10.
 """
 
 import hashlib
@@ -17,8 +17,8 @@ from typing import Any
 
 import pytest
 from conduct_load import conduct as _conduct
-from fake_worker import _commit, _git
-from mflib import layout, modelsfile
+from fake_worker import _commit, _done, _git
+from mflib import layout, modelsfile, statefile
 
 _REPO = Path(__file__).resolve().parent.parent
 _BRIEF_CHECK = _REPO / "skills" / "mf-plan" / "scripts" / "brief_check.py"
@@ -32,7 +32,10 @@ from pathlib import Path
 sys.path[:0] = sys.argv[1:3]
 from mflib import modelsfile
 
-print(modelsfile.digest(Path(sys.argv[3]), sys.argv[4]))
+try:
+    print(modelsfile.digest(Path(sys.argv[3]), sys.argv[4]))
+except modelsfile.Broken as error:
+    print(error)
 """
 _EVERY_PART: str = (
     "build codex/gpt-6.1-sol high · converge claude-opus-5-5 high"
@@ -160,7 +163,7 @@ def _writer(conduct: dict[str, Any]) -> Callable[[Path, str, str], None]:
     def write(primary: Path, change: str, text: str) -> None:
         try:
             modelsfile.write(primary, change, text)
-        except OSError as error:
+        except statefile.WriteFailed as error:
             raise conduct["_unwritten"](change, error) from None
 
     return write
@@ -229,7 +232,8 @@ def test_case_c_a_folder_at_the_models_file(
     primary = _cut(tmp_path)
     (layout.change_dir(primary, "0001-a") / "models.toml").mkdir(parents=True)
     check = conduct["_check_cut"]
-    assert check(primary, "0001-a", primary) == "no .minions/changes/0001-a/models.toml"
+    said = "changes/0001-a/models.toml: it is not a regular file"
+    assert check(primary, "0001-a", primary) == said
 
 
 def test_case_d_the_parser_reads_a_folder_bad_toml_and_a_bad_byte(
@@ -237,15 +241,19 @@ def test_case_d_the_parser_reads_a_folder_bad_toml_and_a_bad_byte(
 ) -> None:
     parsed, minions = conduct["_models_data"], tmp_path / ".minions"
     (layout.change_dir(tmp_path, _CHANGE) / "models.toml").mkdir(parents=True)
-    assert parsed(minions, _CHANGE) == {}
+    with pytest.raises(conduct["Stop"]) as stopped:
+        parsed(minions, _CHANGE)
+    said = f"{_FILE}: it is not a regular file"
+    assert (stopped.value.code, str(stopped.value)) == (1, said)
     (layout.change_dir(tmp_path, _CHANGE) / "models.toml").rmdir()
     _models_toml(tmp_path, "[converge\n")
     with pytest.raises(conduct["Stop"], match=f"^{_FILE}: ") as stopped:
         parsed(minions, _CHANGE)
     assert stopped.value.code == 1
     _models_toml(tmp_path, b"\xff")
-    with pytest.raises(UnicodeDecodeError):
+    with pytest.raises(conduct["Stop"]) as stopped:
         parsed(minions, _CHANGE)
+    assert (stopped.value.code, str(stopped.value)) == (1, f"{_FILE}: it is not UTF-8")
 
 
 def test_case_e_a_string_where_a_table_belongs(
@@ -309,19 +317,28 @@ def test_case_g_a_worker_table_before_its_old_name(
     assert conformance == ("claude", "new", None)
     adversarial = models(minions, _CHANGE, "converge.adversarial", "claude")
     assert adversarial == ("claude", None, "new")
+    # The old name alone is ignored: the worker reads its defaults.
+    _models_toml(
+        tmp_path, '[converge.review]\nmodel = "old"\n[converge.security]\nmodel = "o"\n'
+    )
+    for station in ("converge.conformance", "converge.adversarial"):
+        assert models(minions, _CHANGE, station, "claude") == _DEFAULTS, station
 
 
-def test_case_g_the_token_check_reaches_the_workers_and_the_moderate_table(
+def test_case_g_the_token_check_reaches_every_table(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
     models, minions = conduct["_models"], tmp_path / ".minions"
-    for station in (*conduct["WORKERS"], conduct["MODERATE"]):
+    tables = (*modelsfile.TABLES.values(), *modelsfile.PERSON)
+    assert set(tables) >= {*conduct["WORKERS"], conduct["MODERATE"], "build"}
+    for table in tables:
         for key in ("model", "effort"):
-            _models_toml(tmp_path, f'[{station}]\n{key} = "a b"\n')
-            said = f"{_FILE}: {station} 'a b' is not a model or effort"
-            with pytest.raises(conduct["Stop"]) as stopped:
-                models(minions, _CHANGE, station, "claude")
-            assert (stopped.value.code, str(stopped.value)) == (1, said)
+            _models_toml(tmp_path, f'[{table}]\n{key} = "a b"\n')
+            said = f"{_FILE}: {table} 'a b' is not a model or effort"
+            for station in ("build", table):
+                with pytest.raises(conduct["Stop"]) as stopped:
+                    models(minions, _CHANGE, station, "claude")
+                assert (stopped.value.code, str(stopped.value)) == (1, said)
 
 
 def test_case_g_the_moderate_table_refuses_an_executor(
@@ -405,7 +422,9 @@ def test_case_i_the_fixer_is_never_skipped(
     _models_toml(tmp_path, "[converge.fix]\nskip = true\n")
     assert skips(minions, _CHANGE) == frozenset()
     _models_toml(tmp_path, b"[converge]\nskip = true\n\xff")
-    assert skips(minions, _CHANGE) == frozenset()
+    with pytest.raises(conduct["Stop"]) as stopped:
+        skips(minions, _CHANGE)
+    assert str(stopped.value) == f"{_FILE}: it is not UTF-8"
     _models_toml(tmp_path, "[converge]\nskip = true\n")
     assert skips(minions, _CHANGE) == frozenset(("converge", *conduct["WORKERS"]))
 
@@ -471,6 +490,7 @@ def test_case_m_a_take_reads_every_planned_station_again(
         ('[converge.fix]\neffort = "a;b"\n', "converge.fix 'a;b'"),
         ('[build.moderate]\nexecutor = "claude"\n', "build.moderate names"),
         ("[converge\n", f"{_FILE}: "),
+        (b"\xff", f"{_FILE}: it is not UTF-8"),
     ):
         _models_toml(root, text)
         run = _ran(conduct, root)
@@ -479,6 +499,23 @@ def test_case_m_a_take_reads_every_planned_station_again(
         [(who, why)] = run.halts
         assert who == _CHANGE
         assert why.startswith(_FILE) and said in why, why
+
+
+def test_a_build_model_that_is_no_token_halts_its_version(
+    tmp_path: Path, conduct: dict[str, Any]
+) -> None:
+    # Card 0111·S1. Why: 0142-models design D5.
+    root = _repo(tmp_path)
+    version = _version(conduct, root)
+    _models_toml(root, '[build]\nmodel = "TMPDIR=/tmp/mf-codex-x"\n')
+    run = _ran(conduct, root)
+    run.take(version, {})
+    said = f"{_FILE}: build 'TMPDIR=/tmp/mf-codex-x' is not a model or effort"
+    assert (run.halts, run.reached, run.spawned) == ([(_CHANGE, said)], [], [])
+    _models_toml(root, '[build]\nmodel = "gpt-6.1-sol"\n')
+    run = _ran(conduct, root)
+    run.take(version, {})
+    assert (run.halts, run.reached) == ([], [_CHANGE])
 
 
 def test_case_n_the_plans_read(
@@ -500,11 +537,19 @@ def test_case_n_the_plans_read(
     assert run.grants_auto == {_CHANGE: False}
     assert run.skips == run.decides == run.shadowed == {_CHANGE}
     assert run.skipped == {_CHANGE: frozenset({"converge.adversarial"})}
-    # Text TOML refuses plans nothing and raises nothing.
-    _models_toml(root, "[converge\n")
-    run = _ran(conduct, root)
-    run.read_plan([version])
-    assert (run.planned, run.plan, run.grants_auto) == ({_CHANGE}, {}, {})
+    # A broken file plans nothing and raises nothing: text TOML refuses, a bad
+    # byte, a folder.
+    path = _models_toml(root, "[converge\n")
+    for broken in (b"[converge\n", b'[build]\nmodel = "\xff"\n', None):
+        if broken is None:
+            path.unlink()
+            path.mkdir()
+        else:
+            path.write_bytes(broken)
+        run = _ran(conduct, root)
+        run.read_plan([version])
+        assert (run.planned, run.plan, run.grants_auto) == ({_CHANGE}, {}, {})
+    path.rmdir()
     # The note of a missing Codex reads the checkers alone.
     names = conduct["Run"].read_plan.__globals__
     monkeypatch.setitem(names, "_executor_missing", lambda executor: True)
@@ -595,21 +640,20 @@ def test_pin_a_bad_byte(tmp_path: Path, conduct: dict[str, Any]) -> None:
         ("_shadows", ()),
         ("_skips_rescue", ()),
         ("_auto_grants", ()),
+        ("_skips", ()),
     ):
-        with pytest.raises(UnicodeDecodeError):
+        with pytest.raises(conduct["Stop"]) as stopped:
             conduct[name](minions, _CHANGE, *args)
-    assert conduct["_skips"](minions, _CHANGE) == frozenset()
-    wanted = hashlib.sha256(b'[build]\nmodel = "\xff"\n').hexdigest()
-    assert modelsfile.digest(root, _CHANGE) == wanted
+        assert str(stopped.value) == f"{_FILE}: it is not UTF-8", name
+    with pytest.raises(modelsfile.Broken, match=r"^it is not UTF-8$"):
+        modelsfile.digest(root, _CHANGE)
     run = _ran(conduct, root)
     assert run.models(_CHANGE, "build") is None
     run.read_plan([version])
     assert (run.plan, run.grants_auto, run.skipped) == ({}, {}, {})
     assert run.skips == run.decides == run.shadowed == set()
     run.take(version, {})
-    [(who, why)] = run.halts
-    assert (who, run.reached) == ("run", [])
-    assert why.startswith("conduct.py failed: 'utf-8' codec can't decode byte 0xff")
+    assert (run.halts, run.reached) == ([(_CHANGE, f"{_FILE}: it is not UTF-8")], [])
 
 
 def test_pin_text_that_is_not_toml(tmp_path: Path, conduct: dict[str, Any]) -> None:
@@ -625,11 +669,11 @@ def test_pin_text_that_is_not_toml(tmp_path: Path, conduct: dict[str, Any]) -> N
         ("_shadows", ()),
         ("_skips_rescue", ()),
         ("_auto_grants", ()),
+        ("_skips", ()),
     ):
         with pytest.raises(conduct["Stop"], match=f"^{_FILE}: ") as stopped:
             conduct[name](minions, _CHANGE, *args)
         assert stopped.value.code == 1, name
-    assert conduct["_skips"](minions, _CHANGE) == frozenset()
     run = _ran(conduct, root)
     assert run.models(_CHANGE, "build") is None
     run.take(version, {})
@@ -638,9 +682,7 @@ def test_pin_text_that_is_not_toml(tmp_path: Path, conduct: dict[str, Any]) -> N
     assert why.startswith(f"{_FILE}: ")
 
 
-def test_pin_a_link_at_the_models_file(
-    tmp_path: Path, conduct: dict[str, Any], monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_pin_a_link_at_the_models_file(tmp_path: Path, conduct: dict[str, Any]) -> None:
     primary = _cut(tmp_path)
     minions = primary / ".minions"
     target = tmp_path / "target.toml"
@@ -648,40 +690,30 @@ def test_pin_a_link_at_the_models_file(
     models = layout.change_dir(primary, "0001-a") / "models.toml"
     models.parent.mkdir(parents=True)
     models.symlink_to(target)
-    assert conduct["_models"](minions, "0001-a", "build", "claude") == (
-        "claude",
-        "m",
-        None,
-    )
-    assert modelsfile.digest(primary, "0001-a") is None
+    file = "conduct: halt — changes/0001-a/models.toml: it is a link"
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_models"](minions, "0001-a", "build", "claude")
+    assert (stopped.value.code, str(stopped.value)) == (1, file)
+    with pytest.raises(modelsfile.Broken, match=r"^it is a link$"):
+        modelsfile.digest(primary, "0001-a")
     check = conduct["_check_cut"]
-    _queue(primary, "0001-a", target.read_text())
-    changed = "changes/0001-a/models.toml changed since the cut was queued"
-    assert check(primary, "0001-a", primary) == changed
-    _queue(primary, "0001-a", None)
-    assert check(primary, "0001-a", primary) is None
-    # A dangling link reads as no file.
+    said = "changes/0001-a/models.toml: it is a link"
+    for queued in (target.read_text(), None):
+        _queue(primary, "0001-a", queued)
+        assert check(primary, "0001-a", primary) == said
+    # A dangling link is a link.
     models.unlink()
     models.symlink_to(tmp_path / "gone.toml")
-    assert conduct["_models_data"](minions, "0001-a") == {}
-    # The writer removes a link that stands, and refuses one planted after it.
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_models_data"](minions, "0001-a")
+    assert str(stopped.value) == file
+    # The writer refuses a link, and its target keeps its bytes.
     models.unlink()
     models.symlink_to(target)
-    write = _writer(conduct)
-    write(primary, "0001-a", "[release]\n")
-    assert (models.is_symlink(), models.read_text()) == (False, "[release]\n")
-    assert target.read_text() == '[build]\nmodel = "m"\n'
-    names = modelsfile.write.__globals__
-    real = names["_remove"]
-
-    def plant(primary: Path, change: str) -> None:
-        real(primary, change)
-        models.symlink_to(target)
-
-    monkeypatch.setitem(names, "_remove", plant)
     with pytest.raises(conduct["Stop"]) as stopped:
-        write(primary, "0001-a", "[build]\n")
+        _writer(conduct)(primary, "0001-a", "[release]\n")
     assert stopped.value.code == 2
+    assert models.is_symlink()
     assert target.read_text() == '[build]\nmodel = "m"\n'
 
 
@@ -698,18 +730,19 @@ def test_pin_a_hard_link_at_the_models_file(
     assert models.stat().st_nlink == other.stat().st_nlink == 1
 
 
-@pytest.mark.slow
 def test_pin_a_pipe_at_the_models_file(tmp_path: Path, conduct: dict[str, Any]) -> None:
     root = _repo(tmp_path)
     version = _version(conduct, root)
     models = layout.change_dir(root, _CHANGE) / "models.toml"
     models.parent.mkdir(parents=True)
     os.mkfifo(models)
-    assert conduct["_models_data"](root / ".minions", _CHANGE) == {}
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_models_data"](root / ".minions", _CHANGE)
+    assert str(stopped.value) == f"{_FILE}: it is not a regular file"
     run = _ran(conduct, root)
     run.read_plan([version])
-    assert run.plan[_CHANGE, "build"] == _DEFAULTS
-    assert _hash_in_child(root, _CHANGE) is None
+    assert run.plan == {}
+    assert _hash_in_child(root, _CHANGE) == "it is not a regular file"
     _writer(conduct)(root, _CHANGE, "[build]\n")
     assert models.read_text() == "[build]\n"
 
@@ -719,24 +752,27 @@ def test_pin_a_folder_at_the_models_file(
 ) -> None:
     primary = _cut(tmp_path)
     (layout.change_dir(primary, "0001-a") / "models.toml").mkdir(parents=True)
-    assert conduct["_models_data"](primary / ".minions", "0001-a") == {}
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_models_data"](primary / ".minions", "0001-a")
+    assert str(stopped.value).endswith("models.toml: it is not a regular file")
     said = conduct["_check_cut"](primary, "0001-a", primary)
-    assert said == "no .minions/changes/0001-a/models.toml"
+    assert said == "changes/0001-a/models.toml: it is not a regular file"
     with pytest.raises(conduct["Stop"]) as stopped:
         _writer(conduct)(primary, "0001-a", "[build]\n")
     assert stopped.value.code == 2
-    with pytest.raises(IsADirectoryError):
+    with pytest.raises(modelsfile.Broken, match=r"^it is not a regular file$"):
         modelsfile.digest(primary, "0001-a")
 
 
 def test_pin_a_word_that_is_no_token(tmp_path: Path, conduct: dict[str, Any]) -> None:
     models, minions = conduct["_models"], tmp_path / ".minions"
+    stations = ("build", "rescue", "release", "integrate", "supervise", "converge")
     for word in ("TMPDIR=/tmp/x", "a b"):
-        tables = ("build", "rescue", "release", "supervise", "converge")
-        _models_toml(tmp_path, "".join(f'[{t}]\nmodel = "{word}"\n' for t in tables))
-        for station in ("build", "rescue", "release", "integrate", "supervise"):
-            assert models(minions, _CHANGE, station, "claude")[1] == word, station
-        assert models(minions, _CHANGE, "converge", "claude") == ("claude", word, None)
+        for table in ("build", "rescue", "release", "supervise", "converge"):
+            _models_toml(tmp_path, f'[{table}]\nmodel = "{word}"\n')
+            for station in stations:
+                with pytest.raises(conduct["Stop"], match="is not a model or effort"):
+                    models(minions, _CHANGE, station, "claude")
         for station in (*conduct["WORKERS"], conduct["MODERATE"]):
             _models_toml(tmp_path, f'[{station}]\nmodel = "{word}"\n')
             with pytest.raises(conduct["Stop"], match="is not a model or effort"):
@@ -760,8 +796,8 @@ def test_pin_keys_no_writer_writes(tmp_path: Path, conduct: dict[str, Any]) -> N
         '[converge.review]\nmodel = "a"\nskip = true\n'
         '[converge.security]\neffort = "b"\nskip = true\n',
     )
-    assert models(minions, _CHANGE, "converge.conformance", "claude")[1] == "a"
-    assert models(minions, _CHANGE, "converge.adversarial", "claude")[2] == "b"
+    assert models(minions, _CHANGE, "converge.conformance", "claude") == _DEFAULTS
+    assert models(minions, _CHANGE, "converge.adversarial", "claude") == _DEFAULTS
     assert conduct["_skips"](minions, _CHANGE) == frozenset()
 
 
@@ -847,6 +883,10 @@ def test_pin_the_queued_text_against_the_file(
     for text in ("[build]\n ", "anything\n", ""):
         models.write_text(text)
         assert check(primary, "0001-a", primary) is None, text
+    # A broken file fails the check even with no queued text.
+    models.write_bytes(b"\xff")
+    said = "changes/0001-a/models.toml: it is not UTF-8"
+    assert check(primary, "0001-a", primary) == said
 
 
 def test_pin_models_text_and_its_written_file(
@@ -861,6 +901,81 @@ def test_pin_models_text_and_its_written_file(
     _writer(conduct)(tmp_path, _CHANGE, text)
     written = layout.change_dir(tmp_path, _CHANGE) / "models.toml"
     assert written.read_bytes() == _EVERY_TABLE.encode()
+
+
+# The fix: a broken file, the cut's check and the write. Why: 0142-models D6 to D10.
+
+
+def test_the_cut_check_names_a_broken_models_file(
+    tmp_path: Path, conduct: dict[str, Any]
+) -> None:
+    primary = _cut(tmp_path)
+    check = conduct["_check_cut"]
+    assert check(primary, "0001-a", primary) == "no .minions/changes/0001-a/models.toml"
+    path = _models_toml(primary, b"#" * (modelsfile.BOUND + 1), "0001-a")
+    for queued in ("[build]\n", None):
+        _queue(primary, "0001-a", queued)
+        said = "changes/0001-a/models.toml: it is over 65536 bytes"
+        assert check(primary, "0001-a", primary) == said
+    path.write_text("[build]\n")
+    assert check(primary, "0001-a", primary) is None
+
+
+def test_a_link_at_the_models_file_is_refused(
+    tmp_path: Path, conduct: dict[str, Any]
+) -> None:
+    primary = _cut(tmp_path)
+    target = tmp_path / "target.toml"
+    target.write_text("keep me\n")
+    models = layout.models_file(primary, "0001-a")
+    models.parent.mkdir(parents=True)
+    models.symlink_to(target)
+    _queue(primary, "0001-a", "[build]\n")
+    with pytest.raises(conduct["Stop"]) as stopped:
+        _ran(conduct, primary).cutting("0001-a")
+    said = "cut: cannot run — changes/0001-a/models.toml cannot be written: "
+    assert stopped.value.code == 2
+    assert str(stopped.value).startswith(said)
+    assert (models.is_symlink(), target.read_text()) == (True, "keep me\n")
+
+
+# why: the conductor's classes load at run time and have no static type.
+def _built(conduct: dict[str, Any], root: Path) -> Any:  # noqa: ANN401
+    """Return a version whose one phase is ticked and whose build is done at `HEAD`."""
+    version = _version(conduct, root)
+    tasks = {f"openspec/changes/{_CHANGE}/tasks.md": "## Progress\n\n- [x] 1 — Todo\n"}
+    _commit(version.tree, tasks, "build")
+    _done(root, _CHANGE, _git(version.tree, "rev-parse", "HEAD"))
+    return version
+
+
+def test_stage_of_reads_no_skip_from_a_broken_file(
+    tmp_path: Path, conduct: dict[str, Any]
+) -> None:
+    root = _repo(tmp_path)
+    version = _built(conduct, root)
+    stage_of, unjudged = conduct["stage_of"], conduct["_unjudged"]
+    _models_toml(root, "[converge]\nskip = true\n")
+    skipped = ("release", "converge skipped by plan; main is an ancestor")
+    assert stage_of(root, version) == skipped
+    assert unjudged(root / ".minions", version.tree, _CHANGE) is None
+    _models_toml(root, b"[converge]\nskip = true\n\xff")
+    assert stage_of(root, version) == ("converge", "no conformance findings file")
+    said = unjudged(root / ".minions", version.tree, _CHANGE)
+    assert said == "no conformance findings file"
+
+
+def test_status_names_a_broken_models_file(
+    tmp_path: Path, conduct: dict[str, Any]
+) -> None:
+    root = _repo(tmp_path)
+    _version(conduct, root)
+    _version(conduct, root, "0002-marks")
+    _models_toml(root, b"\xff")
+    lines = conduct["status"](root).splitlines()
+    said = "0001-todo · build — changes/0001-todo/models.toml: it is not UTF-8"
+    assert said in lines
+    assert "0002-marks · build" in lines
 
 
 # The module: each function gives what the pins of its copy hold.
@@ -889,22 +1004,57 @@ def test_module_read(tmp_path: Path) -> None:
         tomllib.loads("[converge\n")
     assert str(broken.value) == str(refused.value)
     _models_toml(tmp_path, b"\xff")
-    with pytest.raises(UnicodeDecodeError):
+    with pytest.raises(modelsfile.Broken, match=r"^it is not UTF-8$"):
         modelsfile.read(tmp_path, _CHANGE)
     target = tmp_path / "target.toml"
     target.write_text("decide = 1\n")
     path.unlink()
     path.symlink_to(target)
-    assert modelsfile.read(tmp_path, _CHANGE) == {"decide": 1}
+    with pytest.raises(modelsfile.Broken, match=r"^it is a link$"):
+        modelsfile.read(tmp_path, _CHANGE)
     path.unlink()
     path.symlink_to(tmp_path / "gone.toml")
-    assert modelsfile.read(tmp_path, _CHANGE) == {}
+    with pytest.raises(modelsfile.Broken, match=r"^it is a link$"):
+        modelsfile.read(tmp_path, _CHANGE)
     path.unlink()
     os.mkfifo(path)
-    assert modelsfile.read(tmp_path, _CHANGE) == {}
+    with pytest.raises(modelsfile.Broken, match=r"^it is not a regular file$"):
+        modelsfile.read(tmp_path, _CHANGE)
     path.unlink()
     path.mkdir()
-    assert modelsfile.read(tmp_path, _CHANGE) == {}
+    with pytest.raises(modelsfile.Broken, match=r"^it is not a regular file$"):
+        modelsfile.read(tmp_path, _CHANGE)
+    path.rmdir()
+    # Every table's words are tokens; a key the map does not name is ignored.
+    for table in (*modelsfile.TABLES.values(), *modelsfile.PERSON):
+        _models_toml(tmp_path, f'[{table}]\nmodel = "m"\neffort = "a;b"\n')
+        said = f"^{table} 'a;b' is not a model or effort$"
+        with pytest.raises(modelsfile.Broken, match=said):
+            modelsfile.read(tmp_path, _CHANGE)
+    _models_toml(tmp_path, '[converge]\ntier = "a b"\n[other]\nmodel = "a b"\n')
+    assert modelsfile.read(tmp_path, _CHANGE)["converge"] == {"tier": "a b"}
+
+
+def test_module_load(tmp_path: Path) -> None:
+    assert modelsfile.load(tmp_path, _CHANGE) is None
+    folder = layout.change_dir(tmp_path, _CHANGE)
+    folder.mkdir(parents=True)
+    assert modelsfile.load(tmp_path, _CHANGE) is None
+    bound = modelsfile.BOUND
+    assert bound == 65536
+    full = b"#" * (bound - 1) + b"\n"
+    path = _models_toml(tmp_path, full)
+    assert modelsfile.load(tmp_path, _CHANGE) == full
+    path.write_bytes(full + b"\n")
+    with pytest.raises(modelsfile.Broken, match=r"^it is over 65536 bytes$"):
+        modelsfile.load(tmp_path, _CHANGE)
+    # A link at the change's folder is followed by no read.
+    path.unlink()
+    elsewhere = tmp_path / "elsewhere"
+    folder.rename(elsewhere)
+    folder.symlink_to(elsewhere)
+    with pytest.raises(modelsfile.Broken, match=r"^its folder cannot be opened: "):
+        modelsfile.load(tmp_path, _CHANGE)
 
 
 def test_module_table() -> None:
@@ -983,8 +1133,8 @@ def test_module_skipping() -> None:
 
 def test_module_digest(tmp_path: Path) -> None:
     assert modelsfile.digest(tmp_path, _CHANGE) is None
-    path = _models_toml(tmp_path, b'[build]\nmodel = "\xff"\n')
-    wanted = hashlib.sha256(b'[build]\nmodel = "\xff"\n').hexdigest()
+    path = _models_toml(tmp_path, b"[build]\nmodel = \"\xc3\xa9\"\nx = 'a b'\n")
+    wanted = hashlib.sha256(b"[build]\nmodel = \"\xc3\xa9\"\nx = 'a b'\n").hexdigest()
     before = _open_fds()
     for _ in range(20):
         assert modelsfile.digest(tmp_path, _CHANGE) == wanted
@@ -993,14 +1143,19 @@ def test_module_digest(tmp_path: Path) -> None:
     target.write_text("[build]\n")
     path.unlink()
     path.symlink_to(target)
-    assert modelsfile.digest(tmp_path, _CHANGE) is None
+    with pytest.raises(modelsfile.Broken, match=r"^it is a link$"):
+        modelsfile.digest(tmp_path, _CHANGE)
     path.unlink()
     path.mkdir()
-    with pytest.raises(IsADirectoryError):
+    with pytest.raises(modelsfile.Broken, match=r"^it is not a regular file$"):
+        modelsfile.digest(tmp_path, _CHANGE)
+    path.rmdir()
+    path.write_bytes(b"\xff")
+    with pytest.raises(modelsfile.Broken, match=r"^it is not UTF-8$"):
         modelsfile.digest(tmp_path, _CHANGE)
 
 
-def test_module_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_module_write(tmp_path: Path) -> None:
     path = layout.models_file(tmp_path, _CHANGE)
     modelsfile.write(tmp_path, _CHANGE, _EVERY_TABLE)
     assert path.read_bytes() == _EVERY_TABLE.encode()
@@ -1008,8 +1163,10 @@ def test_module_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target.write_text('[build]\nmodel = "m"\n')
     path.unlink()
     path.symlink_to(target)
-    modelsfile.write(tmp_path, _CHANGE, "[release]\n")
-    assert (path.is_symlink(), path.read_text()) == (False, "[release]\n")
+    with pytest.raises(statefile.WriteFailed) as failed:
+        modelsfile.write(tmp_path, _CHANGE, "[release]\n")
+    assert failed.value.step == "replace"
+    assert path.is_symlink()
     assert target.read_text() == '[build]\nmodel = "m"\n'
     path.unlink()
     os.link(target, path)
@@ -1025,16 +1182,15 @@ def test_module_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert path.read_text() == "[build]\n"
     path.unlink()
     path.mkdir()
-    with pytest.raises((PermissionError, IsADirectoryError)):
+    with pytest.raises(statefile.WriteFailed) as failed:
         modelsfile.write(tmp_path, _CHANGE, "[build]\n")
+    assert (failed.value.step, path.is_dir()) == ("replace", True)
+    assert os.listdir(path.parent) == ["models.toml"]
     path.rmdir()
-    real = modelsfile._remove
-
-    def plant(primary: Path, change: str) -> None:
-        real(primary, change)
-        path.symlink_to(target)
-
-    monkeypatch.setattr(modelsfile, "_remove", plant)
-    with pytest.raises(FileExistsError):
+    # A link at the change's folder: the write makes nothing through it.
+    folder, elsewhere = path.parent, tmp_path / "elsewhere"
+    folder.rename(elsewhere)
+    folder.symlink_to(elsewhere)
+    with pytest.raises(statefile.WriteFailed) as failed:
         modelsfile.write(tmp_path, _CHANGE, "[build]\n")
-    assert target.read_text() == '[build]\nmodel = "m"\n'
+    assert (failed.value.step, os.listdir(elsewhere)) == ("create", [])

@@ -13,6 +13,7 @@ import html
 import json
 import re
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from typing import Any
 from markdown_it import MarkdownIt
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.layout
 import mflib.modelsfile
 
 VERIFY_CHECK = (
@@ -492,6 +494,38 @@ def carriage(brief: str) -> list[str]:
     ]
 
 
+def write(change: str, text: str, conduct: dict[str, Any]) -> int:
+    """Write `text` as the change's models file in this directory's repository.
+
+    Return the exit code: 0 written, 2 not. Why: 0142-models design D9.
+    """
+    if not conduct["CHANGE_ID"].fullmatch(change):
+        print(f"brief: cannot write — not a change id: `{change}`")
+        return 2
+    shown = mflib.layout.models_file(Path(), change)
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=conduct["GIT_TIMEOUT"],
+        ).stdout.strip()
+        mflib.modelsfile.write(mflib.layout.primary_of(common), change, text)
+    except subprocess.CalledProcessError as error:
+        why = next(iter(error.stderr.splitlines()), f"git exit {error.returncode}")
+    except (OSError, subprocess.TimeoutExpired) as error:
+        why = str(error)
+    except mflib.modelsfile.statefile.WriteFailed as error:
+        why = f"{shown}: {error.error.strerror}"
+    else:
+        print(f"brief: wrote {shown}")
+        return 0
+    print(f"brief: cannot write — {why}")
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     """Check a brief; return the exit code."""
     parser = argparse.ArgumentParser(
@@ -507,9 +541,16 @@ def main(argv: list[str] | None = None) -> int:
     form.add_argument(
         "--models", action="store_true", help="print the item's models file as TOML"
     )
+    parser.add_argument(
+        "--write",
+        metavar="CHANGE_ID",
+        help="with --models, write the item's models file for the change",
+    )
     args = parser.parse_args(argv)
     if args.models != (args.slug is not None):
         parser.error("--models takes a brief and a slug, and a slug only --models")
+    if args.write is not None and not args.models:
+        parser.error("--write goes beside --models alone")
     path = args.brief
     try:
         with path.open(newline="") as handle:
@@ -544,9 +585,13 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         for line in (broken := fields(item[1], slug)):
             print(f"brief: halt — {line}")
-        if not broken:
-            print(mflib.modelsfile.text(*models_of(*item)), end="")
-        return 1 if broken else 0
+        if broken:
+            return 1
+        text = mflib.modelsfile.text(*models_of(*item))
+        if args.write is not None:
+            return write(args.write, text, conduct)
+        print(text, end="")
+        return 0
     found: list[str] = []
     if title := depth(brief):
         found.append(title)
