@@ -601,7 +601,8 @@ def decisions(tree: Path) -> str:
             + ", ".join(ambiguous),
         )
     moves = ", ".join(f"D{old} → D{new}" for old, new in ids.items())
-    lines = [f"decisions: renumbered {moves}, citations with them"]
+    but = " but in the conflicted" if skipped else ""
+    lines = [f"decisions: renumbered {moves}, citations with them{but}"]
     lines += [f"decisions: conflicted — {path}: {moves}" for path in skipped]
     return "\n".join(lines)
 

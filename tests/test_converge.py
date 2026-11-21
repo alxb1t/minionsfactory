@@ -842,6 +842,21 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     small = converge["read_findings"](narrow, "conformance", frozen)
     with pytest.raises(halt, match="scope resolved 0 files"):
         converge["held"](context, read | {"conformance": small}, frozen)
+    # A file with no open card is judged on its scope first, so it never reads clean.
+    narrow.write_text(
+        findings("conformance", head, files=0, commits=0, verdict="changes-requested")
+    )
+    unseen = converge["read_findings"](narrow, "conformance", frozen)
+    assert unseen.malformed is None
+    assert "scope resolved 0 files" in unseen.unclean
+    narrow.write_text(
+        findings(
+            "conformance", head, passes="[stale-claim]", verdict="changes-requested"
+        )
+    )
+    short = converge["read_findings"](narrow, "conformance", frozen)
+    assert short.malformed is None
+    assert "lacks test-cost" in short.unclean
 
 
 def test_a_bold_bullet_is_no_card(host: Host) -> None:

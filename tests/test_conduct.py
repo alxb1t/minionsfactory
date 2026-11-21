@@ -2431,7 +2431,6 @@ def test_run_halts_on_a_human_phase(
     conductor.log.path.unlink()
 
 
-@pytest.mark.slow
 def test_a_build_spawn_removes_the_halt_the_last_build_left(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2447,9 +2446,11 @@ def test_a_build_spawn_removes_the_halt_the_last_build_left(
     rescue = folder / "rescue.md"
     rescue.write_text("diagnosis\n")
 
-    code = _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0001-todo")
+    conductor.read_plan([version])
+    conductor.advance(version, ())
 
-    assert code == 0
     assert "build 0001-todo" in _calls(calls)
     assert not halt.exists()
     assert rescue.is_file()
@@ -3138,6 +3139,11 @@ def test_a_dedent_inside_a_decision_is_no_decision() -> None:
     assert decisions(indented) != decisions(reworded)
     changed = indented.replace("make gate", "make check")
     assert decisions(indented) != decisions(changed)
+    # A heading folded into the line before it is a change; a re-wrap is none.
+    two = "## Decisions\n\n### D1\n\nOne.\n\n### D2\n\nTwo.\n\n## Tests\n"
+    assert decisions(two) != decisions(two.replace("One.\n\n###", "One. ###"))
+    assert decisions(two) != decisions(two.replace("\n\n## Tests", " ## Tests"))
+    assert decisions(two) == decisions(two.replace("One.\n\n", "One.\n\n\n"))
 
 
 @pytest.mark.slow

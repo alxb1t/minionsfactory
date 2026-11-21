@@ -52,6 +52,8 @@ integrate.py   decisions (D10)          converge.py  rounds (D11)
 
 A comma is no end: ``` `a` prints `1`, `b` prints `2` ``` reads `b` as output. That is the price of the rule, and the cut's checks name `then`.
 
+Fix note (2026-11-21, S2): `commands` also ends output at a `, and` or `, or` before a span an output verb follows, so a second command after it is kept.
+
 ### D3
 
 `Command` gains `exits: int | None = None`, set when the span right after the word `exits` is all digits. `passed` then holds `code == exits` and the output rule; with `exits` unset it is as it was, so a search that finds nothing still passes on exit 1. `report` says `exited <code>` whenever the code is not the exit the command is held to. `bare_pytest` stays true for `exits` unset or `0`, and false for any other, so a pytest that says it exits `1` runs.
@@ -63,6 +65,8 @@ A comma is no end: ``` `a` prints `1`, `b` prints `2` ``` reads `b` as output. T
 ### D5
 
 `_decisions` returns its text with each run of whitespace read as one space, headings and section alike. Fix notes are dropped first, as now. A reworded sentence is still a change, a dedent or a re-wrap is none. `_replanned` calls the same function, so the stack's re-plan test reads the same way.
+
+Fix note (2026-11-21, S3): a line's first `#` or `|` is kept as a mark before the whitespace is read as one space, so a heading never joins the line before it.
 
 ### D6
 
@@ -84,6 +88,8 @@ In `Run.advance`, the first `Unreachable` from the release check is logged with 
 
 `decisions` calls `_renumber_changelog` right after it writes the decisions page. Then, for each changed path but the page and the changelog, a path in `_unmerged` is skipped and kept with the renumber, and any other goes to `_recite`, which returns `False` for an ambiguous path instead of raising and `True` on every other return, an early one included. After the loop the rule appends, after its `decisions: renumbered` line, one `decisions: conflicted — <path>: <moves>` line for each skipped path, `<moves>` as in the renumbered line, and, when a path was ambiguous, raises one `Stop` naming each. `skills/mf-integrate/SKILL.md` says so in its `decisions` row.
 
+Fix note (2026-11-21, S4): the `decisions: renumbered` line reads `citations with them but in the conflicted` when a path was skipped.
+
 ### D11
 
 `read_findings` in `converge.py` makes a file that is no stub malformed, as `verdict is changes-requested with no open card`, when its verdict is `changes-requested` and no card is open. A card is open until its status is `verified` or `accepted`, as `blockers` reads it, so a file whose cards are all cleared is malformed too.
@@ -93,6 +99,8 @@ In `Run.advance`, the first `Unreachable` from the release check is logged with 
 A rewrite that leaves the file malformed by this fault alone gets the same write, so the file reads what converge counted. The `verdicts —` log line keeps the word the checker wrote.
 
 Every later reader — `converged`, `unlocked`, `behind`, `conduct.py`'s `_unjudged` and `mf-release` — reads a clean file, and the pickup takes its open cards. The halt `changes requested with no blocking card open` is then unreachable and goes.
+
+Fix note (2026-11-21, S1): `read_findings` judges the files, commits and passes first, so a file with no open card is malformed only once its scope held.
 
 ### D12
 

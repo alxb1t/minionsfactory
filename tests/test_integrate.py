@@ -457,7 +457,7 @@ def test_decisions_skips_a_conflicted_file_and_goes_on(tmp_path: Path) -> None:
 
     assert (result.returncode, result.stdout) == (
         0,
-        "decisions: renumbered D45 → D46, citations with them\n"
+        "decisions: renumbered D45 → D46, citations with them but in the conflicted\n"
         "decisions: conflicted — docs/a.md: D45 → D46\n",
     )
     assert (tree / "docs/a.md").read_text() == conflicted

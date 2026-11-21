@@ -2797,7 +2797,8 @@ def _rescue_amends(
 def _decisions(text: str | None) -> str:
     """Return a design's `## ` headings and its `## Decisions` section, or "".
 
-    Whitespace reads as one space. Why: 0085 design D4; 0103 design D3; 0141 design D5.
+    Whitespace reads as one space; a line's first `#` or `|` stays a mark.
+    Why: 0085 design D4; 0103 design D3; 0141 design D5.
     """
     text = text or ""
     headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
@@ -2806,7 +2807,8 @@ def _decisions(text: str | None) -> str:
     )
     parts = re.split(r"^(?=### )", found[1] if found else "", flags=re.MULTILINE)
     kept = "\n".join([*headings, "".join(_unnoted(part) for part in parts)])
-    return " ".join(kept.split())
+    marked = re.sub(r"^[ \t]*(?=[#|])", "\x00", kept, flags=re.MULTILINE)
+    return " ".join(marked.split())
 
 
 def _unnoted(part: str) -> str:

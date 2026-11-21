@@ -533,15 +533,13 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
     unmarked = (card for card in cards if card.word("Amend") not in ("yes", "no"))
     if fault is None and (card := next(unmarked, None)):
         fault = f"card {card.id} has no Amend line"
-    if (
-        fault is None
-        and not stub
-        and front["verdict"] == "changes-requested"
-        and all(card.status in ("verified", "accepted") for card in cards)
-    ):
-        fault = NO_OPEN_CARD
     if fault is not None:
         return Verdict(role, malformed=f"{name} is malformed: {fault}")
+    no_open = (
+        not stub
+        and front["verdict"] == "changes-requested"
+        and all(card.status in ("verified", "accepted") for card in cards)
+    )
     verdict = Verdict(
         role,
         front["verdict"],
@@ -562,17 +560,20 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
         )
         why = f"its scope resolved {resolved} of the freeze's {frozen}"
         return verdict._replace(unclean=f"{name} is not clean: {why}")
-    if role != "conformance":
-        return verdict
-    passes = set(mflib.findings.listed(front["passes"]))
-    lacking = [
-        needed for needed in ("stale-claim", "test-cost") if needed not in passes
-    ]
-    if not passes & {"coverage-trace", "no-removed-test"}:
-        lacking.append("coverage-trace or no-removed-test")
-    if lacking:
-        why = f"its passes field lacks {', '.join(lacking)}"
-        return verdict._replace(unclean=f"{path.name} is not clean: {why}")
+    if role == "conformance":
+        passes = set(mflib.findings.listed(front["passes"]))
+        lacking = [
+            needed for needed in ("stale-claim", "test-cost") if needed not in passes
+        ]
+        if not passes & {"coverage-trace", "no-removed-test"}:
+            lacking.append("coverage-trace or no-removed-test")
+        if lacking:
+            why = f"its passes field lacks {', '.join(lacking)}"
+            return verdict._replace(unclean=f"{path.name} is not clean: {why}")
+    if no_open:
+        # why: scope and passes are judged first, so an uninspected change is never
+        # rewritten clean; only a file that inspected all of it reaches this fault
+        return Verdict(role, malformed=f"{name} is malformed: {NO_OPEN_CARD}")
     return verdict
 
 

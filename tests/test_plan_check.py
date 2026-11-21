@@ -702,6 +702,11 @@ def test_a_span_after_an_output_verb_is_output() -> None:
     assert [c.text for c in plan_check.commands("`a` prints `1`, `b` prints `2`")] == [
         "a"
     ]
+    # A `, and` or `, or` before a span a verb follows opens a clause; before one with
+    # no verb it ends a list.
+    assert found("`a` prints `2`, and `b` prints `1`") == [("a", 2), ("b", 1)]
+    assert found("`a` prints `2`, or `b` exits `1`") == [("a", 2), ("b", None)]
+    assert found("`a` lists `x`, `y`, and `z`") == [("a", None)]
     # Output stays set past a bare `and` or `or`; no clause for them is needed.
     assert found("`a` names `x` or `y`, then `b` names `z`") == [
         ("a", None),

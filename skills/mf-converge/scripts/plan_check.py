@@ -65,6 +65,7 @@ OUTPUT_VERBS = {
     "says",
 }
 OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)")
+CLAUSE = re.compile(r",\s*(?:and|or)\s*$")
 NOTHING = re.compile(r"\bprints nothing\b")
 DEFINED = re.compile(r"-\s*(?:async\s+)?(?:def|class) (\w+)")
 CONSTANT = re.compile(r"-(_?[A-Z][A-Z0-9_]*)\s*[=:]")
@@ -158,7 +159,7 @@ def subtasks(tasks: str) -> list[Task]:
 def commands(verify: str) -> list[Command]:
     """Return the commands of a `Verify:`'s text, each with the count it must print.
 
-    After an output verb every span is output, until `then`, a `;` or a sentence end.
+    Output runs to `then`, a `;`, a sentence end or a `, and` before a verb's span.
     e.g. "`grep -c x a` prints `2`" → [("grep -c x a", 2)]
     """
     if "`" in SPAN.sub("", verify):
@@ -170,7 +171,11 @@ def commands(verify: str) -> list[Command]:
         if found and not output and NOTHING.search(before):
             found[-1] = found[-1]._replace(nothing=True)
         words = before.split()
-        output = (output and not OUTPUT_END.search(before)) or (
+        after = verify[match.end() :].split()
+        # why: `, and` before a span a verb follows opens a clause; before one with no
+        # verb it is a list's last item, and stays output
+        clause = CLAUSE.search(before) and after[:1] and after[0] in OUTPUT_VERBS
+        output = (output and not (OUTPUT_END.search(before) or clause)) or (
             bool(words) and words[-1] in OUTPUT_VERBS
         )
         text = match[2]
