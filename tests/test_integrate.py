@@ -408,6 +408,97 @@ def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     assert list(bare.iterdir()) == []
 
 
+def _collision(base: Path, branch: dict[str, str], main: dict[str, str]) -> Path:
+    """Return a version whose merge of `main` is open, D45 colliding, `changelog` run.
+
+    Each path of `branch` and `main` starts as `x\\n` and holds its text after.
+    """
+    head = f"# Decisions\n\n```\n  {_MAP}\n```\n\n## Repo conventions\n"
+    old = _decision(43, "Old") + _decision(44, "Older")
+    start = {path: "x\n" for path in {**branch, **main}}
+    root = _primary(
+        base,
+        {
+            "docs/decisions.md": head + old,
+            "CHANGELOG.md": f"{_HEAD}\n{_OLD}",
+            **start,
+        },
+    )
+    tree = _version(root, "0046-b")
+    ours = head.replace("D44", "D44, D45") + old + _decision(45, "Branch")
+    changelog = f"{_HEAD}\n- D45 records the branch.\n\n{_OLD}"
+    _commit(
+        tree,
+        {"docs/decisions.md": ours, "CHANGELOG.md": changelog, **branch},
+        "phase",
+    )
+    theirs = head.replace("D44", "D44, D45") + old + _decision(45, "Main")
+    released = f"{_HEAD}\n## [0.2.0] - 2026-02-02\n\n- D45 records main.\n\n{_OLD}"
+    _commit(
+        root,
+        {"docs/decisions.md": theirs, "CHANGELOG.md": released, **main},
+        "release",
+    )
+    _git(tree, "merge", "-q", "main", check=False)
+    assert _run(root, "changelog", str(tree)).returncode == 0
+    return tree
+
+
+def test_decisions_skips_a_conflicted_file_and_goes_on(tmp_path: Path) -> None:
+    tree = _collision(
+        tmp_path,
+        {"docs/a.md": "Per D45 branch.\n", "docs/b.md": "Per D45.\n"},
+        {"docs/a.md": "Per D45 main.\n"},
+    )
+    assert "docs/a.md" in _git(tree, "diff", "--name-only", "--diff-filter=U")
+    conflicted = (tree / "docs/a.md").read_text()
+
+    result = _run(tree, "decisions", str(tree))
+
+    assert (result.returncode, result.stdout) == (
+        0,
+        "decisions: renumbered D45 → D46, citations with them but in the conflicted\n"
+        "decisions: conflicted — docs/a.md: D45 → D46\n",
+    )
+    assert (tree / "docs/a.md").read_text() == conflicted
+    assert (tree / "docs/b.md").read_text() == "Per D46.\n"
+    assert "- D46 records the branch." in (tree / "CHANGELOG.md").read_text()
+    assert _git(tree, "diff", "--name-only", "--diff-filter=U") == "docs/a.md"
+
+
+def test_decisions_halts_once_after_every_ambiguous_file(tmp_path: Path) -> None:
+    tree = _collision(
+        tmp_path,
+        {
+            "docs/a.md": "Per D45.\n",
+            "docs/b.md": "Per D45.\n",
+            "docs/c.md": "Per D45.\n",
+        },
+        {},
+    )
+    for name in ("a", "c"):
+        (tree / f"docs/{name}.md").write_text("Edited by hand, per D45.\n")
+
+    result = _run(tree, "decisions", str(tree))
+
+    assert (result.returncode, result.stdout) == (
+        1,
+        "decisions: halt — citation ownership is ambiguous in docs/a.md, docs/c.md\n",
+    )
+    assert (tree / "docs/b.md").read_text() == "Per D46.\n"
+    assert "- D46 records the branch." in (tree / "CHANGELOG.md").read_text()
+    assert (tree / "docs/a.md").read_text() == "Edited by hand, per D45.\n"
+
+
+def test_recite_goes_on_past_a_path_it_cannot_read(tmp_path: Path) -> None:
+    binary = tmp_path / "blob.bin"
+    binary.write_bytes(b"\xff\xfe")
+    recite = runpy.run_path(str(_SCRIPT))["_recite"]
+
+    assert recite(tmp_path, "blob.bin", {45: 46}, "HEAD") is True
+    assert binary.read_bytes() == b"\xff\xfe"
+
+
 @pytest.mark.slow
 def test_decisions_renumbers_a_planned_id_the_default_branch_took(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

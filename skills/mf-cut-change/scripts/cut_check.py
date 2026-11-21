@@ -369,7 +369,7 @@ def row_i14(change: Change, plan: dict[str, Any]) -> str | None:
 
 
 def row_i17(change: Change, pre: dict[str, Any]) -> str | None:
-    """Return why an `after:` id is not an open version of a lower number, or None."""
+    """Return why an `after:` id is not open or released, or not lower, or None."""
     value = frontmatter(change.proposal).get("after", "")
     ids = [named.strip() for named in value.strip("[]").split(",") if named.strip()]
     if not ids:

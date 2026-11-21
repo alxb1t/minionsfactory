@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.112.1] - 2026-11-21
+
+Gate: local 7m43s · CI not read under mf-ship · 0.112.0: local 7m50s · CI not read under mf-ship
+
+- The plan check reads every span after an output verb as output until `then`, `;` or a sentence end, holds a command to
+  the exit its `Verify:` names with `exits`, and runs each command without `VIRTUAL_ENV`. `verify_check.py` loads that
+  parser in place of its copy, so the cut and the build read a `Verify:` alike (0141-halt-fixes, phase 1).
+- The conductor reads a design's decisions with each run of whitespace as one space, so a dedented code block is no
+  decision; removes `build.halt` when it spawns a build; and reads `origin` once more when the read after its own push
+  fails, so one failed read no longer sends the run offline (0141-halt-fixes, phase 2).
+- A released `after` is met: `cut_pre.py` passes an id the default branch archived and the cutter is no longer handed it.
+  `rejoin` of a cut clears and requests each dependent halted `after <id> is cut-halted`, down the chain, and names each
+  in its line (0141-halt-fixes, phase 3).
+- `integrate.py decisions` renumbers the changelog first, skips and names a path git left conflicted, and halts once after
+  every ambiguous path. Converge counts a `changes-requested` file no open card blocks as clean and writes `clean` into
+  it; a file with no open card is rewritten, no longer a halt (0141-halt-fixes, phase 4).
+- `mf-rescue` and `mf-supervise` state the rule: a `Verify:` that cannot pass is retargeted or split, never replaced by
+  one that proves less, and an exact count stays exact (0141-halt-fixes, phase 5).
+- The conductor's two amend cases plant an open card with each `changes-requested` verdict, which converge now reads as
+  malformed without one; a case covers `_recite` going on past a path it cannot read (0141-halt-fixes, phase 6).
+
 ## [0.112.0] - 2026-11-21
 
 Gate: local 7m50s · CI not read under mf-ship · 0.111.0: local 6m32s · CI not read under mf-ship

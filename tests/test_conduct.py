@@ -35,6 +35,7 @@ from conduct_load import conduct as _conduct
 from fake_worker import (
     _IDENTITY,
     _amend_needed,
+    _card,
     _cards,
     _commit,
     _done,
@@ -2430,6 +2431,31 @@ def test_run_halts_on_a_human_phase(
     conductor.log.path.unlink()
 
 
+def test_a_build_spawn_removes_the_halt_the_last_build_left(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True, exist_ok=True)
+    head = _git(tree, "rev-parse", "HEAD")
+    halt = folder / "build.halt"
+    halt.write_text(f"sub-task: 1.1\nstop: 3\nevidence: old\nhead: {head}\n")
+    rescue = folder / "rescue.md"
+    rescue.write_text("diagnosis\n")
+
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0001-todo")
+    conductor.read_plan([version])
+    conductor.advance(version, ())
+
+    assert "build 0001-todo" in _calls(calls)
+    assert not halt.exists()
+    assert rescue.is_file()
+
+
 @pytest.mark.slow
 def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -3100,6 +3126,24 @@ def test_a_rescue_decides_under_the_switch(
         "",
         False,
     )
+
+
+def test_a_dedent_inside_a_decision_is_no_decision() -> None:
+    decisions = _conduct()["_decisions"]
+    indented = "## Decisions\n\n### D4\n\nRun:\n\n    make gate\n\n## Tests\n"
+    dedented = indented.replace("    make gate", "make gate")
+    assert decisions(indented) == decisions(dedented)
+    rewrapped = indented.replace("Run:\n\n", "Run:\n\n\n")
+    assert decisions(indented) == decisions(rewrapped)
+    reworded = indented.replace("Run:", "Run it:")
+    assert decisions(indented) != decisions(reworded)
+    changed = indented.replace("make gate", "make check")
+    assert decisions(indented) != decisions(changed)
+    # A heading folded into the line before it is a change; a re-wrap is none.
+    two = "## Decisions\n\n### D1\n\nOne.\n\n### D2\n\nTwo.\n\n## Tests\n"
+    assert decisions(two) != decisions(two.replace("One.\n\n###", "One. ###"))
+    assert decisions(two) != decisions(two.replace("\n\n## Tests", " ## Tests"))
+    assert decisions(two) == decisions(two.replace("One.\n\n", "One.\n\n\n"))
 
 
 @pytest.mark.slow
@@ -5602,6 +5646,54 @@ def test_a_cut_brief_reaches_the_supervisor(
     assert prompt(root, "0002-none").endswith(" with decide=recommended.")
 
 
+def test_a_cutter_is_handed_no_released_after(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _version(root, "0001-open", "- [ ] 1 — Open\n")
+    _commit(root, {"openspec/changes/archive/0002-old/tasks.md": "x\n"}, "ship")
+    _queued(conduct, root, "0003-c", brief, after=("0001-open", "0002-old"))
+    prompts: list[str] = []
+
+    def cutter(
+        change: str, station: str, tree: Path, prompt: str, *rest: object, **kw: object
+    ) -> None:
+        prompts.append(prompt)
+        conductor.halts.append((change, "a cutter spawned"))
+
+    conductor = conduct["Run"](root, "claude")
+    conductor.spawn = cutter
+    assert conductor.cutting("0003-c") == ("a cutter spawned", True)
+    assert " after=0001-open " in prompts[0]
+    assert "0002-old" not in prompts[0]
+
+
+def test_a_rejoin_clears_a_chain_of_cut_halts(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    halts = {
+        "0001-a": "x",
+        "0002-b": "after 0001-a is cut-halted",
+        "0003-c": "after 0002-b is cut-halted",
+        "0004-d": "after 0001-a is cut-halted",
+        "0005-e": "after 0009-z is cut-halted",
+    }
+    for change, halt in halts.items():
+        _queued(conduct, root, change, brief, halt=halt)
+    _claimed(conduct, root)
+
+    said = conduct["rejoin"](root, "0001-a")
+
+    assert said == "rejoin: requested 0001-a, 0002-b, 0003-c, 0004-d"
+    asked = sorted(p.name for p in (layout.queue_dir(root) / "rejoin").iterdir())
+    assert asked == ["0001-a", "0002-b", "0003-c", "0004-d"]
+    cuts = conduct["_cuts"](root)
+    assert [cuts[name]["halt"] for name in halts] == [None] * 4 + [halts["0005-e"]]
+
+
 @pytest.mark.slow
 def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     tmp_path: Path,
@@ -5659,7 +5751,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     start = names["_start_run"]
     names["_start_run"] = lambda primary, executor: 4242
     assert conduct["rejoin"](root, "0001-a") == (
-        "rejoin: requested 0001-a · run started · pid 4242"
+        "rejoin: requested 0001-a, 0002-b · run started · pid 4242"
     )
     assert conduct["_cuts"](root)["0001-a"]["halt"] is None
     names["_start_run"] = start
@@ -5672,8 +5764,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
 
     # The half-done branch is dropped, cut again, and built with its dependent.
     names["_start_run"] = lambda primary, executor: 4242
-    for change in ("0001-a", "0002-b"):
-        conduct["rejoin"](root, change)
+    conduct["rejoin"](root, "0001-a")
     names["_start_run"] = start
     calls.unlink()
     fake()
@@ -10379,6 +10470,35 @@ def test_a_run_goes_on_while_origin_is_down(
 
 
 @pytest.mark.slow
+def test_a_failed_read_after_a_push_is_tried_once_more(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    module = conduct["main"].__globals__
+    check, reads = module["check"], []
+
+    def flaky(*args: object, **kwargs: object) -> str | None:
+        if args[1] == "release":
+            reads.append(args)
+            if len(reads) == 1:
+                raise conduct["Unreachable"](1, "fatal: origin is down")
+        return check(*args, **kwargs)
+
+    monkeypatch.setitem(module, "check", flaky)
+
+    lines = run(0)
+
+    assert len(reads) == 2
+    assert lines.count("run · push — waiting: fatal: origin is down") == 1
+    assert not any("released locally" in line for line in lines)
+    assert not any("origin: unreachable" in line for line in lines)
+    assert "0001-todo · check — release · pass" in lines
+
+
+@pytest.mark.slow
 def test_a_local_release_is_pushed_when_origin_returns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -11355,6 +11475,14 @@ def test_a_grant_buys_one_round(
     shutil.rmtree(active)
 
 
+def _open_card(root: Path, change: str) -> None:
+    """Append an open nit card to each findings file, so each verdict has a card."""
+    for role in _ROLES:
+        path = root / ".minions" / "changes" / change / f"{role}.md"
+        fix = "a fix · size: a design change."
+        path.write_text(path.read_text() + _card("R1", "nit", role, fix, "open"))
+
+
 @pytest.mark.slow
 def test_a_fix_after_a_cap_halt_gets_one_round(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -11366,6 +11494,7 @@ def test_a_fix_after_a_cap_halt_gets_one_round(
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
     judged = _git(tree, "rev-parse", "HEAD")
     _findings(root, "0001-todo", judged, "changes-requested")
+    _open_card(root, "0001-todo")
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     capped = f"10:00:00 · round 3 · halt — cap reached · head {judged}"
     # A halt after round 1's `start`: one before it is any commit's to answer.
@@ -11645,6 +11774,7 @@ def test_an_amend_past_the_judged_head_gets_one_round(
         tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
         judged = _git(tree, "rev-parse", "HEAD")
         _findings(root, "0001-todo", judged, "changes-requested")
+        _open_card(root, "0001-todo")
         _commit(tree, {"src.txt": "fixed\n"}, "fix(0001-todo): R1")
         fixed = _git(tree, "rev-parse", "HEAD")
         _done(root, "0001-todo", fixed)

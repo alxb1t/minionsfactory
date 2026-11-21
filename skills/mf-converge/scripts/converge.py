@@ -61,6 +61,7 @@ PLACEHOLDERS = (
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 FALLBACK = "fallback: codex usage limit"
+NO_OPEN_CARD = "verdict is changes-requested with no open card"
 REWRITE = (
     "role: {role}\nchange: {change}\nround: {round}\n\n"
     "Your findings file {findings} breaks the findings file contract of"
@@ -534,6 +535,11 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
         fault = f"card {card.id} has no Amend line"
     if fault is not None:
         return Verdict(role, malformed=f"{name} is malformed: {fault}")
+    no_open = (
+        not stub
+        and front["verdict"] == "changes-requested"
+        and all(card.status in ("verified", "accepted") for card in cards)
+    )
     verdict = Verdict(
         role,
         front["verdict"],
@@ -554,17 +560,20 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
         )
         why = f"its scope resolved {resolved} of the freeze's {frozen}"
         return verdict._replace(unclean=f"{name} is not clean: {why}")
-    if role != "conformance":
-        return verdict
-    passes = set(mflib.findings.listed(front["passes"]))
-    lacking = [
-        needed for needed in ("stale-claim", "test-cost") if needed not in passes
-    ]
-    if not passes & {"coverage-trace", "no-removed-test"}:
-        lacking.append("coverage-trace or no-removed-test")
-    if lacking:
-        why = f"its passes field lacks {', '.join(lacking)}"
-        return verdict._replace(unclean=f"{path.name} is not clean: {why}")
+    if role == "conformance":
+        passes = set(mflib.findings.listed(front["passes"]))
+        lacking = [
+            needed for needed in ("stale-claim", "test-cost") if needed not in passes
+        ]
+        if not passes & {"coverage-trace", "no-removed-test"}:
+            lacking.append("coverage-trace or no-removed-test")
+        if lacking:
+            why = f"its passes field lacks {', '.join(lacking)}"
+            return verdict._replace(unclean=f"{path.name} is not clean: {why}")
+    if no_open:
+        # why: scope and passes are judged first, so an uninspected change is never
+        # rewritten clean; only a file that inspected all of it reaches this fault
+        return Verdict(role, malformed=f"{name} is malformed: {NO_OPEN_CARD}")
     return verdict
 
 
@@ -613,7 +622,8 @@ def held(
 ) -> dict[str, Verdict]:
     """Return each role's verdict; a malformed file gets one rewrite worker first.
 
-    A file missing, or not clean, halts. Why: design D5.
+    A file missing, or not clean, halts. A `changes-requested` file no open card
+    blocks is written `clean`. Why: design D5; 0141-halt-fixes design D11.
     """
     kept: dict[str, Verdict] = {}
     for role in ROLES:
@@ -624,8 +634,18 @@ def held(
             raise Halt(f"{role}.md is missing: its checker left no findings file")
         if verdict.unclean is not None:
             raise Halt(verdict.unclean)
+        if verdict.verdict == "changes-requested" and not blockers({role: verdict}):
+            cleared(context, role)
+            verdict = verdict._replace(verdict="clean", open_blocking=0)
         kept[role] = verdict
     return kept
+
+
+def cleared(context: Context, role: str) -> None:
+    """Write `verdict: clean` and `open_blocking: 0` into a role's findings file."""
+    path = context.folder / f"{role}.md"
+    keys = {"verdict": "clean", "open_blocking": 0}
+    BUNDLE["write"](path, mflib.findings.keyed(mflib.findings.read(path) or "", keys))
 
 
 def verdicts(
@@ -656,6 +676,8 @@ def rewrite(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | 
         raise Halt(fault)
     again = read_findings(path, role, frozen)
     if again is not None and again.malformed is not None:
+        if again.malformed.endswith(NO_OPEN_CARD):
+            cleared(context, role)
         return Verdict(role, "clean", head(context), context.round)
     return again
 
@@ -830,8 +852,6 @@ def rounds(context: Context, frozen: Freeze, read: dict[str, Verdict]) -> int:
     """
     while not converged(read):
         ids = [card.id for card in blockers(read)]
-        if not ids:
-            raise Halt("changes requested with no blocking card open")
         if context.round >= context.cap:
             cap(context, read)
         if context.round == 1 and context.mark is None and not context.picked:

@@ -82,6 +82,10 @@ number: a `- [ ] N+1 — <title>` line at the end of `## Progress` and a `## N+1
 sub-tasks, each with its `Verify:`. One under a ticked phase is never built: the build reads `## Progress` boxes alone.
 An edit to an existing task stays where it is.
 
+**A `Verify:` that cannot pass is retargeted** at what the task's result does, or split into one check per part, and
+never replaced by one that proves less. An exact count stays exact. Where neither fits, give no answer (Step 3b), as a
+diagnosis.
+
 ## Step 3a — The amend
 
 1. Edit the change directory.

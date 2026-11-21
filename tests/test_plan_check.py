@@ -679,6 +679,75 @@ def test_every_pytest_runs_without_the_cache_provider(
     assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, f"-q {option}", False)
 
 
+def test_a_command_runs_without_virtual_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("VIRTUAL_ENV", "/elsewhere")
+    monkeypatch.setenv("KEPT", "yes")
+    assert plan_check.run("printenv VIRTUAL_ENV", tmp_path) == (1, "", False)
+    assert plan_check.run("printenv KEPT", tmp_path) == (0, "yes\n", False)
+
+
+def test_a_span_after_an_output_verb_is_output() -> None:
+    def found(verify: str) -> list[tuple[str, int | None]]:
+        return [(c.text, c.count) for c in plan_check.commands(verify)]
+
+    # Each span after the verb is output; `then`, a `;` or a sentence end ends it.
+    assert found("`a` prints `1`, then `b` prints `2`") == [("a", 1), ("b", 2)]
+    assert found("`a` prints `1`; `b` exits `0`") == [("a", 1), ("b", None)]
+    assert found("`a` prints `1`. `b` exits `0`") == [("a", 1), ("b", None)]
+    assert found("`a` exits `1` with `$(date)`") == [("a", None)]
+    assert found("`a` lists `x`, `y` and `z`") == [("a", None)]
+    # A comma is no end: the price of the rule.
+    assert [c.text for c in plan_check.commands("`a` prints `1`, `b` prints `2`")] == [
+        "a"
+    ]
+    # A `, and` or `, or` before a span a verb follows opens a clause; before one with
+    # no verb it ends a list.
+    assert found("`a` prints `2`, and `b` prints `1`") == [("a", 2), ("b", 1)]
+    assert found("`a` prints `2`, or `b` exits `1`") == [("a", 2), ("b", None)]
+    assert found("`a` lists `x`, `y`, and `z`") == [("a", None)]
+    # Output stays set past a bare `and` or `or`; no clause for them is needed.
+    assert found("`a` names `x` or `y`, then `b` names `z`") == [
+        ("a", None),
+        ("b", None),
+    ]
+
+
+def test_exits_names_the_exit_a_command_must_have(tmp_path: Path) -> None:
+    command = plan_check.commands("`a` exits `2` with `text`")[0]
+    assert command == plan_check.Command("a", None, False, 2)
+    assert plan_check.commands("`a` exits `x`")[0].exits is None
+    assert plan_check.passed(command, 2, "")
+    assert not plan_check.passed(command, 0, "")
+    assert not plan_check.passed(command, 1, "")
+    # With no exit named, a command holds to 0, a search that finds nothing to 1 too.
+    plain = plan_check.Command("sh", None)
+    assert plan_check.passed(plain, 0, "") and not plan_check.passed(plain, 2, "")
+    search = plan_check.Command("git grep x", None, True)
+    assert plan_check.passed(search, 1, "")
+    # The exit and the output are both held.
+    counted = plan_check.Command("sh", 3, False, 2)
+    assert plan_check.passed(counted, 2, "3\n") and not plan_check.passed(
+        counted, 2, "4"
+    )
+    # A report says `exited` for any code but the one held, 0 when none is named.
+    result = plan_check.Result(0, "")
+    assert plan_check.report("1.1", command, result) == ["plan: 1.1 — `a` exited 0"]
+    wrong = plan_check.Result(2, "9\n")
+    assert plan_check.report("1.1", counted, wrong) == [
+        "plan: 1.1 — `sh` printed other than its Verify: says",
+        "  | 9",
+    ]
+    assert plan_check.report("1.1", plain, plan_check.Result(3, "")) == [
+        "plan: 1.1 — `sh` exited 3"
+    ]
+    # A pytest that says it exits 1 runs: the green gate does not vouch for it.
+    for exits, vouched in ((None, True), (0, True), (1, False)):
+        pytest_command = plan_check.Command("pytest -q", None, False, exits)
+        assert plan_check.bare_pytest(pytest_command, tmp_path) is vouched
+
+
 def test_commands_run_side_by_side_and_print_in_task_order(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

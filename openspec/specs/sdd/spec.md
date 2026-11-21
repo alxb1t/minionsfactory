@@ -1204,6 +1204,10 @@ headed nowhere in the branch's `docs/decisions.md` — SHALL count as the branch
 `skills/mf-converge/scripts/gate_check.py` SHALL compute the same moves for a merge commit. `conduct.py` and `integrate.py replay`
 SHALL run the `decisions` rule on every merge they open, conflicted or clean, and the `changelog` rule on a conflicted
 `CHANGELOG.md` and on every merge whose base holds `## [Unreleased]` entries.
+The `decisions` rule SHALL renumber the `[Unreleased]` entries of `CHANGELOG.md` first, then recite each other changed path. A
+path git left conflicted SHALL be skipped by the recital and printed as `decisions: conflicted — <path>: D<old> → D<new>`, for the
+merge's note. A path whose citations the rule cannot attribute to a side SHALL be collected: the rule SHALL halt once, after every
+path, naming each.
 A MODIFIED title whose delta block only inserts into the default branch's current block — every edit an insertion, whitespace
 ignored — and keeps nothing the default branch removed from the base's block SHALL NOT be reported. A delta that changes or
 removes a line of that block, one that keeps what the default branch removed, a title the default branch removed, and every
@@ -1233,6 +1237,14 @@ REMOVED title the default branch changed SHALL be reported.
 #### Scenario: A dependency's decision cited by title
 - **WHEN** the branch's plan cites `D59 · Main rule`, and the default branch's `D59` heading carries `Main rule`
 - **THEN** `decisions` leaves every `D59` as it is
+
+#### Scenario: A conflicted file that cites the colliding decision
+- **WHEN** the default branch took `D45`, the branch added its own `D45`, and a file git left conflicted cites it and sorts
+  before the plan's files
+- **THEN** `decisions` renumbers the plan's citations and the changelog's entry to `D46`, skips the conflicted file, and prints
+  its path with `D45 → D46`
+- **AND WHEN** two files hold citations that match neither merge
+- **THEN** `decisions` renumbers every other path first, then halts once, naming both files
 
 #### Scenario: A delta that only inserts
 - **WHEN** the default branch changed a requirement since the base, and the branch's MODIFIED block holds the default branch's
@@ -1751,8 +1763,8 @@ time named, save a mailbox checker, which falls back.
 
 ### Requirement: A version declares what it builds on
 
-`skills/mf-cut-change/SKILL.md` SHALL take `after=<id>[,<id>]`, halting unless each id is an open version with a lower
-number, and SHALL write `after: [<ids>]` into `proposal.md`'s frontmatter. A name a design takes from an `after:`
+`skills/mf-cut-change/SKILL.md` SHALL take `after=<id>[,<id>]`, halting unless each id is an open or a released version with a
+lower number — a released one has its `openspec/changes/archive/<id>/` in the default branch — and SHALL write `after: [<ids>]` into `proposal.md`'s frontmatter. A name a design takes from an `after:`
 change's design, and a MODIFIED title a delta takes from an `after:` change's delta, SHALL count as present at the cut.
 `conduct.py` SHALL start a dependent once each id has released, or once it stacks, as *A dependent builds on its dependency's
 built head* says, and SHALL then merge the default branch into its cut-only branch, with no agent, running `integrate.py delta`
@@ -1794,8 +1806,12 @@ not lower SHALL block its version, and an edit that leaves a running version `wa
 - **THEN** a re-run of `mf-ship` removes `stacked-on`, builds nothing again, and runs converge from round 1
 
 #### Scenario: A cut names a dependency it cannot have
-- **WHEN** `after=` names an id that is merged, unknown, or not lower than the change's
+- **WHEN** `after=` names an id that is unknown, or not lower than the change's
 - **THEN** the cut halts, naming it
+
+#### Scenario: A cut names a dependency that released while it waited
+- **WHEN** a queued cut's `after` names a lower id whose archive folder the default branch holds
+- **THEN** the cut goes on, and `conduct.py` hands its cutter no `after=` for that id
 
 #### Scenario: A dependent built by hand
 - **WHEN** `mf-build` starts on a change whose `after:` id is not in `HEAD`'s archive, and no `stacked-on` stands
@@ -2463,8 +2479,9 @@ against the offline base wherever it judges them against `origin`; with no offli
 `conduct.py anchor`. Every failed read or push SHALL be a wait, whatever its error; a read that succeeds and shows a refused URL,
 a moved default branch or a default named other than the kept one SHALL halt as before. A release made while `origin` is unread
 SHALL pass its check as released locally, its worktree removed and its dependents merged from the local default branch, its
-ledger entry kept until its push lands. Each release SHALL push what is pending, and the run SHALL try once more before its
-close. The `start` line SHALL say when `origin` is unreachable, each failed push SHALL be logged as `push — waiting`, the close
+ledger entry kept until its push lands. The check that reads `origin`'s tag after the run's own push SHALL try a failed read
+once more, logging each failure as a wait, before the run goes on with no remote call. Each release SHALL push what is pending,
+and the run SHALL try once more before its close. The `start` line SHALL say when `origin` is unreachable, each failed push SHALL be logged as `push — waiting`, the close
 SHALL name what stays unpushed, and `report` SHALL print every wait. `conduct.py anchor` SHALL write the first offline base from
 `refs/remotes/origin/<default>` only when no run is live, no offline base stands, the ref is an ancestor of the local default
 branch, it is a release merge whose tag stands, and the person names its sha with `--yes <sha>`; with no `--yes` it SHALL print
@@ -2492,6 +2509,10 @@ config, or a file it includes, is set.
 - **THEN** its check passes as released locally, its worktree is removed, a `push — waiting` line is logged, and a dependent
   merges it from the local default branch and ships in the same run
 - **AND** the close names the unpushed refs, the default branch and each local release's tag, and `report` prints the wait
+
+#### Scenario: A read that fails once after a push
+- **WHEN** a release's own push lands, and the next read of `origin`'s tag fails once, then answers
+- **THEN** the check passes on the second read, the run stays online, and the first failure is logged as a wait
 
 #### Scenario: Origin comes back
 - **WHEN** `origin` answers again before the run's close, or at the next run's start
@@ -2987,7 +3008,8 @@ halt. `mf-converge` run by hand grants nothing on its own.
 ### Requirement: The integrate station renumbers the branch's changelog entries
 
 `skills/mf-integrate/scripts/integrate.py decisions` SHALL renumber each colliding decision id cited in the `[Unreleased]` entries
-of the `CHANGELOG.md` the `changelog` rule wrote, and SHALL leave the released sections as they are. It SHALL NOT compare
+of the `CHANGELOG.md` the `changelog` rule wrote, and SHALL leave the released sections as they are. It SHALL
+renumber them before it recites any other changed path, so a path that halts the rule leaves them renumbered. It SHALL NOT compare
 `CHANGELOG.md` with a three-way merge of its sides.
 
 #### Scenario: A renumbered decision in the branch's entry
@@ -3398,7 +3420,9 @@ cap, and `<id> · cut-halted — <line>` for a halted one, `report` SHALL print 
 line, and the run's closing line SHALL name ` · needs <id> its brief answered (…), then conduct.py rejoin <id>` for a cut
 halted with that answer. A run's start SHALL log each halted cut as a halt and take it into no thread. `conduct.py rejoin <id>`
 naming a queued cut SHALL clear its halt, under the queue lock, keeping the queue entry's already-queued package rows, then
-request it from the live run, or start a run when none is live; a brief it cannot read, or whose `## Dependencies` is
+request it from the live run, or start a run when none is live, and SHALL clear and request, the same way and down the chain, each
+queued cut whose halt reads `after <name> is cut-halted`, `<name>` the cut it rejoins or a dependent it cleared, naming each in
+its line; a brief it cannot read, or whose `## Dependencies` is
 neither `None.` nor a table, SHALL exit 2, naming it, and keep the halt. A row of the brief's `## Dependencies` for its slug
 that the entry does not already hold SHALL be queued only when the rejoin is given `--yes <hash>`, `<hash>` the sha256 of
 those new rows; without it, or with another hash, the rejoin SHALL exit 1, keep the entry and its halt, and name each new
@@ -3414,6 +3438,11 @@ when its branch holds no change, and cut again from the brief.
 #### Scenario: A re-plan and a rejoin
 - **WHEN** the person re-plans the brief and runs `conduct.py rejoin <id>`
 - **THEN** the cut's half-done branch is dropped, the brief is cut again, and a cut that passes goes into `build`
+
+#### Scenario: A chain of cut halts rejoined at its head
+- **WHEN** queued cuts `0002-a`, `0003-b` and `0004-c` stand halted, `0003-b` with `after 0002-a is cut-halted` and `0004-c` with
+  `after 0003-b is cut-halted`, and the person runs `conduct.py rejoin 0002-a`
+- **THEN** the halt of each of the three entries is cleared, the live run is asked for each, and the rejoin's line names the three
 
 #### Scenario: A package approved at the re-plan
 - **WHEN** a cut halted on a package outside its queued rows, and the person's re-plan adds that row to the brief's
@@ -3641,7 +3670,8 @@ test, take a security card of `critical` or `high` severity, approve a gate make
 merge or push, or answer a run-wide halt. `conduct.py` SHALL take an amend that touches `proposal.md` or changes `design.md`'s
 `## Decisions` section only under the switch and with that trailer, logging `rescue — <id>: decided · <sub-task> · <commit>`;
 without the switch it SHALL refuse it, naming the decision. Lines of the form `Fix note (<YYYY-MM-DD>, <card id>): <text>` that
-end a `### D<n>` entry, added or edited, SHALL be no change to that section; any other edit of the entry SHALL be one. The
+end a `### D<n>` entry, added or edited, SHALL be no change to that section; any other edit of the entry SHALL be one, each run of
+whitespace read as one space, so a re-indented or re-wrapped line is no change and a reworded one is. The
 run's closing line, and its `done` line, SHALL name
 ` · decided <ids>` when a rescue decided, `report` SHALL print a line for each decision, and the run's metrics SHALL count them as `rescues-decided`.
 
@@ -3658,6 +3688,12 @@ run's closing line, and its `done` line, SHALL name
 - **WHEN** the models file has no `decide`, and the rescue's amend appends a `Fix note (…)` line as the last line of D2's entry
 - **THEN** the run takes it as an amend that decided nothing
 - **AND WHEN** the amend also edits a line of D2's own words
+- **THEN** the run refuses it, naming the decision
+
+#### Scenario: A dedented code block
+- **WHEN** the models file has no `decide`, and the rescue's amend dedents a code block inside D4's entry and changes no word
+- **THEN** the run takes it as an amend that decided nothing
+- **AND WHEN** the amend also changes a word of that entry
 - **THEN** the run refuses it, naming the decision
 
 #### Scenario: A worker writes the switch
@@ -4362,6 +4398,13 @@ marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. It SHALL N
 command, a command of a `**HUMAN` phase, or a command naming `plan_check.py`, and SHALL run no command with a shell. It SHALL
 exit 0 printing `plan: clean` when none holds, and 2 when it cannot read `tasks.md`, the base or git.
 
+It SHALL read a `Verify:`'s spans as follows: once an output verb — `prints`, `exits` and the like — follows a command, each later
+span is output, never a command, until a `then`, a `;` or the sentence's end. A command whose `Verify:` says it
+`` exits `<N>` `` SHALL pass only on exit `<N>`, and on the output the `Verify:` says; the search that passes on exit 1 is the one
+whose `Verify:` names no exit. It SHALL run each command without `VIRTUAL_ENV` in its environment, stderr kept in the output it
+compares. `skills/mf-cut-change/scripts/verify_check.py` SHALL read a `Verify:`'s commands through this script's parser, loaded
+from it, and keep no parser of its own.
+
 It SHALL run each distinct command once a check, whatever the number of sub-tasks that name it, and hold the one result to each
 sub-task's own words. It SHALL run the commands side by side, one slot for each core the machine has, and print the lines in
 task order, then command order, whatever order they finish in: a `pytest` with `-n` takes every slot and runs alone, a `make`
@@ -4396,6 +4439,22 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 - **THEN** `plan_check.py` exits 1, naming the sub-task and the command
 - **AND WHEN** its `Verify:` says `printf 1` prints `1`, or says a `grep -c` that finds nothing prints `0`
 - **THEN** that check halts nothing
+
+#### Scenario: An exit the Verify: names
+- **WHEN** a ticked `Verify:` says that `false` exits `1`
+- **THEN** `plan_check.py` prints no line for it
+- **AND WHEN** a ticked `Verify:` says that `true` exits `1`, or says that `false` exits nothing
+- **THEN** `plan_check.py` exits 1, naming the sub-task and the command
+
+#### Scenario: Spans after an output verb
+- **WHEN** a ticked `Verify:` says that `printf 1` prints `1`, then `printf 2` prints `2`
+- **THEN** both commands run
+- **AND WHEN** it says that a search lists `a.py`, `b.py` and `c.py`
+- **THEN** the search is the one command, and no file name is run
+
+#### Scenario: A command under a set VIRTUAL_ENV
+- **WHEN** `VIRTUAL_ENV` is set in the environment of `plan_check.py`, and a ticked `Verify:` runs `printenv VIRTUAL_ENV`
+- **THEN** the command prints nothing: it never saw the variable
 
 #### Scenario: An unticked box under a finished phase
 - **WHEN** `## Progress` ticks phase 2 and sub-task `2.3` stands unticked
@@ -4856,7 +4915,9 @@ process the run starts through its own worker and checker calls, with a prompt t
 role's reference. The script SHALL run the gate, `gate_check.py`, `plan_check.py` and each `Verify:` and **Still true?** command
 under `conduct.py`'s sandbox runner, never bare. It SHALL read a findings file's frontmatter keys `files`, `commits`, `passes` and
 `inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them, or with a card
-whose id is outside `R<n>` and `S<n>`, SHALL be malformed. `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py`
+whose id is outside `R<n>` and `S<n>`, or whose verdict is `changes-requested` with no open card, SHALL be malformed. A card is
+open until its status is `verified` or `accepted`; a role whose verdict is `changes-requested` while no open card blocks SHALL
+count as clean, its file's verdict written `clean` and its open cards left to the pickup and the debt. `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py`
 and `skip_stub.py` SHALL read a findings file's cards and frontmatter through `skills/mflib/findings.py`, a card's title a line that
 starts `- **<id> — ` with an id holding no `*`, so a bullet that closes its bold after its first word, as `- **stale-claim** — ran.`,
 is no card; `skills/mflib/debtfile.py` SHALL read a debt card's title, a line that starts `- **<digits>·<id> — ` with an id holding no `*`, and `debt_match.py` and `cut_context.py` SHALL read it through the module. The status log's events and their text
@@ -4876,6 +4937,15 @@ stays red, a security card and a debt the freeze may not read SHALL still halt.
 #### Scenario: A malformed findings file
 - **WHEN** a checker's findings file lacks `passes`, or holds a card with no `Amend:` field
 - **THEN** one rewrite worker is started for it, and a file still malformed becomes one debt card and no halt
+
+#### Scenario: Changes requested with nits alone
+- **WHEN** a checker's findings file says `changes-requested` and holds open cards, none of a blocking grade
+- **THEN** the role counts as clean, its file reads `verdict: clean`, the pickup takes its small and drift cards, and the version converges with no halt
+
+#### Scenario: Changes requested with no card
+- **WHEN** a checker's findings file says `changes-requested` and holds no open card
+- **THEN** one rewrite worker is started for it, as for a file that lacks `passes`, and the file reads `verdict: clean` after, the
+  rewrite having fixed it or not
 
 #### Scenario: A card titled outside the contract's ids
 - **WHEN** a checker's findings file holds a card titled `- **S-1 — a title**`

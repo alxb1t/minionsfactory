@@ -197,12 +197,21 @@ def check_id(change: str, unattended: bool) -> str | None:
     return None
 
 
+def _released(default: str, name: str) -> bool:
+    """Return whether `default` holds the archive folder of `name`."""
+    path = f"{default}:openspec/changes/archive/{name}"
+    return _git("cat-file", "-e", path, ok=(0, 1, 128)).returncode == 0
+
+
 def after_problem(change: str, after: list[str], default: str) -> str | None:
-    """Return why an id of `after` is not an open version of a lower number, or None."""
+    """Return why an id of `after` is not met or not of a lower number, or None.
+
+    An id is met when it is an open version or the default branch archived it.
+    """
     opened = open_versions(default)
     for named in after:
-        if named not in opened:
-            return f"{named} is not an open version"
+        if named not in opened and not _released(default, named):
+            return f"{named} is not an open or released version"
         if _number(named) >= _number(change):
             return f"{named} is not lower than {change}"
     return None

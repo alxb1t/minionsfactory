@@ -509,28 +509,29 @@ def _planned(plan: list[str], base: str, ours: str, theirs: str) -> set[int]:
     return planned
 
 
-def _recite(tree: Path, path: str, ids: dict[int, int], base: str) -> None:
+def _recite(tree: Path, path: str, ids: dict[int, int], base: str) -> bool:
     """Merge the branch's renumbered citations using edit positions in the base.
 
-    A manual resolution that differs from the mechanical merge has ambiguous
-    ownership and is handed to the person.
+    Return False for a manual resolution that differs from the mechanical merge:
+    its ownership is ambiguous and is the person's.
     """
     target = _safe_path(tree, path)
     try:
         text = target.read_text()
     except (OSError, UnicodeDecodeError):
-        return
+        return True
     if not any(int(match[2]) in ids for match in CITATION.finditer(text)):
-        return
+        return True
     before, ours, theirs = (
         _show(tree, rev, path) or "" for rev in (base, "HEAD", "MERGE_HEAD")
     )
     expected = merge3(before, ours, theirs)
     rewritten = merge3(before, _renumber(ours, ids), theirs)
     if text not in (expected, rewritten):
-        raise Stop(1, f"decisions: halt — citation ownership is ambiguous in {path}")
+        return False
     if rewritten != text:
         _write(tree, path, rewritten)
+    return True
 
 
 def _renumber_changelog(tree: Path, ids: dict[int, int]) -> None:
@@ -583,12 +584,27 @@ def decisions(tree: Path) -> str:
     )
     if not ids:
         return "decisions: no id collides"
-    for path in _git(tree, "diff", "--name-only", base, "HEAD").splitlines():
-        if path not in (DECISIONS, "CHANGELOG.md"):
-            _recite(tree, path, ids, base)
     _renumber_changelog(tree, ids)
+    held = _unmerged(tree)
+    skipped, ambiguous = [], []
+    for path in _git(tree, "diff", "--name-only", base, "HEAD").splitlines():
+        if path in (DECISIONS, "CHANGELOG.md"):
+            continue
+        if path in held:
+            skipped.append(path)
+        elif not _recite(tree, path, ids, base):
+            ambiguous.append(path)
+    if ambiguous:
+        raise Stop(
+            1,
+            "decisions: halt — citation ownership is ambiguous in "
+            + ", ".join(ambiguous),
+        )
     moves = ", ".join(f"D{old} → D{new}" for old, new in ids.items())
-    return f"decisions: renumbered {moves}, citations with them"
+    but = " but in the conflicted" if skipped else ""
+    lines = [f"decisions: renumbered {moves}, citations with them{but}"]
+    lines += [f"decisions: conflicted — {path}: {moves}" for path in skipped]
+    return "\n".join(lines)
 
 
 def _requirements(spec: str, sections: tuple[str, ...]) -> list[str]:

@@ -64,6 +64,8 @@ OUTPUT_VERBS = {
     "reads",
     "says",
 }
+OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)")
+CLAUSE = re.compile(r",\s*(?:and|or)\s*$")
 NOTHING = re.compile(r"\bprints nothing\b")
 DEFINED = re.compile(r"-\s*(?:async\s+)?(?:def|class) (\w+)")
 CONSTANT = re.compile(r"-(_?[A-Z][A-Z0-9_]*)\s*[=:]")
@@ -106,12 +108,13 @@ class Command(NamedTuple):
     """One backticked command of a `Verify:`, and what its words say it prints.
 
     `nothing` is set when the words after it say `prints nothing`; `count` is the
-    number it prints alone.
+    number it prints alone; `exits` is the exit it must have, none for the default.
     """
 
     text: str
     count: int | None
     nothing: bool = False
+    exits: int | None = None
 
 
 def _git(
@@ -156,8 +159,8 @@ def subtasks(tasks: str) -> list[Task]:
 def commands(verify: str) -> list[Command]:
     """Return the commands of a `Verify:`'s text, each with the count it must print.
 
-    A span is output when the words before it end in an output verb, or in a bare
-    `and` or `or` after output. e.g. "`grep -c x a` prints `2`" → [("grep -c x a", 2)]
+    Output runs to `then`, a `;`, a sentence end or a `, and` before a verb's span.
+    e.g. "`grep -c x a` prints `2`" → [("grep -c x a", 2)]
     """
     if "`" in SPAN.sub("", verify):
         raise Unparsed("a backtick opens no span")
@@ -168,8 +171,12 @@ def commands(verify: str) -> list[Command]:
         if found and not output and NOTHING.search(before):
             found[-1] = found[-1]._replace(nothing=True)
         words = before.split()
-        output = (bool(words) and words[-1] in OUTPUT_VERBS) or (
-            output and before.strip() in ("and", "or")
+        after = verify[match.end() :].split()
+        # why: `, and` before a span a verb follows opens a clause; before one with no
+        # verb it is a list's last item, and stays output
+        clause = CLAUSE.search(before) and after[:1] and after[0] in OUTPUT_VERBS
+        output = (output and not (OUTPUT_END.search(before) or clause)) or (
+            bool(words) and words[-1] in OUTPUT_VERBS
         )
         text = match[2]
         if len(match[1]) > 1 and text.startswith(" ") and text.endswith(" "):
@@ -178,6 +185,8 @@ def commands(verify: str) -> list[Command]:
             found.append(Command(text, None))
         elif words[-1:] in (["prints"], ["reports"]) and text.isdigit() and found:
             found[-1] = found[-1]._replace(count=int(text))
+        elif words[-1:] == ["exits"] and text.isdigit() and found:
+            found[-1] = found[-1]._replace(exits=int(text))
         end = match.end()
     if found and not output and NOTHING.search(verify[end:]):
         found[-1] = found[-1]._replace(nothing=True)
@@ -214,7 +223,8 @@ def run(command: str, root: Path) -> Result:
     Why: 0114-faster-plan-check design D4, D5.
     """
     held = os.environ.get("PYTEST_ADDOPTS", "")
-    env = {**os.environ, "PYTEST_ADDOPTS": f"{held} -p no:cacheprovider".strip()}
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    env["PYTEST_ADDOPTS"] = f"{held} -p no:cacheprovider".strip()
     try:
         process = subprocess.Popen(
             tokens(command),
@@ -303,7 +313,10 @@ def report(name: str, command: Command, result: Result) -> list[str]:
         return []
     shown = [f"  | {line}" for line in result.output.splitlines()[:SHOWN]]
     code = result.code
-    verdict = "printed other than its Verify: says" if code == 0 else f"exited {code}"
+    held = 0 if command.exits is None else command.exits
+    verdict = (
+        "printed other than its Verify: says" if code == held else f"exited {code}"
+    )
     return [f"plan: {name} — `{command.text}` {verdict}", *shown]
 
 
@@ -319,6 +332,8 @@ def passed(command: Command, code: int, stdout: str) -> bool:
     )
     # Nothing is no byte at all, blank lines included; a count is read stripped.
     printed = stdout if command.nothing else stdout.strip()
+    if command.exits is not None:
+        return code == command.exits and wanted in (None, printed)
     if code == 0 and wanted in (None, printed):
         return True
     return code == 1 and search and wanted in ("", "0") and printed in ("", wanted)
@@ -461,6 +476,7 @@ def bare_pytest(command: Command, root: Path) -> bool:
     argv = tokens(command.text)
     return (
         is_pytest(argv)
+        and command.exits in (None, 0)
         and command.count is None
         and not command.nothing
         and all(

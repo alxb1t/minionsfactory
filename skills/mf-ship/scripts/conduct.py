@@ -2797,7 +2797,8 @@ def _rescue_amends(
 def _decisions(text: str | None) -> str:
     """Return a design's `## ` headings and its `## Decisions` section, or "".
 
-    Why: 0085-self-healing-ship design D4; 0103-fewer-rounds design D3.
+    Whitespace reads as one space; a line's first `#` or `|` stays a mark.
+    Why: 0085 design D4; 0103 design D3; 0141 design D5.
     """
     text = text or ""
     headings = re.findall(r"^## [^\n]*", text, re.MULTILINE)
@@ -2805,7 +2806,9 @@ def _decisions(text: str | None) -> str:
         r"^## Decisions[^\n]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
     )
     parts = re.split(r"^(?=### )", found[1] if found else "", flags=re.MULTILINE)
-    return "\n".join([*headings, "".join(_unnoted(part) for part in parts)])
+    kept = "\n".join([*headings, "".join(_unnoted(part) for part in parts)])
+    marked = re.sub(r"^[ \t]*(?=[#|])", "\x00", kept, flags=re.MULTILINE)
+    return " ".join(marked.split())
 
 
 def _unnoted(part: str) -> str:
@@ -5335,6 +5338,13 @@ class Run:
                 if stage == "converge":
                     denied = self.conducted(change, cwd, workers, grant)
                 else:
+                    if stage == "build":
+                        _remove_in(
+                            mflib.layout.run_dir(self.primary),
+                            mflib.layout.CHANGES,
+                            change,
+                            name="build.halt",
+                        )
                     denied = self.spawn(version.change, stage, cwd, prompt, models)
                 # A phase that failed after its notes still has them cut.
                 if numbered:
@@ -5349,7 +5359,12 @@ class Run:
                 )
                 try:
                     # `offline` skips the check that the tag is on `origin`.
-                    reason = ask(True, self.offline or not self.tags)
+                    # A failed read is tried once more: 0141-halt-fixes design D7.
+                    try:
+                        reason = ask(True, self.offline or not self.tags)
+                    except Unreachable as down:
+                        self.waited(str(down))
+                        reason = ask(True, self.offline or not self.tags)
                 except Unreachable as down:
                     self.waited(str(down))
                     self.offline = True
@@ -5873,7 +5888,8 @@ class Run:
                 _git(primary, "branch", "-D", change)
             default = default_branch(primary)
             _git(primary, "worktree", "add", "-b", change, str(tree), default)
-            after = f" after={','.join(entry['after'])}" if entry["after"] else ""
+            unshipped = [x for x in entry["after"] if not _shipped(primary, default, x)]
+            after = f" after={','.join(unshipped)}" if unshipped else ""
             named = entry.get("beside")
             beside = f" beside={','.join(named)}" if named else ""
             prompt = PROMPTS["cut"].format(
@@ -7713,6 +7729,21 @@ def _requested(queue: Path) -> bool:
         os.close(fd)
 
 
+def _halted_after(cuts: dict[str, dict[str, Any]], change: str) -> list[str]:
+    """Return each queued cut halted on `change`, or on one of them, by id.
+
+    e.g. {"0002-b": {"halt": "after 0001-a is cut-halted"}, …}, "0001-a" → ["0002-b"]
+    """
+    found = [change]
+    for name in found:
+        found += [
+            other
+            for other, entry in cuts.items()
+            if entry.get("halt") == f"after {name} is cut-halted" and other not in found
+        ]
+    return sorted(found[1:])
+
+
 def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     """Ask the live run to take back `change`, or every version, and return the line.
 
@@ -7750,13 +7781,22 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
                         f" --yes {hashed}",
                     )
                 entry = {**entry, "dependencies": queued + new}
-            _write_cut(primary, change, {**entry, "halt": None})
+            cuts = _cuts(primary)
+            named = [change, *_halted_after(cuts, change)]
+            for name in named:
+                _write_cut(
+                    primary,
+                    name,
+                    {**(entry if name == change else cuts[name]), "halt": None},
+                )
+            asked = ", ".join(named)
             if live:
-                _request(primary, change)
-                return f"rejoin: requested {change}"
+                for name in named:
+                    _request(primary, name)
+                return f"rejoin: requested {asked}"
             preconditions(cwd, entry["executor"])
             pid = _start_run(primary, entry["executor"])
-            return f"rejoin: requested {change} · run started · pid {pid}"
+            return f"rejoin: requested {asked} · run started · pid {pid}"
         if yes is not None:
             raise Stop(2, "rejoin: cannot run — --yes answers a queued cut's packages")
         if not live:

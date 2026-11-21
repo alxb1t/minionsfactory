@@ -117,6 +117,31 @@ def test_every_precondition_holds_by_hand(
     assert code == 0
 
 
+def test_a_released_after_is_met(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    code, lines = _run(root, monkeypatch, capsys, _ID, "--after", "0001-old")
+    assert "cut_pre: ok — after" in lines
+    assert code == 0
+
+
+def test_an_after_that_is_neither_open_nor_released_is_named(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _, lines = _run(root, monkeypatch, capsys, _ID, "--after", "0002-gone")
+    assert (
+        "cut_pre: halt — after: 0002-gone is not an open or released version" in lines
+    )
+
+
 def _dirty(root: Path) -> None:
     _put(root, "stray.txt", "x\n")
 
