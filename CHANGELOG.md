@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.113.0] - 2026-11-21
+
+Gate: local 8m55s · CI not read under mf-ship · 0.112.1: local 7m43s · CI not read under mf-ship
+
 - `tests/test_modelsfile.py` pins what the conductor and `brief_check.py` do with a models file today: its parser,
   key readers, hash, writer and text, and a link, a pipe, a folder or a bad byte at it, so the move to one module
   can change no assert. The test of the halt a build's spawn removes reaches the spawn through `run` (0142-models, phase 1).
