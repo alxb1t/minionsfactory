@@ -99,7 +99,7 @@ The conductor binds `EVENT` and `last_log` to the module's and keeps `_claim` as
 
 ### D3
 
-The pin reaches the conductor through its loader, `tests/conduct_load.py`, as the status log's pin does. Its cases that hold today's block on a pipe run in a child joined within `10 s` and carry the `slow` marker, which phase 4 lifts when the fix makes them end at once. `run`'s own pid and start in the claim are pinned on the real `ps`, because the suite's fake answers one start for every pid it does not know.
+The pin reaches the conductor through its loader, `tests/conduct_load.py`, as the status log's pin does. Its cases that hold today's block on a pipe run in a child joined within `10 s` and carry the `slow` marker, which phase 4 lifts when the fix makes them end at once. `run`'s own pid and start in the claim are pinned through `tests/test_claim.py`'s own fake `ps`, which knows the test's own pid, with a start no other pid has, and exits 1 for any other pid, so a wrong pid's start fails the pin; the suite's fake answers one start for every pid it does not know, and the real `ps` is refused by the sandbox the gate and the workers run in.
 
 ### D4
 
@@ -174,7 +174,7 @@ Each case is green on the code as it stands. The cases of the run log are in `te
 | i | `report`'s reads: the run's denials and waits; each version's `blocked` part; the versions by number; the tail's lines — halt, `rejoined`, `skipped — `, `rescued` for `fixed`, `supervised` for `decided`, the change split at `: `; the closing line; `report: none — no run yet`; `<log>: no event`. |
 | j | The claim's read: a `start` with a trailing newline or a padded `pid` reads live; an empty `start` is stale even for a dead pid; the pid's floor is above 1; a file at the claim is a stale claim. |
 | k | `_clear`: an entry that is no decimal is left unread; one with a trailing newline still names its group; an empty entry for a dead pid is skipped; a group gone before the kill is passed over; a foreign group is named in a stop with code 2 and left alive while an executor's beside it is killed. |
-| l | `run`'s claim, `_close` and `_start_run`: `run` clears a stale claim, stray entries with it, then holds `start` equal to its own real `ps` start and `pid` its own pid and nothing else; a live claim is refused with code 2 and left whole. `_close` removes the claim, a stop before the removal included; a request starts the next run; a cut seen or halted starts nothing. `_start_run` returns once the claim is live and reads the detached log's new lines. |
+| l | `run`'s claim, `_close` and `_start_run`: `run` clears a stale claim, stray entries with it, then holds `start` equal to the start the file's fake `ps` gives its own pid and `pid` its own pid and nothing else; a live claim is refused with code 2 and left whole. `_close` removes the claim, a stop before the removal included; a request starts the next run; a cut seen or halted starts nothing. `_start_run` returns once the claim is live and reads the detached log's new lines. |
 | m | `work`'s entry and the spawn lines: while a worker runs the claim holds one entry, named by its pid, holding its start; it is gone when the worker ends, and with no claim there is none. The spawn, finish, denied and limited lines are pinned in the same file. |
 
 What no mutant reaches, pinned beside them as today's behaviour:
