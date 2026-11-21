@@ -9,6 +9,7 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 - [x] 3 — The queue · moderate
 - [x] 4 — Integrate and converge · moderate
 - [ ] 5 — The rule · moderate
+- [ ] 6 — The fixtures [D11](design.md#d11) turns red · moderate
 
 ## 1 — The plan check
 
@@ -80,9 +81,17 @@ Phases: the plan check, the conductor, the queue, integrate and converge, then t
 
 ## 5 — The rule
 
-- [ ] 5.1 In `skills/mf-rescue/SKILL.md` add after the table of halts the rule of [D12](design.md#d12): a `Verify:` that cannot pass is
+- [x] 5.1 In `skills/mf-rescue/SKILL.md` add after the table of halts the rule of [D12](design.md#d12): a `Verify:` that cannot pass is
   retargeted or split, never replaced by one that proves less, an exact count staying exact; else a diagnosis.
   Verify: `git grep -n -w retargeted -- skills/mf-rescue/SKILL.md` prints the rule.
-- [ ] 5.2 In `skills/mf-supervise/SKILL.md` add the rule of [D12](design.md#d12) under Step 2's table: a `Verify:` that cannot pass is
+- [x] 5.2 In `skills/mf-supervise/SKILL.md` add the rule of [D12](design.md#d12) under Step 2's table: a `Verify:` that cannot pass is
   retargeted or split, never replaced by one that proves less; else a diagnosis.
   Verify: `git grep -n -w retargeted -- skills/mf-supervise/SKILL.md` prints the rule.
+
+## 6 — The fixtures D11 turns red
+
+- [ ] 6.1 In `tests/test_conduct.py` `test_a_fix_after_a_cap_halt_gets_one_round` and `test_an_amend_past_the_judged_head_gets_one_round` plant
+  `_findings(..., "changes-requested")` with no card, which [D11](design.md#d11) now reads as malformed, so the amend run starts at round 1.
+  Give each fixture an open card after that call — `_card` from `tests/fake_worker.py`, imported beside `_cards`, appended to `conformance.md`
+  with the status `open` — so the file is a verdict with a card, and the run starts at round 2 as before.
+  Verify: `uv run pytest tests/test_conduct.py::test_a_fix_after_a_cap_halt_gets_one_round tests/test_conduct.py::test_an_amend_past_the_judged_head_gets_one_round -q` exits 0.
