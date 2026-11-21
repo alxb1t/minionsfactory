@@ -2567,6 +2567,23 @@ def _refused(error: mflib.claim.Refused) -> Stop:
     )
 
 
+def _unentered(
+    claim: Path, error: mflib.claim.Refused | mflib.statefile.WriteFailed | OSError
+) -> Stop:
+    """Return the stop of a run whose worker's entry in the claim was not written.
+
+    Why: 0140-run-log design D9 and its converge card S4.
+    """
+    if isinstance(error, mflib.claim.Refused):
+        return _refused(error)
+    failed = error.error if isinstance(error, mflib.statefile.WriteFailed) else error
+    return Stop(
+        2,
+        f"conduct: cannot run — a worker's entry in .minions/runs/{claim.name}"
+        f" cannot be written: {failed.strerror or failed}",
+    )
+
+
 def _models_file(runs: Path, change: str) -> dict[str, object]:
     """Return the cut's models file as TOML reads it; {} with no file."""
     path = mflib.layout.change_dir(runs.parent, change) / "models.toml"
@@ -3585,11 +3602,19 @@ def work(
         except FileNotFoundError:
             raise Stop(2, f"conduct: cannot run — {command[0]} is missing") from None
         group = None
+        if claim:
+            try:
+                start = mflib.platform.process(worker.pid, "lstart")
+                group = mflib.claim.enter(claim, worker.pid, start)
+            except (mflib.claim.Refused, mflib.statefile.WriteFailed, OSError) as error:
+                # why: the worker started before its entry, so no `stop` reaches it;
+                # 0140-run-log design D9 and its converge card S4
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(worker.pid, signal.SIGKILL)
+                worker.wait()
+                raise _unentered(claim, error) from None
         try:
             try:
-                if claim:
-                    start = mflib.platform.process(worker.pid, "lstart")
-                    group = mflib.claim.enter(claim, worker.pid, start)
                 return worker.wait(timeout=limit), False
             except subprocess.TimeoutExpired:
                 os.killpg(worker.pid, signal.SIGKILL)
@@ -3598,10 +3623,6 @@ def work(
                 if group:
                     mflib.claim.leave(group)
         except mflib.claim.Refused as refused:
-            # why: the worker started before its entry; 0140-run-log design D9
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(worker.pid, signal.SIGKILL)
-            worker.wait()
             raise _refused(refused) from None
 
 
@@ -4082,6 +4103,14 @@ def _conductor(active: Path) -> int | None:
         claimed = mflib.claim.conductor(active)
     except mflib.claim.Refused as refused:
         raise _refused(refused) from None
+    except OSError as error:
+        # why: `status`, `grant`, `wait` and the viewer word a `Stop` alone;
+        # 0140-run-log's converge card S5
+        raise Stop(
+            2,
+            f"conduct: cannot run — .minions/runs/{active.name} cannot be read:"
+            f" {error.strerror or error}",
+        ) from None
     if claimed is None:
         return None
     pid, held = claimed

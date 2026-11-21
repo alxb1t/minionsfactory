@@ -617,6 +617,62 @@ def test_work_ends_its_worker_when_the_claim_is_no_folder(
         assert list((tmp_path / "elsewhere").iterdir()) == []
 
 
+def test_work_stops_naming_a_claim_turned_link_while_its_worker_ran(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(platform, "process", lambda pid, field: f"start-{pid}")
+    active = tmp_path / "active"
+    active.mkdir()
+    swap = (
+        f"import os; os.rename({str(active)!r}, 'aside');"
+        f" os.symlink('aside', {str(active)!r})"
+    )
+
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["work"](
+            [sys.executable, "-c", swap], tmp_path, tmp_path / "w.log", active
+        )
+
+    assert (stopped.value.code, str(stopped.value)) == (2, _REFUSED)
+    assert active.is_symlink()
+
+
+@pytest.mark.parametrize("plant", ["gone", "folder"])
+def test_work_ends_its_worker_when_its_entry_is_not_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plant: str
+) -> None:
+    active = tmp_path / "active"
+    if plant == "folder":
+        active.mkdir()
+    workers: list[int] = []
+
+    def process(pid: int, field: str) -> str:
+        workers.append(pid)
+        if plant == "folder":
+            (active / str(pid)).mkdir()
+        return f"start-{pid}"
+
+    monkeypatch.setattr(platform, "process", process)
+
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["work"](
+            [sys.executable, "-c", _SLEEPER], tmp_path, tmp_path / "worker.log", active
+        )
+
+    [worker] = workers
+    try:
+        with pytest.raises(ProcessLookupError):
+            os.kill(worker, 0)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(worker, 9)
+    assert stopped.value.code == 2
+    assert str(stopped.value).startswith(
+        "conduct: cannot run — a worker's entry in .minions/runs/active cannot be"
+        " written: "
+    )
+
+
 _DENIED = """
 import json
 use = {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "rm x"}}
@@ -820,6 +876,12 @@ def test_module_another_error_at_the_claims_open_is_raised(
 
     with pytest.raises(PermissionError):
         claim.conductor(active)
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_claim"](active)
+    assert (stopped.value.code, str(stopped.value)) == (
+        2,
+        "conduct: cannot run — .minions/runs/active cannot be read: denied",
+    )
 
 
 def test_module_a_missing_parent_is_no_claim_and_makes_nothing(tmp_path: Path) -> None:

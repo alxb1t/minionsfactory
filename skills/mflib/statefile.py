@@ -71,29 +71,40 @@ def write(
         raise WriteFailed(step, error) from error
 
 
-def _regular(path: Path | str, flags: int, folder: int | None) -> int:
+def _regular(
+    path: Path | str, flags: int, folder: int | None, *, one_name: bool = False
+) -> int:
     """Return a descriptor on a regular file, opened with `flags` through no link.
 
-    The open does not block. A file that is no regular file raises `OSError` `EINVAL`.
+    The open does not block. A file that is no regular file, or under `one_name` one
+    with a second name, a hard link, raises `OSError` `EINVAL`.
     """
     fd = _open(Path(path), flags | os.O_NOFOLLOW | os.O_NONBLOCK, folder)
-    if not stat.S_ISREG(os.fstat(fd).st_mode):
+    held = os.fstat(fd)
+    if not stat.S_ISREG(held.st_mode):
         os.close(fd)
         raise OSError(errno.EINVAL, "it is not a file")
+    if one_name and held.st_nlink != 1:
+        os.close(fd)
+        raise OSError(errno.EINVAL, "it is not a file of one name")
     return fd
 
 
-def open_regular(path: Path | str, folder: int | None = None) -> int:
+def open_regular(
+    path: Path | str, folder: int | None = None, *, one_name: bool = False
+) -> int:
     """Return a descriptor to read a regular file through, following no link."""
-    return _regular(path, os.O_RDONLY, folder)
+    return _regular(path, os.O_RDONLY, folder, one_name=one_name)
 
 
-def append(path: Path | str, text: str, folder: int | None = None) -> None:
+def append(
+    path: Path | str, text: str, folder: int | None = None, *, one_name: bool = False
+) -> None:
     """Append `text` to a regular file in one write, following no link.
 
     The file must stand: the open makes nothing, and does not block.
     """
-    fd = _regular(path, os.O_WRONLY | os.O_APPEND, folder)
+    fd = _regular(path, os.O_WRONLY | os.O_APPEND, folder, one_name=one_name)
     try:
         os.write(fd, text.encode())
     finally:

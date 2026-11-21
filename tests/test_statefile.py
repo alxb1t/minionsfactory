@@ -351,6 +351,24 @@ def test_open_regular_refuses_a_link_and_a_pipe(tmp_path: Path) -> None:
     assert piped.value.errno == errno.EINVAL
 
 
+def test_open_regular_and_append_refuse_a_second_name_when_asked(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside"
+    outside.write_text(_OLD)
+    os.link(outside, tmp_path / "hard")
+
+    for call in (
+        lambda: statefile.open_regular(tmp_path / "hard", one_name=True),
+        lambda: statefile.append(tmp_path / "hard", _TEXT, one_name=True),
+    ):
+        with pytest.raises(OSError, match="one name") as refused:
+            call()
+        assert refused.value.errno == errno.EINVAL
+    assert outside.read_text() == _OLD
+    os.close(statefile.open_regular(tmp_path / "hard"))
+
+
 def test_open_regular_closes_the_descriptor_it_refuses(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

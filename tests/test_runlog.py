@@ -1117,9 +1117,29 @@ def test_module_tail_reads_no_link_and_no_pipe(tmp_path: Path) -> None:
     os.mkfifo(runs / "20261101-100003.md")
     assert tail.poll() == []
     assert tail.fd is None
-    _logs(runs, s4=[_DONE])
-    assert tail.poll() == ["# Ship run 20261101-100004", "", _DONE]
+    os.link(outside, runs / "20261101-100004.md")
+    assert tail.poll() == []
+    assert tail.fd is None
+    _logs(runs, s5=[_DONE])
+    assert tail.poll() == ["# Ship run 20261101-100005", "", _DONE]
     tail.close()
+
+
+def test_module_the_append_and_the_stop_line_refuse_a_hard_link(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    log = _module_log(runs)
+    outside = tmp_path / "outside.md"
+    outside.write_text("outside\n")
+    log.path.unlink()
+    os.link(outside, log.path)
+
+    for write in (lambda: log.event("run", "start", "x"), lambda: runlog.stop(runs)):
+        with pytest.raises(OSError, match="one name"):
+            write()
+
+    assert outside.read_text() == "outside\n"
 
 
 def test_module_tail_keeps_one_descriptor_per_log_and_close_closes_it(

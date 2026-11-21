@@ -92,8 +92,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
   ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)), and none of the run log or the claim follows a link
-  either: `skills/mflib/runlog.py` writes and reads the log under the runs folder's descriptor, refusing what is no regular
-  file, and `skills/mflib/claim.py` the claim, which halts the run, a stop and a worker's start when it is no folder. The status log is written by
+  either: `skills/mflib/runlog.py` writes the log under the runs folder's descriptor and reads it through no link,
+  refusing what is no regular file, and a hard link at its appends, its stop line and `wait`'s reads, and `skills/mflib/claim.py` the claim, which halts the run, a stop and a worker's start when it is no folder. The status log is written by
   `skills/mflib/statuslog.py` through a descriptor held across its read and its write. The findings files are read and
   written by `skills/mflib/findings.py`, through the read and the staged write of `skills/mflib/statefile.py`, which
   follow no link; a malformed one reads, to the conductor's security readers, as a blocking security card. The debt is

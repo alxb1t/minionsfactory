@@ -174,12 +174,13 @@ def verify(log: Path) -> str | None:
 def stop(runs: Path) -> Path | None:
     """Append the stop to the newest run log; return that log, or None with none.
 
-    A link or a pipe at the log raises `OSError`, and nothing is written.
+    A link, a hard link or a pipe at the log raises `OSError`, and nothing is written.
     """
     if (log := newest(runs)) is not None:
         folder = statefile.folder(runs)
         try:
-            statefile.append(log.name, f"{line('run', 'halt', STOPPED)}\n", folder)
+            stopped = f"{line('run', 'halt', STOPPED)}\n"
+            statefile.append(log.name, stopped, folder, one_name=True)
         finally:
             os.close(folder)
     return log
@@ -217,7 +218,8 @@ class RunLog:
     def event(self, who: str, event: str, detail: str) -> None:
         """Append the event's line; while `held` is a list, the event waits there.
 
-        A link or a pipe at the log raises `OSError`, and nothing is written.
+        A link, a hard link or a pipe at the log raises `OSError`, and nothing is
+        written. Why: 0140-run-log's converge card S2.
         """
         if self.held is not None:
             self.held.append((who, event, detail))
@@ -225,9 +227,8 @@ class RunLog:
         with self.lock:
             folder = statefile.folder(self.runs)
             try:
-                statefile.append(
-                    self.path.name, f"{line(who, event, detail)}\n", folder
-                )
+                text = f"{line(who, event, detail)}\n"
+                statefile.append(self.path.name, text, folder, one_name=True)
             finally:
                 os.close(folder)
 
@@ -247,11 +248,15 @@ class Tail:
         self.skipping = False
 
     def _open(self) -> int | None:
-        """Return a descriptor on the held log; None for none, a link or a pipe."""
+        """Return a descriptor on the held log; None for none, a link or a pipe.
+
+        A hard link is none too: it can name a host file. Why: 0140-run-log's
+        converge card S2.
+        """
         if self.held is None:
             return None
         try:
-            return statefile.open_regular(self.held)
+            return statefile.open_regular(self.held, one_name=True)
         except OSError:
             return None
 
