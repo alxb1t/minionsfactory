@@ -148,15 +148,65 @@ def test_a_span_after_an_output_verb_is_no_command(
         "1.1 x\n  Verify: `grep -n zzz a.md` exits `1` with the text `$(date)`.",
         "1.2 x\n  Verify: `grep -n one a.md` prints a line, then `grep -n $HOME a.md` "
         "prints nothing.",
-        "1.3 x\n  Verify: `grep -n one a.md` prints one line, a space and `$(date)`.",
     )
     code, out = _run(root, tasks, capsys, monkeypatch)
     assert code == 1, out
     assert out.splitlines() == [
         "1.2: a.md:1: one",
         "1.2: I19 — a shell variable: `grep -n $HOME a.md`",
-        "1.3: a.md:1: one",
         "verify: halt — I19: 1.2",
+    ]
+
+
+def test_a_command_after_an_output_verb_is_refused_at_the_cut(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repo(tmp_path / "repo", {"a.md": "one\n"})
+    refused = _tasks(
+        "1.1 x\n  Verify: `grep -n one a.md` prints one integer, a space and `a.md`.",
+        "1.2 x\n  Verify: `grep -n one a.md` prints a line of `$(date)`.",
+    )
+    code, out = _run(root, refused, capsys, monkeypatch)
+    assert code == 1, out
+    assert out.splitlines() == [
+        "1.1: I19 — a command after an output verb: `a.md`",
+        "1.2: I19 — a command after an output verb: `$(date)`",
+        "verify: halt — I19: 1.1, 1.2",
+    ]
+
+    # Each conjunct alone lets the form pass: no verb between the commands, a `then`
+    # or a sentence end between them, a `, and` clause, and no command before the verb.
+    holds = _tasks(
+        "1.1 x\n  Verify: `grep -n one a.md` and `grep -c one a.md` exit 0.",
+        "1.2 x\n  Verify: `grep -n one a.md` prints a line, then `grep -c one a.md` "
+        "exits `0`.",
+        "1.3 x\n  Verify: `grep -n one a.md` prints a line. Then `grep -c one a.md` "
+        "exits `0`.",
+        "1.4 x\n  Verify: `grep -n one a.md` exits `0`, and `grep -c one a.md` prints "
+        "`1`.",
+        "1.5 x\n  Verify: `grep -n one a.md` prints a line, and also "
+        "`grep -c one a.md` exits `0`.",
+        "1.6 x\n  Verify: the line holds a thing `grep -n one a.md`.",
+    )
+    code, out = _run(root, holds, capsys, monkeypatch)
+    assert code == 0, out
+    assert out.splitlines() == [
+        *[f"1.{n}: a.md:1: one" for n in (1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6)],
+        "verify: every check is one plain command",
+    ]
+
+    # A `**HUMAN` phase's `Verify:` is no plan check's, so the cut leaves it out.
+    human = (
+        "## Progress\n\n- [ ] 1 — One **HUMAN**\n\n## 1 — One\n\n"
+        "- [ ] 1.1 x\n  Verify: `grep -n one a.md` prints a line of `a.md`.\n"
+    )
+    code, out = _run(root, human, capsys, monkeypatch)
+    assert code == 0, out
+    assert out.splitlines() == [
+        "1.1: a.md:1: one",
+        "verify: every check is one plain command",
     ]
 
 

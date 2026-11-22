@@ -9,7 +9,7 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 - [x] 3 — The build · moderate
 - [x] 4 — Time · moderate
 - [x] 5 — The wait · moderate
-- [ ] 6 — The verb before the span · moderate
+- [x] 6 — The verb before the span · moderate
 
 ## 1 — The judge
 
@@ -82,9 +82,9 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 ## 6 — The verb before the span
 
-- [ ] 6.1 Put `commands` in `skills/mf-converge/scripts/plan_check.py` back to the default branch's span rule per [D1](design.md#d1), the `Verify:` label kept as an end; the helpers, the word set and the comment the withdrawn rule added go. Turn `test_a_span_after_an_output_verb_is_output` in `tests/test_plan_check.py` to D1's cases and the sentences of cards S1, R2 and S7.
+- [x] 6.1 Put `commands` in `skills/mf-converge/scripts/plan_check.py` back to the default branch's span rule per [D1](design.md#d1), the `Verify:` label kept as an end; the helpers, the word set and the comment the withdrawn rule added go. Turn `test_a_span_after_an_output_verb_is_output` in `tests/test_plan_check.py` to D1's cases and the sentences of cards S1, R2 and S7.
   Verify: `uv run pytest tests/test_plan_check.py::test_a_span_after_an_output_verb_is_output -q` exits 0.
-- [ ] 6.2 Refuse a command after an output verb in one clause per [D1](design.md#d1), as an `I19` line of `skills/mf-cut-change/scripts/verify_check.py` naming the span. Add `test_a_command_after_an_output_verb_is_refused_at_the_cut` to `tests/test_verify_check.py`, and move the probe's line to it from `test_a_span_after_an_output_verb_is_no_command`.
+- [x] 6.2 Refuse a command after an output verb in one clause per [D1](design.md#d1), as an `I19` line of `skills/mf-cut-change/scripts/verify_check.py` naming the span. Add `test_a_command_after_an_output_verb_is_refused_at_the_cut` to `tests/test_verify_check.py`, and move the probe's line to it from `test_a_span_after_an_output_verb_is_no_command`.
   Verify: `uv run pytest tests/test_verify_check.py -q` exits 0.
-- [ ] 6.3 Say the form in `I19`'s row of `skills/mf-cut-change/SKILL.md` and of `skills/mf-build/SKILL.md`, the same words in both: the verb stands right before each span of output, and a second command starts a new clause.
+- [x] 6.3 Say the form in `I19`'s row of `skills/mf-cut-change/SKILL.md` and of `skills/mf-build/SKILL.md`, the same words in both: the verb stands right before each span of output, and a second command starts a new clause.
   Verify: `uv run pytest tests/test_skills.py -q` exits 0.

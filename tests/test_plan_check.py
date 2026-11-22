@@ -745,50 +745,40 @@ def test_a_span_after_an_output_verb_is_output() -> None:
         ("a", None),
         ("b", None),
     ]
-    # Words may stand between the verb and a span, and the span is still output.
-    probe = "`a -L f` prints one integer, a space and `f`."
-    assert found(probe) == [("a -L f", None)]
-    assert found("`a` exits `0`, and `b` prints nothing.") == [("a", None), ("b", None)]
-    assert found("`a` prints one line, a tab and `b`, then `c` prints `1`") == [
+    # Only a verb right before a span opens output: words between them make a command.
+    assert found("`a` prints one integer, a space and `b`.") == [
         ("a", None),
-        ("c", 1),
+        ("b", None),
     ]
+    assert found("`a` prints a line of `b`.") == [("a", None), ("b", None)]
+    assert found("`a` exits `0`, and `b` prints nothing.") == [("a", None), ("b", None)]
+    assert found("`a` and `b` exit 0.") == [("a", None), ("b", None)]
     # A `Verify:` label ends output, so the next label's span is a command.
     assert found("`a` prints a line\n  Verify: `b` exits `0`") == [
         ("a", None),
         ("b", None),
     ]
-    # A verb before every command opens no output, and a new sentence reopens it.
-    assert found("it names `a`, then `b` prints `1`") == [("a", None), ("b", 1)]
+    # A new sentence reopens output only at a verb right before a span.
     assert found("`a` prints `1`. It says `b`, `c`. `d` exits `0`.") == [
         ("a", 1),
         ("d", None),
     ]
-    # A verb after `that`, `which` or `who` is a noun's, and opens no output.
+    # Cards S1, R2 and S7: a noun's verb before a command, or before output, as
+    # the sentence goes.
     guard = "`a` exits `0`, then the test that holds the guard, `b`, exits `0`."
     assert found(guard) == [("a", None), ("b", None)]
-    assert found("`a` exits `0`. The file which names it, `b`, prints `1`.") == [
-        ("a", None),
-        ("b", 1),
-    ]
-    assert found("`a` exits `0`; the one who reads it, `b`, exits `0`") == [
+    ends = "`a` exits `0`. The file that names the rule, `b`, prints `1`."
+    assert found(ends) == [("a", None), ("b", 1)]
+    assert found("`a` exits `0`; the script that reads it, `b`, exits `0`.") == [
         ("a", None),
         ("b", None),
     ]
-    # After an end, a verb opens output only last before the span, or in the comma
-    # clause that holds it with no `that`, `which`, `who` or `whose` before it; a span
-    # an output verb follows is that verb's command.
-    also = "`a` exits `0`; the test that also holds the guard, `b`, exits `0`."
-    assert found(also) == [("a", None), ("b", None)]
-    whose = "`a` exits `0`. The file whose header says it, `b`, prints `1`."
-    assert found(whose) == [("a", None), ("b", 1)]
-    bare = "`a` exits `0`. The file whose header says it `b` prints `1`."
-    assert found(bare) == [("a", None), ("b", 1)]
-    assert found("`a` exits `0`. The test whose name says guard `b` passes.") == [
-        ("a", None),
-        ("b", None),
+    assert found("`a` exits `0`. The file that prints `b`.") == [("a", None)]
+    assert found("`a` exits `0`; the line that reads `done` stands.") == [("a", None)]
+    # A comma ends nothing, so `c` after a verb's span is output with it.
+    assert found("`a` exits `0`. The file that says `b`, `c` exits `0`.") == [
+        ("a", None)
     ]
-    assert found("`a` prints `1`. It prints the line `x`.") == [("a", 1)]
 
 
 def test_exits_names_the_exit_a_command_must_have(tmp_path: Path) -> None:

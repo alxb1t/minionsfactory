@@ -49,7 +49,6 @@ SUBTASK = re.compile(r"- \[([ x])\] (\d+\.\d+\b.*)$")
 PHASE = re.compile(r"- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
 MATCH = re.compile(r"^(.+?):(\d+):(.*)$", re.MULTILINE)
-# A span after one of these words is the output a command must give, not a command.
 OUTPUT_VERBS = {
     "prints",
     "reports",
@@ -64,8 +63,6 @@ OUTPUT_VERBS = {
     "reads",
     "says",
 }
-# A verb after one of these is a noun's clause's, and opens no output.
-RELATIVE = {"that", "which", "who", "whose"}
 OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)|\bVerify:")
 CLAUSE = re.compile(r",\s*(?:and|or)\s*$")
 NOTHING = re.compile(r"\bprints nothing\b")
@@ -162,67 +159,53 @@ def subtasks(tasks: str) -> list[Task]:
     ]
 
 
-def _verb(words: list[str]) -> bool:
-    """Return whether an output verb stands in `words` before any `RELATIVE` word."""
-    for word in words:
-        if word.lower() in RELATIVE:
-            return False
-        if word in OUTPUT_VERBS:
-            return True
-    return False
+def reads(verify: str) -> list[tuple[re.Match[str], bool]]:
+    """Return each span of a `Verify:`'s text, and whether it is output, no command.
 
-
-def _opens(before: str, ends: list[re.Match[str]], follows: str) -> bool:
-    """Return whether the text `before` a span, after a command, opens output.
-
-    With no `ends`, a `_verb` anywhere; after one, a verb last, or a `_verb` in the
-    span's comma clause when the word that `follows` it is no verb. Why: 0143 D1.
-    """
-    if not ends:
-        return _verb(before.split())
-    rest = before[ends[-1].end() :]
-    if rest.split()[-1:] and rest.split()[-1] in OUTPUT_VERBS:
-        return True
-    return follows not in OUTPUT_VERBS and _verb(rest.split(",")[-1].split())
-
-
-def commands(verify: str) -> list[Command]:
-    """Return the commands of a `Verify:`'s text, each with the count it must print.
-
-    Output opens where `_opens` says, to an `OUTPUT_END` or a `, and` before a verb's
-    span. e.g. "`a` prints x and `b`" → a
+    Output runs to `then`, a `;`, a sentence end, a `Verify:` label or a `, and`
+    before a verb's span. e.g. "`a` prints `1`" → `a` False, `1` True
     """
     if "`" in SPAN.sub("", verify):
         raise Unparsed("a backtick opens no span")
-    found: list[Command] = []
+    found: list[tuple[re.Match[str], bool]] = []
     end, output = 0, False
     for match in SPAN.finditer(verify):
         before = verify[end : match.start()]
-        if found and not output and NOTHING.search(before):
-            found[-1] = found[-1]._replace(nothing=True)
         words = before.split()
         after = verify[match.end() :].split()
         # why: `, and` before a span a verb follows opens a clause; before one with no
         # verb it is a list's last item, and stays output
         clause = CLAUSE.search(before) and after[:1] and after[0] in OUTPUT_VERBS
-        ends = list(OUTPUT_END.finditer(before))
-        follows = verify[match.end() :].lstrip(" ,").split()[:1]
-        opens = (
-            bool(found)
-            and not clause
-            and _opens(before, ends, follows[0] if follows else "")
+        output = (output and not (OUTPUT_END.search(before) or clause)) or (
+            bool(words) and words[-1] in OUTPUT_VERBS
         )
-        output = opens or (output and not (ends or clause))
+        found.append((match, output))
+        end = match.end()
+    return found
+
+
+def commands(verify: str) -> list[Command]:
+    """Return the commands of a `Verify:`'s text, each with the count it must print.
+
+    e.g. "`a` prints `1`" → [("a", 1)]
+    """
+    found: list[Command] = []
+    end, output = 0, False
+    for match, opened in reads(verify):
+        before = verify[end : match.start()]
+        if found and not output and NOTHING.search(before):
+            found[-1] = found[-1]._replace(nothing=True)
+        words = before.split()
         text = match[2]
         if len(match[1]) > 1 and text.startswith(" ") and text.endswith(" "):
             text = text[1:-1]
-        if not output:
+        if not opened:
             found.append(Command(text, None))
         elif words[-1:] in (["prints"], ["reports"]) and text.isdigit() and found:
             found[-1] = found[-1]._replace(count=int(text))
         elif words[-1:] == ["exits"] and text.isdigit() and found:
             found[-1] = found[-1]._replace(exits=int(text))
-        end = match.end()
+        end, output = match.end(), opened
     if found and not output and NOTHING.search(verify[end:]):
         found[-1] = found[-1]._replace(nothing=True)
     return found

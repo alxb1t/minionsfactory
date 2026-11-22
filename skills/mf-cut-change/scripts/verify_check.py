@@ -32,6 +32,12 @@ SPAN, Unparsed, commands, tokens = (
     PLAN["commands"],
     PLAN["tokens"],
 )
+OUTPUT_END, OUTPUT_VERBS, phases, reads = (
+    PLAN["OUTPUT_END"],
+    PLAN["OUTPUT_VERBS"],
+    PLAN["phases"],
+    PLAN["reads"],
+)
 CUT_PRE = Path(__file__).resolve().parent / "cut_pre.py"
 PRE = runpy.run_path(str(CUT_PRE))
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
@@ -41,6 +47,7 @@ MATCH = re.compile(r"(.+?):(\d+):(.*)")
 LINE_NUMBER = re.compile(r"[^:\s]+:\d+(?:-\d+)?")
 PHRASE = re.compile(r"[^\W\d_]+(?: [^\W\d_]+){2,}")
 RANGE = re.compile(r"(?:origin/)?(.+?)\.\.\.?(?:HEAD)?")
+CLAUSE = re.compile(r",\s*(?:and|or)\b")
 LOOPS = {"for", "while", "until"}
 OPERATOR = set("();<>|&")
 # Flags that hide the matching lines; the search prints them.
@@ -347,6 +354,27 @@ def unplain(words: list[str], query: Search | None) -> list[str]:
     )
 
 
+def after_verb(verify: str) -> list[str]:
+    """Return each command span after an earlier command and an output verb, one clause.
+
+    e.g. "`a` prints one line and `b`" → ["`b`"]
+    """
+    found: list[str] = []
+    end: int | None = None
+    for match, output in reads(verify):
+        if output:
+            continue
+        gap = "" if end is None else SPAN.sub(" ", verify[end : match.start()])
+        if (
+            any(word in OUTPUT_VERBS for word in gap.split())
+            and not OUTPUT_END.search(gap)
+            and not CLAUSE.search(gap)
+        ):
+            found.append(match[0])
+        end = match.end()
+    return found
+
+
 def check_command(
     subtask: str,
     command: Any,  # noqa: ANN401
@@ -403,6 +431,7 @@ def check_command(
 def check(tasks: str, head: Head) -> list[str]:
     """Return the sub-tasks whose checks break `I19`; print what each search finds."""
     broken: list[str] = []
+    human = phases(tasks)[1]
     for lines in subtasks(tasks):
         text = " ".join(lines)
         name = lines[0].split()[0]
@@ -413,12 +442,16 @@ def check(tasks: str, head: Head) -> list[str]:
         verify = text[at + len("Verify:") :]
         halt = "**HALT CHECK**" in text
         try:
+            late = [] if int(name.split(".")[0]) in human else after_verb(verify)
+            for span in late:
+                print(f"{name}: I19 — a command after an output verb: {span}")
             hits = [
-                check_command(name, command, head, halt) for command in commands(verify)
+                check_command(name, command, head, halt)
+                for command in ([] if late else commands(verify))
             ]
         except Unparsed as error:
             raise Stop(2, f"verify: cannot check — {name}: {error}") from None
-        if any(hits):
+        if late or any(hits):
             broken.append(name)
     return broken
 
