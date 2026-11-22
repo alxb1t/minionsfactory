@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `plan_check.py` reads every span after an output verb as output to `then`, `;`, a `Verify:` label or a sentence end,
+  compares stdout alone and shows stderr on a failure, and starts a command only under the core count or when none
+  runs (0143-verify-forms, phase 1).
+
 ## [0.113.0] - 2026-11-21
 
 Gate: local 8m55s · CI not read under mf-ship · 0.112.1: local 7m43s · CI not read under mf-ship

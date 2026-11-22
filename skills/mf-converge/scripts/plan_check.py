@@ -64,7 +64,7 @@ OUTPUT_VERBS = {
     "reads",
     "says",
 }
-OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)")
+OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)|\bVerify:")
 CLAUSE = re.compile(r",\s*(?:and|or)\s*$")
 NOTHING = re.compile(r"\bprints nothing\b")
 DEFINED = re.compile(r"-\s*(?:async\s+)?(?:def|class) (\w+)")
@@ -97,11 +97,12 @@ class Task(NamedTuple):
 
 
 class Result(NamedTuple):
-    """One command's finish: its exit code, its output, and whether it timed out."""
+    """One command's finish: its exit, its stdout, whether it timed out, its stderr."""
 
     code: int
     output: str
     timed_out: bool = False
+    stderr: str = ""
 
 
 class Command(NamedTuple):
@@ -159,8 +160,8 @@ def subtasks(tasks: str) -> list[Task]:
 def commands(verify: str) -> list[Command]:
     """Return the commands of a `Verify:`'s text, each with the count it must print.
 
-    Output runs to `then`, a `;`, a sentence end or a `, and` before a verb's span.
-    e.g. "`grep -c x a` prints `2`" → [("grep -c x a", 2)]
+    Output opens at an output verb after a command, to `then`, a `;`, a sentence end
+    or a `, and` before a verb's span. e.g. "`a` prints a line and `b`" → [("a", None)]
     """
     if "`" in SPAN.sub("", verify):
         raise Unparsed("a backtick opens no span")
@@ -175,9 +176,14 @@ def commands(verify: str) -> list[Command]:
         # why: `, and` before a span a verb follows opens a clause; before one with no
         # verb it is a list's last item, and stays output
         clause = CLAUSE.search(before) and after[:1] and after[0] in OUTPUT_VERBS
-        output = (output and not (OUTPUT_END.search(before) or clause)) or (
-            bool(words) and words[-1] in OUTPUT_VERBS
+        ends = list(OUTPUT_END.finditer(before))
+        tail = before[ends[-1].end() :] if ends else before
+        opens = (
+            bool(found)
+            and not clause
+            and any(word in OUTPUT_VERBS for word in tail.split())
         )
+        output = opens or (output and not (ends or clause))
         text = match[2]
         if len(match[1]) > 1 and text.startswith(" ") and text.endswith(" "):
             text = text[1:-1]
@@ -231,7 +237,7 @@ def run(command: str, root: Path) -> Result:
             cwd=root,
             env=env,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             text=True,
             errors="replace",
             start_new_session=True,
@@ -240,19 +246,20 @@ def run(command: str, root: Path) -> Result:
         return Result(127, str(error.strerror))
     RUNNING.add(process)
     try:
-        output, _ = process.communicate(timeout=TIMEOUT_SECONDS)
+        output, stderr = process.communicate(timeout=TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         _kill(process)
         try:
             process.communicate(timeout=DRAIN_SECONDS)
         except subprocess.TimeoutExpired:
-            if process.stdout:
-                process.stdout.close()
+            for stream in (process.stdout, process.stderr):
+                if stream:
+                    stream.close()
             process.wait()
         return Result(-1, "", True)
     finally:
         RUNNING.discard(process)
-    return Result(process.returncode, output)
+    return Result(process.returncode, output, False, stderr)
 
 
 def weight(argv: list[str]) -> int:
@@ -262,18 +269,30 @@ def weight(argv: list[str]) -> int:
     return 1
 
 
+def load_average() -> float:
+    """Return the 1-minute load, or 0 when the machine gives none."""
+    try:
+        return os.getloadavg()[0]
+    except OSError:
+        return 0.0
+
+
 def schedule(work: list[str], root: Path) -> dict[str, Result]:
     """Return each command's result by its text, the commands run side by side.
 
-    A command starts when its `weight` in slots is free, a `make` also when no other
-    `make` runs; one that waits holds back every later command.
+    A command starts when its `weight` in slots is free, a `make` when no other runs,
+    and the load is under `CPUS` or none runs. Why: 0143-verify-forms design D3.
     """
     results: dict[str, Result] = {}
     free = threading.Condition()
     used = makes = 0
 
     def ready(need: int, make: bool) -> bool:
-        return used + need <= CPUS and not (make and makes)
+        return (
+            used + need <= CPUS
+            and not (make and makes)
+            and (not used or load_average() < CPUS)
+        )
 
     def finish(text: str, need: int, make: bool) -> None:
         nonlocal used, makes
@@ -290,7 +309,8 @@ def schedule(work: list[str], root: Path) -> dict[str, Result]:
         argv = tokens(text)
         need, make = weight(argv), argv[:1] == ["make"]
         with free:
-            free.wait_for(functools.partial(ready, need, make))
+            while not free.wait_for(functools.partial(ready, need, make), timeout=1):
+                pass
             used += need
             makes += make
         threads.append(threading.Thread(target=finish, args=(text, need, make)))
@@ -311,7 +331,11 @@ def report(name: str, command: Command, result: Result) -> list[str]:
         return [f"plan: {name} — `{command.text}` timed out"]
     if passed(command, result.code, result.output):
         return []
-    shown = [f"  | {line}" for line in result.output.splitlines()[:SHOWN]]
+    shown = [
+        f"  | {line}"
+        for text in (result.output, result.stderr)
+        for line in text.splitlines()[:SHOWN]
+    ]
     code = result.code
     held = 0 if command.exits is None else command.exits
     verdict = (
@@ -520,7 +544,9 @@ def keep(tree: str, key: str, result: Result) -> None:
     if folder.is_symlink() or folder.parent.is_symlink():
         return
     path = folder / hashlib.sha256(key.encode()).hexdigest()
-    text = json.dumps({"exit": result.code, "output": result.output})
+    text = json.dumps(
+        {"exit": result.code, "output": result.output, "stderr": result.stderr}
+    )
     with contextlib.suppress(OSError, mflib.statefile.WriteFailed):
         folder.mkdir(parents=True, exist_ok=True)
         mflib.statefile.write(path, text)
@@ -531,7 +557,9 @@ def load(tree: str, key: str) -> Result | None:
     path = store(tree) / hashlib.sha256(key.encode()).hexdigest()
     try:
         kept = json.loads(path.read_text(errors="replace"))
-        return Result(int(kept["exit"]), str(kept["output"]))
+        return Result(
+            int(kept["exit"]), str(kept["output"]), False, str(kept["stderr"])
+        )
     except (OSError, ValueError, KeyError, TypeError):
         return None
 

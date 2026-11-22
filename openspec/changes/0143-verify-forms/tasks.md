@@ -4,24 +4,24 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 ## Progress
 
-- [ ] 1 — The judge · moderate
+- [x] 1 — The judge · moderate
 - [ ] 2 — The cut · moderate
 - [ ] 3 — The build · moderate
 - [ ] 4 — Time · moderate
 
 ## 1 — The judge
 
-- [ ] 1.1 **HALT CHECK** The parser's names stand in `skills/mf-converge/scripts/plan_check.py` before they change.
+- [x] 1.1 **HALT CHECK** The parser's names stand in `skills/mf-converge/scripts/plan_check.py` before they change.
   Verify: `git grep -n -e OUTPUT_VERBS -e CLAUSE -- skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 1.2 Rewrite `commands` in `skills/mf-converge/scripts/plan_check.py` per [D1](design.md#d1). Extend `test_a_span_after_an_output_verb_is_output` in `tests/test_plan_check.py` with the probe's line and the `, and` clause cases.
+- [x] 1.2 Rewrite `commands` in `skills/mf-converge/scripts/plan_check.py` per [D1](design.md#d1). Extend `test_a_span_after_an_output_verb_is_output` in `tests/test_plan_check.py` with the probe's line and the `, and` clause cases.
   Verify: `uv run pytest tests/test_plan_check.py::test_a_span_after_an_output_verb_is_output -q` exits 0.
-- [ ] 1.3 Add the probe's line to `test_a_span_after_an_output_verb_is_no_command` in `tests/test_verify_check.py`: `verify_check.py` runs no span after the verb as a command.
+- [x] 1.3 Add the probe's line to `test_a_span_after_an_output_verb_is_no_command` in `tests/test_verify_check.py`: `verify_check.py` runs no span after the verb as a command.
   Verify: `uv run pytest tests/test_verify_check.py::test_a_span_after_an_output_verb_is_no_command -q` exits 0.
-- [ ] 1.4 Keep stderr apart per [D2](design.md#d2): `Result`, `run`, `report`, `keep` and `load` in `skills/mf-converge/scripts/plan_check.py`. Add `test_stderr_is_shown_and_never_compared` to `tests/test_plan_check.py`.
+- [x] 1.4 Keep stderr apart per [D2](design.md#d2): `Result`, `run`, `report`, `keep` and `load` in `skills/mf-converge/scripts/plan_check.py`. Add `test_stderr_is_shown_and_never_compared` to `tests/test_plan_check.py`.
   Verify: `uv run pytest tests/test_plan_check.py::test_stderr_is_shown_and_never_compared -q` exits 0.
-- [ ] 1.5 Turn `test_every_pytest_runs_without_the_cache_provider` and `test_a_command_runs_without_virtual_env` in `tests/test_plan_check.py`: each compares `run`'s result with the fourth field. Turn the `plan_check.py` row of `tests/test_staged_writes.py`: its kept text holds `"stderr": ""` after `"output"`.
+- [x] 1.5 Turn `test_every_pytest_runs_without_the_cache_provider` and `test_a_command_runs_without_virtual_env` in `tests/test_plan_check.py`: each compares `run`'s result with the fourth field. Turn the `plan_check.py` row of `tests/test_staged_writes.py`: its kept text holds `"stderr": ""` after `"output"`.
   Verify: `uv run pytest tests/test_plan_check.py::test_every_pytest_runs_without_the_cache_provider tests/test_plan_check.py::test_a_command_runs_without_virtual_env tests/test_staged_writes.py -q` exits 0.
-- [ ] 1.6 Gate each start on the load per [D3](design.md#d3): `schedule` in `skills/mf-converge/scripts/plan_check.py` reads the load through one module name. Add `test_a_command_starts_under_the_load_or_when_none_runs` and patch the load in `test_commands_run_side_by_side_and_print_in_task_order`, both in `tests/test_plan_check.py`.
+- [x] 1.6 Gate each start on the load per [D3](design.md#d3): `schedule` in `skills/mf-converge/scripts/plan_check.py` reads the load through one module name. Add `test_a_command_starts_under_the_load_or_when_none_runs` and patch the load in `test_commands_run_side_by_side_and_print_in_task_order`, both in `tests/test_plan_check.py`.
   Verify: `uv run pytest tests/test_plan_check.py::test_a_command_starts_under_the_load_or_when_none_runs tests/test_plan_check.py::test_commands_run_side_by_side_and_print_in_task_order -q` exits 0.
 
 ## 2 — The cut

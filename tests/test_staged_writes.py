@@ -126,7 +126,7 @@ ROWS = (
         "plan_check.py",
         hashlib.sha256(_KEY.encode()).hexdigest(),
         _keep,
-        lambda text: json.dumps({"exit": 0, "output": text}),
+        lambda text: json.dumps({"exit": 0, "output": text, "stderr": ""}),
     ),
 )
 _IDS = [row.name for row in ROWS]

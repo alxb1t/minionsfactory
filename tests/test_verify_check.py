@@ -147,12 +147,14 @@ def test_a_span_after_an_output_verb_is_no_command(
         "1.1 x\n  Verify: `grep -n zzz a.md` exits `1` with the text `$(date)`.",
         "1.2 x\n  Verify: `grep -n one a.md` prints a line, then `grep -n $HOME a.md` "
         "prints nothing.",
+        "1.3 x\n  Verify: `grep -n one a.md` prints one line, a space and `$(date)`.",
     )
     code, out = _run(root, tasks, capsys, monkeypatch)
     assert code == 1, out
     assert out.splitlines() == [
         "1.2: a.md:1: one",
         "1.2: I19 — a shell variable: `grep -n $HOME a.md`",
+        "1.3: a.md:1: one",
         "verify: halt — I19: 1.2",
     ]
 

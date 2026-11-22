@@ -674,9 +674,14 @@ def test_every_pytest_runs_without_the_cache_provider(
     _repo(root, monkeypatch)
     monkeypatch.delenv("PYTEST_ADDOPTS", raising=False)
     option = "-p no:cacheprovider\n"
-    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, option, False)
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, option, False, "")
     monkeypatch.setenv("PYTEST_ADDOPTS", "-q")
-    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, f"-q {option}", False)
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (
+        0,
+        f"-q {option}",
+        False,
+        "",
+    )
 
 
 def test_a_command_runs_without_virtual_env(
@@ -684,8 +689,34 @@ def test_a_command_runs_without_virtual_env(
 ) -> None:
     monkeypatch.setenv("VIRTUAL_ENV", "/elsewhere")
     monkeypatch.setenv("KEPT", "yes")
-    assert plan_check.run("printenv VIRTUAL_ENV", tmp_path) == (1, "", False)
-    assert plan_check.run("printenv KEPT", tmp_path) == (0, "yes\n", False)
+    assert plan_check.run("printenv VIRTUAL_ENV", tmp_path) == (1, "", False, "")
+    assert plan_check.run("printenv KEPT", tmp_path) == (0, "yes\n", False, "")
+
+
+def test_stderr_is_shown_and_never_compared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    both = 'sh -c "echo 1; echo warn >&2"'
+    assert plan_check.run(both, tmp_path) == (0, "1\n", False, "warn\n")
+    # A warning on stderr beside the exact stdout passes.
+    counted = plan_check.Command("sh", 1)
+    assert (
+        plan_check.report("1.1", counted, plan_check.Result(0, "1\n", False, "w")) == []
+    )
+    # A failure shows the first lines of stdout, then of stderr.
+    noisy = plan_check.Result(0, "9\n", False, "".join(f"w{n}\n" for n in range(7)))
+    assert plan_check.report("1.1", counted, noisy) == [
+        "plan: 1.1 — `sh` printed other than its Verify: says",
+        "  | 9",
+        *(f"  | w{n}" for n in range(plan_check.SHOWN)),
+    ]
+    # A result kept holds its stderr; one kept without it is read as none kept.
+    monkeypatch.setattr(plan_check, "store", lambda tree: tmp_path / "kept")
+    plan_check.keep("tree", "key", noisy)
+    assert plan_check.load("tree", "key") == noisy
+    (path,) = (tmp_path / "kept").iterdir()
+    path.write_text('{"exit": 0, "output": "9\\n"}')
+    assert plan_check.load("tree", "key") is None
 
 
 def test_a_span_after_an_output_verb_is_output() -> None:
@@ -711,6 +742,25 @@ def test_a_span_after_an_output_verb_is_output() -> None:
     assert found("`a` names `x` or `y`, then `b` names `z`") == [
         ("a", None),
         ("b", None),
+    ]
+    # Words may stand between the verb and a span, and the span is still output.
+    probe = "`a -L f` prints one integer, a space and `f`."
+    assert found(probe) == [("a -L f", None)]
+    assert found("`a` exits `0`, and `b` prints nothing.") == [("a", None), ("b", None)]
+    assert found("`a` prints one line, a tab and `b`, then `c` prints `1`") == [
+        ("a", None),
+        ("c", 1),
+    ]
+    # A `Verify:` label ends output, so the next label's span is a command.
+    assert found("`a` prints a line\n  Verify: `b` exits `0`") == [
+        ("a", None),
+        ("b", None),
+    ]
+    # A verb before every command opens no output, and a new sentence reopens it.
+    assert found("it names `a`, then `b` prints `1`") == [("a", None), ("b", 1)]
+    assert found("`a` prints `1`. It says `b`, `c`. `d` exits `0`.") == [
+        ("a", 1),
+        ("d", None),
     ]
 
 
@@ -754,6 +804,7 @@ def test_commands_run_side_by_side_and_print_in_task_order(
     root = tmp_path / "repo"
     base = _repo(root, monkeypatch)
     monkeypatch.setattr(plan_check, "CPUS", 4)
+    monkeypatch.setattr(plan_check, "load_average", lambda: 0.0)
     monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 30)
     left = 'sh -c "touch one; while [ ! -e two ]; do sleep 0.05; done; exit 3"'
     right = 'sh -c "touch two; while [ ! -e one ]; do sleep 0.05; done; exit 4"'
@@ -793,6 +844,45 @@ def test_commands_run_side_by_side_and_print_in_task_order(
     assert sorted(lines[:2]) == ["start make one", "start pytest -q"]
     assert lines.index("start make two") > lines.index("end make one")
     assert lines[-2:] == ["start pytest -n 2", "end pytest -n 2"]
+
+
+def test_a_command_starts_under_the_load_or_when_none_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(plan_check, "CPUS", 4)
+    log = tmp_path / "log"
+    for name in ("one", "two"):
+        script = tmp_path / name
+        script.write_text(
+            f"#!/bin/sh\necho start {name} >> {log}\nsleep 0.3\n"
+            f"echo end {name} >> {log}\n"
+        )
+        script.chmod(0o755)
+    work = [str(tmp_path / "one"), str(tmp_path / "two")]
+    # Over the cores, the first command starts with none running; the second waits.
+    monkeypatch.setattr(plan_check, "load_average", lambda: 99.0)
+    assert set(plan_check.schedule(work, tmp_path)) == set(work)
+    assert log.read_text().splitlines() == [
+        "start one",
+        "end one",
+        "start two",
+        "end two",
+    ]
+    # Under the cores, both start together.
+    log.unlink()
+    monkeypatch.setattr(plan_check, "load_average", lambda: 0.0)
+    plan_check.schedule(work, tmp_path)
+    assert sorted(log.read_text().splitlines()[:2]) == ["start one", "start two"]
+    # A load the machine cannot give is no load.
+    monkeypatch.undo()
+    monkeypatch.setattr(os, "getloadavg", lambda: (3.0, 0.0, 0.0))
+    assert plan_check.load_average() == 3.0
+
+    def unreadable() -> tuple[float, float, float]:
+        raise OSError("no load")
+
+    monkeypatch.setattr(os, "getloadavg", unreadable)
+    assert plan_check.load_average() == 0.0
 
 
 def test_sigterm_ends_the_commands_running(
