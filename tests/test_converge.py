@@ -1266,6 +1266,35 @@ def test_plan_check_left_halts_amend_needed(host: Host) -> None:
     )
 
 
+def test_a_timeout_alone_sends_nothing_back(host: Host) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+    host.fixers = [fixing, fixing]
+    host.exits["plan_check.py"] = 1
+    host.printed["plan_check.py"] = (
+        "plan: 1.1 — `sleep 5` timed out\nplan: 2.3 — `git grep x` exited 1\n  | x\n"
+    )
+
+    assert run(host) == 1
+
+    # A failure beside a timeout is sent back, and the timeout is not.
+    written = events(host)
+    assert "round 1 · fix — sent plan check: 2.3" in written
+    assert not any("timed out" in line for line in written)
+
+    host.exits["plan_check.py"] = 1
+    host.printed["plan_check.py"] = "plan: 1.1 — `sleep 5` timed out\n"
+    host.fixers = [fixing]
+
+    assert run(host) == 0
+
+    written = events(host)
+    assert "round 1 · plan check — timed out: 1.1" in written
+    assert "round 1 · fix — sent plan check: 1.1" not in written
+    assert written[-1].startswith("round 2 · done — converged in 2 rounds")
+
+
 def test_round_one_pickup_rides_with_the_fix(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host,
@@ -1515,6 +1544,8 @@ def test_a_catch_up_runs_the_changed_verifies_in_one_plan_check(host: Host) -> N
         _TASKS
         + "\n- [x] 1.1 One.\n  Verify: `git grep -n nope` prints a line.\n"
         + "- [x] 1.2 Two.\n  Verify: `true`.\n"
+        + "- [x] 1.3 **HALT CHECK** Three.\n"
+        + "  Verify: `git grep -n gone` prints a line.\n"
     )
     _commit(
         host.tree,

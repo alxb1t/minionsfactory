@@ -49,7 +49,6 @@ SUBTASK = re.compile(r"- \[([ x])\] (\d+\.\d+\b.*)$")
 PHASE = re.compile(r"- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 SPAN = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)")
 MATCH = re.compile(r"^(.+?):(\d+):(.*)$", re.MULTILINE)
-# A span after one of these words is the output a command must give, not a command.
 OUTPUT_VERBS = {
     "prints",
     "reports",
@@ -64,7 +63,7 @@ OUTPUT_VERBS = {
     "reads",
     "says",
 }
-OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)")
+OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)|\bVerify:")
 CLAUSE = re.compile(r",\s*(?:and|or)\s*$")
 NOTHING = re.compile(r"\bprints nothing\b")
 DEFINED = re.compile(r"-\s*(?:async\s+)?(?:def|class) (\w+)")
@@ -78,6 +77,9 @@ REMOVED = "## REMOVED Requirements"
 TEST_DEF = r"^[[:space:]]*(async[[:space:]]+)?def test_[A-Za-z0-9_]*"
 TEST_NAME = re.compile(r"\bdef (test_\w+)")
 CORPUS = re.compile(r"\*\*CORPUS\*\* `([a-z0-9-]+)`")
+VERIFY_TIMEOUT = re.compile(r"\*\*Verify timeout:\*\*[^\d\n]*?(-?\d+)")
+# A day: the selector refuses a wait near 25 days, so a longer limit is this.
+MOST_SECONDS = 86_400
 
 
 class Stop(Exception):
@@ -97,11 +99,12 @@ class Task(NamedTuple):
 
 
 class Result(NamedTuple):
-    """One command's finish: its exit code, its output, and whether it timed out."""
+    """One command's finish: its exit, its stdout, whether it timed out, its stderr."""
 
     code: int
     output: str
     timed_out: bool = False
+    stderr: str = ""
 
 
 class Command(NamedTuple):
@@ -156,20 +159,18 @@ def subtasks(tasks: str) -> list[Task]:
     ]
 
 
-def commands(verify: str) -> list[Command]:
-    """Return the commands of a `Verify:`'s text, each with the count it must print.
+def reads(verify: str) -> list[tuple[re.Match[str], bool]]:
+    """Return each span of a `Verify:`'s text, and whether it is output, no command.
 
-    Output runs to `then`, a `;`, a sentence end or a `, and` before a verb's span.
-    e.g. "`grep -c x a` prints `2`" → [("grep -c x a", 2)]
+    Output runs to `then`, a `;`, a sentence end, a `Verify:` label or a `, and`
+    before a verb's span. e.g. "`a` prints `1`" → `a` False, `1` True
     """
     if "`" in SPAN.sub("", verify):
         raise Unparsed("a backtick opens no span")
-    found: list[Command] = []
+    found: list[tuple[re.Match[str], bool]] = []
     end, output = 0, False
     for match in SPAN.finditer(verify):
         before = verify[end : match.start()]
-        if found and not output and NOTHING.search(before):
-            found[-1] = found[-1]._replace(nothing=True)
         words = before.split()
         after = verify[match.end() :].split()
         # why: `, and` before a span a verb follows opens a clause; before one with no
@@ -178,16 +179,33 @@ def commands(verify: str) -> list[Command]:
         output = (output and not (OUTPUT_END.search(before) or clause)) or (
             bool(words) and words[-1] in OUTPUT_VERBS
         )
+        found.append((match, output))
+        end = match.end()
+    return found
+
+
+def commands(verify: str) -> list[Command]:
+    """Return the commands of a `Verify:`'s text, each with the count it must print.
+
+    e.g. "`a` prints `1`" → [("a", 1)]
+    """
+    found: list[Command] = []
+    end, output = 0, False
+    for match, opened in reads(verify):
+        before = verify[end : match.start()]
+        if found and not output and NOTHING.search(before):
+            found[-1] = found[-1]._replace(nothing=True)
+        words = before.split()
         text = match[2]
         if len(match[1]) > 1 and text.startswith(" ") and text.endswith(" "):
             text = text[1:-1]
-        if not output:
+        if not opened:
             found.append(Command(text, None))
         elif words[-1:] in (["prints"], ["reports"]) and text.isdigit() and found:
             found[-1] = found[-1]._replace(count=int(text))
         elif words[-1:] == ["exits"] and text.isdigit() and found:
             found[-1] = found[-1]._replace(exits=int(text))
-        end = match.end()
+        end, output = match.end(), opened
     if found and not output and NOTHING.search(verify[end:]):
         found[-1] = found[-1]._replace(nothing=True)
     return found
@@ -216,11 +234,22 @@ def _kill(process: subprocess.Popen[str]) -> None:
         os.killpg(process.pid, signal.SIGKILL)
 
 
-def run(command: str, root: Path) -> Result:
+def verify_limit(root: Path) -> float:
+    """Return the seconds a command may run: `root`'s `**Verify timeout:**` line.
+
+    No `AGENTS.md`, line or integer of one or more, a signed one counted, gives
+    `TIMEOUT_SECONDS`, as it is now; past `MOST_SECONDS` gives that. Why: 0143 D10.
+    """
+    found = VERIFY_TIMEOUT.search(_read(root / "AGENTS.md"))
+    limit = int(found[1]) if found else 0
+    return min(limit, MOST_SECONDS) if limit >= 1 else TIMEOUT_SECONDS
+
+
+def run(command: str, root: Path, limit: float | None = None) -> Result:
     """Return a command's finish, run in `root` as argv with no shell.
 
-    It runs in a session of its own, so a timeout ends the command's whole group.
-    Why: 0114-faster-plan-check design D4, D5.
+    It runs in a session of its own, so a timeout ends its whole group, after `limit`
+    seconds or `TIMEOUT_SECONDS`. Why: 0114-faster-plan-check design D4, D5.
     """
     held = os.environ.get("PYTEST_ADDOPTS", "")
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
@@ -231,7 +260,7 @@ def run(command: str, root: Path) -> Result:
             cwd=root,
             env=env,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             text=True,
             errors="replace",
             start_new_session=True,
@@ -240,19 +269,22 @@ def run(command: str, root: Path) -> Result:
         return Result(127, str(error.strerror))
     RUNNING.add(process)
     try:
-        output, _ = process.communicate(timeout=TIMEOUT_SECONDS)
+        output, stderr = process.communicate(
+            timeout=TIMEOUT_SECONDS if limit is None else limit
+        )
     except subprocess.TimeoutExpired:
         _kill(process)
         try:
             process.communicate(timeout=DRAIN_SECONDS)
         except subprocess.TimeoutExpired:
-            if process.stdout:
-                process.stdout.close()
+            for stream in (process.stdout, process.stderr):
+                if stream:
+                    stream.close()
             process.wait()
         return Result(-1, "", True)
     finally:
         RUNNING.discard(process)
-    return Result(process.returncode, output)
+    return Result(process.returncode, output, False, stderr)
 
 
 def weight(argv: list[str]) -> int:
@@ -262,23 +294,37 @@ def weight(argv: list[str]) -> int:
     return 1
 
 
-def schedule(work: list[str], root: Path) -> dict[str, Result]:
+def load_average() -> float:
+    """Return the 1-minute load, or 0 when the machine gives none."""
+    try:
+        return os.getloadavg()[0]
+    except OSError:
+        return 0.0
+
+
+def schedule(
+    work: list[str], root: Path, limit: float | None = None
+) -> dict[str, Result]:
     """Return each command's result by its text, the commands run side by side.
 
-    A command starts when its `weight` in slots is free, a `make` also when no other
-    `make` runs; one that waits holds back every later command.
+    A command starts when its `weight` in slots is free, a `make` when no other runs,
+    and the load is under `CPUS` or none runs; `limit` is `run`'s. Why: 0143 design D3.
     """
     results: dict[str, Result] = {}
     free = threading.Condition()
     used = makes = 0
 
     def ready(need: int, make: bool) -> bool:
-        return used + need <= CPUS and not (make and makes)
+        return (
+            used + need <= CPUS
+            and not (make and makes)
+            and (not used or load_average() < CPUS)
+        )
 
     def finish(text: str, need: int, make: bool) -> None:
         nonlocal used, makes
         try:
-            results[text] = run(text, root)
+            results[text] = run(text, root, limit)
         finally:
             with free:
                 used -= need
@@ -290,7 +336,8 @@ def schedule(work: list[str], root: Path) -> dict[str, Result]:
         argv = tokens(text)
         need, make = weight(argv), argv[:1] == ["make"]
         with free:
-            free.wait_for(functools.partial(ready, need, make))
+            while not free.wait_for(functools.partial(ready, need, make), timeout=1):
+                pass
             used += need
             makes += make
         threads.append(threading.Thread(target=finish, args=(text, need, make)))
@@ -311,7 +358,11 @@ def report(name: str, command: Command, result: Result) -> list[str]:
         return [f"plan: {name} — `{command.text}` timed out"]
     if passed(command, result.code, result.output):
         return []
-    shown = [f"  | {line}" for line in result.output.splitlines()[:SHOWN]]
+    shown = [
+        f"  | {line}"
+        for text in (result.output, result.stderr)
+        for line in text.splitlines()[:SHOWN]
+    ]
     code = result.code
     held = 0 if command.exits is None else command.exits
     verdict = (
@@ -356,19 +407,24 @@ def jobs(
 ) -> list[tuple[str, Command]]:
     """Return the `(sub-task, command)` pairs a check judges, in task order.
 
-    Not judged: a `**HALT CHECK**` sub-task, a sub-task of a `**HUMAN` phase, and a
-    command naming `plan_check.py`. `only` names the sub-tasks, ticked or not.
+    Not judged: a `**HUMAN` phase, a `plan_check.py` word's command, a `**HALT CHECK**`
+    but by `only`, which names ticked or not and stops on a `Verify:` with no command.
     """
     found: list[tuple[str, Command]] = []
     for task in tasks:
-        skipped = "**HALT CHECK**" in task.text or int(task.name.split(".")[0]) in human
+        halt = only is None and "**HALT CHECK**" in task.text
         wanted = task.ticked if only is None else task.name in only
-        if not wanted or skipped or (verify := verify_of(task.text)) is None:
+        if not wanted or halt or (verify := verify_of(task.text)) is None:
+            continue
+        if int(task.name.split(".")[0]) in human:
             continue
         try:
-            for command in commands(verify):
-                if "plan_check.py" not in command.text:
-                    tokens(command.text)
+            named = commands(verify)
+            if only is not None and not named:
+                raise Unparsed("its Verify: names no command")
+            for command in named:
+                words = tokens(command.text)
+                if all(Path(word).name != "plan_check.py" for word in words):
                     found.append((task.name, command))
         except Unparsed as error:
             raise Stop(f"{task.name}: {error}") from None
@@ -485,13 +541,13 @@ def bare_pytest(command: Command, root: Path) -> bool:
     )
 
 
-def collecting(texts: list[str], root: Path) -> set[str]:
+def collecting(texts: list[str], root: Path, limit: float | None = None) -> set[str]:
     """Return the commands whose collection exits 0 and prints a collected test.
 
     The collection is the command with `--collect-only -q` appended, run as any
     command is. Why: 0114-faster-plan-check design D2.
     """
-    found = schedule([text + COLLECT_ONLY for text in texts], root)
+    found = schedule([text + COLLECT_ONLY for text in texts], root, limit)
     return {
         text
         for text in texts
@@ -520,7 +576,9 @@ def keep(tree: str, key: str, result: Result) -> None:
     if folder.is_symlink() or folder.parent.is_symlink():
         return
     path = folder / hashlib.sha256(key.encode()).hexdigest()
-    text = json.dumps({"exit": result.code, "output": result.output})
+    text = json.dumps(
+        {"exit": result.code, "output": result.output, "stderr": result.stderr}
+    )
     with contextlib.suppress(OSError, mflib.statefile.WriteFailed):
         folder.mkdir(parents=True, exist_ok=True)
         mflib.statefile.write(path, text)
@@ -531,22 +589,28 @@ def load(tree: str, key: str) -> Result | None:
     path = store(tree) / hashlib.sha256(key.encode()).hexdigest()
     try:
         kept = json.loads(path.read_text(errors="replace"))
-        return Result(int(kept["exit"]), str(kept["output"]))
+        return Result(
+            int(kept["exit"]), str(kept["output"]), False, str(kept["stderr"])
+        )
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
 
 def check_verifies(
-    tasks: list[Task], human: set[int], root: Path, only: set[str] | None = None
+    tasks: list[Task],
+    human: set[int],
+    root: Path,
+    only: set[str] | None = None,
+    limit: float | None = None,
 ) -> list[str]:
     """Return a line for each judged `Verify:` command that fails run again.
 
-    Each distinct command runs once. A bare pytest passes unrun on the gate's green
-    record when its collection finds a test; kept results are read and written.
+    Each distinct command runs once, for `limit` seconds. A bare pytest passes unrun on
+    the gate's green record when its collection finds a test.
     """
     pairs = jobs(tasks, human, only)
     bare = list(dict.fromkeys(c.text for _, c in pairs if bare_pytest(c, root)))
-    vouched = collecting(bare, root) if bare and gate_green() else set()
+    vouched = collecting(bare, root, limit) if bare and gate_green() else set()
     pending = [
         (n, c) for n, c in pairs if not (c.text in vouched and bare_pytest(c, root))
     ]
@@ -557,7 +621,7 @@ def check_verifies(
     results: dict[str, Result] = {}
     if tree is not None:
         results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
-    fresh = schedule([text for text in keys if text not in results], root)
+    fresh = schedule([text for text in keys if text not in results], root, limit)
     results |= fresh
     if tree is not None and _guarded(gate()["settled_tree"]) == tree:
         for text, result in fresh.items():
@@ -746,15 +810,16 @@ def check(change: str, base: str, only: set[str] | None = None) -> list[str]:
         raise Stop(f"tasks.md: {error.strerror}") from None
     found, human = phases(tasks)
     parsed = subtasks(tasks)
+    limit = verify_limit(root)
     if only is not None:
-        return check_verifies(parsed, human, root, only)
+        return check_verifies(parsed, human, root, only, limit)
     merge_base = _git(root, "merge-base", base, "HEAD").stdout.strip()
     design = folder / "design.md"
     tests = tests_section(
         design.read_text(errors="replace") if design.is_file() else ""
     )
     return [
-        *check_verifies(parsed, human, root),
+        *check_verifies(parsed, human, root, None, limit),
         *check_boxes(parsed, found),
         *check_names(root, change, merge_base, tests),
         *check_tests(root, merge_base, tests),

@@ -1027,8 +1027,8 @@ def left(context: Context) -> set[str]:
 def planned(context: Context) -> None:
     """Run `plan_check.py`; raise `SendBack` with its subjects, or halt on a repeat.
 
-    A repeat is a subject the last fixer left, or one Step 7 already sent back.
-    e.g. "plan: 2.3 — `git grep x` exited 1" → the subject "2.3". Why: design D3.
+    A repeat is a subject the last fixer left or Step 7 sent back; a `timed out` line
+    is no card. e.g. "plan: 2.3 — `git grep x` exited 1" → "2.3". Why: design D3, D12.
     """
     argv = script("plan_check.py", "--change", context.change, "--base", context.base)
     code, printed = _captured(context, argv)
@@ -1037,6 +1037,12 @@ def planned(context: Context) -> None:
     lines = [line[6:] for line in printed.splitlines() if line.startswith("plan: ")]
     if code != 1:
         raise Halt(f"plan check: {' · '.join(lines)}")
+    slow = [line for line in lines if line.endswith(" timed out")]
+    lines = [line for line in lines if line not in slow]
+    if slow and not lines:
+        names = dict.fromkeys(line.split()[0] for line in slow)
+        stamp(context, f"plan check — timed out: {', '.join(names)}")
+        return
     subjects = list(dict.fromkeys(line.split()[0] for line in lines))
     if repeats := [s for s in subjects if s in left(context) | context.sent]:
         raise Halt(f"amend needed — plan check: {', '.join(repeats)}")
@@ -1566,7 +1572,8 @@ def added(context: Context, judged: str) -> None:
     changed = [
         task.name
         for task in tasks((context.tree / path).read_text())
-        if (said := PLAN_CHECK["verify_of"](task.text)) is not None
+        if "**HALT CHECK**" not in task.text
+        and (said := PLAN_CHECK["verify_of"](task.text)) is not None
         and was.get(task.name) != said
     ]
     if not changed:

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.114.0] - 2026-11-22
+
+Gate: local 7m26s · CI not read under mf-ship · 0.113.0: local 8m55s · CI not read under mf-ship
+
+- `plan_check.py` reads every span after an output verb as output to `then`, `;`, a `Verify:` label or a sentence end,
+  compares stdout alone and shows stderr on a failure, and starts a command only under the core count or when none
+  runs (0143-verify-forms, phase 1).
+- `verify_check.py` refuses at the cut a count off `grep -c` or `--count` over one file, `-L`, and in a plain `Verify:`
+  a `path:line`, a pattern of three plain words and a `<default>..HEAD` range; the cut and build skills word `I3` and
+  `I19` alike (0143-verify-forms, phase 2).
+- The build runs a phase's `**HALT CHECK**` sub-tasks first and each other `Verify:` through `plan_check.py --only`,
+  which judges a HALT CHECK it names and runs a command holding `test_plan_check.py`; converge's catch-up leaves a
+  HALT CHECK out of `--only`; the close takes `<base>` from Step 3.5 (0143-verify-forms, phase 3).
+- `plan_check.py` takes a command's limit from the `**Verify timeout:**` line of the repository's `AGENTS.md`, 600 s
+  where none; converge sends back no `timed out` line alone, and the build runs its plan check as one background
+  command (0143-verify-forms, phase 4).
+- `tests/test_plan_check.py` holds the wait of `schedule` that times out and re-reads the load each second, which the
+  gate's diff coverage needs (0143-verify-forms, phase 5).
+- `plan_check.py` reads a signed `**Verify timeout:**` as none and caps one at a day, and `--only` exits 2 on a named
+  `Verify:` with no command; `verify_check.py` reads no search pattern as a line number and takes a range with `HEAD`
+  left out (0143-verify-forms, converge round 1).
+- `plan_check.py` opens output only at a verb right before a span, as on the default branch, and the `Verify:` label
+  ends it; `verify_check.py` refuses a command after an output verb in one clause, as the probe's line has it, and the
+  cut and build skills word `I19` alike (0143-verify-forms, phase 6).
+
 ## [0.113.0] - 2026-11-21
 
 Gate: local 8m55s · CI not read under mf-ship · 0.112.1: local 7m43s · CI not read under mf-ship

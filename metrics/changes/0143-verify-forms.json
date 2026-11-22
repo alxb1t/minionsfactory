@@ -1,0 +1,238 @@
+{
+  "change": "0143-verify-forms",
+  "version": "0.114",
+  "base": "5aa7c184",
+  "analyzed": "9bfa9620",
+  "measured_on": "local",
+  "collected_at": "2026-11-22T20:56:04+02:00",
+  "mf_version": "v0.113.0-12-g9bfa9620-dirty",
+  "executor": "unidentified",
+  "model": "claude-sonnet-5-5",
+  "values": {
+    "converge-reading-set": {
+      "value": 4479
+    },
+    "converge-conformance-reading-set": {
+      "value": 6192
+    },
+    "converge-adversarial-reading-set": {
+      "value": 9138
+    },
+    "shared-context": {
+      "value": 18082
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 1421
+    },
+    "gate-seconds": {
+      "value": 446
+    },
+    "largest-module-lines": {
+      "value": 15157
+    },
+    "modules-over-1000-lines": {
+      "value": 13
+    },
+    "complex-functions": {
+      "value": 31
+    },
+    "suppressions": {
+      "value": 29
+    },
+    "test-to-code-lines": {
+      "value": 1.72
+    },
+    "python-lines": {
+      "value": 72436
+    },
+    "dependencies": {
+      "value": 2
+    },
+    "dev-dependencies": {
+      "value": 9
+    },
+    "test-seconds": {
+      "value": 442.09
+    },
+    "slowest-test-seconds": {
+      "value": 89.86
+    },
+    "test-seconds-summed": {
+      "value": 2553.01
+    },
+    "slow-tests": {
+      "value": 134
+    },
+    "total-coverage": {
+      "value": 99.22
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 122
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 2
+    },
+    "open-backlog-cards": {
+      "value": 48
+    },
+    "diff-lines": {
+      "value": 1487
+    },
+    "diff-files": {
+      "value": 19
+    },
+    "lead-minutes": {
+      "value": 262.1
+    },
+    "build-minutes": {
+      "value": 77.4
+    },
+    "converge-minutes": {
+      "value": 7.6
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 58.8
+    },
+    "after-wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 3
+    },
+    "blockers-round-1": {
+      "value": 1
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 1
+    },
+    "halts-build": {
+      "value": 1
+    },
+    "halts-converge": {
+      "value": 1
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 0
+    },
+    "rescues-diagnosed": {
+      "value": 2
+    },
+    "rescues-decided": {
+      "value": 0
+    },
+    "supervisor-decided": {
+      "value": 1
+    },
+    "build-commits": {
+      "value": 11
+    },
+    "fix-commits": {
+      "value": 0
+    },
+    "cost-usd": {
+      "status": "unavailable",
+      "why": "no result event in 0143-verify-forms/logs/20261122-161440-converge-adversarial-r1.log"
+    },
+    "cost-usd-build": {
+      "value": 7.99
+    },
+    "cost-usd-converge": {
+      "status": "unavailable",
+      "why": "no result event in 0143-verify-forms/logs/20261122-161440-converge-adversarial-r1.log"
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "status": "unavailable",
+      "why": "no result event in 0143-verify-forms/logs/20261122-161440-converge-adversarial-r1.log"
+    },
+    "tokens-build": {
+      "value": 27331346
+    },
+    "tokens-converge": {
+      "status": "unavailable",
+      "why": "no result event in 0143-verify-forms/logs/20261122-161440-converge-adversarial-r1.log"
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "codex-window-5h": {
+      "status": "unavailable",
+      "why": "no mf.quota line in a Codex log"
+    },
+    "codex-window-week": {
+      "status": "unavailable",
+      "why": "no mf.quota line in a Codex log"
+    },
+    "cost-per-changed-line": {
+      "status": "unavailable",
+      "why": "no result event in 0143-verify-forms/logs/20261122-161440-converge-adversarial-r1.log"
+    },
+    "conformance-confirmed": {
+      "value": 3
+    },
+    "adversarial-confirmed": {
+      "value": 7
+    },
+    "conformance-refuted": {
+      "value": 6
+    },
+    "adversarial-refuted": {
+      "value": 10
+    },
+    "conformance-tokens-per-confirmed": {
+      "status": "unavailable",
+      "why": "no result event in 0143-verify-forms/logs/20261122-161440-converge-conformance-r1.log"
+    },
+    "adversarial-tokens-per-confirmed": {
+      "status": "unavailable",
+      "why": "no result event in 0143-verify-forms/logs/20261122-161440-converge-adversarial-r1.log"
+    },
+    "escapes": {
+      "value": 0
+    },
+    "debt-added": {
+      "value": 4
+    },
+    "debt-paid": {
+      "value": 0
+    }
+  }
+}

@@ -523,7 +523,9 @@ def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
 ) -> None:
     root = tmp_path / "repo"
     _repo(root, monkeypatch)
-    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.3)
+    # why: the limit gives the child time to start the escaped one under the gate's
+    # load; killed sooner, nothing holds the pipe and the drain path never runs
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 3)
     monkeypatch.setattr(plan_check, "DRAIN_SECONDS", 0.3)
     child = (
         "import subprocess, sys; "
@@ -533,7 +535,7 @@ def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
     command = f'{sys.executable} -c "{child}"'
     started = time.monotonic()
     assert plan_check.run(command, root) == plan_check.Result(-1, "", True)
-    assert time.monotonic() - started < 5
+    assert time.monotonic() - started < 8
     subprocess.run(["pkill", "-f", "sleep 20"], check=False)
 
 
@@ -674,9 +676,14 @@ def test_every_pytest_runs_without_the_cache_provider(
     _repo(root, monkeypatch)
     monkeypatch.delenv("PYTEST_ADDOPTS", raising=False)
     option = "-p no:cacheprovider\n"
-    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, option, False)
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, option, False, "")
     monkeypatch.setenv("PYTEST_ADDOPTS", "-q")
-    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (0, f"-q {option}", False)
+    assert plan_check.run("printenv PYTEST_ADDOPTS", root) == (
+        0,
+        f"-q {option}",
+        False,
+        "",
+    )
 
 
 def test_a_command_runs_without_virtual_env(
@@ -684,8 +691,34 @@ def test_a_command_runs_without_virtual_env(
 ) -> None:
     monkeypatch.setenv("VIRTUAL_ENV", "/elsewhere")
     monkeypatch.setenv("KEPT", "yes")
-    assert plan_check.run("printenv VIRTUAL_ENV", tmp_path) == (1, "", False)
-    assert plan_check.run("printenv KEPT", tmp_path) == (0, "yes\n", False)
+    assert plan_check.run("printenv VIRTUAL_ENV", tmp_path) == (1, "", False, "")
+    assert plan_check.run("printenv KEPT", tmp_path) == (0, "yes\n", False, "")
+
+
+def test_stderr_is_shown_and_never_compared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    both = 'sh -c "echo 1; echo warn >&2"'
+    assert plan_check.run(both, tmp_path) == (0, "1\n", False, "warn\n")
+    # A warning on stderr beside the exact stdout passes.
+    counted = plan_check.Command("sh", 1)
+    assert (
+        plan_check.report("1.1", counted, plan_check.Result(0, "1\n", False, "w")) == []
+    )
+    # A failure shows the first lines of stdout, then of stderr.
+    noisy = plan_check.Result(0, "9\n", False, "".join(f"w{n}\n" for n in range(7)))
+    assert plan_check.report("1.1", counted, noisy) == [
+        "plan: 1.1 — `sh` printed other than its Verify: says",
+        "  | 9",
+        *(f"  | w{n}" for n in range(plan_check.SHOWN)),
+    ]
+    # A result kept holds its stderr; one kept without it is read as none kept.
+    monkeypatch.setattr(plan_check, "store", lambda tree: tmp_path / "kept")
+    plan_check.keep("tree", "key", noisy)
+    assert plan_check.load("tree", "key") == noisy
+    (path,) = (tmp_path / "kept").iterdir()
+    path.write_text('{"exit": 0, "output": "9\\n"}')
+    assert plan_check.load("tree", "key") is None
 
 
 def test_a_span_after_an_output_verb_is_output() -> None:
@@ -711,6 +744,40 @@ def test_a_span_after_an_output_verb_is_output() -> None:
     assert found("`a` names `x` or `y`, then `b` names `z`") == [
         ("a", None),
         ("b", None),
+    ]
+    # Only a verb right before a span opens output: words between them make a command.
+    assert found("`a` prints one integer, a space and `b`.") == [
+        ("a", None),
+        ("b", None),
+    ]
+    assert found("`a` prints a line of `b`.") == [("a", None), ("b", None)]
+    assert found("`a` exits `0`, and `b` prints nothing.") == [("a", None), ("b", None)]
+    assert found("`a` and `b` exit 0.") == [("a", None), ("b", None)]
+    # A `Verify:` label ends output, so the next label's span is a command.
+    assert found("`a` prints a line\n  Verify: `b` exits `0`") == [
+        ("a", None),
+        ("b", None),
+    ]
+    # A new sentence reopens output only at a verb right before a span.
+    assert found("`a` prints `1`. It says `b`, `c`. `d` exits `0`.") == [
+        ("a", 1),
+        ("d", None),
+    ]
+    # Cards S1, R2 and S7: a noun's verb before a command, or before output, as
+    # the sentence goes.
+    guard = "`a` exits `0`, then the test that holds the guard, `b`, exits `0`."
+    assert found(guard) == [("a", None), ("b", None)]
+    ends = "`a` exits `0`. The file that names the rule, `b`, prints `1`."
+    assert found(ends) == [("a", None), ("b", 1)]
+    assert found("`a` exits `0`; the script that reads it, `b`, exits `0`.") == [
+        ("a", None),
+        ("b", None),
+    ]
+    assert found("`a` exits `0`. The file that prints `b`.") == [("a", None)]
+    assert found("`a` exits `0`; the line that reads `done` stands.") == [("a", None)]
+    # A comma ends nothing, so `c` after a verb's span is output with it.
+    assert found("`a` exits `0`. The file that says `b`, `c` exits `0`.") == [
+        ("a", None)
     ]
 
 
@@ -754,6 +821,7 @@ def test_commands_run_side_by_side_and_print_in_task_order(
     root = tmp_path / "repo"
     base = _repo(root, monkeypatch)
     monkeypatch.setattr(plan_check, "CPUS", 4)
+    monkeypatch.setattr(plan_check, "load_average", lambda: 0.0)
     monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 30)
     left = 'sh -c "touch one; while [ ! -e two ]; do sleep 0.05; done; exit 3"'
     right = 'sh -c "touch two; while [ ! -e one ]; do sleep 0.05; done; exit 4"'
@@ -795,6 +863,100 @@ def test_commands_run_side_by_side_and_print_in_task_order(
     assert lines[-2:] == ["start pytest -n 2", "end pytest -n 2"]
 
 
+def test_a_command_starts_under_the_load_or_when_none_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(plan_check, "CPUS", 4)
+    log = tmp_path / "log"
+    for name in ("one", "two"):
+        script = tmp_path / name
+        script.write_text(
+            f"#!/bin/sh\necho start {name} >> {log}\nsleep 0.3\n"
+            f"echo end {name} >> {log}\n"
+        )
+        script.chmod(0o755)
+    work = [str(tmp_path / "one"), str(tmp_path / "two")]
+    # Over the cores, the first command starts with none running; the second waits.
+    monkeypatch.setattr(plan_check, "load_average", lambda: 99.0)
+    assert set(plan_check.schedule(work, tmp_path)) == set(work)
+    assert log.read_text().splitlines() == [
+        "start one",
+        "end one",
+        "start two",
+        "end two",
+    ]
+    # Under the cores, both start together.
+    log.unlink()
+    monkeypatch.setattr(plan_check, "load_average", lambda: 0.0)
+    plan_check.schedule(work, tmp_path)
+    assert sorted(log.read_text().splitlines()[:2]) == ["start one", "start two"]
+    # A load the machine cannot give is no load.
+    monkeypatch.undo()
+    monkeypatch.setattr(os, "getloadavg", lambda: (3.0, 0.0, 0.0))
+    assert plan_check.load_average() == 3.0
+
+    def unreadable() -> tuple[float, float, float]:
+        raise OSError("no load")
+
+    monkeypatch.setattr(os, "getloadavg", unreadable)
+    assert plan_check.load_average() == 0.0
+
+
+def test_a_waiting_command_rereads_the_load_each_second(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(plan_check, "CPUS", 4)
+    loads = [99.0, 99.0]
+    reads: list[float] = []
+
+    def load() -> float:
+        reads.append(0.0)
+        return loads.pop(0) if loads else 0.0
+
+    monkeypatch.setattr(plan_check, "load_average", load)
+    first = 'sh -c "while [ ! -e flag ]; do sleep 0.05; done; exit 3"'
+    second = 'sh -c "touch flag; exit 4"'
+    results = plan_check.schedule([first, second], tmp_path, 10)
+    assert (results[first].code, results[second].code) == (3, 4)
+    assert len(reads) > 2
+
+
+def test_a_verify_timeout_line_sets_the_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    agents = root / "AGENTS.md"
+    # No file, no line, no integer and an integer below one give 600.
+    assert plan_check.verify_limit(root) == 600
+    for text in (
+        "Limit 5 s.\n",
+        "**Verify timeout:** none\n7\n",
+        "**Verify timeout:** 0 s\n",
+        "**Verify timeout:** -30\n",
+    ):
+        agents.write_text(text)
+        assert plan_check.verify_limit(root) == 600
+    # A limit past a day is a day: the selector refuses one near 25 days.
+    agents.write_text("**Verify timeout:** 3000000\n")
+    assert plan_check.verify_limit(root) == 86_400
+    # The first integer after the label is the limit, and the patched default stands.
+    agents.write_text("Gate 9.\n**Verify timeout:** 90 s, then 5.\n")
+    assert plan_check.verify_limit(root) == 90
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
+    agents.write_text("")
+    assert plan_check.verify_limit(root) == 0.5
+    # `run` and `schedule` end a command at the limit they are given.
+    assert plan_check.run("sleep 5", root, 0.3).timed_out
+    assert plan_check.schedule(["sleep 5"], root, 0.3)["sleep 5"].timed_out
+    # The check reads the line: a limit of 1 s ends `sleep 5`, which 600 s would not.
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 600)
+    agents.write_text("**Verify timeout:** 1\n")
+    _tasks(root, _ONE, "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n")
+    assert plan_check.main(["--change", _CHANGE, "--base", base]) == 1
+    assert capsys.readouterr().out.splitlines() == ["plan: 1.1 — `sleep 5` timed out"]
+
+
 def test_sigterm_ends_the_commands_running(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -826,27 +988,40 @@ def test_only_runs_the_named_sub_tasks(
         f'- [ ] 1.1 Open.\n  Verify: `sh -c "echo one >> {ran}; exit 1"`.\n',
         f'- [x] 1.2 Ticked.\n  Verify: `sh -c "echo two >> {ran}"`.\n',
         f'- [ ] 2.3 **HALT CHECK** Premise.\n  Verify: `sh -c "echo halt >> {ran}"`.\n',
+        "- [ ] 1.4 Suite.\n"
+        f'  Verify: `sh -c "echo suite >> {ran}" tests/test_plan_check.py`.\n',
+        "- [ ] 1.5 Self.\n"
+        f'  Verify: `sh -c "echo self >> {ran}" other/plan_check.py`.\n',
+        "- [ ] 1.6 Prose.\n  Verify: the file docs/x.md exists on disk.\n",
     )
 
     def only(*ids: str) -> tuple[int, list[str]]:
         argv = ["--change", _CHANGE, "--base", base, "--only", *ids]
         return plan_check.main(argv), capsys.readouterr().out.splitlines()
 
-    code, lines = only("1.1", "2.3")
+    def done() -> list[str]:
+        return sorted(ran.read_text().split())
+
+    code, lines = only("1.1", "2.3", "1.4", "1.5")
 
     assert code == 1
     assert lines[0].startswith("plan: 1.1 — `sh -c ")
     assert lines[0].endswith("` exited 1")
     assert len(lines) == 1
-    assert ran.read_text() == "one\n"
+    assert done() == ["halt", "one", "suite"]
     assert only("1.2") == (0, ["plan: clean"])
-    assert ran.read_text() == "one\ntwo\n"
+    assert done() == ["halt", "one", "suite", "two"]
 
     code, lines = only("1.1", "x")
 
     assert code == 2
     assert lines[0].startswith("plan: cannot check — --only takes ids like 3.2")
-    assert ran.read_text() == "one\ntwo\n"
+    assert done() == ["halt", "one", "suite", "two"]
+    # A named `Verify:` with no command is checked by nothing: the check stops.
+    assert only("1.6") == (
+        2,
+        ["plan: cannot check — 1.6: its Verify: names no command"],
+    )
 
 
 def test_what_the_plan_check_cannot_read_exits_2(
