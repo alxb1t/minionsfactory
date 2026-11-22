@@ -1,17 +1,17 @@
 ---
 name: mf-simplify
-description: Simplify a built change's own lines, behaviour-preservingly, on any host — by fixed angles and closed edit kinds, held by the change's spec, design, decisions, standards and threat model, with the gate after each angle; one commit, or "lean already" or "nothing kept". Use at the end of mf-build, which runs it, or on a built change before converge.
+description: Simplify a built change's own lines, behaviour-preservingly, on any host — by fixed angles and closed edit kinds, held by the change's spec, design, decisions, standards and threat model, with make check after each angle; one commit, or "lean already" or "nothing kept". Use at the end of mf-build, which runs it, or on a built change before converge.
 ---
 
 # mf-simplify — make the change smaller, and nothing else
 
 > **Your role is SIMPLIFY.** You edit the change's own lines to say the same thing in less, and you prove each step
-> with the gate. You hold no verdict and write no findings file: review judges your edits next.
+> with `make check`. You hold no verdict and write no findings file: review judges your edits next.
 
 ```
   for each angle — reuse · simplification · efficiency · altitude · conventions:
-      candidates ─▶ an edit kind? ─▶ inside the oracles? ─▶ apply ─▶ make gate ─┬─ green, net ≤ 0 ─▶ keep
-                                                                                └─ red, or net > 0 ─▶ revert
+      candidates ─▶ an edit kind? ─▶ inside the oracles? ─▶ apply ─▶ make check ─┬─ green, net ≤ 0 ─▶ keep
+                                                                                 └─ red, or net > 0 ─▶ revert
   ─▶ one commit: applied · skipped · notes for review · mode · net: -N      (no commit → "lean already" or "nothing kept")
 ```
 
@@ -27,9 +27,10 @@ current branch differs → **halt**, naming both.
 
 ## Step 1 — Preconditions
 
-Each holds, or **halt** naming it: the tree is clean; every `## Progress` box is ticked; `make gate` is green.
-Before that first gate, run `make -n gate` and paste its output. It exits non-zero, or prints no command — only
-`is up to date` or `Nothing to be done` → **halt**, naming the root `Makefile`: an empty recipe exits 0.
+Each holds, or **halt** naming it: the tree is clean; every `## Progress` box is ticked; `make check` is green.
+Before that first check, run `make -n check` and paste its output. It prints no command — only
+`is up to date` or `Nothing to be done` → **halt**, naming the root `Makefile`: an empty recipe exits 0. It exits
+non-zero (no `check` target) → the check is `make gate` throughout: run `make -n gate` and halt on it as above.
 The **range** is `<base>..HEAD`, `<base>` the sha `.minions/changes/<change-id>/stacked-on` names while it stands,
 else the merge-base with the default branch — the default branch as `git symbolic-ref --short
 refs/remotes/origin/HEAD` names it after `origin/`, or `main`.
@@ -74,7 +75,7 @@ and pass the oracles, then apply them:
 | `speculative` | an option nobody sets, a layer with one caller, a pass-through — **the deletion test**: delete it in your head; if its complexity vanishes, inline it; if it reappears across callers, keep it |
 | `shrink` | the same logic in fewer lines, only when it saves five or more |
 
-After an angle's edits, run `make gate`, then `git diff --numstat` over the unstaged edits. **Green and net lines not
+After an angle's edits, run `make check`, then `git diff --numstat` over the unstaged edits. **Green and net lines not
 grown** → stage that angle's paths by name. **Red, or net lines grown** → `git checkout --` those paths, back to the
 last staged state, and note the angle as reverted with its reason.
 
@@ -103,7 +104,7 @@ Mode: single-pass · net: -<N> lines
 
 then the trailer block — `Co-Authored-By:` and `Change: <change-id>`, contiguous. Nothing staged → commit nothing,
 and report `nothing kept` with the angles reverted, the skips and the notes, or `lean already` when there are none.
-Re-run `make gate` on the committed tree; red → **halt**.
+The gate on the committed tree is the conductor's close, `conduct.py close`; it drops this commit when it is red.
 
 ## Report
 

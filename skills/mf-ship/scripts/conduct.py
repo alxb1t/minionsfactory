@@ -8179,7 +8179,7 @@ def _amended_since_simplify(primary: Path, change: str, tree: Path) -> bool:
 def _close_base(primary: Path, change: str, tree: Path) -> str:
     """Return the head `stacked-on` names while it stands, else the merge-base.
 
-    Why: mf-build Step 3.5.
+    Why: mf-build Step 1, the base.
     """
     default = default_branch(primary)
     after = _dependencies(primary, change)
@@ -8209,7 +8209,7 @@ def _close_metrics(
 ) -> str | None:
     """Collect the metrics draft and draw its page; return why they halt, or None.
 
-    No catalogue skips both, and an exit 3 carries on. Why: mf-build Step 3.5.
+    No catalogue skips both, and an exit 3 carries on. Why: 0144-gate-outside design D2.
     """
     if not (tree / CATALOGUE).is_file():
         say("metrics: none — no catalogue")

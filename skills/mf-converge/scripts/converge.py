@@ -402,6 +402,21 @@ def _read(path: Path) -> str:
     return text
 
 
+def _plan_output(context: Context, head: str) -> str:
+    """Return the plan check's output, the close's own when `build.done` names `head`.
+
+    Otherwise a run's. Why: 0144-gate-outside design D7.
+    """
+    kept = None
+    with suppress(OSError):
+        kept = _text(context.folder / "plan-check.txt")
+    done = _read(context.folder / "build.done").splitlines()
+    if kept is not None and f"head: {head}" in done:
+        return kept
+    plan = script("plan_check.py", "--change", context.change, "--base", context.base)
+    return _captured(context, plan)[1]
+
+
 def _evidence(context: Context, base: str, head: str, diff: str) -> None:
     """Write `evidence.md` for a frozen patch: facts tools found, never a verdict.
 
@@ -409,8 +424,7 @@ def _evidence(context: Context, base: str, head: str, diff: str) -> None:
     Why: 0110-gate-hardening design D6.
     """
     names = EVIDENCE["candidates"](diff)
-    plan = script("plan_check.py", "--change", context.change, "--base", context.base)
-    checked = _captured(context, plan)[1]
+    checked = _plan_output(context, head)
     grep = ["git", "grep", "-n", "-w", "-F", *(a for n in names for a in ("-e", n))]
     found = _captured(context, grep)[1] if names else ""
     sections = {

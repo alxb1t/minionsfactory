@@ -1,14 +1,16 @@
 # Fix — what converge's fixer does
 
-The fixer is a fresh worker inside [converge](../SKILL.md)'s loop: it clears the cards it is sent to a green gate,
+The fixer is a fresh worker inside [converge](../SKILL.md)'s loop: it clears the cards it is sent to a green check,
 commits once, and writes its report. Load it with [the worker reference](worker.md), whose card and
 [rules for tests](worker.md#rules-for-tests) it follows.
 
 ## What you clear
 
 Every card you are sent, by id: each open blocking card in the conformance and adversarial files, and in a pickup, or a round-1
-pickup riding with the blockers, the small and `drift` cards it names. Clear them to a **green gate** — `make gate`,
-run from the repository root as `uv run --script ../scripts/gate_run.py`, resolved from this reference.
+pickup riding with the blockers, the small and `drift` cards it names. Clear them to a **green check** — `make check`
+from the repository root, where `make -n check` exits 0. Converge runs the gate after your pass. A repository with no
+`check` target has no quick check: take the gate, `make gate`, as `uv run --script ../scripts/gate_run.py`, resolved
+from this reference.
 
 ## The rules
 
@@ -16,7 +18,7 @@ run from the repository root as `uv run --script ../scripts/gate_run.py`, resolv
   at the lowest layer that reproduces it (`T1`), as a step in an existing test where one reaches the state (`T2`).
 - **Never weaken the gate** — no new blanket suppression, no loosened config — and **never delete or merge a test**:
   consolidation is planned at the cut (`T5`). Conformance checks for exactly this.
-- **Run the plan check** after your gate and before your commit, in the foreground:
+- **Run the plan check** after your check and before your commit, in the foreground:
   `uv run --script ../scripts/plan_check.py --change <change-id> --base <base>`, resolved from this reference. Each line
   it prints is a blocking card of this pass: fix it, or set it `wontfix` naming the amend, as for a card. A line ending
   `timed out` is no card: leave it. A line you cannot clear without editing `tasks.md` or `design.md` you leave, and

@@ -109,7 +109,7 @@ JUDGED = {
     "I5": "each `Verify:` runs on this machine, or is a fact on disk",
     "I6": "each task has one reading: files named, no `or`, things named not counted",
     "I7": "each existing file the change turns red is named in a task",
-    "I8": "each phase ends on a green `make check`, the last on a green gate",
+    "I8": "each phase ends on a green `make check`, the build on a green gate",
     "I9": "a delta for each behaviour change; each MODIFIED title is a requirement",
     "I10": "each file and symbol `design.md` names exists, or an `after:` adds it",
     "I15": "`**HALT CHECK**` on each sub-task whose failure means the plan is wrong",

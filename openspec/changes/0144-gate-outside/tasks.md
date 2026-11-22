@@ -7,7 +7,7 @@ Each phase ends on a green `make check`, the last on a green gate: the close's m
 - [x] 1 — The close's model key · moderate
 - [x] 2 — The close command · hard
 - [x] 3 — The build loop · hard
-- [ ] 4 — The skills and converge · moderate
+- [x] 4 — The skills and converge · moderate
 - [ ] 5 — The records · moderate
 
 ## 1 — The close's model key
@@ -53,15 +53,15 @@ Each phase ends on a green `make check`, the last on a green gate: the close's m
 
 ## 4 — The skills and converge
 
-- [ ] 4.1 In `skills/mf-build/SKILL.md` word `make check` after every phase where `make -n check` exits `0`, the last included, and the gate through `gate_run.py` where it does not; word `phase=close` as simplify alone with `make check` after each angle, and add `phase=repair`: read `gate.red` in the change's run folder, fix, run `make check` and the failed tests, commit. Move Steps 3.5 and 3.6 to `conduct.py close <change-id>`, which a build with no `phase=` runs once after simplify, and word `I8` as: each phase ends on a green `make check`, the build on a green gate.
+- [x] 4.1 In `skills/mf-build/SKILL.md` word `make check` after every phase where `make -n check` exits `0`, the last included, and the gate through `gate_run.py` where it does not; word `phase=close` as simplify alone with `make check` after each angle, and add `phase=repair`: read `gate.red` in the change's run folder, fix, run `make check` and the failed tests, commit. Move Steps 3.5 and 3.6 to `conduct.py close <change-id>`, which a build with no `phase=` runs once after simplify, and word `I8` as: each phase ends on a green `make check`, the build on a green gate.
   Verify: `git grep -n -e "conduct.py close" -- skills/mf-build/SKILL.md` exits `0`.
-- [ ] 4.2 In `skills/mf-cut-change/SKILL.md` word `I8` as in 4.1. In `skills/mf-simplify/SKILL.md` say its precondition is a green `make check`, it runs `make check` after each angle and not the gate, and its committed-tree re-run is the conductor's close: drop the re-run line.
+- [x] 4.2 In `skills/mf-cut-change/SKILL.md` word `I8` as in 4.1. In `skills/mf-simplify/SKILL.md` say its precondition is a green `make check`, it runs `make check` after each angle and not the gate, and its committed-tree re-run is the conductor's close: drop the re-run line.
   Verify: `git grep -n -e "make check" -- skills/mf-simplify/SKILL.md` exits `0`.
-- [ ] 4.3 In `skills/mf-converge/references/fix.md` say the fixer clears its cards to a green `make check` where `make -n check` exits `0`, runs the plan check as it does, and takes the gate through `gate_run.py` only where the repository has no `check` target ([D9](design.md#d9)).
+- [x] 4.3 In `skills/mf-converge/references/fix.md` say the fixer clears its cards to a green `make check` where `make -n check` exits `0`, runs the plan check as it does, and takes the gate through `gate_run.py` only where the repository has no `check` target ([D9](design.md#d9)).
   Verify: `git grep -n -e "make check" -- skills/mf-converge/references/fix.md` exits `0`.
-- [ ] 4.4 In `skills/mf-converge/scripts/converge.py` make `_evidence` read `plan-check.txt` from the change's run folder into the Plan check section, and run no `plan_check.py`, when `build.done` names the frozen head; at another head, or with no `plan-check.txt`, it runs the plan check as before ([D7](design.md#d7)). Add `test_a_freeze_at_the_head_build_done_names_runs_no_plan_check` and `test_a_freeze_at_another_head_runs_the_plan_check` to `tests/test_converge.py`.
+- [x] 4.4 In `skills/mf-converge/scripts/converge.py` make `_evidence` read `plan-check.txt` from the change's run folder into the Plan check section, and run no `plan_check.py`, when `build.done` names the frozen head; at another head, or with no `plan-check.txt`, it runs the plan check as before ([D7](design.md#d7)). Add `test_a_freeze_at_the_head_build_done_names_runs_no_plan_check` and `test_a_freeze_at_another_head_runs_the_plan_check` to `tests/test_converge.py`.
   Verify: `uv run pytest tests/test_converge.py -k "test_a_freeze_at_the_head_build_done_names_runs_no_plan_check or test_a_freeze_at_another_head_runs_the_plan_check" -q` exits `0`.
-- [ ] 4.5 In the `Makefile`, in the `gate` target, add `--durations=20` to the pytest line, so `gate` names the twenty slowest tests ([D9](design.md#d9)). The diff:
+- [x] 4.5 In the `Makefile`, in the `gate` target, add `--durations=20` to the pytest line, so `gate` names the twenty slowest tests ([D9](design.md#d9)). The diff:
   ```diff
   - uv run coverage run -m pytest -q -n auto --junitxml=.minions/test-report.xml
   + uv run coverage run -m pytest -q -n auto --durations=20 --junitxml=.minions/test-report.xml

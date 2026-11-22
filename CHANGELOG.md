@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The models line takes a `build-close` part, written as `[build.close]`, and the close's spawn runs on it, else on `[build.moderate]`, else on `[build]`, key by key; its table names no executor (0144-gate-outside, phase 1).
 - `conduct.py close <change-id>` ends a build with one command for a run and a hand build: the gate under the OS sandbox, the metrics, the plan check kept in `plan-check.txt`, then `build.done`; a failed step writes `gate.red` or `build.halt`. `gate_run.py` reads a gate past its limit as red, exit 124 (0144-gate-outside, phase 2).
 - The build loop gates the build itself: after the last phase it runs the gate, and a red one gets one `phase=repair` worker, then halts. The close worker only simplifies; the conductor then marks `build.simplified`, runs `close`, drops a simplify commit the gate is red with, and closes with no worker after an amend of the change directory alone (0144-gate-outside, phase 3).
+- The skills name the split: a worker runs `make check`, the conductor's `conduct.py close` runs the gate, the metrics and the plan check, `mf-simplify` runs `make check` after each angle, and the fixer clears its cards to `make check`; `I8` reads the same in both skills. Converge's freeze reads the plan check from `plan-check.txt` when `build.done` names the frozen head, and the gate's pytest names its slowest tests with `--durations=20` (0144-gate-outside, phase 4).
 
 ## [0.114.0] - 2026-11-22
 
