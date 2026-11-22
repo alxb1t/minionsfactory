@@ -9,6 +9,7 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 - [x] 3 — The build · moderate
 - [x] 4 — Time · moderate
 - [x] 5 — The wait · moderate
+- [ ] 6 — The verb before the span · moderate
 
 ## 1 — The judge
 
@@ -78,3 +79,12 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 - [x] 5.1 Cover the wait that re-reads the load each second per [D3](design.md#d3): add `test_a_waiting_command_rereads_the_load_each_second` to `tests/test_plan_check.py`. With `CPUS` patched to 4, `schedule` gets two commands: the first runs until a file the second creates exists, the second creates it, and `schedule`'s `limit` is 10. `plan_check.load_average` is patched to give 99.0 on its first two reads and 0.0 after, so the second command's first one-second wait times out and the loop in `schedule` waits again before the second starts beside the first. Assert both commands' results and that the patched load was read more than twice. Leave `skills/mf-converge/scripts/plan_check.py` unchanged.
   Verify: `uv run pytest tests/test_plan_check.py::test_a_waiting_command_rereads_the_load_each_second -q` exits 0.
+
+## 6 — The verb before the span
+
+- [ ] 6.1 Put `commands` in `skills/mf-converge/scripts/plan_check.py` back to the default branch's span rule per [D1](design.md#d1), the `Verify:` label kept as an end; the helpers, the word set and the comment the withdrawn rule added go. Turn `test_a_span_after_an_output_verb_is_output` in `tests/test_plan_check.py` to D1's cases and the sentences of cards S1, R2 and S7.
+  Verify: `uv run pytest tests/test_plan_check.py::test_a_span_after_an_output_verb_is_output -q` exits 0.
+- [ ] 6.2 Refuse a command after an output verb in one clause per [D1](design.md#d1), as an `I19` line of `skills/mf-cut-change/scripts/verify_check.py` naming the span. Add `test_a_command_after_an_output_verb_is_refused_at_the_cut` to `tests/test_verify_check.py`, and move the probe's line to it from `test_a_span_after_an_output_verb_is_no_command`.
+  Verify: `uv run pytest tests/test_verify_check.py -q` exits 0.
+- [ ] 6.3 Say the form in `I19`'s row of `skills/mf-cut-change/SKILL.md` and of `skills/mf-build/SKILL.md`, the same words in both: the verb stands right before each span of output, and a second command starts a new clause.
+  Verify: `uv run pytest tests/test_skills.py -q` exits 0.

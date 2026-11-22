@@ -24,7 +24,7 @@ Probe 7 of an earlier run halted a build on "`uv run … -L pyproject.toml` prin
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| [D1](#d1) | Output opens at the first output verb after a command and holds every later span to `then`, `;` or the sentence's end | a verb with words before the span left the span a command | keeping the last-word rule; ending output at a comma |
+| [D1](#d1) | The parser's span rule stays the default branch's: output opens only at an output verb that is the last word before a span. The cut refuses a `Verify:` that puts a command after an output verb in one clause | every rule that let words stand between the verb and the span read a real command as output in some sentence, three rounds running | output at the first verb after a command; a rule for a noun's clause; a rule for the comma clause |
 | [D2](#d2) | The compared output is stdout alone; stderr is kept apart and shown on a failure | a tool's warning on stderr broke an exact match | merging both streams; dropping stderr |
 | [D3](#d3) | A command starts only while the 1-minute load is under the core count, and always when none runs | side-by-side runs overloaded the machine; a load that never falls must not starve the check | a fixed pause; half the cores |
 | [D4](#d4) | A count is stated only on `grep -c` or `--count` over one file | `git grep -c` prints `path:N`, and a multi-file count prints a line a file | accepting `path:N` lines |
@@ -40,18 +40,21 @@ Probe 7 of an earlier run halted a build on "`uv run … -L pyproject.toml` prin
 
 ### D1
 
-`commands` in `plan_check.py` sets output when a word of the text before a span is an output verb and a command stands before it. Output ends at `then`, `;` or a sentence end. A `, and` or `, or` before a span that a verb follows opens a new command; before one with no verb it ends a list.
+`commands` in `plan_check.py` reads spans as it does on the default branch: a span is output when the word right before it is an output verb, and output then holds to a `then`, a `;`, a sentence end or a `Verify:` label. A `, and` or `, or` before a span that a verb follows opens a new command; before one with no verb it ends a list. No other word of the text opens output.
+
+`verify_check.py` refuses, as an `I19` line naming the span, a `Verify:` in which two commands of that parse stand in one clause with an output verb between them: no end, and no `, and` or `, or` clause, stands between the earlier command and the later one. A `**HUMAN` phase's `Verify:` is left out, as the plan check leaves it out.
 
 ```
 `a` exits `0`, and `b` prints nothing.   → a, b     (a verb follows b)
-`a` prints one integer, a space and `b`. → a        (b is output)
 `a` prints `1`, then `b` exits `0`.      → a, b
+`a` and `b` exit 0.                      → a, b     (no output verb between them)
+`a` prints one integer, a space and `b`. → refused at the cut: the verb goes right before `b`, or the clause ends
+`a` prints a line of `b`.                → refused at the cut, the same
 ```
 
 A count is still set only for `prints` or `reports` right before an all-digit span, and `exits` right before one sets the exit. A comma alone ends nothing.
 Fix note (2026-11-22, R1): a `Verify:` label ends output too, so a brief item's later label keeps its command.
-Fix note (2026-11-22, S1): a verb right after `that`, `which` or `who` belongs to a noun's clause and opens no output.
-Fix note (2026-11-22, S1): after an end, only a verb last before a span, or one with no `that`, `which`, `who` or `whose` before it in the comma clause of a span no output verb follows, opens output.
+Amend (2026-11-22, the person, at converge's cap): the rule this change was cut with — output at the first verb after a command, whatever words stood between — is withdrawn with its two fix notes. Each form of it read some real command as output, and the plan check then reported clean a check it never ran (cards S1, R2 and S7). The probe's form is refused at the cut instead, before any build.
 
 ### D2
 
@@ -126,7 +129,8 @@ The tests added are unit tests, and no end-to-end run is added: the repository h
 
 | test | layer | what it holds |
 |---|---|---|
-| `test_a_span_after_an_output_verb_is_output` | unit, extended | the probe's line is one command; a `, and` clause before a verb opens a command |
+| `test_a_span_after_an_output_verb_is_output` | unit, extended | the default branch's cases stand; a `Verify:` label ends output; a `, and` clause before a verb opens a command; the sentences of cards S1, R2 and S7 each give every command |
+| `test_a_command_after_an_output_verb_is_refused_at_the_cut` | unit, new | the probe's line and a span after `prints a line of` are refused; a `, and` clause, a `then` and two commands with no verb between pass |
 | `test_stderr_is_shown_and_never_compared` | unit, new | a warning on stderr beside an exact stdout passes; a failure shows both |
 | `test_a_command_starts_under_the_load_or_when_none_runs` | unit, new | the load read is patched: over the cores with a command running waits, with none starts |
 | `test_a_form_the_close_refuses_breaks_at_the_cut` | unit, new | each refused count, `-L`, a line number, a phrase and a range; the HALT CHECK exemption |
@@ -145,7 +149,7 @@ Tests that turn and are edited, none deleted or merged:
 | `test_a_command_runs_without_virtual_env` | the same | the same |
 | the `plan_check.py` row of `tests/test_staged_writes.py` | a kept result stores `stderr` | its assertions, the stored text holding `"stderr": ""` |
 | `test_a_search_prints_the_lines_it_matches_at_head` | `git grep -c` and a multi-file `grep -c` are refused | its assertions, the refused forms moved to the refusal test |
-| `test_a_span_after_an_output_verb_is_no_command` | the wider rule | its assertions, the probe's line added |
+| `test_a_span_after_an_output_verb_is_no_command` | the probe's line is refused at the cut | its assertions, the probe's line moved to the refusal test |
 | `test_a_check_out_of_shape_breaks_and_is_not_run` | `-L` joins the refused options | its assertions, one sub-task added |
 | `test_commands_run_side_by_side_and_print_in_task_order` | the load read joins the start | its assertions, the load patched |
 

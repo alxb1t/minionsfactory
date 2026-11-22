@@ -38,11 +38,10 @@ the file name `plan_check.py`, and SHALL run no command with a shell. It SHALL e
 2 when it cannot read `tasks.md`, the base or git, or when `--only` names a sub-task outside a `**HUMAN` phase whose `Verify:`
 holds no command.
 
-It SHALL read a `Verify:`'s spans as follows: once an output verb — `prints`, `exits` and the like — follows a command, each later
-span is output, never a command, whatever words stand between the verb and the span, until a `then`, a `;`, the sentence's end
-or a `Verify:` label; a verb after `that`, `which`, `who` or `whose` opens no output, and a `, and` or `, or` before a span that a
-verb follows opens a new command. After a `then`, a `;` or a sentence end, only a verb right before a span, or one in the comma
-clause holding a span that no output verb follows, opens output again. A command whose `Verify:` says it
+It SHALL read a `Verify:`'s spans as follows: a span whose word right before it is an output verb — `prints`, `exits` and the
+like — is output, never a command, and so is each later span until a `then`, a `;`, the sentence's end or a `Verify:` label; a
+`, and` or `, or` before a span that a verb follows opens a new command. No other word SHALL open output: a span with words
+between an output verb and it, and no span between them, is a command. A command whose `Verify:` says it
 `` exits `<N>` `` SHALL pass only on exit `<N>`, and on the output the `Verify:` says; the search that passes on exit 1 is the one
 whose `Verify:` names no exit. It SHALL run each command without `VIRTUAL_ENV` in its environment, SHALL compare a command's stdout
 alone with what the `Verify:` says, keeping its stderr apart, and SHALL show the first lines of both on a failure.
@@ -102,7 +101,7 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 
 #### Scenario: Words between the verb and the span
 - **WHEN** a ticked `Verify:` says that `printf 1` prints one integer, a space and `pyproject.toml`
-- **THEN** `printf 1` is the one command, and `pyproject.toml` is output
+- **THEN** `printf 1` and `pyproject.toml` are both commands, and `plan_check.py` reports the second
 - **AND WHEN** it says that `printf 1` exits `0`, and `printf 2` prints `2`
 - **THEN** both commands run
 - **AND WHEN** it says that `printf 1` exits `0`, then the test that holds the guard, `printf 2`, exits `0`
@@ -226,6 +225,10 @@ other than a search pattern shaped `<path>:<digits>` or `<path>:<digits>-<digits
 words, and a range `<default>..HEAD` or `<default>...HEAD`, `origin/` allowed before the default branch and `HEAD` left out. The one absence form is a `git grep -c`
 printing nothing.
 
+It SHALL refuse too, naming the sub-task and the span, a `Verify:` outside a `**HUMAN` phase in which two commands of the plan
+check's parse stand in one clause with an output verb between them — no `then`, `;`, sentence end or `Verify:` label, and no
+`, and` or `, or` clause, between the earlier command and the later one.
+
 #### Scenario: A loop in a check
 - **WHEN** a `Verify:` reads `for i in $(seq 20); do … done`
 - **THEN** `verify_check.py` exits 1, naming the sub-task
@@ -242,6 +245,13 @@ printing nothing.
 - **WHEN** a `Verify:` says `git grep -c x -- a.md` prints `1`, or `grep -c x a.md b.md` prints `1`, or `grep -n x a.md` prints `1`
 - **THEN** `verify_check.py` exits 1, naming the sub-task
 - **AND WHEN** a `Verify:` says `grep -c x a.md` or `grep --count x a.md` prints `1`, or `git grep -c x -- a.md` prints nothing
+- **THEN** it halts nothing
+
+#### Scenario: A command after an output verb
+- **WHEN** a `Verify:` says that `printf 1` prints one integer, a space and `pyproject.toml`, or prints a line of `a.md`
+- **THEN** `verify_check.py` exits 1, naming the sub-task and the span
+- **AND WHEN** a `Verify:` says that `printf 1` exits `0`, and `printf 2` prints `2`, or that `printf 1` prints `1`, then
+  `printf 2` exits `0`, or that `printf 1` and `printf 2` exit 0
 - **THEN** it halts nothing
 
 #### Scenario: An option that hides the path

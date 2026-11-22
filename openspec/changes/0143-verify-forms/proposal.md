@@ -16,7 +16,7 @@ The judges disagree today: the cut reads a `Verify:` as text, the build runs it 
 
 ## What Changes
 
-- The plan check reads every span after an output verb as output, whatever words stand between, to `then`, `;` or the sentence's end.
+- The plan check's span rule stays as it is. The cut refuses a `Verify:` that puts a command after an output verb in one clause, the form that halted probe 7.
 - It compares stdout alone, and shows stderr on a failure.
 - It starts a command only while the load is under the core count, and always when none runs.
 - It reads a command's limit from the repository's `**Verify timeout:**`, 600 s where none, and `--only` judges a `**HALT CHECK**` sub-task it is named for.
