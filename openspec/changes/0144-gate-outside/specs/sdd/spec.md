@@ -18,7 +18,7 @@
 
 ### Requirement: A close command ends a build
 
-`conduct.py close <change-id>` SHALL run, in the version's worktree, the gate through `gate_run.py`, then the metrics where `metrics/catalogue.toml` stands, then `plan_check.py --change <change-id> --base <base>`, and then write `.minions/changes/<change-id>/build.done` as `head: <the full sha of HEAD>` and `simplify: <sha>` — the newest `refactor(<change-id>): simplify` commit of the range — or `simplify: none`, and remove `build.closing`. It SHALL print `close: done` and exit 0, print `close: fail — <why>` and exit 1, or print `close: cannot run — <why>` and exit 2 for a missing version. It SHALL fail on an unticked `## Progress` box or a dirty tree. On a red gate it SHALL write `gate.red`, and on a red gate, a metrics halt or a plan-check failure it SHALL write `build.halt` with `sub-task: close`, `stop:`, `evidence:` and `head:`, so the rescue's key reads on. It SHALL keep the plan check's printed lines in `plan-check.txt` beside `build.halt`. A red gate with a `refactor(<change-id>): simplify` commit at `HEAD` SHALL reset the branch to the commit before it, print `reset — simplify dropped`, and run the steps once more. A hand build with no `phase=` and a run SHALL run this command and no other close.
+`conduct.py close <change-id>` SHALL run, in the version's worktree, the gate through `gate_run.py`, then the metrics where `metrics/catalogue.toml` stands, then `plan_check.py --change <change-id> --base <base>`, and then write `.minions/changes/<change-id>/build.done` as `head: <the full sha of HEAD>` and `simplify: <sha>` — the newest `refactor(<change-id>): simplify` commit of the range — or `simplify: none`, and remove `build.closing`. It SHALL print `close: done` and exit 0, print `close: fail — <why>` and exit 1, or print `close: cannot run — <why>` and exit 2 for a missing version. It SHALL fail on an unticked `## Progress` box or a dirty tree. On a red gate it SHALL write `gate.red`, and on a red gate, a metrics halt or a plan-check failure it SHALL write `build.halt` with `sub-task: close`, `stop:`, `evidence:` and `head:`, so the rescue's key reads on. It SHALL keep the plan check's printed lines in `plan-check.txt` beside `build.halt`, under a first line `base: <the sha its `--base` named>`. A red gate with a `refactor(<change-id>): simplify` commit at `HEAD`, save one past its limit or one that printed `sandboxed: denied`, SHALL reset the branch to the commit before it, print `reset — simplify dropped`, and run the steps once more. A hand build with no `phase=` and a run SHALL run this command and no other close.
 
 #### Scenario: A green close
 - **WHEN** `conduct.py close 0001-a` runs on a version with every box ticked, a clean tree, a green gate and a clean plan check
@@ -191,7 +191,7 @@ SHALL write `.minions/changes/<change-id>/evidence.md` whole, from tools alone, 
 through the placeholder `{evidence}` of each reference's `## Prompt`. The file SHALL hold four sections, each a list of lines
 or `None.`: **Gate integrity** — one line for each suppression, skip, removed test, removed assertion, edit to the gate's
 configuration or swallowed error the frozen patch holds, by `skills/mf-converge/scripts/gate_integrity.py`; **Plan check** —
-the whole output of `plan_check.py` for the freeze, a command past its limit shown as timed out, never as failed, or, when `.minions/changes/<change-id>/build.done` names the frozen head, the lines of `plan-check.txt` the close kept, with no `plan_check.py` run;
+the whole output of `plan_check.py` for the freeze, a command past its limit shown as timed out, never as failed, or, when `.minions/changes/<change-id>/build.done` names the frozen head and the `base:` line of `plan-check.txt` names the freeze's base, the lines of `plan-check.txt` the close kept, with no `plan_check.py` run;
 **Stale-claim candidates** — each name the patch renames or deletes with
 its `git grep` mentions outside the patch; **Test cost** — each test the patch adds with its seconds from the gate's junit
 report, each `slow` marker and end-to-end `run` boot it adds, and each test it removes against the design's `## Tests`
@@ -433,7 +433,7 @@ it names included, with the other skips, print only their lines and check nothin
 
 `conduct.py close` SHALL run it at the build's close, after the metrics and before `build.done`, its `--base` the sha `stacked-on` names while it stands and else the merge base of the default branch
 and `HEAD`, and SHALL halt on any other exit than 0, writing no `build.done`. Converge's fixer SHALL run it in the foreground after
-its gate and before its commit, clearing each problem as a blocking card of the same pass, or setting it `wontfix` naming the
+its check and before its commit, clearing each problem as a blocking card of the same pass, or setting it `wontfix` naming the
 amend; converge's Step 7 SHALL run it after `gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any
 verify worker, counting no round, save a line that says a command timed out, which it SHALL send back to no one; a line the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the
 run `amend needed — plan check: <subjects>`, naming each line's sub-task, `path:line` or test name and never the command it
@@ -573,4 +573,181 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 #### Scenario: A stacked close
 - **WHEN** the build's close runs while `stacked-on` names a commit
 - **THEN** the plan check's `--base` is that sha, and a test the dependency deleted is no test gone since the base
+
+### Requirement: A hard brief is checked before it is queued
+
+`skills/mf-plan/scripts/brief_check.py <brief>` SHALL exit 1, printing one line per problem, when the brief's title does not
+say `hard`, when it has no `At <sha>, <YYYY-MM-DD>.` line with a sha of 7 to 40 lowercase hex digits, when its
+`## For the cut` holds no line, or when a command of an `**Acceptance:**` or `Verify:` item in its `## Decisions` or
+`## For the cut` breaks the shell rules of `skills/mf-cut-change/scripts/verify_check.py`: one plain command, no `$(…)`, shell
+variable, loop or `cd`. A command is a backticked span that holds a space and is no output, as `verify_check.py` reads one.
+It SHALL read the brief as CommonMark does: a section opens at the ATX heading written `## Decisions`, `## Dependencies` or
+`## For the cut`, and runs to the next heading of level one or two, in any form, or HTML heading of those levels; a section's
+lines split at a newline. A carriage return not before a newline SHALL exit 1, naming its line. It SHALL also exit 1 when a
+line of `## For the cut` is none of: a blank line; a head, opening
+`<n>. ` and one space at the line's start; under a head, a `- models: ` or `- **Acceptance:** ` line indented three spaces or
+as far as its head's text; a line indented at least two spaces past its Acceptance line, after that line or its
+continuation; or the cut's `Cut <YYYY-MM-DD> as <id> at <sha>.` line. It SHALL also exit 1 when a head names a slug, an
+`after` entry or a `beside` entry that `conduct.py`'s `SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or
+more than one, or more than one `beside:`, or when an item has no `models:` line, more
+than one, or one not naming the build, converge, release and cut station in order, then any of the build-moderate,
+build-close, conformance, adversarial and fix parts in that order, each with a model and effort of `[A-Za-z0-9._-]` alone, then at most a
+last `shadow`. The converge, conformance and adversarial part MAY instead be the word `skip` alone, in place of its model and
+effort. It SHALL exit 1, naming the item, on a skip beside `shadow`, on `converge skip` beside a conformance, adversarial or
+fix part, and on `conformance skip` and `adversarial skip` together. A head MAY
+omit `beside:`. A build,
+converge, release, conformance or adversarial model MAY open with a host, `claude/` or `codex/`; a host it does not know, or a
+host on the cut, fix, build-moderate or build-close model, SHALL exit 1, naming it. It SHALL also exit 1 when a line of `## Decisions`, `## Dependencies` or
+`## For the cut` holds a character for which `str.isprintable()` is false, printing `brief: halt — <section> line <n>: a
+character isprintable() refuses`; when a heading of any form, a line of an HTML block, or a line holding an inline `<h1>`…`<h6>`
+tag, that is not `## Decisions`, `## Dependencies` or `## For the cut` as written, reads as one of them once its `<h1>`…`<h6>`
+tags and every character but a letter or a digit are dropped and case is folded,
+a letter or digit outside ASCII standing for any one, and at least one ASCII letter left, or a second heading is
+one of them as written; a line inside a fenced or indented code block SHALL be none of these; when the brief has no
+`## Dependencies`; and when that section is neither `None.` nor a table of item,
+package, constraint and why whose every row names a `## For the cut` item's slug, a package and a constraint. It SHALL also
+exit 1, naming the fact, when an item of `## Facts` does not end ``(`<path>:<line>[-<line>]`[, …] at `<sha>`)``, each path
+repository-relative with a `/` or a leading `./`, none absolute or holding `..`, each sha 7 to 40 lowercase hex digits: a
+basename, a bare line number and a legend are refused.
+It SHALL exit 0 printing `brief: ready for the cut` when none holds, and 2 when the brief cannot be read or a span cannot
+be parsed. It SHALL run no command it reads.
+`brief_check.py --facts <brief>` SHALL print each fact of `## Facts` as JSON — its text, each cited path with its first and
+last line, and its sha — or the lines of a fact out of grammar and exit 1. `brief_check.py --models <brief> <slug>` SHALL print
+the models file of the `## For the cut` item named `<slug>` as TOML, in the form `conduct.py` reads, exit 1 printing the item's
+halts when its line is out of shape, and exit 2 when no item has that slug.
+
+#### Scenario: A brief out of shape
+- **WHEN** a brief's title says `light`, or it has no `At` line, or a `Verify:` in its `## For the cut` holds `$(…)`, or an
+  item's slug or cut effort holds `$(…)` or `;`
+- **THEN** `brief_check.py` exits 1, naming each
+- **AND WHEN** a `## For the cut` line opens `- ` where `<n>. ` is due, a `| ` line sits under a head, an unindented line
+  follows a head, or a head holds a second `after:`, or an item has a second models line
+- **THEN** `brief_check.py` exits 1, naming the line or the item
+- **AND WHEN** a head holds a second `beside:`, or a `beside` entry holding `;`
+- **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A models or Acceptance line with no head
+- **WHEN** a brief's `## For the cut` holds a `- models: ` or `- **Acceptance:** ` line three spaces in before any head
+- **THEN** `brief_check.py` exits 1, naming the line as outside the item grammar
+
+#### Scenario: A models line naming hosts
+- **WHEN** an item's models line reads `build claude-opus-5-5 high · converge claude-opus-5-5 high · release
+  claude-sonnet-5-5 medium · cut claude-opus-5-5 high · conformance codex/gpt-6.1-sol high · adversarial codex/gpt-6.1-sol
+  high · fix claude-opus-5-5 high · shadow`
+- **THEN** that line halts nothing
+- **AND WHEN** a part names `gemini/x`, or the fix or cut model opens with a host
+- **THEN** `brief_check.py` exits 1, naming the item and the word
+
+#### Scenario: A models line naming a skip
+- **WHEN** an item's models line reads `build claude-opus-5-5 high · converge claude-opus-5-5 high · release
+  claude-sonnet-5-5 medium · cut claude-opus-5-5 high · conformance claude-opus-5-5 high · adversarial skip`, or its converge
+  part reads `converge skip` with no conformance, adversarial, fix or shadow part
+- **THEN** that line halts nothing
+- **AND WHEN** a skip stands beside `shadow`, `converge skip` beside a `fix` part, or `conformance skip` beside `adversarial
+  skip`
+- **THEN** `brief_check.py` exits 1, naming the item
+- **AND WHEN** a skip part names a model, as `adversarial skip claude-opus-5-5`
+- **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A models line naming a moderate build
+- **WHEN** an item's models line reads `build claude-opus-5-5 high · converge claude-opus-5-5 high · release
+  claude-sonnet-5-5 medium · cut claude-opus-5-5 high · build-moderate claude-sonnet-5-5 high`
+- **THEN** that line halts nothing
+- **AND WHEN** the `build-moderate` part comes after `conformance`, or its model opens with `claude/`
+- **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A models line naming a close build
+- **WHEN** an item's models line reads `build claude-opus-5-5 high · converge claude-opus-5-5 high · release
+  claude-sonnet-5-5 medium · cut claude-opus-5-5 high · build-moderate claude-sonnet-5-5 high · build-close claude-sonnet-5-5 high`
+- **THEN** that line halts nothing
+- **AND WHEN** the `build-close` part comes before `build-moderate` or after `conformance`, or its model opens with `claude/` or `codex/`
+- **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A checked line holds other whitespace
+- **WHEN** a line of a brief's `## For the cut`, `## Dependencies` or `## Decisions` holds a no-break space, an ideographic
+  space, a tab, a vertical tab, a form feed, U+200B or U+2060
+- **THEN** `brief_check.py` exits 1, printing `brief: halt — <section> line <n>: a character isprintable() refuses` for that line
+
+#### Scenario: A For the cut heading in another form
+- **WHEN** a brief holds ` ## For the cut`, `##<tab>For the cut`, `## For the cut ##`, `## For the cut` followed by U+200B,
+  `For the cut` underlined `---`, `<h2>For the cut</h2>`, or `## For the cut` with a Cyrillic `о` for its `o`, besides its
+  `## For the cut`, or that heading twice
+- **THEN** `brief_check.py` exits 1, naming each such line
+
+#### Scenario: A For the cut heading in a fenced block
+- **WHEN** a brief holds `## For the cut` inside a fenced code block, besides its own `## For the cut`
+- **THEN** that line halts nothing and opens no section, as CommonMark reads it
+
+#### Scenario: A lone carriage return
+- **WHEN** a brief's line holds a carriage return not before a newline
+- **THEN** `brief_check.py` exits 1, naming that line
+
+#### Scenario: A brief's packages
+- **WHEN** a hard brief has no `## Dependencies`, or one that is prose, or a row naming no `## For the cut` item
+- **THEN** `brief_check.py` exits 1, naming each
+- **AND WHEN** it reads `None.`, or each row names an item, a package and a constraint
+- **THEN** that section halts nothing
+
+#### Scenario: A hard brief
+- **WHEN** a hard brief has its `At` line, its `## Dependencies`, a filled `## For the cut` and plain commands
+- **THEN** `brief_check.py` exits 0 and prints `brief: ready for the cut`
+- **AND WHEN** a head also carries `· beside: 0097-cross-model`
+- **THEN** that head halts nothing
+
+#### Scenario: A fact in the citation form
+- **WHEN** a brief's `## Facts` item ends ``(`skills/x/a.py:12-14`, `docs/b.md:3` at `ccfa6a1`)``
+- **THEN** `brief_check.py` accepts it, and `--facts` prints its text, its two paths with their lines, and `ccfa6a1`
+
+#### Scenario: A fact out of the citation form
+- **WHEN** an item cites a basename `a.py:12`, a bare `:12`, a legend `C:4357-4406`, a path holding `..`, or ends with no
+  `at <sha>`
+- **THEN** `brief_check.py` exits 1, naming that fact, and `--facts` prints no JSON
+
+#### Scenario: A brief's models file
+- **WHEN** an item's models line holds `build-moderate`, a `codex/` checker, a `skip` and a last `shadow`, and its head says
+  `decide: recommended`
+- **THEN** `--models <brief> <slug>` prints `decide = "recommended"`, a table per station and part with `executor` where a host
+  is named, `skip = true` where the part skips, and `shadow = true` under `[converge]`
+- **AND WHEN** `<slug>` names no item
+- **THEN** it exits 2
+
+### Requirement: Model suggestions use exposed capabilities
+
+The cut SHALL bound model suggestions by the target's declared menu or the models exposed in the session.
+It SHALL suggest an effort setting only when that setting is supported. With no model menu it SHALL state the
+needed capability without inventing model names; with no effort control it SHALL omit the effort setting.
+When the highest row of *Suggesting models* any phase of a change matches is the moderate row — fresh prose, moderate
+logic — the cut SHALL suggest Sonnet 5.5 · high for the whole build where the session offers it, and the strongest tier · medium where it
+does not; it SHALL suggest one build model a change. A `build-moderate` part the brief's models line names SHALL be written
+as `[build.moderate]`, for the phases the cut rates `moderate`; a `build-close` part SHALL be written as `[build.close]`, with
+the same keys and no `executor`, for the close's simplify worker.
+It SHALL write the suggestion to `.minions/changes/<change-id>/models.toml`, a table per station, as well as show it, and
+SHALL never write it into the change. When the brief's `## For the cut` item names models for the change, the file SHALL hold
+those instead, as the person's choice made at the plan's close: `conduct.py cut` writes them at queue time, and a cut by hand
+writes what `brief_check.py --models` prints. Authentication and provider configuration SHALL remain the
+operator's responsibility.
+
+#### Scenario: The session exposes no model menu or effort control
+- **WHEN** the cut produces its station suggestions
+- **THEN** it describes the required model capability and omits unsupported controls
+- **AND** it does not change the session's selected model or provider configuration
+
+#### Scenario: The cut records its suggestion
+- **WHEN** the cut commits a change
+- **THEN** `.minions/changes/<change-id>/models.toml` holds a `build`, a `converge` and a `release` table, each with its
+  `model`, and no file under `openspec/changes/<change-id>/` holds the suggestion for its own stations
+
+#### Scenario: The brief names the models
+- **WHEN** the brief's `## For the cut` item for the change names a model and effort per station
+- **THEN** `.minions/changes/<change-id>/models.toml` holds exactly those
+- **AND WHEN** the item's models line also names `build-moderate claude-sonnet-5-5 high`
+- **THEN** the file's `[build.moderate]` holds `model = "claude-sonnet-5-5"` and `effort = "high"`
+- **AND WHEN** it also names `build-close claude-sonnet-5-5 high`
+- **THEN** the file's `[build.close]` holds `model = "claude-sonnet-5-5"` and `effort = "high"`
+
+#### Scenario: A moderate build
+- **WHEN** the highest row of *Suggesting models* any phase matches is the moderate row, and the session offers Sonnet 5.5
+- **THEN** the cut suggests Sonnet 5.5 · high for the build
+- **AND WHEN** one phase matches the row above it
+- **THEN** the cut suggests the strongest tier · high for the whole build
 

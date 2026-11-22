@@ -61,6 +61,8 @@ build.done: head, simplify ─▶ build.closing removed      ─▶ exit 0
 
 The conductor prints `check — gate · pass · <n>s` or `check — gate · fail — <why>`; in a run, the same detail goes to the run log as a `check` event. A repository with no `check` target keeps its workers on the gate through `gate_run.py`, and the conductor's gate takes that record on the same tree.
 
+Fix note (2026-11-22, S1): `gate_run.py` runs `make gate` in its own session and kills the group on the limit, so no child outlives the red.
+
 ### D4
 
 After the last phase's check passes, the loop runs the gate. Red writes the output to `gate.red` and spawns `phase=repair` once a run: the worker fixes the failing code, runs `make check` and the failed tests, and commits. The gate runs again: green goes on to the close, red halts `gate red after the repair`, with `build.halt` (`sub-task: repair`) so the rescue's key reads on.
@@ -69,6 +71,8 @@ After the last phase's check passes, the loop runs the gate. Red writes the outp
 
 After the `phase=close` worker, the check is every box ticked and a clean tree; the conductor then writes `build.simplified` (`head:`) and runs `close`. When the close's gate is red and `HEAD` is a `refactor(<change-id>): simplify` commit, `close` resets the branch to the commit before it, prints `reset — simplify dropped`, and runs its steps once more. A second red, or a red with no simplify commit, fails as in [D2](#d2).
 
+Fix note (2026-11-22, S2): a red whose output says `past its limit` or `sandboxed: denied` keeps the simplify commit, for the commit did not cause it.
+
 ### D6
 
 `stage()` reads a built version with no `build.done` naming `HEAD` as `build`, closing steps left. When `build.simplified` names an ancestor of `HEAD` and each commit past it is `docs(<change-id>): amend the change directory` touching paths under the change directory alone, the loop runs `close` with no worker. Any other commit past it, or no `build.simplified`, spawns the simplify worker.
@@ -76,6 +80,8 @@ After the `phase=close` worker, the check is every box ticked and a clean tree; 
 ### D7
 
 `close` writes `build.done` as `head: <sha>` and `simplify: <sha>` — the newest `refactor(<change-id>): simplify` commit of the range — or `simplify: none`. It keeps the plan check's printed lines in `plan-check.txt` beside it. `converge.py`'s `_evidence` reads that file instead of running `plan_check.py` when `build.done` names the frozen head; a timed-out line stays as the close printed it. At another head, or with no `plan-check.txt`, it runs the plan check as before.
+
+Fix note (2026-11-22, S4): `plan-check.txt` opens with a `base: <sha>` line, and `_evidence` reads the lines only when that base is the freeze's own.
 
 ### D8
 

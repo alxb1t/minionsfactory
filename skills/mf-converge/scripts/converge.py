@@ -405,14 +405,16 @@ def _read(path: Path) -> str:
 def _plan_output(context: Context, head: str) -> str:
     """Return the plan check's output, the close's own when `build.done` names `head`.
 
-    Otherwise a run's. Why: 0144-gate-outside design D7.
+    The close's lines count only from this freeze's base. Otherwise a run's.
+    Why: 0144-gate-outside design D7.
     """
     kept = None
     with suppress(OSError):
         kept = _text(context.folder / "plan-check.txt")
     done = _read(context.folder / "build.done").splitlines()
-    if kept is not None and f"head: {head}" in done:
-        return kept
+    based, _, lines = (kept or "").partition("\n")
+    if f"head: {head}" in done and based == f"base: {context.base}":
+        return lines
     plan = script("plan_check.py", "--change", context.change, "--base", context.base)
     return _captured(context, plan)[1]
 

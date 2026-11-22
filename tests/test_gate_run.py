@@ -5,8 +5,10 @@ Real git and make in a scratch repository. Why: 0064-lighter-catch-up design D1.
 
 import importlib.util
 import os
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -131,8 +133,10 @@ def test_a_gate_past_its_limit_is_red(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Why: 0144-gate-outside design D3.
-    root, log = tmp_path / "repo", tmp_path / "runs.log"
-    _repo(root, log, recipe="sleep 5")
+    root, log, child = tmp_path / "repo", tmp_path / "runs.log", tmp_path / "child.pid"
+    # The gate starts a child of its own, which must not outlive the red.
+    recipe = f"sleep 30 >/dev/null 2>&1 & echo $$! > {child}; sleep 5"
+    _repo(root, log, recipe=recipe)
     monkeypatch.chdir(root)
     monkeypatch.setattr(gate_run, "GATE_SECONDS", 1)
 
@@ -142,6 +146,16 @@ def test_a_gate_past_its_limit_is_red(
     assert lines[-1].startswith("gate: red — past its limit · "), lines
     assert lines[-1].endswith("s")
     assert not _record(root).exists()
+    pid = int(child.read_text())
+    for _ in range(50):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(pid, signal.SIGKILL)
+        pytest.fail("the gate's child outlived its red")
 
 
 def test_a_gate_runs_without_the_venv_and_quiet_when_green(tmp_path: Path) -> None:
@@ -292,8 +306,17 @@ def test_case_e_a_staged_record_that_cannot_be_made_is_named(
     monkeypatch.setattr(gate_run, "settled_tree", lambda: "tree")
     monkeypatch.setattr(gate_run, "dry_run", lambda: "d")
     monkeypatch.setattr(gate_run, "records", lambda: record.parent)
-    green = subprocess.CompletedProcess(["make", "gate"], 0, stdout="")
-    monkeypatch.setattr(gate_run.subprocess, "run", lambda *_, **__: green)
+
+    class Green:
+        returncode = 0
+
+        def __init__(self, *_: object, **__: object) -> None:
+            pass
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, None]:
+            return "", None
+
+    monkeypatch.setattr(gate_run.subprocess, "Popen", Green)
 
     assert gate_run.gate(fresh=True) == 0
 

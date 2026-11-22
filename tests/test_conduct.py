@@ -2724,6 +2724,15 @@ def test_a_build_runs_a_worker_per_phase(
 
     on = ("model claude-sonnet-5-5 · effort high", "model claude-opus-5-5")
     assert spawned(lines) == [on[0], on[1], on[1], on[0]]
+    # One gate after the last phase, none after the others, and the close's.
+    events = [
+        line.split(" · 0001-todo · ")[1].split(" · ")[0]
+        for line in lines
+        if " · 0001-todo · spawn — build" in line or " · check — gate" in line
+    ]
+    assert events == ["spawn — build"] * 3 + ["check — gate", "spawn — build"] + [
+        "check — gate"
+    ]
     # Each phase appends 50 lines; the conductor keeps 40 of each.
     notes = (folder / "build-notes.md").read_text().splitlines()
     sections = [i for i, line in enumerate(notes) if line.startswith("## ")]
@@ -3577,6 +3586,7 @@ def test_a_build_close_table_names_no_executor(tmp_path: Path) -> None:
         models(minions, "0001-todo", "build.close", "claude")
 
 
+@pytest.mark.slow
 def test_the_close_runs_on_the_close_table_then_moderate_then_build(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -3803,7 +3813,9 @@ def test_close_writes_build_done_with_head_and_simplify(
     head = _git(tree, "rev-parse", "HEAD")
     done = _marks(root) / "build.done"
     assert done.read_text() == f"head: {head}\nsimplify: none\n"
-    assert (_marks(root) / "plan-check.txt").read_text() == "plan: clean\n"
+    base = _git(tree, "merge-base", "main", "HEAD")
+    kept = _marks(root) / "plan-check.txt"
+    assert kept.read_text() == f"base: {base}\nplan: clean\n"
 
     _commit(tree, {"a.txt": "a\n"}, "refactor(0001-todo): simplify")
     simplify = _git(tree, "rev-parse", "HEAD")
@@ -4017,6 +4029,16 @@ def test_a_red_gate_after_simplify_drops_its_commit(
     assert lines.count("reset — simplify dropped") == 1
     assert _git(tree, "rev-parse", "HEAD") == red
     assert _halt_keys(root)["stop"] == "gate"
+
+    # A red the commit did not cause, a gate past its limit or a refused call, keeps it.
+    for said in ("gate: red — past its limit · 1s", "sandboxed: denied — a call"):
+        recipe = f"gate:\n\t@echo '{said}'; exit 1\n"
+        _commit(tree, {"Makefile": recipe}, "refactor(0001-todo): simplify")
+        kept = _git(tree, "rev-parse", "HEAD")
+        code, lines = _close(root, monkeypatch, capsys)
+        assert code == 1, lines
+        assert _git(tree, "rev-parse", "HEAD") == kept
+        assert "reset — simplify dropped" not in lines[-3:], lines
 
 
 def test_a_red_gate_with_no_simplify_commit_fails_the_close(

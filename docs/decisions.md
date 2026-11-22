@@ -1166,7 +1166,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 **Everything about one change lives in `.minions/changes/<change-id>/`: `conformance.md`, `adversarial.md`,
 `status_log.md`, `diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`, the cutter's `cut.halt` and `cut-notes.md`,
 `integrate.{md,red,resolved,settled}`,
-`build.{done,halt,closing,discarded.patch}`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
+`build.{done,halt,closing,simplified,discarded.patch}`, `gate.red`, `plan-check.txt`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through `change_dir` of `skills/mflib/layout.py`;
 `status_log.md` is written and parsed by `skills/mflib/statuslog.py`, found through `change_dir`;
 `models.toml` is written and parsed by `skills/mflib/modelsfile.py`, found through `models_file` of

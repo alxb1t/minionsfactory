@@ -144,10 +144,9 @@ MODERATE = "build.moderate"
 # The close's spawn builds on this table, else `MODERATE`, else `[build]`.
 # Why: 0144-gate-outside design D1.
 CLOSE = "build.close"
-# The rescue, the supervisor, converge's workers and the moderate and close builds are
-# no stage: each is planned with the stations'. Why: 0067-rescue design D3, D5;
-# 0089-supervisor design D2; 0094-lighter-converge design D1; 0102-build-per-phase
-# design D5; 0144-gate-outside design D1.
+# The rescue, supervisor, converge's workers and the moderate and close builds are
+# no stage: planned with the stations'. Why: 0067-rescue D3, D5; 0089-supervisor D2;
+# 0094-lighter-converge D1; 0102-build-per-phase D5; 0144-gate-outside D1.
 PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE, CLOSE)
 # The stations a version is past at a stage: a limit halts it for none of them.
 # Why: 0117-codex-converge design D8.
@@ -8193,10 +8192,15 @@ def _close_gate(
 ) -> str | None:
     """Run the gate; on red with a simplify commit at `HEAD`, drop it and run it again.
 
+    A gate past its limit or a refused call is no fault of the commit: it stays.
     Return why the gate is red, or None. Why: 0144-gate-outside design D5.
     """
     evidence = _run_gate(primary, change, tree, say)
-    if evidence and _subject(tree) == f"refactor({change}): simplify":
+    shown = ""
+    with contextlib.suppress(OSError, UnicodeDecodeError):
+        shown = (mflib.layout.change_dir(primary, change) / "gate.red").read_text()
+    unfair = any(mark in shown for mark in ("past its limit", "sandboxed: denied"))
+    if evidence and not unfair and _subject(tree) == f"refactor({change}): simplify":
         _git(tree, "reset", "-q", "--hard", "HEAD^")
         say("reset — simplify dropped")
         _mark_simplified(primary, change, tree)
@@ -8233,13 +8237,14 @@ def _close_plan(
 ) -> str | None:
     """Run the plan check from `base`, its lines kept; return why it fails, or None.
 
-    The lines go to the change's `plan-check.txt`. Why: 0144-gate-outside design D7.
+    The lines go to the change's `plan-check.txt` under a `base:` line.
+    Why: 0144-gate-outside design D7.
     """
     argv_ = [sys.executable, str(PLAN_CHECK), "--change", change, "--base", base]
     code, output = _boxed(primary, tree, argv_)
     for line in output.splitlines():
         say(line)
-    _write_state(primary, change, "plan-check.txt", output)
+    _write_state(primary, change, "plan-check.txt", f"base: {base}\n{output}")
     return None if code == 0 else f"plan_check.py exit {code} · {_last(output)}"
 
 
