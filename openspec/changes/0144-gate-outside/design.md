@@ -93,7 +93,7 @@ The gate lines are the only new log lines. `check — gate · …` fits the even
 
 ## Tests
 
-The tests added are unit and integration tests, named in [tasks](tasks.md): `tests/test_brief_check.py`, `tests/test_modelsfile.py`, `tests/test_gate_run.py`, `tests/test_converge.py` and `tests/test_conduct.py`, the last on the fake worker of `tests/fake_worker.py`. No end-to-end test is added, so no engine and no browser run; none is expected to pass 5 s, so none carries `slow`.
+The tests added are unit and integration tests, named in [tasks](tasks.md): `tests/test_brief_check.py`, `tests/test_modelsfile.py`, `tests/test_gate_run.py`, `tests/test_converge.py` and `tests/test_conduct.py`, the last on the fake worker of `tests/fake_worker.py`. No end-to-end test is added, so no engine and no browser run. Eight tests added to `tests/test_conduct.py` pass 5 s and carry `slow`, so `make check` runs none of them and the gate runs all: the run-level tests of the close and the repair — `test_the_simplify_worker_is_checked_on_a_clean_tree`, `test_a_red_gate_after_the_last_phase_is_repaired_once`, `test_a_second_red_gate_halts_after_the_repair`, `test_a_green_gate_after_the_last_phase_spawns_no_repair`, `test_a_close_after_an_amend_of_the_change_directory_spawns_no_worker` and `test_a_close_after_a_commit_that_moves_code_spawns_the_simplify_worker` —, `test_close_halts_on_a_metrics_halt`, which runs the metrics collector twice, and `test_the_close_runs_on_the_close_table_then_moderate_then_build`, which runs four versions.
 
 | measure | command |
 |---|---|
