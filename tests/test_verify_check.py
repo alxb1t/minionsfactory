@@ -253,6 +253,9 @@ def test_a_form_the_close_refuses_breaks_at_the_cut(
         # A HALT CHECK checks the state before the edits: counts and `-L` stay refused.
         "1.13 **HALT CHECK** x\n  Verify: `git grep -c drawer -- app/` prints `1`, and "
         "`grep -L x a.md` prints nothing.",
+        # `HEAD` left out is still `HEAD`.
+        "1.14 x\n  Verify: `git log main.. -- a.md` prints a line.",
+        "1.15 x\n  Verify: `git log origin/main... -- a.md` prints a line.",
     )
     code, out = _run(root, refused, capsys, monkeypatch)
     assert code == 1, out
@@ -276,8 +279,10 @@ def test_a_form_the_close_refuses_breaks_at_the_cut(
         "`grep -n -e '^one two three$' a.md`",
         "1.13: I19 — a count on git grep: `git grep -c drawer -- app/`",
         "1.13: I19 — an option the search does not run: -L: `grep -L x a.md`",
+        "1.14: I19 — a range: main..: `git log main.. -- a.md`",
+        "1.15: I19 — a range: origin/main...: `git log origin/main... -- a.md`",
         "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, "
-        "1.11, 1.12, 1.13",
+        "1.11, 1.12, 1.13, 1.14, 1.15",
     ]
 
     # The forms that stand: a range to another branch, two words, a word with a
@@ -290,6 +295,8 @@ def test_a_form_the_close_refuses_breaks_at_the_cut(
         "1.5 **HALT CHECK** x\n  Verify: `git diff main..HEAD -- a.md` prints a line.",
         "1.6 **HALT CHECK** x\n  Verify: `head -n 3 a.md:12-20` prints a line.",
         "1.7 **HALT CHECK** x\n  Verify: `grep -n 'one two three' a.md` prints a line.",
+        # A search pattern is no line number, though it reads `<word>:<digits>`.
+        "1.8 x\n  Verify: `grep -n localhost:8080 a.md` prints nothing.",
     )
     code, out = _run(root, holds, capsys, monkeypatch)
     assert code == 0, out

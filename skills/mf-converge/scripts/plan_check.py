@@ -12,6 +12,7 @@ import argparse
 import contextlib
 import functools
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -64,6 +65,8 @@ OUTPUT_VERBS = {
     "reads",
     "says",
 }
+# A verb right after one of these is a noun's clause's, and opens no output.
+RELATIVE = {"that", "which", "who"}
 OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)|\bVerify:")
 CLAUSE = re.compile(r",\s*(?:and|or)\s*$")
 NOTHING = re.compile(r"\bprints nothing\b")
@@ -78,7 +81,9 @@ REMOVED = "## REMOVED Requirements"
 TEST_DEF = r"^[[:space:]]*(async[[:space:]]+)?def test_[A-Za-z0-9_]*"
 TEST_NAME = re.compile(r"\bdef (test_\w+)")
 CORPUS = re.compile(r"\*\*CORPUS\*\* `([a-z0-9-]+)`")
-VERIFY_TIMEOUT = re.compile(r"\*\*Verify timeout:\*\*[^\d\n]*(\d+)")
+VERIFY_TIMEOUT = re.compile(r"\*\*Verify timeout:\*\*[^\d\n]*?(-?\d+)")
+# A day: the selector refuses a wait near 25 days, so a longer limit is this.
+MOST_SECONDS = 86_400
 
 
 class Stop(Exception):
@@ -161,8 +166,8 @@ def subtasks(tasks: str) -> list[Task]:
 def commands(verify: str) -> list[Command]:
     """Return the commands of a `Verify:`'s text, each with the count it must print.
 
-    Output opens at an output verb after a command, to `then`, a `;`, a sentence end
-    or a `, and` before a verb's span. e.g. "`a` prints a line and `b`" → [("a", None)]
+    Output opens at an output verb after a command, none after a `RELATIVE` word, to an
+    `OUTPUT_END` or a `, and` before a verb's span. e.g. "`a` prints x and `b`" → a
     """
     if "`" in SPAN.sub("", verify):
         raise Unparsed("a backtick opens no span")
@@ -178,11 +183,14 @@ def commands(verify: str) -> list[Command]:
         # verb it is a list's last item, and stays output
         clause = CLAUSE.search(before) and after[:1] and after[0] in OUTPUT_VERBS
         ends = list(OUTPUT_END.finditer(before))
-        tail = before[ends[-1].end() :] if ends else before
+        tail = ["", *before[ends[-1].end() :].split()] if ends else ["", *words]
         opens = (
             bool(found)
             and not clause
-            and any(word in OUTPUT_VERBS for word in tail.split())
+            and any(
+                word in OUTPUT_VERBS and previous.lower() not in RELATIVE
+                for previous, word in itertools.pairwise(tail)
+            )
         )
         output = opens or (output and not (ends or clause))
         text = match[2]
@@ -226,12 +234,12 @@ def _kill(process: subprocess.Popen[str]) -> None:
 def verify_limit(root: Path) -> float:
     """Return the seconds a command may run: `root`'s `**Verify timeout:**` line.
 
-    No `AGENTS.md`, line or integer of one or more gives `TIMEOUT_SECONDS`, as it is
-    now. Why: 0143-verify-forms design D10.
+    No `AGENTS.md`, line or integer of one or more, a signed one counted, gives
+    `TIMEOUT_SECONDS`, as it is now; past `MOST_SECONDS` gives that. Why: 0143 D10.
     """
     found = VERIFY_TIMEOUT.search(_read(root / "AGENTS.md"))
     limit = int(found[1]) if found else 0
-    return limit if limit >= 1 else TIMEOUT_SECONDS
+    return min(limit, MOST_SECONDS) if limit >= 1 else TIMEOUT_SECONDS
 
 
 def run(command: str, root: Path, limit: float | None = None) -> Result:
@@ -396,8 +404,8 @@ def jobs(
 ) -> list[tuple[str, Command]]:
     """Return the `(sub-task, command)` pairs a check judges, in task order.
 
-    Not judged: a sub-task of a `**HUMAN` phase, a command with a `plan_check.py` word,
-    and, with no `only`, a `**HALT CHECK**` sub-task. `only` names ticked or not.
+    Not judged: a `**HUMAN` phase, a `plan_check.py` word's command, a `**HALT CHECK**`
+    but by `only`, which names ticked or not and stops on a `Verify:` with no command.
     """
     found: list[tuple[str, Command]] = []
     for task in tasks:
@@ -408,7 +416,10 @@ def jobs(
         if int(task.name.split(".")[0]) in human:
             continue
         try:
-            for command in commands(verify):
+            named = commands(verify)
+            if only is not None and not named:
+                raise Unparsed("its Verify: names no command")
+            for command in named:
                 words = tokens(command.text)
                 if all(Path(word).name != "plan_check.py" for word in words):
                     found.append((task.name, command))

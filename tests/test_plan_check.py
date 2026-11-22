@@ -762,6 +762,17 @@ def test_a_span_after_an_output_verb_is_output() -> None:
         ("a", 1),
         ("d", None),
     ]
+    # A verb right after `that`, `which` or `who` is a noun's, and opens no output.
+    guard = "`a` exits `0`, then the test that holds the guard, `b`, exits `0`."
+    assert found(guard) == [("a", None), ("b", None)]
+    assert found("`a` exits `0`. The file which names it, `b`, prints `1`.") == [
+        ("a", None),
+        ("b", 1),
+    ]
+    assert found("`a` exits `0`; the one who reads it, `b`, exits `0`") == [
+        ("a", None),
+        ("b", None),
+    ]
 
 
 def test_exits_names_the_exit_a_command_must_have(tmp_path: Path) -> None:
@@ -916,9 +927,13 @@ def test_a_verify_timeout_line_sets_the_limit(
         "Limit 5 s.\n",
         "**Verify timeout:** none\n7\n",
         "**Verify timeout:** 0 s\n",
+        "**Verify timeout:** -30\n",
     ):
         agents.write_text(text)
         assert plan_check.verify_limit(root) == 600
+    # A limit past a day is a day: the selector refuses one near 25 days.
+    agents.write_text("**Verify timeout:** 3000000\n")
+    assert plan_check.verify_limit(root) == 86_400
     # The first integer after the label is the limit, and the patched default stands.
     agents.write_text("Gate 9.\n**Verify timeout:** 90 s, then 5.\n")
     assert plan_check.verify_limit(root) == 90
@@ -971,6 +986,7 @@ def test_only_runs_the_named_sub_tasks(
         f'  Verify: `sh -c "echo suite >> {ran}" tests/test_plan_check.py`.\n',
         "- [ ] 1.5 Self.\n"
         f'  Verify: `sh -c "echo self >> {ran}" other/plan_check.py`.\n',
+        "- [ ] 1.6 Prose.\n  Verify: the file docs/x.md exists on disk.\n",
     )
 
     def only(*ids: str) -> tuple[int, list[str]]:
@@ -995,6 +1011,11 @@ def test_only_runs_the_named_sub_tasks(
     assert code == 2
     assert lines[0].startswith("plan: cannot check — --only takes ids like 3.2")
     assert done() == ["halt", "one", "suite", "two"]
+    # A named `Verify:` with no command is checked by nothing: the check stops.
+    assert only("1.6") == (
+        2,
+        ["plan: cannot check — 1.6: its Verify: names no command"],
+    )
 
 
 def test_what_the_plan_check_cannot_read_exits_2(

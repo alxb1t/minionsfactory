@@ -40,7 +40,7 @@ ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 MATCH = re.compile(r"(.+?):(\d+):(.*)")
 LINE_NUMBER = re.compile(r"[^:\s]+:\d+(?:-\d+)?")
 PHRASE = re.compile(r"[^\W\d_]+(?: [^\W\d_]+){2,}")
-RANGE = re.compile(r"(?:origin/)?(.+?)\.\.\.?HEAD")
+RANGE = re.compile(r"(?:origin/)?(.+?)\.\.\.?(?:HEAD)?")
 LOOPS = {"for", "while", "until"}
 OPERATOR = set("();<>|&")
 # Flags that hide the matching lines; the search prints them.
@@ -312,9 +312,9 @@ class Head:
 
 
 def ranged(word: str) -> bool:
-    """Return whether `word` is `<default>..HEAD` or `<default>...HEAD`.
+    """Return whether `word` is `<default>..HEAD` or `<default>...HEAD`, `HEAD` or not.
 
-    e.g. `origin/main...HEAD` → True where main is the default branch
+    e.g. `origin/main...HEAD` and `main..` → True where main is the default branch
     """
     match = RANGE.fullmatch(word)
     if match is None:
@@ -328,11 +328,16 @@ def ranged(word: str) -> bool:
 def unplain(words: list[str], query: Search | None) -> list[str]:
     """Return a plain check's forms that go stale: a line number, a phrase, a range.
 
-    e.g. ["git", "diff", "main..HEAD"] → ["a range: main..HEAD"]
+    e.g. ["git", "diff", "main..HEAD"] → ["a range: main..HEAD"]; a pattern is no line
+    number, as `localhost:8080` searched for.
     """
     patterns = query.patterns if query else []
     return (
-        [f"a line number: {word}" for word in words if LINE_NUMBER.fullmatch(word)]
+        [
+            f"a line number: {word}"
+            for word in words
+            if word not in patterns and LINE_NUMBER.fullmatch(word)
+        ]
         + [
             f"a prose phrase: {pattern}"
             for pattern in patterns

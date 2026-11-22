@@ -35,11 +35,13 @@ name under `tests/` at the merge base is gone at `HEAD` and `design.md`'s `## Te
 marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. Without `--only` it SHALL NOT run again a `**HALT CHECK**`
 sub-task's command; with or without it, it SHALL NOT run again a command of a `**HUMAN` phase, or a command one of whose words has
 the file name `plan_check.py`, and SHALL run no command with a shell. It SHALL exit 0 printing `plan: clean` when none holds, and
-2 when it cannot read `tasks.md`, the base or git.
+2 when it cannot read `tasks.md`, the base or git, or when `--only` names a sub-task outside a `**HUMAN` phase whose `Verify:`
+holds no command.
 
 It SHALL read a `Verify:`'s spans as follows: once an output verb — `prints`, `exits` and the like — follows a command, each later
-span is output, never a command, whatever words stand between the verb and the span, until a `then`, a `;` or the sentence's end;
-a `, and` or `, or` before a span that a verb follows opens a new command. A command whose `Verify:` says it
+span is output, never a command, whatever words stand between the verb and the span, until a `then`, a `;`, the sentence's end
+or a `Verify:` label; a verb right after `that`, `which` or `who` opens no output, and a `, and` or `, or` before a span that a
+verb follows opens a new command. A command whose `Verify:` says it
 `` exits `<N>` `` SHALL pass only on exit `<N>`, and on the output the `Verify:` says; the search that passes on exit 1 is the one
 whose `Verify:` names no exit. It SHALL run each command without `VIRTUAL_ENV` in its environment, SHALL compare a command's stdout
 alone with what the `Verify:` says, keeping its stderr apart, and SHALL show the first lines of both on a failure.
@@ -51,7 +53,7 @@ sub-task's own words. It SHALL run the commands side by side, one slot for each 
 task order, then command order, whatever order they finish in: a `pytest` with `-n` takes every slot and runs alone, a `make`
 runs one at a time, and every `pytest` starts with `-p no:cacheprovider` in its `PYTEST_ADDOPTS`. It SHALL start a command only
 while the machine's 1-minute load is under its core count, and SHALL start one whatever the load when no command runs. A command
-past its limit — the integer after `**Verify timeout:**` in the root `AGENTS.md`, in seconds, else 600 — SHALL lose its whole
+past its limit — the integer after `**Verify timeout:**` in the root `AGENTS.md`, in seconds and at most a day, else 600 — SHALL lose its whole
 process group and print `plan: <sub-task> — `<command>` timed out`; ended by SIGTERM, the check SHALL end the
 process group of each command then running. A `pytest` command — one whose argv starts `pytest`, `uv run pytest` or `python -m pytest` — whose `Verify:` says nothing of its
 output beyond that it exits 0, and whose words after its pytest prefix are only `-q`, `-v`, `-x` or `-s` flags and test paths
@@ -101,6 +103,8 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 - **WHEN** a ticked `Verify:` says that `printf 1` prints one integer, a space and `pyproject.toml`
 - **THEN** `printf 1` is the one command, and `pyproject.toml` is output
 - **AND WHEN** it says that `printf 1` exits `0`, and `printf 2` prints `2`
+- **THEN** both commands run
+- **AND WHEN** it says that `printf 1` exits `0`, then the test that holds the guard, `printf 2`, exits `0`
 - **THEN** both commands run
 
 #### Scenario: A warning on stderr
@@ -181,8 +185,10 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 #### Scenario: A limit the repository sets
 - **WHEN** the root `AGENTS.md` holds `**Verify timeout:** 1800`
 - **THEN** a command is ended at 1800 s
-- **AND WHEN** no such line stands
+- **AND WHEN** no such line stands, or it holds `-30`
 - **THEN** a command is ended at 600 s
+- **AND WHEN** it holds `3000000`
+- **THEN** a command is ended at a day
 
 #### Scenario: A timed-out command's group
 - **WHEN** a command starts a child, outlives its limit, and `plan_check.py` kills it
@@ -193,6 +199,8 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 - **THEN** it runs the commands of `1.1` and of `2.3`, and prints a `plan: ` line for each only if it fails
 - **AND WHEN** a plain check names `2.3` in no `--only`
 - **THEN** the command of `2.3` does not run
+- **AND WHEN** `--only 1.6` names a sub-task whose `Verify:` holds no backticked command
+- **THEN** it exits 2, naming `1.6`
 
 #### Scenario: A test file named for the script
 - **WHEN** a ticked `Verify:` runs `pytest tests/test_plan_check.py`
@@ -213,8 +221,8 @@ it, naming the sub-task. A `git grep`'s paths SHALL be judged without exporting 
 
 It SHALL also refuse, naming the sub-task, a count stated on any search but `grep -c` or `grep --count` over one file operand with
 no `-r` or `-R`, `-L` and `--files-without-match` among the options, and, in a sub-task that is no `**HALT CHECK**`, a word
-shaped `<path>:<digits>` or `<path>:<digits>-<digits>`, a search pattern of three or more plain words, and a range
-`<default>..HEAD` or `<default>...HEAD`, `origin/` allowed before the default branch. The one absence form is a `git grep -c`
+other than a search pattern shaped `<path>:<digits>` or `<path>:<digits>-<digits>`, a search pattern of three or more plain
+words, and a range `<default>..HEAD` or `<default>...HEAD`, `origin/` allowed before the default branch and `HEAD` left out. The one absence form is a `git grep -c`
 printing nothing.
 
 #### Scenario: A loop in a check

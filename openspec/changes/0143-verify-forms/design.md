@@ -49,6 +49,8 @@ Probe 7 of an earlier run halted a build on "`uv run … -L pyproject.toml` prin
 ```
 
 A count is still set only for `prints` or `reports` right before an all-digit span, and `exits` right before one sets the exit. A comma alone ends nothing.
+Fix note (2026-11-22, R1): a `Verify:` label ends output too, so a brief item's later label keeps its command.
+Fix note (2026-11-22, S1): a verb right after `that`, `which` or `who` belongs to a noun's clause and opens no output.
 
 ### D2
 
@@ -73,6 +75,7 @@ A count is still set only for `prints` or `reports` right before an all-digit sp
 - A **range** is a word shaped `<default>..HEAD` or `<default>...HEAD`, `origin/` allowed before the default branch, which `cut_pre.default_branch` names.
 
 A `**HALT CHECK**` sub-task is exempt from these three: it checks the state before the edits. Counts and `-L` stay refused there.
+Fix note (2026-11-22, S5): a search pattern is no `<path>`, so no line number, and a range's `HEAD` may be left out.
 
 ### D7
 
@@ -85,6 +88,7 @@ A `**HALT CHECK**` sub-task is exempt from these three: it checks the state befo
 ### D8
 
 Step 2's second item runs the phase's sub-tasks but a HALT CHECK through `plan_check.py --only`, once the tasks are done, and shows its lines. A **HUMAN** phase keeps its checks run as written: the plan check skips them. A `**CORPUS**` sub-task keeps `make corpus` after its check.
+Fix note (2026-11-22, S4): `--only` exits 2 on a sub-task it names whose `Verify:` holds no command, so the build halts on it and ticks nothing.
 
 ### D9
 
@@ -93,6 +97,7 @@ Step 3.6 passes `--base <base>`, where `<base>` is Step 3.5's: the sha `stacked-
 ### D10
 
 `plan_check.py` reads the first integer after `**Verify timeout:**` in the root `AGENTS.md`. A missing file, a missing line, text with no integer or an integer below one gives `TIMEOUT_SECONDS`, 600, read at call time. `run` and `schedule` take the limit as an optional argument that falls back to it, so a test that patches `TIMEOUT_SECONDS` stands; a git call keeps it.
+Fix note (2026-11-22, S3): a signed integer is read with its sign, and a limit past a day is a day, as the selector refuses a wait near 25 days.
 
 ### D11
 
