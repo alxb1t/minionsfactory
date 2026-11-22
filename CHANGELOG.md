@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` takes a command's limit from the `**Verify timeout:**` line of the repository's `AGENTS.md`, 600 s
   where none; converge sends back no `timed out` line alone, and the build runs its plan check as one background
   command (0143-verify-forms, phase 4).
+- `tests/test_plan_check.py` holds the wait of `schedule` that times out and re-reads the load each second, which the
+  gate's diff coverage needs (0143-verify-forms, phase 5).
 
 ## [0.113.0] - 2026-11-21
 

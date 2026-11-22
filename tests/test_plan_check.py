@@ -885,6 +885,25 @@ def test_a_command_starts_under_the_load_or_when_none_runs(
     assert plan_check.load_average() == 0.0
 
 
+def test_a_waiting_command_rereads_the_load_each_second(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(plan_check, "CPUS", 4)
+    loads = [99.0, 99.0]
+    reads: list[float] = []
+
+    def load() -> float:
+        reads.append(0.0)
+        return loads.pop(0) if loads else 0.0
+
+    monkeypatch.setattr(plan_check, "load_average", load)
+    first = 'sh -c "while [ ! -e flag ]; do sleep 0.05; done; exit 3"'
+    second = 'sh -c "touch flag; exit 4"'
+    results = plan_check.schedule([first, second], tmp_path, 10)
+    assert (results[first].code, results[second].code) == (3, 4)
+    assert len(reads) > 2
+
+
 def test_a_verify_timeout_line_sets_the_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

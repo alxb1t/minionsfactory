@@ -8,7 +8,7 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 - [x] 2 — The cut · moderate
 - [x] 3 — The build · moderate
 - [x] 4 — Time · moderate
-- [ ] 5 — The wait · moderate
+- [x] 5 — The wait · moderate
 
 ## 1 — The judge
 
@@ -76,5 +76,5 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 ## 5 — The wait
 
-- [ ] 5.1 Cover the wait that re-reads the load each second per [D3](design.md#d3): add `test_a_waiting_command_rereads_the_load_each_second` to `tests/test_plan_check.py`. With `CPUS` patched to 4, `schedule` gets two commands: the first runs until a file the second creates exists, the second creates it, and `schedule`'s `limit` is 10. `plan_check.load_average` is patched to give 99.0 on its first two reads and 0.0 after, so the second command's first one-second wait times out and the loop in `schedule` waits again before the second starts beside the first. Assert both commands' results and that the patched load was read more than twice. Leave `skills/mf-converge/scripts/plan_check.py` unchanged.
+- [x] 5.1 Cover the wait that re-reads the load each second per [D3](design.md#d3): add `test_a_waiting_command_rereads_the_load_each_second` to `tests/test_plan_check.py`. With `CPUS` patched to 4, `schedule` gets two commands: the first runs until a file the second creates exists, the second creates it, and `schedule`'s `limit` is 10. `plan_check.load_average` is patched to give 99.0 on its first two reads and 0.0 after, so the second command's first one-second wait times out and the loop in `schedule` waits again before the second starts beside the first. Assert both commands' results and that the patched load was read more than twice. Leave `skills/mf-converge/scripts/plan_check.py` unchanged.
   Verify: `uv run pytest tests/test_plan_check.py::test_a_waiting_command_rereads_the_load_each_second -q` exits 0.
