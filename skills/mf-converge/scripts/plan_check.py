@@ -380,19 +380,21 @@ def jobs(
 ) -> list[tuple[str, Command]]:
     """Return the `(sub-task, command)` pairs a check judges, in task order.
 
-    Not judged: a `**HALT CHECK**` sub-task, a sub-task of a `**HUMAN` phase, and a
-    command naming `plan_check.py`. `only` names the sub-tasks, ticked or not.
+    Not judged: a sub-task of a `**HUMAN` phase, a command with a `plan_check.py` word,
+    and, with no `only`, a `**HALT CHECK**` sub-task. `only` names ticked or not.
     """
     found: list[tuple[str, Command]] = []
     for task in tasks:
-        skipped = "**HALT CHECK**" in task.text or int(task.name.split(".")[0]) in human
+        halt = only is None and "**HALT CHECK**" in task.text
         wanted = task.ticked if only is None else task.name in only
-        if not wanted or skipped or (verify := verify_of(task.text)) is None:
+        if not wanted or halt or (verify := verify_of(task.text)) is None:
+            continue
+        if int(task.name.split(".")[0]) in human:
             continue
         try:
             for command in commands(verify):
-                if "plan_check.py" not in command.text:
-                    tokens(command.text)
+                words = tokens(command.text)
+                if all(Path(word).name != "plan_check.py" for word in words):
                     found.append((task.name, command))
         except Unparsed as error:
             raise Stop(f"{task.name}: {error}") from None

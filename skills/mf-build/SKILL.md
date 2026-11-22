@@ -74,7 +74,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy this skill's per-phase ritual | — |
 | **I13** | open `proposal.md` with `bump:` frontmatter — `minor`, or `patch` | yes — the key is in the leading frontmatter |
 | **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | yes — every `**HUMAN` phase has at least one `Verify:` |
-| **I15** | mark `**HALT CHECK**` on a sub-task whose failure means the plan is wrong | — (Step 2 halts on it) |
+| **I15** | mark `**HALT CHECK**` on a sub-task that checks the state before the phase's edits and whose failure means the plan is wrong; its `Verify:` states the exit its command really gives, as `exits <N>` | — (Step 2 runs it first, and halts on it) |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, to a decision in force at the base that retires it (`retired by Dn`), or, when its proofs cover only a requirement the change's delta removes, to that requirement removed with the code under test (`retired by removing <requirement title>`) | — (stop-condition 5) |
 | **I17** | name in `after:` only open or released versions with a lower id, each one's archive folder in `HEAD` before its build, or its change in the head `stacked-on` names | yes — the archive folder, or the stacked-on head |
 | **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | — (Step 2 checks the staged tree) |
@@ -151,7 +151,7 @@ Take the **first unticked `## Progress` phase** and finish its whole ritual, thr
 look at the next. Never batch phases: each must be reviewable and revertible on its own.
 
 **A HUMAN phase is done by a person, not by you.** Its `## Progress` line contains `**HUMAN`. Do none of its
-tasks; run `gate_check.py --verify --change <change-id>` first, with item 2's exits, then its `Verify:` checks.
+tasks; run `gate_check.py --verify --change <change-id>` first, with item 1's exits, then its `Verify:` checks.
 A check fails → **halt** with the person's checklist and nothing else — the one halt not reported in full:
 
 ````
@@ -171,18 +171,24 @@ person has done it: search their evidence files for the operator's home path, th
 shapes, and halt on a hit. Stage them by name, never a gitignored path and never `git add -f`; then items 3–7,
 ticking the `N.M` boxes with the phase's box at item 5.
 
-1. **Do the phase's tasks.** Test-first where there is logic: the failing test for the phase's acceptance at the
+1. **Do the phase's tasks.** Before the first edit, run
+   `uv run --script ../mf-converge/scripts/gate_check.py --verify --change <change-id>`, resolved as in Step 1: exit 1
+   → **halt**, copying the edits it names; exit 2, or `uv` missing → **halt**, naming it. Then run the phase's
+   `**HALT CHECK**` sub-tasks first, in one command,
+   `uv run --script ../mf-converge/scripts/plan_check.py --change <change-id> --base <base> --only <their ids>`,
+   resolved as in Step 1, `<base>` as in Step 3.5, and show its lines. A HALT CHECK whose check fails is a
+   **halt**: the plan's premise broke. Never change code to make it pass. Tick a `- [ ] N.M` → `- [x] N.M` that passed.
+   Then the rest, test-first where there is logic: the failing test for the phase's acceptance at the
    layer `T1` names — a step in an existing test where `T2` finds one — then implement to green. Fake external
    effects behind the repo's declared seams, so the suite stays offline and deterministic. Write to `W`, `T`,
    `P` and `C` below.
-2. **Run each sub-task's `Verify:` — never summarize it** — and show the command's real output. Before the
-   phase's first one, run `uv run --script ../mf-converge/scripts/gate_check.py --verify --change <change-id>`,
-   resolved as in Step 1: exit 1 → **halt**, copying the edits it names; exit 2, or `uv` missing → **halt**, naming
-   it. Never amend a `Verify:`. A check you
-   describe is a claim; only the command that exited is the check. Tick `- [ ] N.M` → `- [x] N.M` once its check
-   has run and passed. A `**HALT CHECK**` sub-task whose check fails is a **halt**: the plan's premise broke.
-   Never change code to make it pass. A `**CORPUS**` sub-task: once its check passes, run `make corpus`; any other
-   exit than 0 is a **halt**, naming the case and what it printed.
+2. **Run each other sub-task's `Verify:` — never summarize it** — once the tasks are done, through the same
+   `plan_check.py --only <their ids>`, in one command, and show its lines and its exit. Exit 1 → its lines name the
+   sub-tasks that failed: fix the work, never a `Verify:`; exit 2, or `uv` missing → **halt**, naming it. Never
+   amend a `Verify:`. A check you describe is a claim; only the command that exited is the check. Tick
+   `- [ ] N.M` → `- [x] N.M` once its check has run and passed. A **HUMAN** phase's checks are run as written, above:
+   the plan check skips them. A `**CORPUS**` sub-task: once its check passes, run `make corpus`; any
+   other exit than 0 is a **halt**, naming the case and what it printed.
 3. **Run the phase's check** — `make check` after each phase but the last, when `make -n check` exits 0; after the
    last phase, or when `make -n check` exits non-zero, the full gate: `make gate`, through `gate_run.py` (Step 1).
    It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
@@ -270,7 +276,7 @@ before converge.
 ## Step 3.6 — Mark the closing steps done
 
 Before writing `build.done`, run `uv run --script ../mf-converge/scripts/plan_check.py --change <change-id> --base
-<default-branch>`, resolved as in Step 1, in the foreground: it ends within 600 s. Exit 1 → **halt**,
+<base>`, `<base>` as in Step 3.5 and resolved as in Step 1, in the foreground: it ends within 600 s. Exit 1 → **halt**,
 `stop: plan check`, copying what it prints, and write no `build.done`; exit 2, or `uv` missing → **halt**, naming it.
 
 After Step 3.5, `mf-build` writes `.minions/changes/<change-id>/build.done`, the run directory's, two lines:

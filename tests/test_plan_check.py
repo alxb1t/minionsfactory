@@ -916,27 +916,34 @@ def test_only_runs_the_named_sub_tasks(
         f'- [ ] 1.1 Open.\n  Verify: `sh -c "echo one >> {ran}; exit 1"`.\n',
         f'- [x] 1.2 Ticked.\n  Verify: `sh -c "echo two >> {ran}"`.\n',
         f'- [ ] 2.3 **HALT CHECK** Premise.\n  Verify: `sh -c "echo halt >> {ran}"`.\n',
+        "- [ ] 1.4 Suite.\n"
+        f'  Verify: `sh -c "echo suite >> {ran}" tests/test_plan_check.py`.\n',
+        "- [ ] 1.5 Self.\n"
+        f'  Verify: `sh -c "echo self >> {ran}" other/plan_check.py`.\n',
     )
 
     def only(*ids: str) -> tuple[int, list[str]]:
         argv = ["--change", _CHANGE, "--base", base, "--only", *ids]
         return plan_check.main(argv), capsys.readouterr().out.splitlines()
 
-    code, lines = only("1.1", "2.3")
+    def done() -> list[str]:
+        return sorted(ran.read_text().split())
+
+    code, lines = only("1.1", "2.3", "1.4", "1.5")
 
     assert code == 1
     assert lines[0].startswith("plan: 1.1 — `sh -c ")
     assert lines[0].endswith("` exited 1")
     assert len(lines) == 1
-    assert ran.read_text() == "one\n"
+    assert done() == ["halt", "one", "suite"]
     assert only("1.2") == (0, ["plan: clean"])
-    assert ran.read_text() == "one\ntwo\n"
+    assert done() == ["halt", "one", "suite", "two"]
 
     code, lines = only("1.1", "x")
 
     assert code == 2
     assert lines[0].startswith("plan: cannot check — --only takes ids like 3.2")
-    assert ran.read_text() == "one\ntwo\n"
+    assert done() == ["halt", "one", "suite", "two"]
 
 
 def test_what_the_plan_check_cannot_read_exits_2(

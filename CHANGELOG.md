@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `verify_check.py` refuses at the cut a count off `grep -c` or `--count` over one file, `-L`, and in a plain `Verify:`
   a `path:line`, a pattern of three plain words and a `<default>..HEAD` range; the cut and build skills word `I3` and
   `I19` alike (0143-verify-forms, phase 2).
+- The build runs a phase's `**HALT CHECK**` sub-tasks first and each other `Verify:` through `plan_check.py --only`,
+  which judges a HALT CHECK it names and runs a command holding `test_plan_check.py`; converge's catch-up leaves a
+  HALT CHECK out of `--only`; the close takes `<base>` from Step 3.5 (0143-verify-forms, phase 3).
 
 ## [0.113.0] - 2026-11-21
 

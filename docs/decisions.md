@@ -555,7 +555,8 @@ which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` 
 records how the code now builds a decision in a `Fix note` closing its entry, which the run reads as no decision change.
 `plan_check.py` re-runs each ticked `Verify:` in parallel, passes a bare `pytest` on the gate's green record and
 keeps results by tree, and finds unticked boxes, removed names the plan still claims and the base's tests gone, at the
-build's close and after each fix. `make corpus` runs the readers of run data over the repo's own, outside the gate. The
+build's close and after each fix. The build runs it at each phase through `--only`: the phase's `**HALT CHECK**` sub-tasks
+first, then each other sub-task's `Verify:`. `make corpus` runs the readers of run data over the repo's own, outside the gate. The
 Markdown readers parse with `markdown-it-py`. Plan reviews run on Sonnet 5.5 · high; the cut's default model is Sonnet
 5.5 · high.**
 
@@ -884,7 +885,7 @@ past a granted round, and a `re-plan` halt needs the person ([D56](#d56--the-cap
 version's base, `conduct.py` merges that head into the version with no agent, writes its sha to
 `.minions/changes/<id>/stacked-on`, and the version builds. Built, it waits as `stacked`; once the dependency releases, the
 run merges the default branch in, removes `stacked-on`, and converge runs round 1. While `stacked-on` stands, the build's gate
-check and metrics, `mf-simplify`'s range and the gate's diff coverage take it as their base. An amend of the dependency's
+check, its metrics and `plan_check.py`, `mf-simplify`'s range and the gate's diff coverage take it as their base. An amend of the dependency's
 change directory past that head that changes a decision resets the version to its cut commit, until the merge back, even
 once the dependency released; it stacks again on the dependency's next build, or, the dependency released, builds again on
 the default branch.**
@@ -892,7 +893,7 @@ the default branch.**
 - **Why:** a dependent waited through its dependency's converge, about 45 minutes, which rarely changes the code it builds on.
 - **Accepts:** a dependent built on code its dependency's converge has not judged — it never converges or releases before
   that converge and release · a reset that drops the dependent's build and any amend of its own · a forged `stacked-on`,
-  which narrows the build's gate check and diff coverage alone: the run removes it before converge and the release.
+  which narrows the build's gate check, plan check and diff coverage alone: the run removes it before converge and the release.
 - **Rejected:** rebasing the dependent onto the built head (D44, D45) · stacking on two dependencies, or on a head that lacks
   the dependent's base · stopping a running build at a re-plan.
 

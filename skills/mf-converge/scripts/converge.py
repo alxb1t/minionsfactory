@@ -1566,7 +1566,8 @@ def added(context: Context, judged: str) -> None:
     changed = [
         task.name
         for task in tasks((context.tree / path).read_text())
-        if (said := PLAN_CHECK["verify_of"](task.text)) is not None
+        if "**HALT CHECK**" not in task.text
+        and (said := PLAN_CHECK["verify_of"](task.text)) is not None
         and was.get(task.name) != said
     ]
     if not changed:

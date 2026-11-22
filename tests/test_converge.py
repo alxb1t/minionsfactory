@@ -1515,6 +1515,8 @@ def test_a_catch_up_runs_the_changed_verifies_in_one_plan_check(host: Host) -> N
         _TASKS
         + "\n- [x] 1.1 One.\n  Verify: `git grep -n nope` prints a line.\n"
         + "- [x] 1.2 Two.\n  Verify: `true`.\n"
+        + "- [x] 1.3 **HALT CHECK** Three.\n"
+        + "  Verify: `git grep -n gone` prints a line.\n"
     )
     _commit(
         host.tree,

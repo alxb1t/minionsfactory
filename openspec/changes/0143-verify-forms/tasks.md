@@ -6,7 +6,7 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 - [x] 1 — The judge · moderate
 - [x] 2 — The cut · moderate
-- [ ] 3 — The build · moderate
+- [x] 3 — The build · moderate
 - [ ] 4 — Time · moderate
 
 ## 1 — The judge
@@ -43,19 +43,19 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 ## 3 — The build
 
-- [ ] 3.1 **HALT CHECK** The build's step for a failing HALT CHECK stands in `skills/mf-build/SKILL.md` before it changes.
+- [x] 3.1 **HALT CHECK** The build's step for a failing HALT CHECK stands in `skills/mf-build/SKILL.md` before it changes.
   Verify: `git grep -n -e 'HALT CHECK.*sub-task whose check fails' -- skills/mf-build/SKILL.md` prints a line.
-- [ ] 3.2 Judge a HALT CHECK that `--only` names per [D7](design.md#d7): `jobs` in `skills/mf-converge/scripts/plan_check.py`, and the skip of a command one of whose words has the file name `plan_check.py`, whatever its directory. Turn `test_only_runs_the_named_sub_tasks` in `tests/test_plan_check.py`: `1.1 2.3` runs both, and a command holding `test_plan_check.py` runs.
+- [x] 3.2 Judge a HALT CHECK that `--only` names per [D7](design.md#d7): `jobs` in `skills/mf-converge/scripts/plan_check.py`, and the skip of a command one of whose words has the file name `plan_check.py`, whatever its directory. Turn `test_only_runs_the_named_sub_tasks` in `tests/test_plan_check.py`: `1.1 2.3` runs both, and a command holding `test_plan_check.py` runs.
   Verify: `uv run pytest tests/test_plan_check.py::test_only_runs_the_named_sub_tasks tests/test_plan_check.py::test_a_plan_check_finds_what_the_plan_left -q` exits 0.
-- [ ] 3.3 Leave each HALT CHECK sub-task out of the lines `added` hands to `--only` in `skills/mf-converge/scripts/converge.py`. Extend `test_a_catch_up_runs_the_changed_verifies_in_one_plan_check` in `tests/test_converge.py` with a HALT CHECK line the range adds.
+- [x] 3.3 Leave each HALT CHECK sub-task out of the lines `added` hands to `--only` in `skills/mf-converge/scripts/converge.py`. Extend `test_a_catch_up_runs_the_changed_verifies_in_one_plan_check` in `tests/test_converge.py` with a HALT CHECK line the range adds.
   Verify: `uv run pytest tests/test_converge.py::test_a_catch_up_runs_the_changed_verifies_in_one_plan_check -q` exits 0.
-- [ ] 3.4 In `skills/mf-build/SKILL.md` Step 2 write [D7](design.md#d7) and [D8](design.md#d8): the phase's HALT CHECK sub-tasks run first through `plan_check.py --only`, then each other sub-task's `Verify:` the same way, a **HUMAN** phase's run as written.
+- [x] 3.4 In `skills/mf-build/SKILL.md` Step 2 write [D7](design.md#d7) and [D8](design.md#d8): the phase's HALT CHECK sub-tasks run first through `plan_check.py --only`, then each other sub-task's `Verify:` the same way, a **HUMAN** phase's run as written.
   Verify: `git grep -n -e '--only' -- skills/mf-build/SKILL.md` prints a line.
-- [ ] 3.5 Word the `I15` row in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md` as a check of the state before the phase's edits, whose `Verify:` states the exit its command really gives, and Step 1's note `Step 2 halts on it` as `Step 2 runs it first, and halts on it`.
+- [x] 3.5 Word the `I15` row in `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md` as a check of the state before the phase's edits, whose `Verify:` states the exit its command really gives, and Step 1's note `Step 2 halts on it` as `Step 2 runs it first, and halts on it`.
   Verify: `git grep -c -e 'Step 2 halts on it' -- skills/mf-build/SKILL.md` prints nothing.
-- [ ] 3.6 In `skills/mf-build/SKILL.md` Step 3.6 take `<base>` from Step 3.5 per [D9](design.md#d9): the match of `default-branch>.,`, the `<default-branch>` that ends the wrapped `--base` operand, becomes `<base>`.
+- [x] 3.6 In `skills/mf-build/SKILL.md` Step 3.6 take `<base>` from Step 3.5 per [D9](design.md#d9): the match of `default-branch>.,`, the `<default-branch>` that ends the wrapped `--base` operand, becomes `<base>`.
   Verify: `git grep -c -e 'default-branch>.,' -- skills/mf-build/SKILL.md` prints nothing.
-- [ ] 3.7 In `docs/decisions.md` edit D74 per [D13](design.md#d13) to name the build's run at each phase through `plan_check.py --only`, and D72 to name the plan check among the bases `stacked-on` serves, as `metrics and .plan_check.py`.
+- [x] 3.7 In `docs/decisions.md` edit D74 per [D13](design.md#d13) to name the build's run at each phase through `plan_check.py --only`, and D72 to name the plan check among the bases `stacked-on` serves, as `metrics and .plan_check.py`.
   Verify: `git grep -n -e 'metrics and .plan_check.py' -- docs/decisions.md` prints a line.
 
 ## 4 — Time
