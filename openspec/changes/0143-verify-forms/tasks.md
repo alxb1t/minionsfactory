@@ -7,7 +7,7 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 - [x] 1 — The judge · moderate
 - [x] 2 — The cut · moderate
 - [x] 3 — The build · moderate
-- [ ] 4 — Time · moderate
+- [x] 4 — Time · moderate
 
 ## 1 — The judge
 
@@ -60,15 +60,15 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 ## 4 — Time
 
-- [ ] 4.1 **HALT CHECK** The fixed limit stands in `skills/mf-converge/scripts/plan_check.py` before it changes.
+- [x] 4.1 **HALT CHECK** The fixed limit stands in `skills/mf-converge/scripts/plan_check.py` before it changes.
   Verify: `git grep -n -e TIMEOUT_SECONDS -- skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 4.2 Read the limit per [D10](design.md#d10): `verify_limit` in `skills/mf-converge/scripts/plan_check.py`, taken by `run`, `schedule` and `check_verifies` as an optional argument that falls back to `TIMEOUT_SECONDS` read at call time, so the tests that patch it stand. Add `test_a_verify_timeout_line_sets_the_limit` to `tests/test_plan_check.py`: a `**Verify timeout:**` line in the checked repository's root agents file sets it, no line gives 600.
+- [x] 4.2 Read the limit per [D10](design.md#d10): `verify_limit` in `skills/mf-converge/scripts/plan_check.py`, taken by `run`, `schedule` and `check_verifies` as an optional argument that falls back to `TIMEOUT_SECONDS` read at call time, so the tests that patch it stand. Add `test_a_verify_timeout_line_sets_the_limit` to `tests/test_plan_check.py`: a `**Verify timeout:**` line in the checked repository's root agents file sets it, no line gives 600.
   Verify: `uv run pytest tests/test_plan_check.py::test_a_verify_timeout_line_sets_the_limit -q` exits 0.
-- [ ] 4.3 Send back no timeout alone per [D12](design.md#d12): `planned` in `skills/mf-converge/scripts/converge.py`. Add `test_a_timeout_alone_sends_nothing_back` to `tests/test_converge.py`.
+- [x] 4.3 Send back no timeout alone per [D12](design.md#d12): `planned` in `skills/mf-converge/scripts/converge.py`. Add `test_a_timeout_alone_sends_nothing_back` to `tests/test_converge.py`.
   Verify: `uv run pytest tests/test_converge.py::test_a_timeout_alone_sends_nothing_back -q` exits 0.
-- [ ] 4.4 In `skills/mf-converge/references/fix.md` say a `timed out` line is no card and drop "ends within 600 s"; in `skills/mf-converge/references/worker.md` say a `timed out` line of the plan check's evidence is no finding.
+- [x] 4.4 In `skills/mf-converge/references/fix.md` say a `timed out` line is no card and drop "ends within 600 s"; in `skills/mf-converge/references/worker.md` say a `timed out` line of the plan check's evidence is no finding.
   Verify: `git grep -c -e 'ends within 600' -- skills/mf-converge/references/fix.md` prints nothing.
-- [ ] 4.5 In `skills/mf-build/SKILL.md` write [D11](design.md#d11) into Step 2 and Step 3.6: one background command, waited on once, the limit the repository's `**Verify timeout:**`, 600 s where none; drop "ends within 600 s".
+- [x] 4.5 In `skills/mf-build/SKILL.md` write [D11](design.md#d11) into Step 2 and Step 3.6: one background command, waited on once, the limit the repository's `**Verify timeout:**`, 600 s where none; drop "ends within 600 s".
   Verify: `git grep -c -e 'ends within 600' -- skills/mf-build/SKILL.md` prints nothing.
-- [ ] 4.6 In `docs/decisions.md` edit D79 to say a timed-out command in the plan check's lines is no finding.
+- [x] 4.6 In `docs/decisions.md` edit D79 to say a timed-out command in the plan check's lines is no finding.
   Verify: `git grep -n -e 'timed.out' -- docs/decisions.md` prints a line.

@@ -174,16 +174,18 @@ ticking the `N.M` boxes with the phase's box at item 5.
 1. **Do the phase's tasks.** Before the first edit, run
    `uv run --script ../mf-converge/scripts/gate_check.py --verify --change <change-id>`, resolved as in Step 1: exit 1
    → **halt**, copying the edits it names; exit 2, or `uv` missing → **halt**, naming it. Then run the phase's
-   `**HALT CHECK**` sub-tasks first, in one command,
+   `**HALT CHECK**` sub-tasks first, as one background command,
    `uv run --script ../mf-converge/scripts/plan_check.py --change <change-id> --base <base> --only <their ids>`,
-   resolved as in Step 1, `<base>` as in Step 3.5, and show its lines. A HALT CHECK whose check fails is a
+   resolved as in Step 1, `<base>` as in Step 3.5, waited on once, and show its lines. A HALT CHECK whose check fails is a
    **halt**: the plan's premise broke. Never change code to make it pass. Tick a `- [ ] N.M` → `- [x] N.M` that passed.
    Then the rest, test-first where there is logic: the failing test for the phase's acceptance at the
    layer `T1` names — a step in an existing test where `T2` finds one — then implement to green. Fake external
    effects behind the repo's declared seams, so the suite stays offline and deterministic. Write to `W`, `T`,
    `P` and `C` below.
 2. **Run each other sub-task's `Verify:` — never summarize it** — once the tasks are done, through the same
-   `plan_check.py --only <their ids>`, in one command, and show its lines and its exit. Exit 1 → its lines name the
+   `plan_check.py --only <their ids>`, as one background command waited on once, and show its lines and its exit. A
+   command's limit is the repository's `**Verify timeout:**` line in `AGENTS.md`, in seconds, 600 where none; a line
+   ending `timed out` is no pass. Exit 1 → its lines name the
    sub-tasks that failed: fix the work, never a `Verify:`; exit 2, or `uv` missing → **halt**, naming it. Never
    amend a `Verify:`. A check you describe is a claim; only the command that exited is the check. Tick
    `- [ ] N.M` → `- [x] N.M` once its check has run and passed. A **HUMAN** phase's checks are run as written, above:
@@ -276,8 +278,8 @@ before converge.
 ## Step 3.6 — Mark the closing steps done
 
 Before writing `build.done`, run `uv run --script ../mf-converge/scripts/plan_check.py --change <change-id> --base
-<base>`, `<base>` as in Step 3.5 and resolved as in Step 1, in the foreground: it ends within 600 s. Exit 1 → **halt**,
-`stop: plan check`, copying what it prints, and write no `build.done`; exit 2, or `uv` missing → **halt**, naming it.
+<base>`, `<base>` as in Step 3.5 and resolved as in Step 1, as one background command waited on once, its limit as in
+Step 2. Exit 1 → **halt**, `stop: plan check`, copying what it prints, and write no `build.done`; exit 2, or `uv` missing → **halt**, naming it.
 
 After Step 3.5, `mf-build` writes `.minions/changes/<change-id>/build.done`, the run directory's, two lines:
 

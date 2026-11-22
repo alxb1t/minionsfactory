@@ -885,6 +885,38 @@ def test_a_command_starts_under_the_load_or_when_none_runs(
     assert plan_check.load_average() == 0.0
 
 
+def test_a_verify_timeout_line_sets_the_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    agents = root / "AGENTS.md"
+    # No file, no line, no integer and an integer below one give 600.
+    assert plan_check.verify_limit(root) == 600
+    for text in (
+        "Limit 5 s.\n",
+        "**Verify timeout:** none\n7\n",
+        "**Verify timeout:** 0 s\n",
+    ):
+        agents.write_text(text)
+        assert plan_check.verify_limit(root) == 600
+    # The first integer after the label is the limit, and the patched default stands.
+    agents.write_text("Gate 9.\n**Verify timeout:** 90 s, then 5.\n")
+    assert plan_check.verify_limit(root) == 90
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.5)
+    agents.write_text("")
+    assert plan_check.verify_limit(root) == 0.5
+    # `run` and `schedule` end a command at the limit they are given.
+    assert plan_check.run("sleep 5", root, 0.3).timed_out
+    assert plan_check.schedule(["sleep 5"], root, 0.3)["sleep 5"].timed_out
+    # The check reads the line: a limit of 1 s ends `sleep 5`, which 600 s would not.
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 600)
+    agents.write_text("**Verify timeout:** 1\n")
+    _tasks(root, _ONE, "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n")
+    assert plan_check.main(["--change", _CHANGE, "--base", base]) == 1
+    assert capsys.readouterr().out.splitlines() == ["plan: 1.1 — `sleep 5` timed out"]
+
+
 def test_sigterm_ends_the_commands_running(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

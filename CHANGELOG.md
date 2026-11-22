@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The build runs a phase's `**HALT CHECK**` sub-tasks first and each other `Verify:` through `plan_check.py --only`,
   which judges a HALT CHECK it names and runs a command holding `test_plan_check.py`; converge's catch-up leaves a
   HALT CHECK out of `--only`; the close takes `<base>` from Step 3.5 (0143-verify-forms, phase 3).
+- `plan_check.py` takes a command's limit from the `**Verify timeout:**` line of the repository's `AGENTS.md`, 600 s
+  where none; converge sends back no `timed out` line alone, and the build runs its plan check as one background
+  command (0143-verify-forms, phase 4).
 
 ## [0.113.0] - 2026-11-21
 

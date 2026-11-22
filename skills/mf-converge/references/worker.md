@@ -12,6 +12,8 @@ and keeps its grade: its **Priority** says it repeats that card's mechanism. The
 `nit` or `drift` to `blocking`. The station judges the match; `converge.py` judges nothing: `evidence.md` holds facts a tool found, never a verdict. No worker reads
 `.minions/debt.md`.
 
+**A `timed out` line of the plan check in `evidence.md` is no finding**: a command past its limit under load is no defect.
+
 **Conformance runs these passes after its sections**, and its Summary and its `passes` say each ran. The stale-claim and
 test-cost passes start from `evidence.md`'s *Stale-claim candidates* and *Test cost* sections and judge their lines;
 coverage-trace stays the worker's:

@@ -78,6 +78,7 @@ REMOVED = "## REMOVED Requirements"
 TEST_DEF = r"^[[:space:]]*(async[[:space:]]+)?def test_[A-Za-z0-9_]*"
 TEST_NAME = re.compile(r"\bdef (test_\w+)")
 CORPUS = re.compile(r"\*\*CORPUS\*\* `([a-z0-9-]+)`")
+VERIFY_TIMEOUT = re.compile(r"\*\*Verify timeout:\*\*[^\d\n]*(\d+)")
 
 
 class Stop(Exception):
@@ -222,11 +223,22 @@ def _kill(process: subprocess.Popen[str]) -> None:
         os.killpg(process.pid, signal.SIGKILL)
 
 
-def run(command: str, root: Path) -> Result:
+def verify_limit(root: Path) -> float:
+    """Return the seconds a command may run: `root`'s `**Verify timeout:**` line.
+
+    No `AGENTS.md`, line or integer of one or more gives `TIMEOUT_SECONDS`, as it is
+    now. Why: 0143-verify-forms design D10.
+    """
+    found = VERIFY_TIMEOUT.search(_read(root / "AGENTS.md"))
+    limit = int(found[1]) if found else 0
+    return limit if limit >= 1 else TIMEOUT_SECONDS
+
+
+def run(command: str, root: Path, limit: float | None = None) -> Result:
     """Return a command's finish, run in `root` as argv with no shell.
 
-    It runs in a session of its own, so a timeout ends the command's whole group.
-    Why: 0114-faster-plan-check design D4, D5.
+    It runs in a session of its own, so a timeout ends its whole group, after `limit`
+    seconds or `TIMEOUT_SECONDS`. Why: 0114-faster-plan-check design D4, D5.
     """
     held = os.environ.get("PYTEST_ADDOPTS", "")
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
@@ -246,7 +258,9 @@ def run(command: str, root: Path) -> Result:
         return Result(127, str(error.strerror))
     RUNNING.add(process)
     try:
-        output, stderr = process.communicate(timeout=TIMEOUT_SECONDS)
+        output, stderr = process.communicate(
+            timeout=TIMEOUT_SECONDS if limit is None else limit
+        )
     except subprocess.TimeoutExpired:
         _kill(process)
         try:
@@ -277,11 +291,13 @@ def load_average() -> float:
         return 0.0
 
 
-def schedule(work: list[str], root: Path) -> dict[str, Result]:
+def schedule(
+    work: list[str], root: Path, limit: float | None = None
+) -> dict[str, Result]:
     """Return each command's result by its text, the commands run side by side.
 
     A command starts when its `weight` in slots is free, a `make` when no other runs,
-    and the load is under `CPUS` or none runs. Why: 0143-verify-forms design D3.
+    and the load is under `CPUS` or none runs; `limit` is `run`'s. Why: 0143 design D3.
     """
     results: dict[str, Result] = {}
     free = threading.Condition()
@@ -297,7 +313,7 @@ def schedule(work: list[str], root: Path) -> dict[str, Result]:
     def finish(text: str, need: int, make: bool) -> None:
         nonlocal used, makes
         try:
-            results[text] = run(text, root)
+            results[text] = run(text, root, limit)
         finally:
             with free:
                 used -= need
@@ -511,13 +527,13 @@ def bare_pytest(command: Command, root: Path) -> bool:
     )
 
 
-def collecting(texts: list[str], root: Path) -> set[str]:
+def collecting(texts: list[str], root: Path, limit: float | None = None) -> set[str]:
     """Return the commands whose collection exits 0 and prints a collected test.
 
     The collection is the command with `--collect-only -q` appended, run as any
     command is. Why: 0114-faster-plan-check design D2.
     """
-    found = schedule([text + COLLECT_ONLY for text in texts], root)
+    found = schedule([text + COLLECT_ONLY for text in texts], root, limit)
     return {
         text
         for text in texts
@@ -567,16 +583,20 @@ def load(tree: str, key: str) -> Result | None:
 
 
 def check_verifies(
-    tasks: list[Task], human: set[int], root: Path, only: set[str] | None = None
+    tasks: list[Task],
+    human: set[int],
+    root: Path,
+    only: set[str] | None = None,
+    limit: float | None = None,
 ) -> list[str]:
     """Return a line for each judged `Verify:` command that fails run again.
 
-    Each distinct command runs once. A bare pytest passes unrun on the gate's green
-    record when its collection finds a test; kept results are read and written.
+    Each distinct command runs once, for `limit` seconds. A bare pytest passes unrun on
+    the gate's green record when its collection finds a test.
     """
     pairs = jobs(tasks, human, only)
     bare = list(dict.fromkeys(c.text for _, c in pairs if bare_pytest(c, root)))
-    vouched = collecting(bare, root) if bare and gate_green() else set()
+    vouched = collecting(bare, root, limit) if bare and gate_green() else set()
     pending = [
         (n, c) for n, c in pairs if not (c.text in vouched and bare_pytest(c, root))
     ]
@@ -587,7 +607,7 @@ def check_verifies(
     results: dict[str, Result] = {}
     if tree is not None:
         results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
-    fresh = schedule([text for text in keys if text not in results], root)
+    fresh = schedule([text for text in keys if text not in results], root, limit)
     results |= fresh
     if tree is not None and _guarded(gate()["settled_tree"]) == tree:
         for text, result in fresh.items():
@@ -776,15 +796,16 @@ def check(change: str, base: str, only: set[str] | None = None) -> list[str]:
         raise Stop(f"tasks.md: {error.strerror}") from None
     found, human = phases(tasks)
     parsed = subtasks(tasks)
+    limit = verify_limit(root)
     if only is not None:
-        return check_verifies(parsed, human, root, only)
+        return check_verifies(parsed, human, root, only, limit)
     merge_base = _git(root, "merge-base", base, "HEAD").stdout.strip()
     design = folder / "design.md"
     tests = tests_section(
         design.read_text(errors="replace") if design.is_file() else ""
     )
     return [
-        *check_verifies(parsed, human, root),
+        *check_verifies(parsed, human, root, None, limit),
         *check_boxes(parsed, found),
         *check_names(root, change, merge_base, tests),
         *check_tests(root, merge_base, tests),

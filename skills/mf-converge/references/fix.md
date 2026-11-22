@@ -16,10 +16,11 @@ run from the repository root as `uv run --script ../scripts/gate_run.py`, resolv
   at the lowest layer that reproduces it (`T1`), as a step in an existing test where one reaches the state (`T2`).
 - **Never weaken the gate** — no new blanket suppression, no loosened config — and **never delete or merge a test**:
   consolidation is planned at the cut (`T5`). Conformance checks for exactly this.
-- **Run the plan check** after your gate and before your commit, in the foreground; it ends within 600 s:
+- **Run the plan check** after your gate and before your commit, in the foreground:
   `uv run --script ../scripts/plan_check.py --change <change-id> --base <base>`, resolved from this reference. Each line
-  it prints is a blocking card of this pass: fix it, or set it `wontfix` naming the amend, as for a card. A line you
-  cannot clear without editing `tasks.md` or `design.md` you leave, and name in [your report](#your-report).
+  it prints is a blocking card of this pass: fix it, or set it `wontfix` naming the amend, as for a card. A line ending
+  `timed out` is no card: leave it. A line you cannot clear without editing `tasks.md` or `design.md` you leave, and
+  name in [your report](#your-report).
 - **Set each card you addressed** to `fixed`, with a one-line note, in its [**Status**](worker.md#the-card).
 - **Prove red before green.** For a card whose **Fix** size includes `a test`, paste the new or extended test's failing
   run from before the fix into the **Status** note — for an extended test, the existing test with the new step added.

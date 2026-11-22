@@ -610,7 +610,8 @@ Where a change cannot clean every site, the rule carries a named list of the res
 
 - **Why:** the checkers spent tokens on facts a script finds, and the same syntactic classes came back as debt cards.
 - **Accepts:** a line the evidence lists that is no defect, a move between files among them — the checker judges it ·
-  coverage-trace stays the worker's, as a removed test's proofs need judging.
+  coverage-trace stays the worker's, as a removed test's proofs need judging · a timed-out command in the plan check's
+  lines is no finding, and raises no card on its own.
 - **Rejected:** folding the passes into the gate — it cannot judge a retired proof · an LLM step to gather the facts.
 - **Extends:** D66, D77 and D78.
 
