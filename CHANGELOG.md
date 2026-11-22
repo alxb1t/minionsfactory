@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - The models line takes a `build-close` part, written as `[build.close]`, and the close's spawn runs on it, else on `[build.moderate]`, else on `[build]`, key by key; its table names no executor (0144-gate-outside, phase 1).
+- `conduct.py close <change-id>` ends a build with one command for a run and a hand build: the gate under the OS sandbox, the metrics, the plan check kept in `plan-check.txt`, then `build.done`; a failed step writes `gate.red` or `build.halt`. `gate_run.py` reads a gate past its limit as red, exit 124 (0144-gate-outside, phase 2).
 
 ## [0.114.0] - 2026-11-22
 

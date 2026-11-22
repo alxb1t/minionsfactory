@@ -127,6 +127,23 @@ def test_a_red_run_records_nothing(tmp_path: Path) -> None:
     assert not _record(root).exists()
 
 
+def test_a_gate_past_its_limit_is_red(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0144-gate-outside design D3.
+    root, log = tmp_path / "repo", tmp_path / "runs.log"
+    _repo(root, log, recipe="sleep 5")
+    monkeypatch.chdir(root)
+    monkeypatch.setattr(gate_run, "GATE_SECONDS", 1)
+
+    assert gate_run.gate(fresh=False) == 124
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[-1].startswith("gate: red — past its limit · "), lines
+    assert lines[-1].endswith("s")
+    assert not _record(root).exists()
+
+
 def test_a_gate_runs_without_the_venv_and_quiet_when_green(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     seen = tmp_path / "venv.txt"

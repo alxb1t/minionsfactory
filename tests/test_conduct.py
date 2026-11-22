@@ -3611,6 +3611,212 @@ def test_the_close_runs_on_the_close_table_then_moderate_then_build(
         assert spawns[-1] == want, name
 
 
+def _close(
+    root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> tuple[int, list[str]]:
+    """Run `conduct.py close 0001-todo` in `root`; return its exit and printed lines."""
+    capsys.readouterr()
+    code = _main(_conduct(), root, "close", "0001-todo", monkeypatch=monkeypatch)
+    return code, capsys.readouterr().out.splitlines()
+
+
+def _marks(root: Path) -> Path:
+    return root / ".minions" / "changes" / "0001-todo"
+
+
+def _halt_keys(root: Path) -> dict[str, str]:
+    text = (_marks(root) / "build.halt").read_text()
+    return dict(line.split(": ", 1) for line in text.splitlines())
+
+
+def test_close_of_a_version_that_is_not_there_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0144-gate-outside design D2.
+    root = _primary(tmp_path)
+    assert _close(root, monkeypatch, capsys) == (
+        2,
+        ["close: cannot run — no version branch holds 0001-todo"],
+    )
+    # A branch with no worktree cannot close either.
+    _git(root, "branch", "0001-todo")
+    assert _close(root, monkeypatch, capsys) == (
+        2,
+        ["close: cannot run — 0001-todo has no worktree"],
+    )
+    # A hand close on the old layout halts before it reads the version.
+    plant_old(root / ".minions", "0001-todo", "build/{}.done")
+    code, lines = _close(root, monkeypatch, capsys)
+    assert code == 2
+    assert lines == [
+        "close: cannot run — .minions/build/0001-todo.done is the old layout:"
+        " /mf-ship moves it"
+    ]
+
+
+def test_close_fails_on_an_unticked_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n- [ ] 2 — Two\n")
+    assert _close(root, monkeypatch, capsys) == (1, ["close: fail — phase 2 unticked"])
+    # The twin: every box ticked, the tree dirty, fails on the tree alone.
+    _commit(
+        tree,
+        {"openspec/changes/0001-todo/tasks.md": "## Progress\n\n- [x] 1 — One\n"},
+        "tick",
+    )
+    (tree / "stray.txt").write_text("x\n")
+    assert _close(root, monkeypatch, capsys) == (
+        1,
+        ["close: fail — the tree is not clean"],
+    )
+    assert not (_marks(root) / "build.done").exists()
+
+
+def test_close_on_a_green_gate_prints_the_gate_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0144-gate-outside design D3.
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — One\n")
+    _marks(root).mkdir(parents=True)
+    (_marks(root) / "gate.red").write_text("an earlier red\n")
+
+    code, lines = _close(root, monkeypatch, capsys)
+
+    assert code == 0, lines
+    assert (
+        [line for line in lines if line.startswith("check — gate")]
+        == [line for line in lines if re.fullmatch(r"check — gate · pass · \d+s", line)]
+        != []
+    )
+    assert lines[-1] == "close: done"
+    assert not (_marks(root) / "gate.red").exists()
+
+
+def test_close_on_a_red_gate_writes_gate_red_and_build_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0144-gate-outside design D2, D3.
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    (tree / ".minions").mkdir()
+    (tree / ".minions" / "red").write_text("x\n")
+
+    code, lines = _close(root, monkeypatch, capsys)
+
+    assert code == 1, lines
+    assert any(
+        re.fullmatch(r"check — gate · fail — red · \d+s", line) for line in lines
+    )
+    gate_red = ".minions/changes/0001-todo/gate.red"
+    assert lines[-1] == f"close: fail — gate: red · gate_run.py exit 2 · {gate_red}"
+    assert "gate: red — exit 2" in (_marks(root) / "gate.red").read_text()
+    keys = _halt_keys(root)
+    assert keys == {
+        "sub-task": "close",
+        "stop": "gate",
+        "evidence": f"red · gate_run.py exit 2 · {gate_red}",
+        "head": _git(tree, "rev-parse", "HEAD"),
+    }
+    assert not (_marks(root) / "build.done").exists()
+
+    # A link planted at `gate.red` is refused, and what it names is left as it was.
+    outside = tmp_path / "home-file"
+    outside.write_text("the person's\n")
+    (_marks(root) / "gate.red").unlink()
+    (_marks(root) / "gate.red").symlink_to(outside)
+    code, lines = _close(root, monkeypatch, capsys)
+    assert code == 1
+    assert lines[-1].startswith(
+        "close: fail — .minions/changes/0001-todo/gate.red cannot be written:"
+    )
+    assert outside.read_text() == "the person's\n"
+
+
+def test_close_skips_metrics_with_no_catalogue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — One\n")
+
+    code, lines = _close(root, monkeypatch, capsys)
+
+    assert code == 0, lines
+    assert "metrics: none — no catalogue" in lines
+    assert not (root / ".minions" / "metrics").exists()
+    assert (_marks(root) / "build.done").is_file()
+
+
+@pytest.mark.slow
+def test_close_halts_on_a_metrics_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    # A catalogue that declares nothing collects a draft and draws its page.
+    _commit(tree, {"metrics/catalogue.toml": "# none yet\n"}, "a catalogue")
+    code, lines = _close(root, monkeypatch, capsys)
+    assert (code, lines[-1]) == (0, "close: done"), lines
+    assert "metrics: crossed here 0 · worsened 0" in lines
+    assert (root / ".minions" / "metrics" / "0001-todo.json").is_file()
+
+    _commit(tree, {"metrics/catalogue.toml": "[metric\n"}, "a broken catalogue")
+    code, lines = _close(root, monkeypatch, capsys)
+
+    assert code == 1, lines
+    said = "close: fail — metrics: metrics.py collect exit 2 · metrics/catalogue.toml:"
+    assert lines[-1].startswith(f"{said} does not parse: "), lines
+    keys = _halt_keys(root)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert (keys["sub-task"], keys["stop"], keys["head"]) == ("close", "metrics", head)
+    assert keys["evidence"].startswith("metrics.py collect exit 2 · ")
+    assert f"head: {head}\n" not in (_marks(root) / "build.done").read_text()
+
+
+def test_close_halts_on_a_plan_check_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n\n## 1 — One\n\n- [ ] 1.1 Do.\n")
+
+    code, lines = _close(root, monkeypatch, capsys)
+
+    unticked = "plan: 1.1 — unticked under the ticked phase 1"
+    assert code == 1, lines
+    assert lines[-1] == f"close: fail — plan check: plan_check.py exit 1 · {unticked}"
+    assert unticked in (_marks(root) / "plan-check.txt").read_text().splitlines()
+    keys = _halt_keys(root)
+    assert (keys["sub-task"], keys["stop"]) == ("close", "plan check")
+    assert keys["head"] == _git(tree, "rev-parse", "HEAD")
+    assert not (_marks(root) / "build.done").exists()
+
+
+def test_close_writes_build_done_with_head_and_simplify(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0144-gate-outside design D7.
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+
+    assert _close(root, monkeypatch, capsys)[0] == 0
+    head = _git(tree, "rev-parse", "HEAD")
+    done = _marks(root) / "build.done"
+    assert done.read_text() == f"head: {head}\nsimplify: none\n"
+    assert (_marks(root) / "plan-check.txt").read_text() == "plan: clean\n"
+
+    _commit(tree, {"a.txt": "a\n"}, "refactor(0001-todo): simplify")
+    simplify = _git(tree, "rev-parse", "HEAD")
+    _commit(tree, {"b.txt": "b\n"}, "docs(0001-todo): amend the change directory")
+    (_marks(root) / "build.closing").write_text(f"head: {simplify}\n")
+    code, lines = _close(root, monkeypatch, capsys)
+    assert (code, lines[-1]) == (0, "close: done"), lines
+    head = _git(tree, "rev-parse", "HEAD")
+    assert done.read_text() == f"head: {head}\nsimplify: {simplify}\n"
+    assert not (_marks(root) / "build.closing").exists()
+
+
 def test_the_supervisor_runs_on_its_own_table(tmp_path: Path) -> None:
     # Its own table, else Claude's default; no fallback to `[build]`, none on Codex.
     # Why: 0089-supervisor design D2.

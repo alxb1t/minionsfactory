@@ -147,15 +147,23 @@ def gate(fresh: bool) -> int:
             print(f"gate: reused — {tree} · {seconds}s · {date}")
             return 0
     start = time.monotonic()
-    done = subprocess.run(
-        ["make", "gate"],
-        env=_make_env(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        errors="replace",
-        timeout=GATE_SECONDS,
-    )
+    try:
+        done = subprocess.run(
+            ["make", "gate"],
+            env=_make_env(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            timeout=GATE_SECONDS,
+        )
+    except subprocess.TimeoutExpired as expired:
+        output = expired.output
+        if isinstance(output, bytes):
+            output = output.decode(errors="replace")
+        sys.stdout.write(output or "")
+        print(f"gate: red — past its limit · {round(time.monotonic() - start)}s")
+        return 124
     code = done.returncode
     seconds = round(time.monotonic() - start)
     if code != 0:
