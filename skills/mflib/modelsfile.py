@@ -17,6 +17,7 @@ from . import layout, statefile
 TABLES = {
     "build": "build",
     "build-moderate": "build.moderate",
+    "build-close": "build.close",
     "converge": "converge",
     "conformance": "converge.conformance",
     "adversarial": "converge.adversarial",

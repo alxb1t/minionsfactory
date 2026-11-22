@@ -2713,8 +2713,8 @@ def test_a_build_runs_a_worker_per_phase(
     assert sorted(called[5:7]) == _judged()
     assert called[7:] == ["release 0001-todo"]
 
-    # The moderate phase builds on `[build.moderate]`; the hard, the unrated and the
-    # close on `[build]`'s model.
+    # The moderate phase and the close build on `[build.moderate]`; the hard and the
+    # unrated on `[build]`'s model.
     def spawned(lines: list[str]) -> list[str]:
         return [
             line.split(" · spawn — build · ")[1]
@@ -2723,7 +2723,7 @@ def test_a_build_runs_a_worker_per_phase(
         ]
 
     on = ("model claude-sonnet-5-5 · effort high", "model claude-opus-5-5")
-    assert spawned(lines) == [on[0], on[1], on[1], on[1]]
+    assert spawned(lines) == [on[0], on[1], on[1], on[0]]
     # Each phase appends 50 lines; the conductor keeps 40 of each.
     notes = (folder / "build-notes.md").read_text().splitlines()
     sections = [i for i, line in enumerate(notes) if line.startswith("## ")]
@@ -2753,7 +2753,7 @@ def test_a_build_runs_a_worker_per_phase(
     models.write_text(opus + '[build.moderate]\neffort = "medium"\n')
     calls.unlink()
     fake()
-    assert spawned(run(effort, 0)) == [f"{on[1]} · effort medium", on[1]]
+    assert spawned(run(effort, 0)) == [f"{on[1]} · effort medium"] * 2
 
     # A phase that dies after its notes still has them cut.
     (tmp_path / "died").mkdir()
@@ -3557,6 +3557,58 @@ def test_rescue_skip_runs_none(
         conduct["Stop"], match=r"halt — changes/0001-todo/models\.toml: "
     ):
         models(minions, "0001-todo", "rescue", "claude")
+
+
+def test_a_build_close_table_names_no_executor(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    minions = root / ".minions"
+    table = minions / "changes" / "0001-todo" / "models.toml"
+    table.parent.mkdir(parents=True)
+    models = conduct["_models"]
+    # The close's table runs on the build's executor, naming none of its own.
+    # Why: 0144-gate-outside design D1.
+    table.write_text('[build]\nexecutor = "codex"\n[build.close]\nmodel = "m"\n')
+    assert models(minions, "0001-todo", "build.close", "claude") == ("codex", "m", None)
+    table.write_text('[build.close]\nexecutor = "codex"\n')
+    said = r"conduct: halt — changes/0001-todo/models\.toml: build\.close names an exec"
+    with pytest.raises(conduct["Stop"], match=said):
+        models(minions, "0001-todo", "build.close", "claude")
+
+
+def test_the_close_runs_on_the_close_table_then_moderate_then_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    opus = '[build]\nmodel = "claude-opus-5-5"\n'
+    moderate = '[build.moderate]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n'
+    close = '[build.close]\nmodel = "claude-haiku-5-5"\neffort = "low"\n'
+    effort = '[build.close]\neffort = "low"\n'
+    cases = {
+        "build": (opus, "model claude-opus-5-5"),
+        "moderate": (opus + moderate, "model claude-sonnet-5-5 · effort high"),
+        "close": (opus + moderate + close, "model claude-haiku-5-5 · effort low"),
+        "key": (opus + moderate + effort, "model claude-sonnet-5-5 · effort low"),
+    }
+    for name, (table, want) in cases.items():
+        (tmp_path / name).mkdir()
+        root = _primary(tmp_path / name)
+        _version(root, "0001-todo", "- [ ] 1 — One\n")
+        models = root / ".minions" / "changes" / "0001-todo" / "models.toml"
+        models.parent.mkdir(parents=True)
+        models.write_text(table)
+        code = _main(
+            conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+        assert code == 0, name
+        spawns = [
+            line.split(" · spawn — build · ")[1]
+            for line in _log(root)
+            if " · spawn — build · " in line
+        ]
+        assert spawns[-1] == want, name
 
 
 def test_the_supervisor_runs_on_its_own_table(tmp_path: Path) -> None:

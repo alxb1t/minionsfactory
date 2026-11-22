@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The models line takes a `build-close` part, written as `[build.close]`, and the close's spawn runs on it, else on `[build.moderate]`, else on `[build]`, key by key; its table names no executor (0144-gate-outside, phase 1).
+
 ## [0.114.0] - 2026-11-22
 
 Gate: local 7m26s · CI not read under mf-ship · 0.113.0: local 8m55s · CI not read under mf-ship

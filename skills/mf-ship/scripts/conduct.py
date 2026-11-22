@@ -131,13 +131,17 @@ CHECKERS = tuple(name for name in WORKERS if name != FIXER)
 # A phase the cut rates moderate builds on this table.
 # Why: 0102-build-per-phase design D5.
 MODERATE = "build.moderate"
-# The rescue, the supervisor, converge's workers and the moderate build are no stage:
-# each is planned with the stations'. Why: 0067-rescue design D3, D5; 0089-supervisor
-# design D2; 0094-lighter-converge design D1; 0102-build-per-phase design D5.
-PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE)
+# The close's spawn builds on this table, else `MODERATE`, else `[build]`.
+# Why: 0144-gate-outside design D1.
+CLOSE = "build.close"
+# The rescue, the supervisor, converge's workers and the moderate and close builds are
+# no stage: each is planned with the stations'. Why: 0067-rescue design D3, D5;
+# 0089-supervisor design D2; 0094-lighter-converge design D1; 0102-build-per-phase
+# design D5; 0144-gate-outside design D1.
+PLANNED = (*STATIONS, "rescue", "supervise", *WORKERS, MODERATE, CLOSE)
 # The stations a version is past at a stage: a limit halts it for none of them.
 # Why: 0117-codex-converge design D8.
-_BUILT = ("build", MODERATE)
+_BUILT = ("build", MODERATE, CLOSE)
 _CONVERGED = (*_BUILT, "converge", FIXER)
 PAST = {
     "converge": _BUILT,
@@ -2597,9 +2601,9 @@ def _models(
     model, effort = table.get("model"), table.get("effort")
     file = f"changes/{change}/models.toml"
     own = "executor" in table
-    if own and station == MODERATE:
+    if own and station in (MODERATE, CLOSE):
         raise Stop(1, f"conduct: halt — {file}: {station} names an executor")
-    if station == MODERATE:
+    if station in (MODERATE, CLOSE):
         executor = _models(runs, change, "build", run)[0]
     if station in WORKERS and not own:
         converge = _models(runs, change, "converge", run)[0]
@@ -5282,6 +5286,19 @@ class Run:
                             moderate[1] or models[1],
                             moderate[2] or models[2],
                         )
+                # The close builds on the first of `[build.close]`, `[build.moderate]`
+                # and `[build]` that names each key. Why: 0144-gate-outside design D1.
+                if phase == "close":
+                    tables = (
+                        self.planned_models(change, CLOSE),
+                        self.planned_models(change, MODERATE),
+                        models,
+                    )
+                    models = (
+                        models[0],
+                        next((table[1] for table in tables if table[1]), None),
+                        next((table[2] for table in tables if table[2]), None),
+                    )
                 if stage == "release" and _tag_of(self.primary, version.change) is None:
                     head = _git(cwd, "rev-parse", "HEAD").strip()
                     _record_release(self.primary, version.change, head)

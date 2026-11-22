@@ -453,6 +453,31 @@ def test_a_hard_brief_is_ready_for_the_cut(
     assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
+def test_the_models_line_takes_build_close(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Hold that build-close follows build-moderate and takes no host."""
+    close = "build-close claude-sonnet-5-5 high"
+    moderate = "build-moderate claude-sonnet-5-5 high"
+    ordered = _READY.replace("cut opus high", f"cut opus high · {moderate} · {close}")
+    assert ordered != _READY
+    assert brief_check.main([str(_write(tmp_path, ordered))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    swapped = _READY.replace("cut opus high", f"cut opus high · {close} · {moderate}")
+    assert brief_check.main([str(_write(tmp_path, swapped))]) == 1
+    assert capsys.readouterr().out == (
+        f"brief: halt — ## For the cut: item 1 — {brief_check.MODELS}\n"
+    )
+    hosted = _READY.replace(
+        "cut opus high", "cut opus high · build-close claude/claude-sonnet-5-5 high"
+    )
+    assert brief_check.main([str(_write(tmp_path, hosted))]) == 1
+    assert capsys.readouterr().out == (
+        "brief: halt — ## For the cut: item 1 — build-close takes no host:"
+        " `claude/claude-sonnet-5-5`\n"
+    )
+
+
 def test_an_npm_row_is_checked_at_the_plan(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -542,9 +567,9 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 2 — not a model or effort: `high;touch`",
         "brief: halt — ## For the cut: item 3 — no after:",
         "brief: halt — ## For the cut: item 3 — the models line is not"
-        " build · converge · release · cut, then any of build-moderate · conformance"
-        " · adversarial · fix, each <model> <effort>, or skip for converge,"
-        " conformance and adversarial, then shadow",
+        " build · converge · release · cut, then any of build-moderate · build-close"
+        " · conformance · adversarial · fix, each <model> <effort>, or skip for"
+        " converge, conformance and adversarial, then shadow",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
     # A host it does not know, a host on cut or build-moderate, shadow before
@@ -570,8 +595,8 @@ def test_a_brief_out_of_shape_halts(
         *(
             f"brief: halt — ## For the cut: item {n} — the models line is not"
             " build · converge · release · cut, then any of build-moderate ·"
-            " conformance · adversarial · fix, each <model> <effort>, or skip for"
-            " converge, conformance and adversarial, then shadow"
+            " build-close · conformance · adversarial · fix, each <model> <effort>,"
+            " or skip for converge, conformance and adversarial, then shadow"
             for n in (5, 6, 7, 8, 9)
         ),
         "brief: halt — ## For the cut: item 10 — build-moderate takes no host:"
@@ -904,9 +929,9 @@ def test_a_models_line_naming_a_skip(
         "brief: halt — ## For the cut: item 8 — conformance skip and adversarial"
         " skip together: write converge skip",
         "brief: halt — ## For the cut: item 9 — the models line is not"
-        " build · converge · release · cut, then any of build-moderate · conformance"
-        " · adversarial · fix, each <model> <effort>, or skip for converge,"
-        " conformance and adversarial, then shadow",
+        " build · converge · release · cut, then any of build-moderate · build-close"
+        " · conformance · adversarial · fix, each <model> <effort>, or skip for"
+        " converge, conformance and adversarial, then shadow",
     ]
 
 

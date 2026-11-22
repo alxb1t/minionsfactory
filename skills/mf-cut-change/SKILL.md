@@ -433,7 +433,9 @@ its number, each host as its table's `executor`. Write `[converge.conformance]`,
 or `adversarial skip` pre-fills the suggestion with that part; the person confirms or changes it. Read the line for nothing
 else. A `converge skip` part is `skip = true` under `[converge]`, no worker tables beside it; a `conformance
 skip` or `adversarial skip` part is `skip = true` alone under that checker's table. A `build-moderate` part is
-`[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. Write `decide = "recommended"` before the tables when that item says
+`[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. A `build-close`
+part is `[build.close]`, the same keys and no `executor`: the close runs on it, else on `[build.moderate]`, else on
+`[build]`. Write `decide = "recommended"` before the tables when that item says
 `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
@@ -451,6 +453,7 @@ The highest row any phase matches decides the capability; map it to the offered 
 A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
 a change for `[build]`.
 
+- **Close** — `[build.close]`, the simplify worker: Sonnet 5.5 · high, where the session offers it.
 - **Converge** — the conductor, `[converge]`, on Sonnet 5.5 · high, where the session offers it,
   conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · medium.
   A new code path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent
@@ -471,6 +474,9 @@ Suggested models
 model = "<offered model>"
 effort = "<effort>"        # only where the host exposes it
 # [build.moderate]  # optional, from the brief's build-moderate: the phases rated moderate
+# model = "<offered model>"
+# effort = "<effort>"
+# [build.close]  # optional, from the brief's build-close: the close, else [build.moderate], else [build]
 # model = "<offered model>"
 # effort = "<effort>"
 [converge]
