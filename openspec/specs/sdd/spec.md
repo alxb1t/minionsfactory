@@ -806,7 +806,8 @@ needed capability without inventing model names; with no effort control it SHALL
 When the highest row of *Suggesting models* any phase of a change matches is the moderate row — fresh prose, moderate
 logic — the cut SHALL suggest Sonnet 5.5 · high for the whole build where the session offers it, and the strongest tier · medium where it
 does not; it SHALL suggest one build model a change. A `build-moderate` part the brief's models line names SHALL be written
-as `[build.moderate]`, for the phases the cut rates `moderate`.
+as `[build.moderate]`, for the phases the cut rates `moderate`; a `build-close` part SHALL be written as `[build.close]`, with
+the same keys and no `executor`, for the close's simplify worker.
 It SHALL write the suggestion to `.minions/changes/<change-id>/models.toml`, a table per station, as well as show it, and
 SHALL never write it into the change. When the brief's `## For the cut` item names models for the change, the file SHALL hold
 those instead, as the person's choice made at the plan's close: `conduct.py cut` writes them at queue time, and a cut by hand
@@ -828,6 +829,8 @@ operator's responsibility.
 - **THEN** `.minions/changes/<change-id>/models.toml` holds exactly those
 - **AND WHEN** the item's models line also names `build-moderate claude-sonnet-5-5 high`
 - **THEN** the file's `[build.moderate]` holds `model = "claude-sonnet-5-5"` and `effort = "high"`
+- **AND WHEN** it also names `build-close claude-sonnet-5-5 high`
+- **THEN** the file's `[build.close]` holds `model = "claude-sonnet-5-5"` and `effort = "high"`
 
 #### Scenario: A moderate build
 - **WHEN** the highest row of *Suggesting models* any phase matches is the moderate row, and the session offers Sonnet 5.5
@@ -892,15 +895,18 @@ one starting with `-` — SHALL halt the station, naming the entry.
 
 ### Requirement: The build collects a draft of the metrics after simplify
 
-When the repository has a catalogue, `skills/mf-build/SKILL.md` SHALL, after its simplify commit, `lean already` or
-`nothing kept`, collect the metrics into `.minions/metrics/<change-id>.json` and render
-`.minions/metrics/<change-id>.html`, both gitignored. Its close-out SHALL name the page and the count of metrics that crossed their watch in this change or
-moved the wrong way. The build SHALL NOT halt on a watch.
+When the repository has a catalogue, `conduct.py close` SHALL, after its gate, collect the metrics into `.minions/metrics/<change-id>.json` and render
+`.minions/metrics/<change-id>.html`, both gitignored, and print the counts of the metrics that crossed their watch in this change or
+moved the wrong way. The close SHALL NOT halt on a watch; an exit of the collector other than 0 and 3 SHALL halt it with `stop: metrics`.
 
 #### Scenario: A change crosses a watch
 - **WHEN** a metric's value crosses its `watch` in this change
-- **THEN** the build's close-out names the page and counts the metric
-- **AND** the build stops as it always does, leaving the choice to the person
+- **THEN** the close prints the page and counts the metric
+- **AND** the close goes on to the plan check, leaving the choice to the person
+
+#### Scenario: No catalogue
+- **WHEN** the repository holds no `metrics/catalogue.toml`
+- **THEN** the close prints `metrics: none — no catalogue` and goes on
 
 ### Requirement: The release records the shipped metrics in its commit
 
@@ -1491,9 +1497,9 @@ converge SHALL invoke no native `/code-review` or `/security-review`.
 
 `skills/mf-simplify/SKILL.md` SHALL take the active change's `<merge-base>..HEAD` and edit only its lines, one angle
 at a time — reuse, simplification, efficiency, altitude, conventions — each edit one of `delete`, `stdlib`, `native`,
-`reuse`, `speculative` or `shrink`, by the kinds the skill gives its angle. It SHALL print the output of `make -n gate`
-before its first gate run, and SHALL halt, naming the root `Makefile`, when that fails or prints no command. It SHALL
-run `make gate` after each angle and revert that angle's edits when the gate is red or the angle adds net lines. It
+`reuse`, `speculative` or `shrink`, by the kinds the skill gives its angle. It SHALL print the output of `make -n check`
+before its first check run, and SHALL halt, naming the root `Makefile`, when that fails or prints no command; a repository with no `check` target SHALL keep it on `make gate`. It SHALL
+run `make check` after each angle and revert that angle's edits when the check is red or the angle adds net lines. It
 SHALL never edit a test or the change's own record, `openspec/changes/<change-id>/` and `CHANGELOG.md`, and SHALL
 never apply an edit that touches a spec requirement or scenario, a public interface, a seam the design names, a
 control the threat model names, a decision in force, or that exceeds 20 lines; such edits SHALL be noted for review
@@ -1508,7 +1514,7 @@ write no findings file and hold no verdict.
   reason
 
 #### Scenario: An angle turns the gate red
-- **WHEN** an angle's edits fail `make gate`
+- **WHEN** an angle's edits fail `make check`, the check of its angle
 - **THEN** `mf-simplify` reverts that angle's edits, keeps the angles that passed, and notes the reverted ones
 
 #### Scenario: Nothing to simplify
@@ -1840,10 +1846,10 @@ heading, the round unchanged, and a pickup whose fix was never committed sent ag
 A re-run of `mf-ship` SHALL finish what a dead worker or conductor left. An open merge with no note SHALL be stage
 `integrate`. A version with every phase ticked, no converge run begun, and no `.minions/changes/<change-id>/build.done`
 naming `HEAD` SHALL be stage `build`, its closing steps left, and SHALL fail the build check: `skills/mf-build/SKILL.md`
-SHALL then run its simplify step and the metrics again, restoring first, saved to a patch under `.minions/changes/<change-id>/`, a dirty
+SHALL then run its simplify step again, restoring first, saved to a patch under `.minions/changes/<change-id>/`, a dirty
 tree whose paths are all in the change's range while its `.minions/changes/<change-id>/build.closing` mark names `HEAD`, halting and
-restoring nothing on a path outside it, a dirty tree with no such mark, or a patch an earlier save left, and SHALL write that file, naming `HEAD` and
-simplify's outcome, only once both are done. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
+restoring nothing on a path outside it, a dirty tree with no such mark, or a patch an earlier save left; `conduct.py close` SHALL then run the gate, the metrics and the plan check again, and SHALL write `build.done`, naming `HEAD` and
+simplify's outcome, only once they are done. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
 archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge after reading its preamble against the archived delta, halting on a flag under `merge=yes` and naming it beside the ask by hand,
 tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
 default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
@@ -2669,13 +2675,13 @@ that line and the trailer block, and the merge commit SHALL stay as it was.
 
 ### Requirement: The build runs a quick check between phases
 
-`skills/mf-build/SKILL.md` SHALL end each phase but its last on a green `make check` when `make -n check` exits 0, and on a green
-gate otherwise; its last phase SHALL end on a green gate. The input contract's `I8` SHALL read "each phase ends on a green
-`make check`, the last on a green gate".
+`skills/mf-build/SKILL.md` SHALL end each phase, the last included, on a green `make check` when `make -n check` exits 0, and on a green
+gate otherwise; the conductor SHALL run the full gate after the last phase. The input contract's `I8` SHALL read "each phase ends on a green
+`make check`, the build on a green gate", in `mf-build` and in `mf-cut-change`.
 
 #### Scenario: A repo with a check target
 - **WHEN** a target's `Makefile` has a `check` target, and a change has three phases
-- **THEN** the build runs `make check` after phases 1 and 2, and the gate after phase 3
+- **THEN** the build runs `make check` after phases 1, 2 and 3, and the conductor runs the gate after phase 3
 
 #### Scenario: A repo without one
 - **WHEN** `make -n check` exits non-zero
@@ -3556,13 +3562,13 @@ continuation; or the cut's `Cut <YYYY-MM-DD> as <id> at <sha>.` line. It SHALL a
 `after` entry or a `beside` entry that `conduct.py`'s `SLUG` refuses, a bump other than `minor` or `patch`, no `after:` or
 more than one, or more than one `beside:`, or when an item has no `models:` line, more
 than one, or one not naming the build, converge, release and cut station in order, then any of the build-moderate,
-conformance, adversarial and fix parts in that order, each with a model and effort of `[A-Za-z0-9._-]` alone, then at most a
+build-close, conformance, adversarial and fix parts in that order, each with a model and effort of `[A-Za-z0-9._-]` alone, then at most a
 last `shadow`. The converge, conformance and adversarial part MAY instead be the word `skip` alone, in place of its model and
 effort. It SHALL exit 1, naming the item, on a skip beside `shadow`, on `converge skip` beside a conformance, adversarial or
 fix part, and on `conformance skip` and `adversarial skip` together. A head MAY
 omit `beside:`. A build,
 converge, release, conformance or adversarial model MAY open with a host, `claude/` or `codex/`; a host it does not know, or a
-host on the cut, fix or build-moderate model, SHALL exit 1, naming it. It SHALL also exit 1 when a line of `## Decisions`, `## Dependencies` or
+host on the cut, fix, build-moderate or build-close model, SHALL exit 1, naming it. It SHALL also exit 1 when a line of `## Decisions`, `## Dependencies` or
 `## For the cut` holds a character for which `str.isprintable()` is false, printing `brief: halt — <section> line <n>: a
 character isprintable() refuses`; when a heading of any form, a line of an HTML block, or a line holding an inline `<h1>`…`<h6>`
 tag, that is not `## Decisions`, `## Dependencies` or `## For the cut` as written, reads as one of them once its `<h1>`…`<h6>`
@@ -3619,6 +3625,13 @@ halts when its line is out of shape, and exit 2 when no item has that slug.
   claude-sonnet-5-5 medium · cut claude-opus-5-5 high · build-moderate claude-sonnet-5-5 high`
 - **THEN** that line halts nothing
 - **AND WHEN** the `build-moderate` part comes after `conformance`, or its model opens with `claude/`
+- **THEN** `brief_check.py` exits 1, naming the item
+
+#### Scenario: A models line naming a close build
+- **WHEN** an item's models line reads `build claude-opus-5-5 high · converge claude-opus-5-5 high · release
+  claude-sonnet-5-5 medium · cut claude-opus-5-5 high · build-moderate claude-sonnet-5-5 high · build-close claude-sonnet-5-5 high`
+- **THEN** that line halts nothing
+- **AND WHEN** the `build-close` part comes before `build-moderate` or after `conformance`, or its model opens with `claude/` or `codex/`
 - **THEN** `brief_check.py` exits 1, naming the item
 
 #### Scenario: A checked line holds other whitespace
@@ -4351,14 +4364,14 @@ stages, at each poll of its wait and before the merge back, never during a stati
 ### Requirement: The build runs a fresh worker per phase
 
 Under `mf-ship`, `conduct.py` SHALL spawn one build worker for the first unticked `## Progress` phase that is not a
-`**HUMAN` one, its prompt naming `phase=<N>`, and, once every phase is ticked and no `.minions/changes/<change-id>/build.done`
-names `HEAD`, one build worker for the close, its prompt naming `phase=close` — right after the last phase's spawn passes, too,
+`**HUMAN` one, its prompt naming `phase=<N>`, and, once every phase is ticked and the gate after the last phase is green, one build worker for the close, its prompt naming `phase=close`, when no `.minions/changes/<change-id>/build.done`
+names `HEAD` — right after the last phase's spawn passes, too,
 when converge has already run. A phase worker's check SHALL pass only when its
 phase is ticked at `HEAD` and the tree is clean; any other outcome SHALL halt the version as a build check does, so a phase is
-spawned again only after a rescue's or a supervisor's taken amend. The close worker's check SHALL stay the build check.
+spawned again only after a rescue's or a supervisor's taken amend. The close worker's check SHALL be every box ticked and a clean tree, and asks for no `build.done`: after it passes, the conductor SHALL write `.minions/changes/<change-id>/build.simplified` with `head: <the full sha of HEAD>`, run `conduct.py close`, and then hold the build check. A close whose every commit past `build.simplified`'s head is a `docs(<change-id>): amend the change directory` commit touching the change directory alone SHALL run `conduct.py close` with no worker. The close worker SHALL run on `[build.close]`, else `[build.moderate]`, else `[build]`.
 `skills/mf-build/SKILL.md` SHALL build the named phase alone under `phase=<N>`, halting when it is not the first unticked one,
-SHALL run simplify, the metrics and `build.done` alone under `phase=close`, halting on an unticked phase, and SHALL build every
-phase and close when given neither. After each phase's commit it SHALL print the phase's `## Progress` line as `HEAD` holds it,
+SHALL run simplify alone under `phase=close`, halting on an unticked phase, SHALL repair the gate's red output in `gate.red` under `phase=repair`, and SHALL build every
+phase, simplify, and run `conduct.py close` once when given none. After each phase's commit it SHALL print the phase's `## Progress` line as `HEAD` holds it,
 quote that line in its close-out, and tick and commit a line still unticked before it ends. Each phase SHALL append what the next phase needs to
 `.minions/changes/<change-id>/build-notes.md`, under a `## <N> — <Title>` line, and SHALL read that file as evidence. After a
 phase worker exits 0, `conduct.py` SHALL keep at most 40 lines of what it appended, dropping the rest and logging it, and SHALL
@@ -4395,27 +4408,43 @@ halt the version, writing nothing, when the file is a link. A stacked dependent'
 - **WHEN** a stacked dependent's dependency changes a decision, and the dependent is reset to its cut commit
 - **THEN** its `build-notes.md` is gone, and its build starts again at phase 1
 
+#### Scenario: An amend after a close halted
+- **WHEN** the close halted on its plan check, and the rescue's amend of the change directory is taken
+- **THEN** the run holds `conduct.py close` again with no worker, and a second simplify does not run
+
+#### Scenario: A commit that moves code after a close halted
+- **WHEN** a commit that touches code stands past `build.simplified`'s head
+- **THEN** the next spawn is a worker naming `phase=close`
+
 ### Requirement: A moderate phase builds on its own model
 
 `skills/mf-cut-change/SKILL.md` SHALL end each `## Progress` line but a `**HUMAN` one with ` · moderate` or ` · hard`: `hard`
 when the phase matches the strongest-tier row of its *Suggesting models* table, `moderate` otherwise. `conduct.py` SHALL run a
 phase whose line ends ` · moderate` on the models file's `[build.moderate]` model and effort, on `[build]`'s executor, when
-that table names a model or an effort; every other phase, a phase with no rating among them, and the close SHALL run on
-`[build]`'s. A `[build.moderate]` naming an `executor`, a model or effort outside `[A-Za-z0-9._-]`, or a `claude-*` model on a
-Codex build SHALL halt the version before its worker starts. The run SHALL read `[build.moderate]` once with its plan.
+that table names a model or an effort; every other phase, and a phase with no rating among them, SHALL run on
+`[build]`'s. The close SHALL run on the models file's `[build.close]` model and effort, else `[build.moderate]`'s, else `[build]`'s, each key from the first table that names it, on `[build]`'s executor; the brief's models line SHALL take the part `build-close <model> <effort>` after `build-moderate`, with no host. A `[build.moderate]` or `[build.close]` naming an `executor`, a model or effort outside `[A-Za-z0-9._-]`, or a `claude-*` model on a
+Codex build SHALL halt the version before its worker starts. The run SHALL read `[build.moderate]` and `[build.close]` once with its plan.
 
 #### Scenario: A moderate and a hard phase
 - **WHEN** a version's models file holds `[build]` with `claude-opus-5-5` and `[build.moderate]` with `claude-sonnet-5-5` at
   `high`, phase 1 ends ` · moderate` and phase 2 ` · hard`
-- **THEN** phase 1's worker runs on `claude-sonnet-5-5` at `high`, phase 2's and the close's on `claude-opus-5-5`
+- **THEN** phase 1's worker runs on `claude-sonnet-5-5` at `high`, and phase 2's on `claude-opus-5-5`
 
 #### Scenario: No moderate table
 - **WHEN** the models file holds no `[build.moderate]`
-- **THEN** every build worker runs on `[build]`'s model
+- **THEN** every build worker but the close runs on `[build]`'s model
 
 #### Scenario: A moderate table names a host
 - **WHEN** `[build.moderate]` names `executor = "codex"`
 - **THEN** the version halts naming the table, and no worker starts for it
+
+#### Scenario: A close table
+- **WHEN** the models file holds `[build]` with `claude-opus-5-5`, `[build.moderate]` with `claude-sonnet-5-5` at `medium`, and `[build.close]` with `claude-sonnet-5-5` at `high`
+- **THEN** the close's worker runs on `claude-sonnet-5-5` at `high`, and without `[build.close]` at `medium`, and with neither on `claude-opus-5-5`
+
+#### Scenario: A close table names a host
+- **WHEN** `[build.close]` names `executor = "codex"`, or the brief's models line writes `build-close codex/m high`
+- **THEN** the version halts naming the table, or the brief check fails, and no worker starts for it
 
 ### Requirement: A plan check holds the plan to the built tree
 
@@ -4465,10 +4494,9 @@ SHALL keep and read none. With
 `--only <sub-task ids>` it SHALL run the `Verify:` commands of those sub-tasks alone, ticked or not, a `**HALT CHECK**` sub-task
 it names included, with the other skips, print only their lines and check nothing else.
 
-`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, as one background
-command it waits on once, its `--base` the sha `stacked-on` names while it stands and else the merge base of the default branch
+`conduct.py close` SHALL run it at the build's close, after the metrics and before `build.done`, its `--base` the sha `stacked-on` names while it stands and else the merge base of the default branch
 and `HEAD`, and SHALL halt on any other exit than 0, writing no `build.done`. Converge's fixer SHALL run it in the foreground after
-its gate and before its commit, clearing each problem as a blocking card of the same pass, or setting it `wontfix` naming the
+its check and before its commit, clearing each problem as a blocking card of the same pass, or setting it `wontfix` naming the
 amend; converge's Step 7 SHALL run it after `gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any
 verify worker, counting no round, save a line that says a command timed out, which it SHALL send back to no one; a line the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the
 run `amend needed — plan check: <subjects>`, naming each line's sub-task, `path:line` or test name and never the command it
@@ -5121,7 +5149,7 @@ SHALL write `.minions/changes/<change-id>/evidence.md` whole, from tools alone, 
 through the placeholder `{evidence}` of each reference's `## Prompt`. The file SHALL hold four sections, each a list of lines
 or `None.`: **Gate integrity** — one line for each suppression, skip, removed test, removed assertion, edit to the gate's
 configuration or swallowed error the frozen patch holds, by `skills/mf-converge/scripts/gate_integrity.py`; **Plan check** —
-the whole output of `plan_check.py` for the freeze, a command past its limit shown as timed out, never as failed;
+the whole output of `plan_check.py` for the freeze, a command past its limit shown as timed out, never as failed, or, when `.minions/changes/<change-id>/build.done` names the frozen head and the `base:` line of `plan-check.txt` names the freeze's base, the lines of `plan-check.txt` the close kept, with no `plan_check.py` run;
 **Stale-claim candidates** — each name the patch renames or deletes with
 its `git grep` mentions outside the patch; **Test cost** — each test the patch adds with its seconds from the gate's junit
 report, each `slow` marker and end-to-end `run` boot it adds, and each test it removes against the design's `## Tests`
@@ -5162,6 +5190,12 @@ timed out SHALL raise no card by itself, from the fixer, a checker or Step 7.
 - **THEN** the Plan check section holds that line, Step 7 sends nothing back and raises no card, and the run goes on
 - **AND WHEN** the plan check prints a timed-out line and a failed one
 - **THEN** only the failed line is sent back
+
+#### Scenario: A freeze at the head the build closed
+- **WHEN** `build.done` names the frozen head and the close kept `plan-check.txt`
+- **THEN** the Plan check section holds the file's lines and converge runs no `plan_check.py`
+- **AND WHEN** `build.done` names another head
+- **THEN** converge runs the plan check as before
 
 ### Requirement: The checkers start from the evidence and judge the rest
 
@@ -6162,3 +6196,39 @@ command the worker waits on once.
 #### Scenario: A premise checked first
 - **WHEN** a phase holds a `**HALT CHECK**` sub-task and tasks that change the state it checks
 - **THEN** the build runs the HALT CHECK through `--only` before those tasks, and halts on a failure with `stop: HALT CHECK`
+
+### Requirement: The conductor runs the gate of a build
+
+`conduct.py` SHALL run the full gate, as `skills/mf-converge/scripts/gate_run.py` under the sandbox runner over the version's trees, after the last phase's check passes and in the close, and SHALL log each gate it runs as a `check` event of the run log: `check — gate · pass · <n>s`, or `check — gate · fail — <why>`. A red gate after the last phase SHALL write the gate's output to `.minions/changes/<change-id>/gate.red` and start one build worker, once a run, naming `phase=repair`, on the last phase's models; the gate SHALL then run again, and a second red SHALL halt the version `gate red after the repair`, writing `build.halt` with `sub-task: repair`. `gate_run.py` SHALL read a gate that runs past its limit as red: it SHALL print `gate: red — past its limit · <seconds>s` and exit 124, never a traceback. A repository with no `check` target SHALL keep its workers on the gate through `gate_run.py`, and the conductor's gate SHALL take that record on the same tree.
+
+#### Scenario: A gate red after the last phase, green after the repair
+- **WHEN** the last phase's check passes and the conductor's gate is red, and the repair worker commits a fix
+- **THEN** `gate.red` holds the gate's output, one worker naming `phase=repair` runs on the last phase's models, and the gate runs again green
+
+#### Scenario: A gate red twice
+- **WHEN** the gate is red after the repair worker's commit
+- **THEN** the version halts `gate red after the repair`, `build.halt` names `sub-task: repair`, and no second repair worker starts
+
+#### Scenario: A gate past its limit
+- **WHEN** `make gate` runs past `GATE_SECONDS`
+- **THEN** `gate_run.py` prints `gate: red — past its limit · <seconds>s` and exits 124
+
+### Requirement: A close command ends a build
+
+`conduct.py close <change-id>` SHALL run, in the version's worktree, the gate through `gate_run.py`, then the metrics where `metrics/catalogue.toml` stands, then `plan_check.py --change <change-id> --base <base>`, and then write `.minions/changes/<change-id>/build.done` as `head: <the full sha of HEAD>` and `simplify: <sha>` — the newest `refactor(<change-id>): simplify` commit of the range — or `simplify: none`, and remove `build.closing`. It SHALL print `close: done` and exit 0, print `close: fail — <why>` and exit 1, or print `close: cannot run — <why>` and exit 2 for a missing version. It SHALL fail on an unticked `## Progress` box or a dirty tree. On a red gate it SHALL write `gate.red`, and on a red gate, a metrics halt or a plan-check failure it SHALL write `build.halt` with `sub-task: close`, `stop:`, `evidence:` and `head:`, so the rescue's key reads on. It SHALL keep the plan check's printed lines in `plan-check.txt` beside `build.halt`, under a first line `base: <the sha its `--base` named>`. A red gate with a `refactor(<change-id>): simplify` commit at `HEAD`, save one past its limit or one that printed `sandboxed: denied`, SHALL reset the branch to the commit before it, print `reset — simplify dropped`, and run the steps once more. A hand build with no `phase=` and a run SHALL run this command and no other close.
+
+#### Scenario: A green close
+- **WHEN** `conduct.py close 0001-a` runs on a version with every box ticked, a clean tree, a green gate and a clean plan check
+- **THEN** it prints `close: done`, exits 0, and `build.done` names `HEAD` and the simplify commit or `none`
+
+#### Scenario: A red gate with no simplify commit
+- **WHEN** the gate is red and `HEAD` is not a simplify commit
+- **THEN** `gate.red` and `build.halt` are written, and the command prints `close: fail — <why>` and exits 1
+
+#### Scenario: A red gate with a simplify commit
+- **WHEN** the gate is red and `HEAD` is a `refactor(<change-id>): simplify` commit
+- **THEN** the branch is reset to the commit before it, `reset — simplify dropped` is printed, and the steps run again
+
+#### Scenario: A version that is not there
+- **WHEN** no version branch holds the change id
+- **THEN** the command prints `close: cannot run — <why>` and exits 2

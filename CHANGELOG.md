@@ -7,13 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.115.0] - 2026-11-23
+
+Gate: local 7m7s · CI not read under mf-ship · 0.114.0: local 7m26s · CI not read under mf-ship
+
+- The models line takes a `build-close` part, written as `[build.close]`, and the close's spawn runs on it, else on `[build.moderate]`, else on `[build]`, key by key; its table names no executor (0144-gate-outside, phase 1).
+- `conduct.py close <change-id>` ends a build with one command for a run and a hand build: the gate under the OS sandbox, the metrics, the plan check kept in `plan-check.txt`, then `build.done`; a failed step writes `gate.red` or `build.halt`. `gate_run.py` reads a gate past its limit as red, exit 124 (0144-gate-outside, phase 2).
+- The build loop gates the build itself: after the last phase it runs the gate, and a red one gets one `phase=repair` worker, then halts. The close worker only simplifies; the conductor then marks `build.simplified`, runs `close`, drops a simplify commit the gate is red with, and closes with no worker after an amend of the change directory alone (0144-gate-outside, phase 3).
+- The skills name the split: a worker runs `make check`, the conductor's `conduct.py close` runs the gate, the metrics and the plan check, `mf-simplify` runs `make check` after each angle, and the fixer clears its cards to `make check`; `I8` reads the same in both skills. Converge's freeze reads the plan check from `plan-check.txt` when `build.done` names the frozen head, and the gate's pytest names its slowest tests with `--durations=20` (0144-gate-outside, phase 4).
+- D13, D70, D73 and D74 read the build's close as simplify alone, then the conductor's gate and `close`; D87 records that the conductor runs the gate and a worker runs `make check`; the 0.114.0 line debt card `0143·R3` names is reworded (0144-gate-outside, phase 5).
+
 ## [0.114.0] - 2026-11-22
 
 Gate: local 7m26s · CI not read under mf-ship · 0.113.0: local 8m55s · CI not read under mf-ship
 
-- `plan_check.py` reads every span after an output verb as output to `then`, `;`, a `Verify:` label or a sentence end,
-  compares stdout alone and shows stderr on a failure, and starts a command only under the core count or when none
-  runs (0143-verify-forms, phase 1).
+- `plan_check.py` opens output only at a verb right before a span, and the `Verify:` label ends it, compares stdout
+  alone and shows stderr on a failure, and starts a command only under the core count or when none runs
+  (0143-verify-forms, phase 1).
 - `verify_check.py` refuses at the cut a count off `grep -c` or `--count` over one file, `-L`, and in a plain `Verify:`
   a `path:line`, a pattern of three plain words and a `<default>..HEAD` range; the cut and build skills word `I3` and
   `I19` alike (0143-verify-forms, phase 2).

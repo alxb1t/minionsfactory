@@ -10,8 +10,10 @@ Why: 0064-lighter-catch-up design D1; 0100-worker-diet design D10.
 """
 
 import argparse
+import contextlib
 import hashlib
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -147,19 +149,29 @@ def gate(fresh: bool) -> int:
             print(f"gate: reused — {tree} · {seconds}s · {date}")
             return 0
     start = time.monotonic()
-    done = subprocess.run(
+    # Its own session: a gate past its limit loses its whole process group.
+    child = subprocess.Popen(
         ["make", "gate"],
         env=_make_env(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         errors="replace",
-        timeout=GATE_SECONDS,
+        start_new_session=True,
     )
-    code = done.returncode
+    try:
+        output, _ = child.communicate(timeout=GATE_SECONDS)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(child.pid, signal.SIGKILL)
+        output, _ = child.communicate()
+        sys.stdout.write(output or "")
+        print(f"gate: red — past its limit · {round(time.monotonic() - start)}s")
+        return 124
+    code = child.returncode
     seconds = round(time.monotonic() - start)
     if code != 0:
-        sys.stdout.write(done.stdout)
+        sys.stdout.write(output)
         print(f"gate: red — exit {code} · {seconds}s")
         return code
     # The gate may write the worktree; record only the tree it started and ended on.

@@ -147,7 +147,7 @@ it finished, `git -C <tree> commit`; a built one goes on to integrate. A run wit
 nothing can move: what it released stays released, each `needs` names what that halted version waits on, and a re-run
 resumes the rest. While `origin` cannot be read, a run goes on and releases
 locally: its close adds `· unpushed <names>`, `report` prints a `run · waited` line per wait, and the next run pushes them.
-A build that died in its closing steps resumes at simplify on a re-run. The last line:
+A build that died in simplify resumes at simplify on a re-run, and one that died in the close's steps resumes at them. The last line:
 
     Next: /mf-ship again for its status, or its report once it ends.
 

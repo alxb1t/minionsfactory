@@ -673,6 +673,67 @@ def test_the_freeze_writes_the_patch_the_bundle_and_the_debt_cards(host: Host) -
     assert "## Stale-claim candidates\nNone.\n" in (folder / "evidence.md").read_text()
 
 
+def _plan_check_section(folder: Path) -> str:
+    text = (folder / "evidence.md").read_text()
+    return text.split("## Plan check\n")[1].split("\n\n## ")[0]
+
+
+def test_a_freeze_at_the_head_build_done_names_runs_no_plan_check(host: Host) -> None:
+    converge = _converge()
+    base = _git(host.tree, "merge-base", "main", "HEAD")
+    head = _git(host.tree, "rev-parse", "HEAD")
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    context.base = base
+    converge["open_run"](context)
+    folder = host.folder()
+    (folder / "build.done").write_text(f"head: {head}\nsimplify: none\n")
+    kept = "1.1 failed: x\ntimed out: 1.2\n"
+    (folder / "plan-check.txt").write_text(f"base: {base}\n{kept}")
+    host.printed["plan_check.py"] = "plan: a run's line\n"
+    host.ran.clear()
+
+    converge["freeze"](context, base, head)
+
+    assert _plan_check_section(folder) == "1.1 failed: x\ntimed out: 1.2"
+    assert "plan_check.py" not in _ran(host)
+
+    # A check the close ran from another base, a stacked one's, is no check here.
+    (folder / "plan-check.txt").write_text(f"base: {head}\n{kept}")
+    host.ran.clear()
+    converge["freeze"](context, base, head)
+
+    assert _plan_check_section(folder) == "plan: a run's line"
+    assert "plan_check.py" in _ran(host)
+
+
+def test_a_freeze_at_another_head_runs_the_plan_check(host: Host) -> None:
+    converge = _converge()
+    base = _git(host.tree, "merge-base", "main", "HEAD")
+    head = _git(host.tree, "rev-parse", "HEAD")
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    context.base = base
+    converge["open_run"](context)
+    folder = host.folder()
+    (folder / "plan-check.txt").write_text(f"base: {base}\n1.1 failed: x\n")
+    host.printed["plan_check.py"] = "plan: a run's line\n"
+
+    # Twin of each conjunct: a head `build.done` names no longer, then no file kept.
+    (folder / "build.done").write_text(f"head: {base}\nsimplify: none\n")
+    host.ran.clear()
+    converge["freeze"](context, base, head)
+
+    assert _plan_check_section(folder) == "plan: a run's line"
+    assert "plan_check.py" in _ran(host)
+
+    (folder / "build.done").write_text(f"head: {head}\nsimplify: none\n")
+    (folder / "plan-check.txt").unlink()
+    host.ran.clear()
+    converge["freeze"](context, base, head)
+
+    assert _plan_check_section(folder) == "plan: a run's line"
+    assert "plan_check.py" in _ran(host)
+
+
 _REFERENCES = (
     "generic-conformance.md",
     "generic-adversarial.md",

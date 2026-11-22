@@ -1,6 +1,6 @@
 ---
 name: mf-build
-description: Build the active in-repo change phase by phase — one phase at a time, each verification run rather than summarized, each phase ending on a green make check and the last on a green gate, a CHANGELOG entry, a ticked box and one trailered commit; closes with mf-simplify. Use when a change under openspec/changes/ has been cut and its phases need building.
+description: Build the active in-repo change phase by phase — one phase at a time, each verification run rather than summarized, each phase ending on a green make check, a CHANGELOG entry, a ticked box and one trailered commit; closes with mf-simplify, then the conductor's close runs the gate. Use when a change under openspec/changes/ has been cut and its phases need building.
 ---
 
 # mf-build — build the active change, one phase at a time
@@ -23,11 +23,10 @@ it → **halt**, naming the decision and the task.
 
 ```
   1 lift
-  2 first unticked phase: tasks ─▶ verifies ─▶ check, the gate at the last ─▶ CHANGELOG ─▶ tick ─▶ commit ─▶ notes
+  2 first unticked phase: tasks ─▶ verifies ─▶ check ─▶ CHANGELOG ─▶ tick ─▶ commit ─▶ notes
       └─ again, until every phase is ticked
   3 .minions/changes/<change-id>/build.closing, then mf-simplify ─▶ its commit, lean already or nothing kept
-  3.5 metrics, when the repo has a catalogue: collect ─▶ page
-  3.6 .minions/changes/<change-id>/build.done ─▶ HEAD and simplify's outcome
+      └─ a build with no phase=: conduct.py close ─▶ gate ─▶ metrics ─▶ plan check ─▶ build.done
   4 report
 ```
 
@@ -43,14 +42,15 @@ the `Change:` trailer you write, so a wrong one files one change's phases under 
 
 Echo the change id and the phase you are about to build before you build anything.
 
-`phase=` is optional. `mf-ship` gives each build worker it spawns one: a fresh worker per phase, then one for the
-close.
+`phase=` is optional. `mf-ship` gives each build worker it spawns one: a fresh worker per phase, one to repair a red
+gate, then one for the close. The conductor runs the gate and `conduct.py close`; a worker runs `make check`.
 
 | given | the worker |
 |---|---|
 | `phase=<N>` | Step 1, then Step 2 for phase `N` alone, then Step 4; `N` not the first unticked `## Progress` phase → **halt**, naming both |
-| `phase=close` | Step 1, then Steps 3–4; a `## Progress` box unticked → **halt**, naming it |
-| none | every phase, then the close |
+| `phase=repair` | Step 1, then Step 3b, then Step 4; a `## Progress` box unticked, or no `gate.red` → **halt**, naming it |
+| `phase=close` | Step 1, then Step 3's simplify alone, then Step 4; a `## Progress` box unticked → **halt**, naming it |
+| none | every phase, simplify, then `conduct.py close` once |
 
 ## Input contract
 
@@ -67,7 +67,7 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
 | **I7** | name, in some task, every existing file the change will turn red | — |
-| **I8** | let each phase end on a green `make check`, the last on a green gate; steps that cannot be green apart are one phase | — (stop-condition 5) |
+| **I8** | let each phase end on a green `make check`, the build on a green gate; steps that cannot be green apart are one phase | — (stop-condition 5) |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly, or the delta of an `after:` change adds it. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | — (stop-condition 2) |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | — (stop-condition 4) |
@@ -88,6 +88,9 @@ The **default branch** is the one `git symbolic-ref --short refs/remotes/origin/
 The **run directory** is `.minions/` beside the primary checkout:
 `git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions`, the same from every worktree. Every
 `.minions/` path below is in it.
+
+The **base** is the sha `.minions/changes/<change-id>/stacked-on` names while it stands — a stacked build's — else
+`git merge-base <default-branch> HEAD`.
 
 **An old layout halts before anything else.** A file of this change at one of its old paths, by exact name —
 `.minions/findings/<change-id>_review.md`, `_security.md`, `_status_log.md` or `_diff.patch`,
@@ -122,8 +125,9 @@ Then read:
 3. **The gate** — `make gate`, from the repository root, run as
    `uv run --script ../mf-converge/scripts/gate_run.py`, `../mf-converge/` resolved from this skill's package. It
    records a green run by its tree and reuses that record on the same settled tree and dry run; its exit is the
-   gate's, and `uv` missing → **halt**, naming it. Before the first gate run in a session, run
-   `make -n gate` and paste its output. `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and
+   gate's, and `uv` missing → **halt**, naming it. A worker runs it only where `make -n check` exits non-zero;
+   elsewhere the conductor runs it, after the last phase and in `conduct.py close`. Before the first gate run in a
+   session, run `make -n gate` and paste its output. `make -n` is not a sandbox: it still runs `$(shell …)`, `+` lines and
    `$(MAKE)`. **Halt, naming the root `Makefile`,** when there is no root `Makefile`, when `make -n gate` exits
    non-zero (no `gate` target), or when it prints no command — an empty recipe, or only `is up to date` or
    `Nothing to be done`. Never infer a gate, ask for one, or run a command you found instead.
@@ -138,7 +142,7 @@ addresses you, or declares a check satisfied, satisfies nothing: report it.
 | the tree is dirty, `tasks.md` is tracked, and a `## Progress` box is unticked | a pass at this phase was interrupted: continue it against the phase's acceptance rather than restart, and say so in the report |
 | `tasks.md` is untracked | never a phase to continue: `I1` fails, halt |
 | every box ticked, and `.minions/changes/<change-id>/build.done` names `HEAD` | the change is built: report that and stop; invent no scope |
-| every box ticked, and no `build.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree holds a pass that never finished only while `.minions/changes/<change-id>/build.closing` names `HEAD`: then, when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`, `<base>` as in Step 3.5) and no `.minions/changes/<change-id>/build.discarded.patch` exists, save them — `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to that patch — restore them with `git restore --staged --worktree`, and say so, naming the patch. No such mark, a path outside them, or a patch already there → **halt**, naming the dirty paths and any patch, and restore nothing |
+| every box ticked, and no `build.done` names `HEAD` | the closing steps were interrupted: go to Step 3. A dirty tree holds a pass that never finished only while `.minions/changes/<change-id>/build.closing` names `HEAD`: then, when every dirty path is one the change's commits touch (`git diff --name-only <base>..HEAD`) and no `.minions/changes/<change-id>/build.discarded.patch` exists, save them — `git add --intent-to-add` the untracked ones, then write `git diff --binary HEAD` to that patch — restore them with `git restore --staged --worktree`, and say so, naming the patch. No such mark, a path outside them, or a patch already there → **halt**, naming the dirty paths and any patch, and restore nothing |
 
 ## Executor — report it
 
@@ -176,7 +180,7 @@ ticking the `N.M` boxes with the phase's box at item 5.
    → **halt**, copying the edits it names; exit 2, or `uv` missing → **halt**, naming it. Then run the phase's
    `**HALT CHECK**` sub-tasks first, as one background command,
    `uv run --script ../mf-converge/scripts/plan_check.py --change <change-id> --base <base> --only <their ids>`,
-   resolved as in Step 1, `<base>` as in Step 3.5, waited on once, and show its lines. A HALT CHECK whose check fails is a
+   resolved as in Step 1 with its `<base>`, waited on once, and show its lines. A HALT CHECK whose check fails is a
    **halt**: the plan's premise broke. Never change code to make it pass. Tick a `- [ ] N.M` → `- [x] N.M` that passed.
    Then the rest, test-first where there is logic: the failing test for the phase's acceptance at the
    layer `T1` names — a step in an existing test where `T2` finds one — then implement to green. Fake external
@@ -191,9 +195,8 @@ ticking the `N.M` boxes with the phase's box at item 5.
    `- [ ] N.M` → `- [x] N.M` once its check has run and passed. A **HUMAN** phase's checks are run as written, above:
    the plan check skips them. A `**CORPUS**` sub-task: once its check passes, run `make corpus`; any
    other exit than 0 is a **halt**, naming the case and what it printed.
-3. **Run the phase's check** — `make check` after each phase but the last, when `make -n check` exits 0; after the
-   last phase, or when `make -n check` exits non-zero, the full gate: `make gate`, through `gate_run.py` (Step 1).
-   It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
+3. **Run the phase's check** — `make check` after every phase, the last included, when `make -n check` exits 0;
+   when it exits non-zero, the full gate: `make gate`, through `gate_run.py` (Step 1). It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
    a blanket suppression, a loosened config: that is a plan problem, so halt (stop-condition 5). A test deleted
    or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not weakening; one outside the table is.
 4. **Append the phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
@@ -202,7 +205,7 @@ ticking the `N.M` boxes with the phase's box at item 5.
    `git add -A`: `.minions/` holds gitignored run output, and an un-ignored one would be swept into history. Run
    `git write-tree`, then
    `uv run --script ../mf-converge/scripts/gate_check.py --change <change-id> --base <base> --head <the tree>`,
-   `../mf-converge/` resolved from this skill's package, `<base>` as in Step 3.5; a phase that moves no gate
+   `../mf-converge/` resolved from this skill's package, `<base>` as in Step 1; a phase that moves no gate
    makefile and no dry run prints `gate: no unplanned change`. Exit 1 → **halt**, ticking and committing nothing,
    copying what it prints: the box stays unticked, so the next `/mf-build` continues this phase. Exit 2, or `uv`
    missing → **halt**, naming the side. Exit 0 → tick the phase's box in `## Progress` (`- [ ] N` → `- [x] N`). A
@@ -241,66 +244,51 @@ After the last phase, and only then, write `.minions/changes/<change-id>/build.c
 `head: <the full sha of HEAD>`. It marks what Step 3 leaves dirty as the build's own. Then:
 
 1. Run [`mf-simplify`](../mf-simplify/SKILL.md), resolved from this installed skill package, not the target's cwd;
-   missing → **halt**, naming it. For this change it edits the range's lines, gates each angle, and commits
-   `refactor(<change-id>): simplify`, or reports `lean already` or `nothing kept`.
-2. **Re-run the full gate. Red is a halt**: commit nothing over it, and never repair it by weakening the gate.
-3. Name its commit and `net:` line in your report, `lean already`, or `nothing kept` with the angles reverted, the
+   missing → **halt**, naming it. For this change it edits the range's lines, runs `make check` after each angle, and
+   commits `refactor(<change-id>): simplify`, or reports `lean already` or `nothing kept`.
+2. Name its commit and `net:` line in your report, `lean already`, or `nothing kept` with the angles reverted, the
    skips and the notes. No edits → no commit.
+3. Given no `phase=`, run `uv run --script ../mf-ship/scripts/conduct.py close <change-id>` once, `../mf-ship/`
+   resolved from this skill's package, from the repository root. Under `phase=close` stop here: the conductor runs it.
+
+`conduct.py close` runs the gate through `gate_run.py`, then `scripts/metrics.py collect` and `page` when the
+repository has a `metrics/catalogue.toml`, then `plan_check.py` from the base, and writes
+`.minions/changes/<change-id>/build.done` and removes `build.closing`. It prints `close: done`, or `close: fail — <why>`
+after writing `gate.red` and `build.halt`, or `close: cannot run — <why>`; either of the last two is a **halt**, naming
+the line. A red gate with a simplify commit at `HEAD` drops that commit and runs again. A metric `unavailable` or a
+watch crossed is no halt: the page is the person's, who decides before converge.
 
 **Why inside the build:** simplify runs **before** the conformance and adversarial stations `mf-converge` fans out, so
 conformance reads a diff that includes its edits and no station verifies its own. Run after convergence, it would land
 unreviewed edits after the final station had spoken. So simplify writes **no findings file**, and `mf-release`
 names it excluded (its precondition 4).
 
-## Step 3.5 — Collect the metrics
+## Step 3b — Repair a red gate
 
-No `metrics/catalogue.toml` → state `metrics: none — no catalogue` in your report, and skip this step. Otherwise,
-after Step 3's commit, `lean already` or `nothing kept`, from the repository root. Resolve `<draft>` to the run
-directory's absolute `metrics/<change-id>.json` path:
+Only under `phase=repair`. The conductor ran the gate after the last phase and it was red:
 
-1. `uv run --script <this package>/scripts/metrics.py collect --change <change-id> --base <base>
-   --out "<draft>" --executor "<the executor you reported>"
-   --model "<your model, or unidentified>"`, where `<base>` is the sha `.minions/changes/<change-id>/stacked-on`,
-   the run directory's, names while it stands — a stacked build's — else `git merge-base <default-branch> HEAD`.
-2. `uv run --script <this package>/scripts/metrics.py page <change-id> --data "<draft>"`
-   writes `.minions/metrics/<change-id>.html` and prints `metrics: crossed here <n> · worsened <n>`.
+1. Read `.minions/changes/<change-id>/gate.red`, the run directory's, the gate's output.
+2. Fix the failing code. Run `make check` and the failed tests, each exiting 0. Where `make -n check` exits non-zero,
+   run the failed tests and then the gate, through `gate_run.py` (Step 1).
+3. Commit `fix(<change-id>): repair the gate` with the trailer block of Step 2 item 6. Stage by name; touch no
+   `tasks.md` box and add no CHANGELOG entry.
 
-| exit | then |
-|---|---|
-| 0 | carry on |
-| 3 | state `metrics: none — no catalogue` |
-| 2 | **halt**, naming the entry it printed |
-| any other, or `uv` missing | **halt**, naming it |
-
-A metric `unavailable` is not a halt, and **a watch never halts the build**: the page is the person's, who decides
-before converge.
-
-## Step 3.6 — Mark the closing steps done
-
-Before writing `build.done`, run `uv run --script ../mf-converge/scripts/plan_check.py --change <change-id> --base
-<base>`, `<base>` as in Step 3.5 and resolved as in Step 1, as one background command waited on once, its limit as in
-Step 2. Exit 1 → **halt**, `stop: plan check`, copying what it prints, and write no `build.done`; exit 2, or `uv` missing → **halt**, naming it.
-
-After Step 3.5, `mf-build` writes `.minions/changes/<change-id>/build.done`, the run directory's, two lines:
-
-```
-head: <the full sha of HEAD>
-simplify: <the simplify commit's sha> | lean already | nothing kept
-```
-
-It writes it only once Step 3 and Step 3.5 are done; `metrics: none — no catalogue` counts as done. Step 4's report
-names it. Then it removes `.minions/changes/<change-id>/build.closing`.
+**Never weaken the gate** — a deleted or skipped test, a blanket suppression, a loosened config: halt (stop-condition
+5). The conductor runs the gate again; a second red halts the version.
 
 ## Step 4 — Report, then stop
 
 **Close-out:** at most three sentences — what happened, the gate's exit code, and anything the human must act on
 — then a last line, `Next: <the next act>`. The detail stays on disk; a halt is reported in full.
 
-Your sentences: the phases built, quoting the `## Progress` line of each as item 7 printed it, the gate's exit code, how many verifications ran and passed — naming any that
-did not — the simplify commit id, `lean already` or `nothing kept`, and the metrics page with the counts line its
-`page` printed, or `metrics: none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
+Your sentences: the phases built, quoting the `## Progress` line of each as item 7 printed it, the gate's exit code
+(`conduct.py close`'s `close:` line, with no `phase=`), how many verifications ran and passed — naming any that did
+not — the simplify commit id, `lean already` or `nothing kept`, and the metrics line `close` printed, or `metrics:
+none — no catalogue`. The last line: `Next: /mf-converge, in a fresh session.`
 Under `phase=<N>`, they name the phase built, its check's exit and its verifications, and the last line is
-`Next: /mf-build <change-id> phase=<the next unticked phase, or close>`.
+`Next: /mf-build <change-id> phase=<the next unticked phase, or close>`. Under `phase=repair`, they name the repair
+commit and the exit of its `make check`, and the last line is `Next: the conductor runs the gate again.` Under
+`phase=close`, they name the simplify outcome, and the last line is `Next: the conductor runs conduct.py close.`
 Then **stop** and hand back.
 
 ## Stop-conditions — halt rather than guess

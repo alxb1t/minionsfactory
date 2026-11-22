@@ -40,13 +40,15 @@ except modelsfile.Broken as error:
 _EVERY_PART: str = (
     "build codex/gpt-6.1-sol high · converge claude-opus-5-5 high"
     " · release claude-sonnet-5-5 medium · cut claude-opus-5-5 high"
-    " · build-moderate claude-sonnet-5-5 high · conformance codex/gpt-6.1-sol high"
+    " · build-moderate claude-sonnet-5-5 high · build-close claude-sonnet-5-5 high"
+    " · conformance codex/gpt-6.1-sol high"
     " · adversarial claude/claude-opus-5-5 high · fix claude-opus-5-5 medium · shadow"
 )
 _EVERY_TABLE = (
     'decide = "recommended"\n\n'
     '[build]\nmodel = "gpt-6.1-sol"\neffort = "high"\nexecutor = "codex"\n\n'
     '[build.moderate]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n\n'
+    '[build.close]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n\n'
     '[converge]\nmodel = "claude-opus-5-5"\neffort = "high"\nshadow = true\n\n'
     '[converge.conformance]\nmodel = "gpt-6.1-sol"\neffort = "high"\n'
     'executor = "codex"\n\n'
@@ -1007,6 +1009,25 @@ def test_module_text(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None
     skipped = {"converge": ["skip"], "cut": ["opus", "high"]}
     assert modelsfile.text(False, skipped, False) == "[converge]\nskip = true\n"
     assert "cut" not in modelsfile.TABLES
+
+
+def test_the_text_writes_a_build_close_table(tmp_path: Path) -> None:
+    written = modelsfile.text(
+        False,
+        {
+            "build-moderate": ["m", "high"],
+            "build-close": ["s", "high"],
+            "converge": ["c", "low"],
+        },
+        False,
+    )
+    assert written.index("[build.moderate]") < written.index("[build.close]")
+    assert written.index("[build.close]") < written.index("[converge]")
+    block = written.split("[build.close]\n")[1].split("\n\n")[0]
+    assert block == 'model = "s"\neffort = "high"'
+    _models_toml(tmp_path, '[build.close]\neffort = "a;b"\n')
+    with pytest.raises(modelsfile.Broken, match=r"build\.close 'a;b' is not a model"):
+        modelsfile.read(tmp_path, _CHANGE)
 
 
 def test_module_read(tmp_path: Path) -> None:

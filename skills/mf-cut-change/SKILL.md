@@ -346,7 +346,7 @@ the cut: write none, and leave it as it stands, which the run's check compares. 
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | reading each check in Step 8 |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
 | **I7** | name, in some task, every existing file the change will turn red | searching the tests and docs for what the change edits |
-| **I8** | let each phase end on a green `make check`, the last on a green gate; steps that cannot be green apart are one phase | reading the phase order |
+| **I8** | let each phase end on a green `make check`, the build on a green gate; steps that cannot be green apart are one phase | reading the phase order |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly, or the delta of an `after:` change adds it. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | comparing each MODIFIED title with `openspec/specs/`; an `after:` change's delta read with `git show <id>:…` |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | re-checking each moved one in Step 3, an unmoved path's standing; an `after:` change's design read with `git show <id>:…` |
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | writing the section; reading it |
@@ -433,7 +433,9 @@ its number, each host as its table's `executor`. Write `[converge.conformance]`,
 or `adversarial skip` pre-fills the suggestion with that part; the person confirms or changes it. Read the line for nothing
 else. A `converge skip` part is `skip = true` under `[converge]`, no worker tables beside it; a `conformance
 skip` or `adversarial skip` part is `skip = true` alone under that checker's table. A `build-moderate` part is
-`[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. Write `decide = "recommended"` before the tables when that item says
+`[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. A `build-close`
+part is `[build.close]`, the same keys and no `executor`: the close runs on it, else on `[build.moderate]`, else on
+`[build]`. Write `decide = "recommended"` before the tables when that item says
 `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
@@ -451,6 +453,7 @@ The highest row any phase matches decides the capability; map it to the offered 
 A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model
 a change for `[build]`.
 
+- **Close** — `[build.close]`, the simplify worker: Sonnet 5.5 · high, where the session offers it.
 - **Converge** — the conductor, `[converge]`, on Sonnet 5.5 · high, where the session offers it,
   conformance on the mid tier · high, adversarial on the strongest tier · high, and the fixer on the mid tier · medium.
   A new code path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent
@@ -471,6 +474,9 @@ Suggested models
 model = "<offered model>"
 effort = "<effort>"        # only where the host exposes it
 # [build.moderate]  # optional, from the brief's build-moderate: the phases rated moderate
+# model = "<offered model>"
+# effort = "<effort>"
+# [build.close]  # optional, from the brief's build-close: the close, else [build.moderate], else [build]
 # model = "<offered model>"
 # effort = "<effort>"
 [converge]

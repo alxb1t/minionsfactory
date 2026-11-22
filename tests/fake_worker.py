@@ -125,6 +125,11 @@ def _done(root: Path, change: str, head: str) -> None:
 def _closed(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
     """Write `build.done` at `HEAD`, then commit or plant as `modes` say."""
     _done(primary, change, _git(tree, "rev-parse", "HEAD"))
+    _planted(primary, modes)
+
+
+def _planted(primary: Path, modes: set[str]) -> None:
+    """Commit a person's commit to `main`, or plant a network line, as `modes` say."""
     if "person-commits" in modes:
         _commit(primary, {"mine.txt": "x\n"}, "a person's commit")
     if "plant-network" in modes:
@@ -134,16 +139,26 @@ def _closed(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
 
 
 def _phase(tree: Path, primary: Path, change: str, phase: str, modes: set[str]) -> None:
-    """Tick one phase's boxes in one commit, or close; halt, idle, die or note as told.
+    """Tick one phase's boxes in one commit, close or repair; halt, idle, die or note.
 
-    Why: 0102-build-per-phase design *The fake host*.
+    A close writes no `build.done`; a repair commits the removal of `gate-red`.
+    Why: 0102-build-per-phase design *The fake host*; 0144-gate-outside design D4, D5.
     """
     if phase == "close":
         if "dies-simplify" in modes:
             sys.exit(1)
-        _closed(tree, primary, change, modes)
+        if "simplify-commit" in modes:
+            _commit(tree, {"simplified.txt": "x\n"}, f"refactor({change}): simplify")
+        _planted(primary, modes)
         return
     if f"idle-phase-{phase}" in modes:
+        return
+    if phase == "repair":
+        if "dies-phase-repair" in modes:
+            sys.exit(1)
+        if (tree / "gate-red").exists():
+            _git(tree, "rm", "-q", "gate-red")
+            _git(tree, "commit", "-q", "-m", f"fix({change}): repair the gate")
         return
     if modes & {f"halt-{change}", f"halt-phase-{phase}"} and not _amended(tree, change):
         folder = _folder(primary, change)
