@@ -54,14 +54,14 @@ _WORKER = Path(__file__).with_name("fake_worker.py")
 _WORKTREES = (
     "- **Worktrees:** `../` — a version's worktree is `<this path>/<branch>`.\n"
 )
-_GATE = "gate:\n\ttest ! -e .minions/red\n"
+_GATE = "gate:\n\ttest ! -e gate-red\n"
 _ROLES = ("adversarial", "conformance")
 
 
 def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
     """Return a primary checkout on `main`, its `AGENTS.md` holding `agents`.
 
-    Its gate is green unless `.minions/red` stands in the tree it runs in.
+    Its gate is green unless `gate-red` stands in the tree it runs in.
     Why: 0108-converge-script C5.
     """
     root = tmp_path / "main"
@@ -3701,8 +3701,7 @@ def test_close_on_a_red_gate_writes_gate_red_and_build_halt(
     # Why: 0144-gate-outside design D2, D3.
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [x] 1 — One\n")
-    (tree / ".minions").mkdir()
-    (tree / ".minions" / "red").write_text("x\n")
+    _commit(tree, {"gate-red": "x\n"}, "a red gate")
 
     code, lines = _close(root, monkeypatch, capsys)
 
@@ -3815,6 +3814,309 @@ def test_close_writes_build_done_with_head_and_simplify(
     head = _git(tree, "rev-parse", "HEAD")
     assert done.read_text() == f"head: {head}\nsimplify: {simplify}\n"
     assert not (_marks(root) / "build.closing").exists()
+
+
+def _run_ok(root: Path, monkeypatch: pytest.MonkeyPatch, code: int = 0) -> list[str]:
+    """Run `conduct.py run` in `root`, asserting its exit; return the run log."""
+    said = _main(
+        _conduct(), root, "run", "--executor", "claude", monkeypatch=monkeypatch
+    )
+    assert said == code
+    return _log(root)
+
+
+def _gate_lines(lines: list[str]) -> list[str]:
+    """Return the run log's gate checks of 0001-todo, each time as `Ns`."""
+    marker = " · 0001-todo · check — gate · "
+    return [
+        re.sub(r"\d+s$", "Ns", line.split(" · check — ")[1])
+        for line in lines
+        if marker in line
+    ]
+
+
+@pytest.mark.slow
+def test_the_simplify_worker_is_checked_on_a_clean_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0144-gate-outside design D5, D8.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    version = conduct["find_version"](root, "0001-todo")
+    # The close spawn's check asks for no `build.done`: every box ticked, a clean tree.
+    assert conduct["check"](root, "build", version, phase="close") is None
+    (tree / "stray.txt").write_text("x\n")
+    dirty = conduct["check"](root, "build", version, phase="close")
+    assert dirty == "the tree is not clean"
+    (tree / "stray.txt").unlink()
+
+    calls = fake("simplify-commit")
+    lines = _run_ok(root, monkeypatch)
+
+    made = _calls(calls)
+    assert made[:2] == ["probe", "build 0001-todo with phase=close"]
+    assert made[-1] == "release 0001-todo"
+    done = (_marks(root) / "build.done").read_text().splitlines()
+    head = done[0].removeprefix("head: ")
+    assert done[1] == f"simplify: {head}"
+    assert (
+        _git(root, "log", "-1", "--format=%s", head) == "refactor(0001-todo): simplify"
+    )
+    assert (_marks(root) / "build.simplified").read_text() == f"head: {head}\n"
+    # The close's gate is a `check` event of the run log, before the build's check.
+    assert _gate_lines(lines) == ["gate · pass · Ns"]
+    marker = " · 0001-todo · check — "
+    checks = [line.split(marker)[1] for line in lines if marker in line]
+    assert checks[0].startswith("gate · pass · ")
+    assert checks[1] == "build · pass"
+
+
+@pytest.mark.slow
+def test_a_red_gate_after_the_last_phase_is_repaired_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0144-gate-outside design D4.
+    calls = fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — One · moderate\n")
+    _commit(tree, {"gate-red": "x\n"}, "a red gate")
+    _marks(root).mkdir(parents=True)
+    (_marks(root) / "models.toml").write_text(
+        '[build]\nmodel = "claude-opus-5-5"\n'
+        '[build.moderate]\nmodel = "claude-sonnet-5-5"\n'
+    )
+
+    lines = _run_ok(root, monkeypatch)
+
+    made = _calls(calls)
+    repair, close = (
+        "build 0001-todo with phase=repair",
+        "build 0001-todo with phase=close",
+    )
+    assert made[:4] == ["probe", "build 0001-todo", repair, close]
+    assert made[-1] == "release 0001-todo"
+    assert _gate_lines(lines) == [
+        "gate · fail — red · Ns",
+        "gate · pass · Ns",
+        "gate · pass · Ns",
+    ]
+    assert not (_marks(root) / "gate.red").exists()
+    # The repair builds on the last phase's models: here `[build.moderate]`'s.
+    spawns = [
+        line.split(" · spawn — build · ")[1] for line in lines if "spawn — b" in line
+    ]
+    assert spawns[:2] == ["model claude-sonnet-5-5"] * 2
+
+
+@pytest.mark.slow
+def test_a_second_red_gate_halts_after_the_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0144-gate-outside design D4.
+    calls = fake("idle-phase-repair")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — One\n")
+    _commit(tree, {"gate-red": "x\n"}, "a red gate")
+    _marks(root).mkdir(parents=True)
+    (_marks(root) / "models.toml").write_text("[rescue]\nskip = true\n")
+
+    lines = _run_ok(root, monkeypatch, code=1)
+
+    made = _calls(calls)
+    assert made == ["probe", "build 0001-todo", "build 0001-todo with phase=repair"]
+    halted = " · 0001-todo · halt — build check fail — gate red after the repair"
+    assert any(halted in line for line in lines), lines
+    gate_red = ".minions/changes/0001-todo/gate.red"
+    assert _halt_keys(root) == {
+        "sub-task": "repair",
+        "stop": "gate",
+        "evidence": f"red · gate_run.py exit 2 · {gate_red}",
+        "head": _git(tree, "rev-parse", "HEAD"),
+    }
+    assert "gate: red — exit 2" in (_marks(root) / "gate.red").read_text()
+
+    # A repair worker that dies halts on its exit, and the gate runs no more.
+    (tmp_path / "died").mkdir()
+    died = _primary(tmp_path / "died")
+    tree = _version(died, "0001-todo", "- [ ] 1 — One\n")
+    _commit(tree, {"gate-red": "x\n"}, "a red gate")
+    calls.unlink()
+    fake("dies-phase-repair")
+    lines = _run_ok(died, monkeypatch, code=1)
+    assert _calls(calls)[-1] == "build 0001-todo with phase=repair"
+    exited = " · 0001-todo · halt — build worker exit 1"
+    assert any(exited in line for line in lines), lines
+    assert _gate_lines(lines) == ["gate · fail — red · Ns"]
+    assert not (_marks(died) / "build.halt").exists()
+
+
+@pytest.mark.slow
+def test_a_green_gate_after_the_last_phase_spawns_no_repair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0144-gate-outside design D4.
+    calls = fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — One\n- [ ] 2 — Two\n")
+
+    lines = _run_ok(root, monkeypatch)
+
+    made = _calls(calls)
+    close = "build 0001-todo with phase=close"
+    assert made[:4] == ["probe", "build 0001-todo", "build 0001-todo", close]
+    assert made[-1] == "release 0001-todo"
+    # One gate after the last phase, none after the first, and the close's.
+    events = [
+        line.split(" · 0001-todo · ")[1]
+        for line in lines
+        if " · 0001-todo · spawn — build" in line or " · check — gate" in line
+    ]
+    assert [event.split(" · ")[0] for event in events] == [
+        "spawn — build",
+        "spawn — build",
+        "check — gate",
+        "spawn — build",
+        "check — gate",
+    ]
+
+
+def test_a_red_gate_after_simplify_drops_its_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0144-gate-outside design D5.
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    before = _git(tree, "rev-parse", "HEAD")
+    _commit(tree, {"gate-red": "x\n"}, "refactor(0001-todo): simplify")
+
+    code, lines = _close(root, monkeypatch, capsys)
+
+    assert (code, lines[-1]) == (0, "close: done"), lines
+    shown = [
+        re.sub(r"\d+s$", "Ns", line)
+        for line in lines
+        if line.startswith(("check — gate", "reset — "))
+    ]
+    assert shown == [
+        "check — gate · fail — red · Ns",
+        "reset — simplify dropped",
+        "check — gate · pass · Ns",
+    ]
+    assert _git(tree, "rev-parse", "HEAD") == before
+    done = f"head: {before}\nsimplify: none\n"
+    assert (_marks(root) / "build.done").read_text() == done
+    assert (_marks(root) / "build.simplified").read_text() == f"head: {before}\n"
+
+    # Once a call: a red gate under the dropped commit fails the close.
+    _commit(tree, {"gate-red": "x\n"}, "refactor(0001-todo): simplify")
+    red = _git(tree, "rev-parse", "HEAD")
+    _commit(tree, {"b.txt": "b\n"}, "refactor(0001-todo): simplify")
+    code, lines = _close(root, monkeypatch, capsys)
+    assert code == 1, lines
+    assert lines.count("reset — simplify dropped") == 1
+    assert _git(tree, "rev-parse", "HEAD") == red
+    assert _halt_keys(root)["stop"] == "gate"
+
+
+def test_a_red_gate_with_no_simplify_commit_fails_the_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Why: 0144-gate-outside design D5.
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    _commit(tree, {"gate-red": "x\n"}, "build")
+    head = _git(tree, "rev-parse", "HEAD")
+
+    code, lines = _close(root, monkeypatch, capsys)
+
+    assert code == 1, lines
+    assert lines[-1].startswith("close: fail — gate: red · gate_run.py exit 2")
+    assert "reset — simplify dropped" not in lines
+    assert _git(tree, "rev-parse", "HEAD") == head
+    assert not (_marks(root) / "build.simplified").exists()
+
+
+_AMEND = "docs(0001-todo): amend the change directory"
+_TASKS = "openspec/changes/0001-todo/tasks.md"
+
+
+def _simplified_at(root: Path, tree: Path) -> str:
+    """Write `build.simplified` at the tree's `HEAD`; return that head."""
+    head = _git(tree, "rev-parse", "HEAD")
+    _marks(root).mkdir(parents=True, exist_ok=True)
+    (_marks(root) / "build.simplified").write_text(f"head: {head}\n")
+    return head
+
+
+@pytest.mark.slow
+def test_a_close_after_an_amend_of_the_change_directory_spawns_no_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0144-gate-outside design D6.
+    calls = fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    simplified = _simplified_at(root, tree)
+    _commit(tree, {_TASKS: "## Progress\n\n- [x] 1 — One\n\nAmended.\n"}, _AMEND)
+    head = _git(tree, "rev-parse", "HEAD")
+
+    lines = _run_ok(root, monkeypatch)
+
+    made = _calls(calls)
+    assert not any(call.startswith("build") for call in made), made
+    assert made[-1] == "release 0001-todo"
+    assert (_marks(root) / "build.done").read_text().startswith(f"head: {head}\n")
+    assert (_marks(root) / "build.simplified").read_text() == f"head: {simplified}\n"
+    assert _gate_lines(lines) == ["gate · pass · Ns"]
+
+
+@pytest.mark.slow
+def test_a_close_after_a_commit_that_moves_code_spawns_the_simplify_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Why: 0144-gate-outside design D6.
+    conduct = _conduct()
+    amended = conduct["_amended_since_simplify"]
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    assert not amended(root, "0001-todo", tree)
+    _simplified_at(root, tree)
+    assert amended(root, "0001-todo", tree)
+    _commit(tree, {_TASKS: "## Progress\n\n- [x] 1 — One\n\nAmended.\n"}, _AMEND)
+    assert amended(root, "0001-todo", tree)
+    kept = _git(tree, "rev-parse", "HEAD")
+    # Each conjunct alone sends the close to a worker: a path outside the change
+    # directory, another subject, a merge.
+    _commit(
+        tree, {"src.py": "x = 1\n", _TASKS: "## Progress\n\n- [x] 1 — One\n"}, _AMEND
+    )
+    assert not amended(root, "0001-todo", tree)
+    _git(tree, "reset", "-q", "--hard", kept)
+    _commit(tree, {_TASKS: "## Progress\n\n- [x] 1 — One\n"}, "docs(0001-todo): tidy")
+    assert not amended(root, "0001-todo", tree)
+    _git(tree, "reset", "-q", "--hard", kept)
+    _commit(root, {"main.txt": "x\n"}, "main moves")
+    _git(tree, "merge", "-q", "--no-ff", "-m", _AMEND, "main")
+    assert not amended(root, "0001-todo", tree)
+    _git(tree, "reset", "-q", "--hard", kept)
+    # A head that is no ancestor of `HEAD`: main's.
+    (_marks(root) / "build.simplified").write_text(
+        f"head: {_git(root, 'rev-parse', 'HEAD')}\n"
+    )
+    assert not amended(root, "0001-todo", tree)
+    # A file that does not decode names no head.
+    (_marks(root) / "build.simplified").write_bytes(b"head: \xff\n")
+    assert not amended(root, "0001-todo", tree)
+
+    _simplified_at(root, tree)
+    _commit(tree, {"src.py": "x = 1\n"}, _AMEND)
+    head = _git(tree, "rev-parse", "HEAD")
+    calls = fake()
+    _run_ok(root, monkeypatch)
+    made = _calls(calls)
+    assert made[:2] == ["probe", "build 0001-todo with phase=close"]
+    assert (_marks(root) / "build.simplified").read_text() == f"head: {head}\n"
 
 
 def test_the_supervisor_runs_on_its_own_table(tmp_path: Path) -> None:
@@ -12300,10 +12602,12 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     # Halted in the run, it runs again on a rejoin with no commit, and releases.
     (tmp_path / "live").mkdir()
     live = _primary(tmp_path / "live")
-    red = _version(live, "0001-todo", "- [x] 1 — Todo\n") / ".minions" / "red"
+    red = _version(live, "0001-todo", "- [x] 1 — Todo\n") / "gate-red"
     _done(live, "0001-todo", _git(live, "rev-parse", "0001-todo"))
     _version(live, "0002-marks", "- [ ] 1 — Marks\n")
-    red.parent.mkdir()
+    # An ignored `gate-red` reddens the gate and leaves the tree clean, uncommitted.
+    (live / ".git" / "info").mkdir(exist_ok=True)
+    (live / ".git" / "info" / "exclude").write_text("gate-red\n")
     red.touch()
     calls = fake("hold-0002-marks")
 
@@ -12337,8 +12641,9 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     hold.unlink()
     calls.unlink()
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
-    (tree / ".minions").mkdir()
-    (tree / ".minions" / "red").touch()
+    (root / ".git" / "info").mkdir(exist_ok=True)
+    (root / ".git" / "info" / "exclude").write_text("gate-red\n")
+    (tree / "gate-red").touch()
     calls = fake("hold-0002-marks")
     join = _when_logged(
         root,

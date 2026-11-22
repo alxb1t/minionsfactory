@@ -126,6 +126,9 @@ STUCK = (*HALTS, "waiting")
 # A stacked version's file: the built head it builds on, its build's base.
 # Why: 0099-stacked-builds design D2, D5.
 STACKED_ON = "stacked-on"
+# The head the simplify worker left, past which an amend alone closes with no worker.
+# Why: 0144-gate-outside design D5, D6.
+SIMPLIFIED = "build.simplified"
 # What a phase hands the next, and the lines of each phase's append the run keeps.
 # Why: 0102-build-per-phase design D3.
 NOTES_FILE = "build-notes.md"
@@ -1567,15 +1570,24 @@ def stage_of(
     return "release", f"{verdict}; {default} is an ancestor"
 
 
-def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
-    """Return why the build check fails, or None."""
+def _check_simplified(primary: Path, version: Version, tree: Path) -> str | None:
+    """Return why the simplify worker's check fails, or None: all ticked, tree clean.
+
+    Why: 0144-gate-outside design D5.
+    """
     change = version.change
     if unticked := _unticked(tree, change):
         held = _build_halt(mflib.layout.run_dir(primary), tree, change)
         named = f" · {held[0]}: {held[1]}" if held else ""
         return f"phase {unticked[0]} unticked{named}"
-    if _dirty(tree):
-        return "the tree is not clean"
+    return "the tree is not clean" if _dirty(tree) else None
+
+
+def _check_build(primary: Path, version: Version, tree: Path) -> str | None:
+    """Return why the build check fails, or None."""
+    change = version.change
+    if why := _check_simplified(primary, version, tree):
+        return why
     if not _closed(mflib.layout.run_dir(primary), tree, change):
         return f"no .minions/changes/{change}/build.done names HEAD"
     return _npm_unapproved(tree, change, default_branch(primary))
@@ -2527,14 +2539,16 @@ def check(
 ) -> str | None:
     """Return why a station's check on disk fails, or None when it passes.
 
-    A build `phase` number checks that phase alone; `close` or none, the whole build.
-    Why: 0102-build-per-phase design D2; 0109-converge-done-order design D3.
+    A build `phase` number checks that phase alone; `close`, a ticked, clean tree;
+    none, the whole build. Why: 0102 design D2; 0109 design D3; 0144 design D5.
     """
     if stage == "release":
         return _check_release(primary, version, first_read, offline)
     if version.tree is None:
         return f"{version.change} has no worktree"
-    if stage == "build" and phase is not None and phase != "close":
+    if stage == "build" and phase == "close":
+        return _check_simplified(primary, version, version.tree)
+    if stage == "build" and phase is not None:
         return _check_phase(primary, version, version.tree, phase)
     if stage == "build":
         return _check_build(primary, version, version.tree)
@@ -4353,6 +4367,9 @@ class Run:
         # Why: 0119-debt-paydown-3b design D13.
         self.kept: set[str] = set()
         self.capped: set[str] = set()
+        # The versions whose red gate after the last phase got its repair worker.
+        # Why: 0144-gate-outside design D4.
+        self.repaired: set[str] = set()
         self.grants_auto: dict[str, bool] = {}
         self.outs: dict[tuple[str, str], Path] = {}
         self.lines = ShipLines([], [])
@@ -4824,6 +4841,56 @@ class Run:
         named = f" · denied: {', '.join(denied)}" if denied else ""
         self.halt(who, f"{stage} check fail — {reason}{named}")
         return False
+
+    def said(self, change: str) -> Callable[[str], None]:
+        """Return a printer that logs each `<event> — <detail>` line as that event.
+
+        A line that opens on no run-log event is dropped: its detail is on disk.
+        Why: 0144-gate-outside design D8.
+        """
+
+        def log(line: str) -> None:
+            event, cut, detail = line.partition(" — ")
+            if cut and event in mflib.runlog.EVENTS:
+                self.log.event(change, event, detail)
+
+        return log
+
+    def gate_built(
+        self, version: Version, tree: Path, models: tuple[str, str | None, str | None]
+    ) -> tuple[bool, str | None]:
+        """Run the gate after the last phase, a red one repaired once a run.
+
+        Return whether the thread goes on, and why the build fails, or None.
+        Why: 0144-gate-outside design D4.
+        """
+        change, say = version.change, self.said(version.change)
+        if (evidence := _run_gate(self.primary, change, tree, say)) is None:
+            return True, None
+        with self.guard:
+            first = change not in self.repaired
+            self.repaired.add(change)
+        if first:
+            runs = mflib.layout.run_dir(self.primary)
+            _remove_in(runs, mflib.layout.CHANGES, change, name="build.halt")
+            prompt = PROMPTS["build"].format(change=change, phase="repair")
+            if self.spawn(change, "build", tree, prompt, models) is None:
+                return False, None
+            evidence = _run_gate(self.primary, change, tree, say)
+        if evidence is None:
+            return True, None
+        _halt_build(self.primary, change, tree, "repair", "gate", evidence)
+        return True, "gate red after the repair"
+
+    def close_build(self, version: Version, tree: Path, simplified: bool) -> str | None:
+        """Run `close`, after a simplify worker marking its head; return why it fails.
+
+        Past the close, the build's check holds. Why: 0144-gate-outside design D5.
+        """
+        if simplified:
+            _mark_simplified(self.primary, version.change, tree)
+        why = close(self.primary, version, self.said(version.change))
+        return why if why is not None else _check_build(self.primary, version, tree)
 
     def rescued(self, change: str, held: str) -> str:
         """Return ` · rescued <sub-tasks>` when a halt on `held` gets no rescue.
@@ -5312,16 +5379,23 @@ class Run:
                     self.log.event(version.change, "ledger", f"{version.change} {head}")
                 if stage in ("converge", "release"):
                     _unstack(self.primary, change)
+                if stage == "build":
+                    _remove_in(
+                        mflib.layout.run_dir(self.primary),
+                        mflib.layout.CHANGES,
+                        change,
+                        name="build.halt",
+                    )
+                # An amend of the change directory past simplify closes with no worker.
+                # Why: 0144-gate-outside design D6.
+                amended = phase == "close" and _amended_since_simplify(
+                    self.primary, change, cwd
+                )
                 if stage == "converge":
                     denied = self.conducted(change, cwd, workers, grant)
+                elif amended:
+                    denied = []
                 else:
-                    if stage == "build":
-                        _remove_in(
-                            mflib.layout.run_dir(self.primary),
-                            mflib.layout.CHANGES,
-                            change,
-                            name="build.halt",
-                        )
                     denied = self.spawn(version.change, stage, cwd, prompt, models)
                 # A phase that failed after its notes still has them cut.
                 if numbered:
@@ -5349,6 +5423,14 @@ class Run:
                 merged = version.tree if stage == "integrate" else None
                 if reason is None and staged is not None and merged is not None:
                     reason = _settle_kept(merged, staged)
+                # The conductor gates the build, and closes it. Why: 0144-gate-outside
+                # design D4, D5.
+                if reason is None and phase == "close":
+                    reason = self.close_build(version, cwd, simplified=not amended)
+                elif reason is None and numbered and _unticked(cwd, change) is None:
+                    going, reason = self.gate_built(version, cwd, models)
+                    if not going:
+                        return None
                 held = None if reason is None else self.held(version, stage, cwd)
                 spent = "" if held is None else self.rescued(version.change, held)
                 if held is not None:
@@ -8026,7 +8108,9 @@ def _last(output: str) -> str:
     return lines[-1] if lines else "no output"
 
 
-def _run_gate(primary: Path, change: str, tree: Path) -> str | None:
+def _run_gate(
+    primary: Path, change: str, tree: Path, say: Callable[[str], None] = print
+) -> str | None:
     """Run the gate in the version's tree; return why it is red, or None when green.
 
     Red keeps the output in the change's `gate.red`; green removes it.
@@ -8036,13 +8120,60 @@ def _run_gate(primary: Path, change: str, tree: Path) -> str | None:
     code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
     seconds = round(time.monotonic() - start)
     if code == 0:
-        print(f"check — gate · pass · {seconds}s")
+        say(f"check — gate · pass · {seconds}s")
         runs = mflib.layout.run_dir(primary)
         _remove_in(runs, mflib.layout.CHANGES, change, name="gate.red")
         return None
-    print(f"check — gate · fail — red · {seconds}s")
+    say(f"check — gate · fail — red · {seconds}s")
     _write_state(primary, change, "gate.red", output)
     return f"red · gate_run.py exit {code} · .minions/changes/{change}/gate.red"
+
+
+def _simplified_head(primary: Path, change: str) -> str | None:
+    """Return the word `build.simplified`'s `head:` names, or None.
+
+    A missing or unreadable file names none. Why: 0144-gate-outside design D5.
+    """
+    file = mflib.layout.change_dir(primary, change) / SIMPLIFIED
+    try:
+        text = file.read_text() if file.is_file() else ""
+    except (OSError, UnicodeDecodeError):
+        return None
+    found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
+    return found[1] if found else None
+
+
+def _mark_simplified(primary: Path, change: str, tree: Path) -> None:
+    """Write `build.simplified` naming the tree's `HEAD`."""
+    head = _git(tree, "rev-parse", "HEAD").strip()
+    _write_state(primary, change, SIMPLIFIED, f"head: {head}\n")
+
+
+def _amended_since_simplify(primary: Path, change: str, tree: Path) -> bool:
+    """Return whether only amends of the change directory follow `build.simplified`.
+
+    Its head must be an ancestor of `HEAD`, and no merge may follow it.
+    Why: 0144-gate-outside design D6.
+    """
+    head = _simplified_head(primary, change)
+    named = head and _maybe(tree, "rev-parse", "-q", "--verify", f"{head}^{{commit}}")
+    if not named or not _ancestor(tree, named.strip(), "HEAD"):
+        return False
+    span = f"{named.strip()}..HEAD"
+    if _git(tree, "rev-list", "--min-parents=2", span).strip():
+        return False
+    subject = f"docs({change}): amend the change directory"
+    folder = f"openspec/changes/{change}/"
+    listed = ("diff-tree", "--root", "-r", "--no-commit-id", "--name-only")
+    for sha in _git(tree, "rev-list", span).split():
+        if _subject(tree, sha) != subject:
+            return False
+        if any(
+            not path.startswith(folder)
+            for path in _git(tree, *listed, sha).splitlines()
+        ):
+            return False
+    return True
 
 
 def _close_base(primary: Path, change: str, tree: Path) -> str:
@@ -8057,13 +8188,31 @@ def _close_base(primary: Path, change: str, tree: Path) -> str:
     return stacked or _git(tree, "merge-base", default, "HEAD").strip()
 
 
-def _close_metrics(primary: Path, change: str, tree: Path, base: str) -> str | None:
+def _close_gate(
+    primary: Path, change: str, tree: Path, say: Callable[[str], None]
+) -> str | None:
+    """Run the gate; on red with a simplify commit at `HEAD`, drop it and run it again.
+
+    Return why the gate is red, or None. Why: 0144-gate-outside design D5.
+    """
+    evidence = _run_gate(primary, change, tree, say)
+    if evidence and _subject(tree) == f"refactor({change}): simplify":
+        _git(tree, "reset", "-q", "--hard", "HEAD^")
+        say("reset — simplify dropped")
+        _mark_simplified(primary, change, tree)
+        evidence = _run_gate(primary, change, tree, say)
+    return evidence
+
+
+def _close_metrics(
+    primary: Path, change: str, tree: Path, base: str, say: Callable[[str], None]
+) -> str | None:
     """Collect the metrics draft and draw its page; return why they halt, or None.
 
     No catalogue skips both, and an exit 3 carries on. Why: mf-build Step 3.5.
     """
     if not (tree / CATALOGUE).is_file():
-        print("metrics: none — no catalogue")
+        say("metrics: none — no catalogue")
         return None
     draft = str(mflib.layout.run_dir(primary) / "metrics" / f"{change}.json")
     steps = (
@@ -8072,20 +8221,24 @@ def _close_metrics(primary: Path, change: str, tree: Path, base: str) -> str | N
     )
     for step in steps:
         code, output = _boxed(primary, tree, [*UV_RUN, str(METRICS), *step])
-        print(output, end="")
+        for line in output.splitlines():
+            say(line)
         if code not in (0, 3):
             return f"metrics.py {step[0]} exit {code} · {_last(output)}"
     return None
 
 
-def _close_plan(primary: Path, change: str, tree: Path, base: str) -> str | None:
+def _close_plan(
+    primary: Path, change: str, tree: Path, base: str, say: Callable[[str], None]
+) -> str | None:
     """Run the plan check from `base`, its lines kept; return why it fails, or None.
 
     The lines go to the change's `plan-check.txt`. Why: 0144-gate-outside design D7.
     """
     argv_ = [sys.executable, str(PLAN_CHECK), "--change", change, "--base", base]
     code, output = _boxed(primary, tree, argv_)
-    print(output, end="")
+    for line in output.splitlines():
+        say(line)
     _write_state(primary, change, "plan-check.txt", output)
     return None if code == 0 else f"plan_check.py exit {code} · {_last(output)}"
 
@@ -8100,11 +8253,13 @@ def _simplify_commit(tree: Path, change: str, base: str) -> str | None:
     return None
 
 
-def close(primary: Path, version: Version) -> str | None:
+def close(
+    primary: Path, version: Version, say: Callable[[str], None] = print
+) -> str | None:
     """Run the close's steps in the version's tree; return why it fails, or None.
 
     The gate, the metrics, the plan check, then `build.done`; a failed step writes
-    `build.halt`. Why: 0144-gate-outside design D2, D7.
+    `build.halt`. It shows each line through `say`. Why: 0144-gate-outside D2, D7.
     """
     change, tree = version.change, version.tree
     if tree is None:
@@ -8115,9 +8270,9 @@ def close(primary: Path, version: Version) -> str | None:
         return "the tree is not clean"
     base = _close_base(primary, change, tree)
     steps: tuple[tuple[str, Callable[[], str | None]], ...] = (
-        ("gate", lambda: _run_gate(primary, change, tree)),
-        ("metrics", lambda: _close_metrics(primary, change, tree, base)),
-        ("plan check", lambda: _close_plan(primary, change, tree, base)),
+        ("gate", lambda: _close_gate(primary, change, tree, say)),
+        ("metrics", lambda: _close_metrics(primary, change, tree, base, say)),
+        ("plan check", lambda: _close_plan(primary, change, tree, base, say)),
     )
     for stop, step in steps:
         if evidence := step():
