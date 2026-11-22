@@ -51,6 +51,7 @@ Probe 7 of an earlier run halted a build on "`uv run … -L pyproject.toml` prin
 A count is still set only for `prints` or `reports` right before an all-digit span, and `exits` right before one sets the exit. A comma alone ends nothing.
 Fix note (2026-11-22, R1): a `Verify:` label ends output too, so a brief item's later label keeps its command.
 Fix note (2026-11-22, S1): a verb right after `that`, `which` or `who` belongs to a noun's clause and opens no output.
+Fix note (2026-11-22, S1): after an end, only a verb last before a span, or one with no `that`, `which`, `who` or `whose` before it in the comma clause of a span no output verb follows, opens output.
 
 ### D2
 

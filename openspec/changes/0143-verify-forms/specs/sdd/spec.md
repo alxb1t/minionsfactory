@@ -40,8 +40,9 @@ holds no command.
 
 It SHALL read a `Verify:`'s spans as follows: once an output verb — `prints`, `exits` and the like — follows a command, each later
 span is output, never a command, whatever words stand between the verb and the span, until a `then`, a `;`, the sentence's end
-or a `Verify:` label; a verb right after `that`, `which` or `who` opens no output, and a `, and` or `, or` before a span that a
-verb follows opens a new command. A command whose `Verify:` says it
+or a `Verify:` label; a verb after `that`, `which`, `who` or `whose` opens no output, and a `, and` or `, or` before a span that a
+verb follows opens a new command. After a `then`, a `;` or a sentence end, only a verb right before a span, or one in the comma
+clause holding a span that no output verb follows, opens output again. A command whose `Verify:` says it
 `` exits `<N>` `` SHALL pass only on exit `<N>`, and on the output the `Verify:` says; the search that passes on exit 1 is the one
 whose `Verify:` names no exit. It SHALL run each command without `VIRTUAL_ENV` in its environment, SHALL compare a command's stdout
 alone with what the `Verify:` says, keeping its stderr apart, and SHALL show the first lines of both on a failure.

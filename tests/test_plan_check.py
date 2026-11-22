@@ -523,7 +523,9 @@ def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
 ) -> None:
     root = tmp_path / "repo"
     _repo(root, monkeypatch)
-    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 0.3)
+    # why: the limit gives the child time to start the escaped one under the gate's
+    # load; killed sooner, nothing holds the pipe and the drain path never runs
+    monkeypatch.setattr(plan_check, "TIMEOUT_SECONDS", 3)
     monkeypatch.setattr(plan_check, "DRAIN_SECONDS", 0.3)
     child = (
         "import subprocess, sys; "
@@ -533,7 +535,7 @@ def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
     command = f'{sys.executable} -c "{child}"'
     started = time.monotonic()
     assert plan_check.run(command, root) == plan_check.Result(-1, "", True)
-    assert time.monotonic() - started < 5
+    assert time.monotonic() - started < 8
     subprocess.run(["pkill", "-f", "sleep 20"], check=False)
 
 
@@ -762,7 +764,7 @@ def test_a_span_after_an_output_verb_is_output() -> None:
         ("a", 1),
         ("d", None),
     ]
-    # A verb right after `that`, `which` or `who` is a noun's, and opens no output.
+    # A verb after `that`, `which` or `who` is a noun's, and opens no output.
     guard = "`a` exits `0`, then the test that holds the guard, `b`, exits `0`."
     assert found(guard) == [("a", None), ("b", None)]
     assert found("`a` exits `0`. The file which names it, `b`, prints `1`.") == [
@@ -773,6 +775,20 @@ def test_a_span_after_an_output_verb_is_output() -> None:
         ("a", None),
         ("b", None),
     ]
+    # After an end, a verb opens output only last before the span, or in the comma
+    # clause that holds it with no `that`, `which`, `who` or `whose` before it; a span
+    # an output verb follows is that verb's command.
+    also = "`a` exits `0`; the test that also holds the guard, `b`, exits `0`."
+    assert found(also) == [("a", None), ("b", None)]
+    whose = "`a` exits `0`. The file whose header says it, `b`, prints `1`."
+    assert found(whose) == [("a", None), ("b", 1)]
+    bare = "`a` exits `0`. The file whose header says it `b` prints `1`."
+    assert found(bare) == [("a", None), ("b", 1)]
+    assert found("`a` exits `0`. The test whose name says guard `b` passes.") == [
+        ("a", None),
+        ("b", None),
+    ]
+    assert found("`a` prints `1`. It prints the line `x`.") == [("a", 1)]
 
 
 def test_exits_names_the_exit_a_command_must_have(tmp_path: Path) -> None:

@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command (0143-verify-forms, phase 4).
 - `tests/test_plan_check.py` holds the wait of `schedule` that times out and re-reads the load each second, which the
   gate's diff coverage needs (0143-verify-forms, phase 5).
-- `plan_check.py` opens no output at a verb right after `that`, `which` or `who`, reads a signed `**Verify timeout:**`
+- `plan_check.py` opens no output at a verb after `that`, `which`, `who` or `whose`, and after a sentence end only at a
+  verb right before a span or in the comma clause of a span no verb follows; it reads a signed `**Verify timeout:**`
   as none and caps one at a day, and `--only` exits 2 on a named `Verify:` with no command; `verify_check.py` reads no
   search pattern as a line number and takes a range with `HEAD` left out (0143-verify-forms, converge round 1).
 

@@ -12,7 +12,6 @@ import argparse
 import contextlib
 import functools
 import hashlib
-import itertools
 import json
 import os
 import re
@@ -65,8 +64,8 @@ OUTPUT_VERBS = {
     "reads",
     "says",
 }
-# A verb right after one of these is a noun's clause's, and opens no output.
-RELATIVE = {"that", "which", "who"}
+# A verb after one of these is a noun's clause's, and opens no output.
+RELATIVE = {"that", "which", "who", "whose"}
 OUTPUT_END = re.compile(r"\bthen\b|;|[.!?](?:\s|$)|\bVerify:")
 CLAUSE = re.compile(r",\s*(?:and|or)\s*$")
 NOTHING = re.compile(r"\bprints nothing\b")
@@ -163,11 +162,35 @@ def subtasks(tasks: str) -> list[Task]:
     ]
 
 
+def _verb(words: list[str]) -> bool:
+    """Return whether an output verb stands in `words` before any `RELATIVE` word."""
+    for word in words:
+        if word.lower() in RELATIVE:
+            return False
+        if word in OUTPUT_VERBS:
+            return True
+    return False
+
+
+def _opens(before: str, ends: list[re.Match[str]], follows: str) -> bool:
+    """Return whether the text `before` a span, after a command, opens output.
+
+    With no `ends`, a `_verb` anywhere; after one, a verb last, or a `_verb` in the
+    span's comma clause when the word that `follows` it is no verb. Why: 0143 D1.
+    """
+    if not ends:
+        return _verb(before.split())
+    rest = before[ends[-1].end() :]
+    if rest.split()[-1:] and rest.split()[-1] in OUTPUT_VERBS:
+        return True
+    return follows not in OUTPUT_VERBS and _verb(rest.split(",")[-1].split())
+
+
 def commands(verify: str) -> list[Command]:
     """Return the commands of a `Verify:`'s text, each with the count it must print.
 
-    Output opens at an output verb after a command, none after a `RELATIVE` word, to an
-    `OUTPUT_END` or a `, and` before a verb's span. e.g. "`a` prints x and `b`" → a
+    Output opens where `_opens` says, to an `OUTPUT_END` or a `, and` before a verb's
+    span. e.g. "`a` prints x and `b`" → a
     """
     if "`" in SPAN.sub("", verify):
         raise Unparsed("a backtick opens no span")
@@ -183,14 +206,11 @@ def commands(verify: str) -> list[Command]:
         # verb it is a list's last item, and stays output
         clause = CLAUSE.search(before) and after[:1] and after[0] in OUTPUT_VERBS
         ends = list(OUTPUT_END.finditer(before))
-        tail = ["", *before[ends[-1].end() :].split()] if ends else ["", *words]
+        follows = verify[match.end() :].lstrip(" ,").split()[:1]
         opens = (
             bool(found)
             and not clause
-            and any(
-                word in OUTPUT_VERBS and previous.lower() not in RELATIVE
-                for previous, word in itertools.pairwise(tail)
-            )
+            and _opens(before, ends, follows[0] if follows else "")
         )
         output = opens or (output and not (ends or clause))
         text = match[2]
