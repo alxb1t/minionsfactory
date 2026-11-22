@@ -2718,6 +2718,16 @@ as `path:line`, and 2 on a
 `Verify:` it cannot parse, a `git grep` git refuses, or a `grep` whose paths it cannot judge because `HEAD`'s tree holds a link out of
 it, naming the sub-task. A `git grep`'s paths SHALL be judged without exporting the tree.
 
+It SHALL also refuse, naming the sub-task, a count stated on any search but `grep -c` or `grep --count` over one file operand with
+no `-r` or `-R`, `-L` and `--files-without-match` among the options, and, in a sub-task that is no `**HALT CHECK**`, a word
+other than a search pattern shaped `<path>:<digits>` or `<path>:<digits>-<digits>`, a search pattern of three or more plain
+words, and a range `<default>..HEAD` or `<default>...HEAD`, `origin/` allowed before the default branch and `HEAD` left out. The one absence form is a `git grep -c`
+printing nothing.
+
+It SHALL refuse too, naming the sub-task and the span, a `Verify:` outside a `**HUMAN` phase in which two commands of the plan
+check's parse stand in one clause with an output verb between them — no `then`, `;`, sentence end or `Verify:` label, and no
+`, and` or `, or` clause, between the earlier command and the later one.
+
 #### Scenario: A loop in a check
 - **WHEN** a `Verify:` reads `for i in $(seq 20); do … done`
 - **THEN** `verify_check.py` exits 1, naming the sub-task
@@ -2729,6 +2739,29 @@ it, naming the sub-task. A `git grep`'s paths SHALL be judged without exporting 
 #### Scenario: A tree that tracks a link out of it
 - **WHEN** the repository tracks `link -> /usr/share`, and one `Verify:` is a `git grep` with a path and another a `grep`
 - **THEN** the `git grep` check exits 0 printing its match, and the `grep` check exits 2 naming its sub-task and the link
+
+#### Scenario: A count off its one form
+- **WHEN** a `Verify:` says `git grep -c x -- a.md` prints `1`, or `grep -c x a.md b.md` prints `1`, or `grep -n x a.md` prints `1`
+- **THEN** `verify_check.py` exits 1, naming the sub-task
+- **AND WHEN** a `Verify:` says `grep -c x a.md` or `grep --count x a.md` prints `1`, or `git grep -c x -- a.md` prints nothing
+- **THEN** it halts nothing
+
+#### Scenario: A command after an output verb
+- **WHEN** a `Verify:` says that `printf 1` prints one integer, a space and `pyproject.toml`, or prints a line of `a.md`
+- **THEN** `verify_check.py` exits 1, naming the sub-task and the span
+- **AND WHEN** a `Verify:` says that `printf 1` exits `0`, and `printf 2` prints `2`, or that `printf 1` prints `1`, then
+  `printf 2` exits `0`, or that `printf 1` and `printf 2` exit 0
+- **THEN** it halts nothing
+
+#### Scenario: An option that hides the path
+- **WHEN** a `Verify:` runs `grep -L x a.md` or `git grep --files-without-match x`
+- **THEN** `verify_check.py` exits 1, naming the sub-task
+
+#### Scenario: A form of a plain check
+- **WHEN** a plain `Verify:` runs `git diff main..HEAD -- a.md`, or names `a.py:12-20`, or greps `three plain words`
+- **THEN** `verify_check.py` exits 1, naming the sub-task
+- **AND WHEN** the sub-task is a `**HALT CHECK**`
+- **THEN** it halts nothing for these forms
 
 ### Requirement: A fresh worker reviews the plan before the cut commits
 
@@ -4266,9 +4299,9 @@ build as closed past that merge, and run converge from round 1. `conduct.py` SHA
 before it spawns converge or the release. A stacked dependent re-run before its build ends SHALL build on, waiting on no
 thread.
 
-While `stacked-on` stands, `mf-build`'s gate check and metrics, `mf-simplify`'s range and the gate's diff coverage SHALL take
-the sha it names as their base, in place of the merge-base with the default branch; the gate SHALL take only a line of 40
-hex digits from it, resolved through `git rev-parse --verify`, never as text in its recipe.
+While `stacked-on` stands, `mf-build`'s gate check, metrics and plan check, `mf-simplify`'s range and the gate's diff coverage
+SHALL take the sha it names as their base, in place of the merge-base with the default branch; the gate SHALL take only a line
+of 40 hex digits from it, resolved through `git rev-parse --verify`, never as text in its recipe.
 
 An amend of the dependency's change directory past the stacked-on head that touches its `proposal.md` or changes its
 `design.md`'s `## Decisions` SHALL, while `stacked-on` stands — before the dependency's release or after it, until the merge
@@ -4310,6 +4343,10 @@ stages, at each poll of its wait and before the merge back, never during a stati
 - **THEN** it prints `--compare-branch=<that sha>`
 - **AND WHEN** `stacked-on` holds text that is no commit, or a shell command
 - **THEN** it prints `--compare-branch=main`, and runs nothing the text names
+
+#### Scenario: A stacked build's plan check
+- **WHEN** `0002` is stacked and the dependency's change deleted a test
+- **THEN** the build's close runs the plan check from `stacked-on`'s sha, and that test is no test gone since the base
 
 ### Requirement: The build runs a fresh worker per phase
 
@@ -4394,37 +4431,46 @@ change directory outside `tasks.md` and `design.md`'s `## Tests` section, that l
 `openspec/specs/<capability>/spec.md`, standing in no requirement the change's `specs/<capability>/spec.md` lists under
 `## REMOVED Requirements`; a `def test_`
 name under `tests/` at the merge base is gone at `HEAD` and `design.md`'s `## Tests` section does not name it; or a sub-task
-marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. It SHALL NOT run again a `**HALT CHECK**` sub-task's
-command, a command of a `**HUMAN` phase, or a command naming `plan_check.py`, and SHALL run no command with a shell. It SHALL
-exit 0 printing `plan: clean` when none holds, and 2 when it cannot read `tasks.md`, the base or git.
+marked `**CORPUS**` names a case `scripts/corpus.toml` does not hold. Without `--only` it SHALL NOT run again a `**HALT CHECK**`
+sub-task's command; with or without it, it SHALL NOT run again a command of a `**HUMAN` phase, or a command one of whose words has
+the file name `plan_check.py`, and SHALL run no command with a shell. It SHALL exit 0 printing `plan: clean` when none holds, and
+2 when it cannot read `tasks.md`, the base or git, or when `--only` names a sub-task outside a `**HUMAN` phase whose `Verify:`
+holds no command.
 
-It SHALL read a `Verify:`'s spans as follows: once an output verb — `prints`, `exits` and the like — follows a command, each later
-span is output, never a command, until a `then`, a `;` or the sentence's end. A command whose `Verify:` says it
+It SHALL read a `Verify:`'s spans as follows: a span whose word right before it is an output verb — `prints`, `exits` and the
+like — is output, never a command, and so is each later span until a `then`, a `;`, the sentence's end or a `Verify:` label; a
+`, and` or `, or` before a span that a verb follows opens a new command. No other word SHALL open output: a span with words
+between an output verb and it, and no span between them, is a command. A command whose `Verify:` says it
 `` exits `<N>` `` SHALL pass only on exit `<N>`, and on the output the `Verify:` says; the search that passes on exit 1 is the one
-whose `Verify:` names no exit. It SHALL run each command without `VIRTUAL_ENV` in its environment, stderr kept in the output it
-compares. `skills/mf-cut-change/scripts/verify_check.py` SHALL read a `Verify:`'s commands through this script's parser, loaded
+whose `Verify:` names no exit. It SHALL run each command without `VIRTUAL_ENV` in its environment, SHALL compare a command's stdout
+alone with what the `Verify:` says, keeping its stderr apart, and SHALL show the first lines of both on a failure.
+`skills/mf-cut-change/scripts/verify_check.py` SHALL read a `Verify:`'s commands through this script's parser, loaded
 from it, and keep no parser of its own.
 
 It SHALL run each distinct command once a check, whatever the number of sub-tasks that name it, and hold the one result to each
 sub-task's own words. It SHALL run the commands side by side, one slot for each core the machine has, and print the lines in
 task order, then command order, whatever order they finish in: a `pytest` with `-n` takes every slot and runs alone, a `make`
-runs one at a time, and every `pytest` starts with `-p no:cacheprovider` in its `PYTEST_ADDOPTS`. A command past 600 s SHALL
-lose its whole process group and print `plan: <sub-task> — `<command>` timed out`; ended by SIGTERM, the check SHALL end the
+runs one at a time, and every `pytest` starts with `-p no:cacheprovider` in its `PYTEST_ADDOPTS`. It SHALL start a command only
+while the machine's 1-minute load is under its core count, and SHALL start one whatever the load when no command runs. A command
+past its limit — the integer after `**Verify timeout:**` in the root `AGENTS.md`, in seconds and at most a day, else 600 — SHALL lose its whole
+process group and print `plan: <sub-task> — `<command>` timed out`; ended by SIGTERM, the check SHALL end the
 process group of each command then running. A `pytest` command — one whose argv starts `pytest`, `uv run pytest` or `python -m pytest` — whose `Verify:` says nothing of its
 output beyond that it exits 0, and whose words after its pytest prefix are only `-q`, `-v`, `-x` or `-s` flags and test paths
 and `::` nodes that exist, SHALL pass unrun when `gate_run.py` holds a green record for the same tree and the same dry run of
-`make -n gate` and the command's own collection finds a test; one that says what it prints, selects with `-k`, `-m` or `--deselect`, or carries another option still runs. On a settled tree the check SHALL keep each finished result — its exit and output — in
+`make -n gate` and the command's own collection finds a test; one that says what it prints, selects with `-k`, `-m` or `--deselect`, or carries another option still runs. On a settled tree the check SHALL keep each finished result — its exit, stdout and stderr — in
 `.minions/plan-check/<tree>/`, named by the command, `HEAD` and every ref, and SHALL read it again on the same tree while
-`HEAD` and every ref stand, whatever the command's words; a timed-out command SHALL be kept by no one, and an unsettled tree
+`HEAD` and every ref stand, whatever the command's words; a timed-out command SHALL be kept by no one, a result kept without its
+stderr SHALL be read as none kept, and an unsettled tree
 SHALL keep and read none. With
-`--only <sub-task ids>` it SHALL run the `Verify:` commands of those sub-tasks alone, ticked or not, with the same skips, print
-only their lines and check nothing else.
+`--only <sub-task ids>` it SHALL run the `Verify:` commands of those sub-tasks alone, ticked or not, a `**HALT CHECK**` sub-task
+it names included, with the other skips, print only their lines and check nothing else.
 
-`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, in the foreground within
-600 s, and SHALL halt on any other exit than 0, writing no `build.done`. Converge's fixer SHALL run it in the foreground after
+`skills/mf-build/SKILL.md` SHALL run it at the build's close, after the metrics and before `build.done`, as one background
+command it waits on once, its `--base` the sha `stacked-on` names while it stands and else the merge base of the default branch
+and `HEAD`, and SHALL halt on any other exit than 0, writing no `build.done`. Converge's fixer SHALL run it in the foreground after
 its gate and before its commit, clearing each problem as a blocking card of the same pass, or setting it `wontfix` naming the
 amend; converge's Step 7 SHALL run it after `gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any
-verify worker, counting no round; a line the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the
+verify worker, counting no round, save a line that says a command timed out, which it SHALL send back to no one; a line the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the
 run `amend needed — plan check: <subjects>`, naming each line's sub-task, `path:line` or test name and never the command it
 quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and
 `design.md`'s prose.
@@ -4451,6 +4497,20 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 - **THEN** both commands run
 - **AND WHEN** it says that a search lists `a.py`, `b.py` and `c.py`
 - **THEN** the search is the one command, and no file name is run
+
+#### Scenario: Words between the verb and the span
+- **WHEN** a ticked `Verify:` says that `printf 1` prints one integer, a space and `pyproject.toml`
+- **THEN** `printf 1` and `pyproject.toml` are both commands, and `plan_check.py` reports the second
+- **AND WHEN** it says that `printf 1` exits `0`, and `printf 2` prints `2`
+- **THEN** both commands run
+- **AND WHEN** it says that `printf 1` exits `0`, then the test that holds the guard, `printf 2`, exits `0`
+- **THEN** both commands run
+
+#### Scenario: A warning on stderr
+- **WHEN** a ticked `Verify:` says a command prints `1`, and the command prints `1` on stdout and a warning on stderr
+- **THEN** `plan_check.py` prints no line for it
+- **AND WHEN** that command exits 1
+- **THEN** the line shows its stdout and its stderr
 
 #### Scenario: A command under a set VIRTUAL_ENV
 - **WHEN** `VIRTUAL_ENV` is set in the environment of `plan_check.py`, and a ticked `Verify:` runs `printenv VIRTUAL_ENV`
@@ -4515,13 +4575,39 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 - **THEN** both finish, and the failure lines print in task order, whatever order the commands finished in
 - **AND** a `pytest` with `-n` starts only when no other command runs, and a `make` starts only when no other `make` runs
 
+#### Scenario: A load over the cores
+- **WHEN** the 1-minute load is over the core count and a command runs
+- **THEN** the next command waits
+- **AND WHEN** the load is over the core count and no command runs
+- **THEN** the next command starts
+
+#### Scenario: A limit the repository sets
+- **WHEN** the root `AGENTS.md` holds `**Verify timeout:** 1800`
+- **THEN** a command is ended at 1800 s
+- **AND WHEN** no such line stands, or it holds `-30`
+- **THEN** a command is ended at 600 s
+- **AND WHEN** it holds `3000000`
+- **THEN** a command is ended at a day
+
 #### Scenario: A timed-out command's group
-- **WHEN** a command starts a child, outlives the 600 s limit, and `plan_check.py` kills it
+- **WHEN** a command starts a child, outlives its limit, and `plan_check.py` kills it
 - **THEN** the child is gone too, and the line says the command timed out
 
 #### Scenario: Only the named sub-tasks
 - **WHEN** `plan_check.py --only 1.1 2.3` runs and `1.1` is unticked and `2.3` is a `**HALT CHECK**`
-- **THEN** it runs the command of `1.1` alone and prints a `plan: ` line for it only if it fails
+- **THEN** it runs the commands of `1.1` and of `2.3`, and prints a `plan: ` line for each only if it fails
+- **AND WHEN** a plain check names `2.3` in no `--only`
+- **THEN** the command of `2.3` does not run
+- **AND WHEN** `--only 1.6` names a sub-task whose `Verify:` holds no backticked command
+- **THEN** it exits 2, naming `1.6`
+
+#### Scenario: A test file named for the script
+- **WHEN** a ticked `Verify:` runs `pytest tests/test_plan_check.py`
+- **THEN** the command runs, as only a command with a word of the file name `plan_check.py` is skipped
+
+#### Scenario: A stacked close
+- **WHEN** the build's close runs while `stacked-on` names a commit
+- **THEN** the plan check's `--base` is that sha, and a test the dependency deleted is no test gone since the base
 
 ### Requirement: A reader of run data has a corpus case
 
@@ -5035,11 +5121,13 @@ SHALL write `.minions/changes/<change-id>/evidence.md` whole, from tools alone, 
 through the placeholder `{evidence}` of each reference's `## Prompt`. The file SHALL hold four sections, each a list of lines
 or `None.`: **Gate integrity** — one line for each suppression, skip, removed test, removed assertion, edit to the gate's
 configuration or swallowed error the frozen patch holds, by `skills/mf-converge/scripts/gate_integrity.py`; **Plan check** —
-the whole output of `plan_check.py` for the freeze; **Stale-claim candidates** — each name the patch renames or deletes with
+the whole output of `plan_check.py` for the freeze, a command past its limit shown as timed out, never as failed;
+**Stale-claim candidates** — each name the patch renames or deletes with
 its `git grep` mentions outside the patch; **Test cost** — each test the patch adds with its seconds from the gate's junit
 report, each `slow` marker and end-to-end `run` boot it adds, and each test it removes against the design's `## Tests`
 section. Each line SHALL name a file by its path as Git names it, unquoted, and SHALL time a test by its module, its class
-and its name. Converge SHALL judge nothing in it, and SHALL run each command under the sandbox runner.
+and its name. Converge SHALL judge nothing in it, and SHALL run each command under the sandbox runner. A line that says a command
+timed out SHALL raise no card by itself, from the fixer, a checker or Step 7.
 
 #### Scenario: Round 1 writes the evidence
 - **WHEN** converge freezes a range in round 1
@@ -5068,6 +5156,12 @@ and its name. Converge SHALL judge nothing in it, and SHALL run each command und
 #### Scenario: Nothing found
 - **WHEN** a tool finds nothing for a section
 - **THEN** the section reads `None.`
+
+#### Scenario: A command past its limit at the freeze
+- **WHEN** the freeze's plan check prints `plan: 1.2 — `<command>` timed out` and no other line
+- **THEN** the Plan check section holds that line, Step 7 sends nothing back and raises no card, and the run goes on
+- **AND WHEN** the plan check prints a timed-out line and a failed one
+- **THEN** only the failed line is sent back
 
 ### Requirement: The checkers start from the evidence and judge the rest
 
@@ -6052,3 +6146,19 @@ The module's write SHALL go through the staged write under the change folder's d
 #### Scenario: The writer's flag beside no `--models`
 - **WHEN** `brief_check.py <brief> --write 0001-a` runs
 - **THEN** it exits 2 and writes nothing
+
+### Requirement: The build judges each Verify: with the plan check
+
+`skills/mf-build/SKILL.md` SHALL run, before a phase's other tasks, the phase's `**HALT CHECK**` sub-tasks through
+`plan_check.py --only <sub-task ids>`, and halt on a line it prints. After the phase's tasks it SHALL run each other sub-task's
+`Verify:` the same way, and tick a box only once its command passed there, never judging a `Verify:` in the worker's own shell.
+A `**HUMAN` phase's `Verify:` SHALL stay run as written, the plan check skipping it. The plan check SHALL run as one background
+command the worker waits on once.
+
+#### Scenario: A form the close refuses
+- **WHEN** a phase's sub-task says `` `printf 1` prints `2` `` and the build runs it through `plan_check.py --only`
+- **THEN** the plan check exits 1 at that phase, and the build ticks no box
+
+#### Scenario: A premise checked first
+- **WHEN** a phase holds a `**HALT CHECK**` sub-task and tasks that change the state it checks
+- **THEN** the build runs the HALT CHECK through `--only` before those tasks, and halts on a failure with `stop: HALT CHECK`
