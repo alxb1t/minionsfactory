@@ -147,6 +147,10 @@ Beside the names, a flag finds what a name cannot, each repeatable: `--signature
 its stand-ins and monkeypatches; `--file <path>` for a file a task changes, its `runpy` and import readers;
 `--string <text>` for a string a task changes, each line holding it. A hit prints `<kind> of <value> — <text> · <path>:<line>`.
 
+A task that adds a refusal, to a check or a parser, blocks each input it refuses: search the tests with `--string <input>`
+for each, and name each hit in a task. A task that changes the input of a generated file is followed by one that reruns the
+file's **deriver**, the command that writes it, naming both.
+
 ## Step 4 — Branch
 
 The branch is the change id. Root `AGENTS.md` decides where the branch lives:
@@ -226,7 +230,7 @@ the judgment rows alone.
   premise, and should hold.
 - **Account for every match** — the search script's own, folded in: a match on a line the task does not edit is a check
   that already holds or counts wrong: rewrite it, or flag it to the human as above. A search takes only the options
-  `-c -e -E -F -G -h -H -i -l -L -n -o -q -r -R -s -v -w -x` and the long names the script lists, and no path that
+  `-c -e -E -F -G -h -H -i -l -n -o -q -r -R -s -v -w -x` and the long names the script lists, and no path that
   is absolute or holds `..`, nor, for a `grep`, one that leaves the tree: anything else breaks `I19`. A `grep` in a
   tree holding a link out of it exits 2: rewrite it as a `git grep`.
 
@@ -337,7 +341,7 @@ the cut: write none, and leave it as it stands, which the run's check compares. 
 |---|---|---|
 | **I1** | be committed, on its own branch, named by its change id and cut from the default branch; the tree is clean after the cut commit | Steps 4 and 10; `git status --porcelain` prints nothing after the commit |
 | **I2** | have its proposal, design, tasks and spec delta, and pass `openspec validate <id> --strict`. A change with no delta has both `skip_specs: true` in `.openspec.yaml` and `specs/.gitkeep` | Step 6; running the validator in Step 7 |
-| **I3** | pass `openspec validate --strict`, the plan check and `verify_check.py` on the cut commit | Steps 7 and 8 |
+| **I3** | pass `openspec validate --strict` and `verify_check.py` on the cut commit | Steps 7 and 8 |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`, a last ` · moderate` or ` · hard` no part of the title. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | reading each check in Step 8 |
 | **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
@@ -353,7 +357,7 @@ the cut: write none, and leave it as it stands, which the run's check compares. 
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, to a decision in force at the base that retires it (`retired by Dn`), or, when its proofs cover only a requirement the change's delta removes, to that requirement removed with the code under test (`retired by removing <requirement title>`) | reading each task that deletes or merges a test, and finding the test in the table |
 | **I17** | name in `after:` only open or released versions with a lower id, each one's archive folder in `HEAD` before its build, or its change in the head `stacked-on` names | Step 1, for each `after` id; reading `proposal.md` |
 | **I18** | name `` `gate` `` in a sub-task that names `Makefile`, or a gate makefile ending `.mk`, and quote in a fenced `diff` block each line it adds or removes, no blank line inside the block | the gate-edit check, `gate_check.py --tasks`, which `cut_check.py` runs, exits 0 |
-| **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s options alone and no path outside the repository — and an exact count only when the count is the point | `verify_check.py`, which `cut_check.py` runs in Step 8 |
+| **I19** | make every `Verify:` one plain command — no `$(…)`, shell variable, loop or `cd`, and a search with `verify_check.py`'s options alone and no path outside the repository — a count only as `grep -c` or `grep --count` over one file and only when the count is the point, absence as `git grep -c` printing nothing, and, outside a `**HALT CHECK**`, no `<path>:<line>`, no search pattern of three plain words and no `<default>..HEAD` range | `verify_check.py`, which `cut_check.py` runs in Step 8 |
 
 ## Prose rules
 

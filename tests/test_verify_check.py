@@ -79,6 +79,7 @@ def test_a_search_prints_the_lines_it_matches_at_head(
         {
             "app/drawer.css": ".drawer {\n  width: 720px;\n}\n",
             "app/page.css": ".page { max-width: 720px; }\n",
+            "app/twice.css": ".a { width: 720px; }\n.b { width: 720px; }\n",
             "app/states.py": 'STATES = ["ready", "stock_wait"]\n',
             "app/schema.json": '{"$schema": "a|b"}\n',
             "docs/decisions.md": "## D24\n\nSee (D25).\n\n## D25\n",
@@ -89,7 +90,7 @@ def test_a_search_prints_the_lines_it_matches_at_head(
     (root / "notes.md").write_text("720px\n")
     tasks = _tasks(
         "1.1 Set the drawer to `480px`.\n"
-        "  Verify: `grep -c '720px' app/drawer.css app/page.css` prints `1`.",
+        "  Verify: `grep -c '720px' app/twice.css` prints `1`.",
         "1.2 Drop the state.\n"
         "  Verify: `git grep -n '\"stock_wait\"' -- app/` prints nothing.",
         "1.3 Cite D25.\n  Verify: `grep -rn '(D25)' docs` prints a line.",
@@ -97,10 +98,10 @@ def test_a_search_prints_the_lines_it_matches_at_head(
     code, out = _run(root, tasks, capsys, monkeypatch)
     assert code == 1, out
     assert out.splitlines() == [
-        "1.1: app/drawer.css:2:   width: 720px;",
-        "1.1: app/page.css:1: .page { max-width: 720px; }",
+        "1.1: app/twice.css:1: .a { width: 720px; }",
+        "1.1: app/twice.css:2: .b { width: 720px; }",
         "1.1: I19 — an exact count `1` beside 2 matches: "
-        "`grep -c '720px' app/drawer.css app/page.css`",
+        "`grep -c '720px' app/twice.css`",
         '1.2: app/states.py:1: STATES = ["ready", "stock_wait"]',
         "1.3: docs/decisions.md:3: See (D25).",
         "verify: halt — I19: 1.1",
@@ -113,12 +114,12 @@ def test_a_search_prints_the_lines_it_matches_at_head(
         "1.3 Run it before the first `Verify:` in `a.md`.\n"
         "  Verify: `grep -n 'first' app/states.py` prints nothing.",
         # A revision before `--` is searched there, its name before each path.
-        "1.4 x\n  Verify: `git grep -c 'stock_wait' HEAD -- app/` prints `1`.",
+        "1.4 x\n  Verify: `git grep -n 'stock_wait' HEAD -- app/` prints a line.",
         # A quoted `$` or operator is the pattern's, not the shell's.
         "1.5 x\n  Verify: `grep -nF '$schema' app/schema.json` prints a line.",
         "1.6 x\n  Verify: `grep -n '|' app/schema.json` prints a line.",
         # A revision with no `--` after it is searched there too.
-        "1.7 x\n  Verify: `git grep -c 'stock_wait' HEAD` prints `1`.",
+        "1.7 x\n  Verify: `git grep -n 'stock_wait' HEAD` prints a line.",
         # An escaped `$` is the pattern's too.
         "1.8 x\n  Verify: `grep -nF \\$schema app/schema.json` prints a line.",
         # `cd` as a pattern is no command.
@@ -191,6 +192,8 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         # A command after an operator, or after `then`, is a command.
         "1.13 x\n  Verify: `grep -n x a.md; cd /` prints a line.",
         "1.14 x\n  Verify: `if grep -n x a.md; then cd /; fi` prints a line.",
+        # `-L` prints the files that do not match, and exits 1 or 0 by the grep.
+        "1.15 x\n  Verify: `grep -L x a.md` prints nothing.",
     )
     code, out = _run(root, tasks, capsys, monkeypatch)
     assert code == 1, out
@@ -214,10 +217,97 @@ def test_a_check_out_of_shape_breaks_and_is_not_run(
         f"`grep -n -e x {secret} a.md`",
         "1.13: I19 — `cd`: `grep -n x a.md; cd /`",
         "1.14: I19 — `cd`: `if grep -n x a.md; then cd /; fi`",
+        "1.15: I19 — an option the search does not run: -L: `grep -L x a.md`",
         "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, "
-        "1.11, 1.12, 1.13, 1.14",
+        "1.11, 1.12, 1.13, 1.14, 1.15",
     ]
     assert not (root / "pwned").exists()
+
+
+def test_a_form_the_close_refuses_breaks_at_the_cut(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repo(
+        tmp_path / "repo",
+        {
+            "app/drawer.css": ".drawer {\n  width: 720px;\n}\n",
+            "app/page.css": ".page { max-width: 720px; }\n",
+            "a.md": "one two three\n",
+        },
+    )
+    refused = _tasks(
+        "1.1 x\n  Verify: `git grep -c drawer HEAD -- app/` prints `1`.",
+        "1.2 x\n  Verify: `grep -c 720px app/drawer.css app/page.css` prints `1`.",
+        "1.3 x\n  Verify: `grep -rc 720px app` prints `1`.",
+        "1.4 x\n  Verify: `grep -n 720px app/drawer.css` prints `1`.",
+        "1.5 x\n  Verify: `grep -L 720px app/drawer.css` prints nothing.",
+        "1.6 x\n  Verify: `git grep --files-without-match drawer` prints nothing.",
+        "1.7 x\n  Verify: `grep --count -R 720px app` prints `1`.",
+        "1.8 x\n  Verify: `git diff main..HEAD -- a.md` prints a line.",
+        "1.9 x\n  Verify: `git diff origin/main...HEAD -- a.md` prints a line.",
+        "1.10 x\n  Verify: `head -n 3 a.md:12-20` prints a line.",
+        "1.11 x\n  Verify: `grep -n 'one two three' a.md` prints a line.",
+        "1.12 x\n  Verify: `grep -n -e '^one two three$' a.md` prints a line.",
+        # A HALT CHECK checks the state before the edits: counts and `-L` stay refused.
+        "1.13 **HALT CHECK** x\n  Verify: `git grep -c drawer -- app/` prints `1`, and "
+        "`grep -L x a.md` prints nothing.",
+    )
+    code, out = _run(root, refused, capsys, monkeypatch)
+    assert code == 1, out
+    assert out.splitlines() == [
+        "1.1: I19 — a count on git grep: `git grep -c drawer HEAD -- app/`",
+        "1.2: I19 — a count on grep -c over more than one file: "
+        "`grep -c 720px app/drawer.css app/page.css`",
+        "1.3: I19 — a count on grep -c with -r or -R: `grep -rc 720px app`",
+        "1.4: I19 — a count on grep with no -c or --count: "
+        "`grep -n 720px app/drawer.css`",
+        "1.5: I19 — an option the search does not run: -L: "
+        "`grep -L 720px app/drawer.css`",
+        "1.6: I19 — an option the search does not run: --files-without-match: "
+        "`git grep --files-without-match drawer`",
+        "1.7: I19 — a count on grep -c with -r or -R: `grep --count -R 720px app`",
+        "1.8: I19 — a range: main..HEAD: `git diff main..HEAD -- a.md`",
+        "1.9: I19 — a range: origin/main...HEAD: `git diff origin/main...HEAD -- a.md`",
+        "1.10: I19 — a line number: a.md:12-20: `head -n 3 a.md:12-20`",
+        "1.11: I19 — a prose phrase: one two three: `grep -n 'one two three' a.md`",
+        "1.12: I19 — a prose phrase: ^one two three$: "
+        "`grep -n -e '^one two three$' a.md`",
+        "1.13: I19 — a count on git grep: `git grep -c drawer -- app/`",
+        "1.13: I19 — an option the search does not run: -L: `grep -L x a.md`",
+        "verify: halt — I19: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, "
+        "1.11, 1.12, 1.13",
+    ]
+
+    # The forms that stand: a range to another branch, two words, a word with a
+    # symbol in it, `grep -c` over one file, and each stale form in a HALT CHECK.
+    holds = _tasks(
+        "1.1 x\n  Verify: `git diff other..HEAD -- a.md` prints a line.",
+        "1.2 x\n  Verify: `grep -n 'one two' a.md` prints a line.",
+        "1.3 x\n  Verify: `grep -n 'one-two three four' a.md` prints nothing.",
+        "1.4 x\n  Verify: `grep -c 720px app/drawer.css` prints `1`.",
+        "1.5 **HALT CHECK** x\n  Verify: `git diff main..HEAD -- a.md` prints a line.",
+        "1.6 **HALT CHECK** x\n  Verify: `head -n 3 a.md:12-20` prints a line.",
+        "1.7 **HALT CHECK** x\n  Verify: `grep -n 'one two three' a.md` prints a line.",
+    )
+    code, out = _run(root, holds, capsys, monkeypatch)
+    assert code == 0, out
+    assert out.splitlines() == [
+        "1.2: a.md:1: one two three",
+        "1.4: app/drawer.css:2:   width: 720px;",
+        "1.7: a.md:1: one two three",
+        "verify: every check is one plain command",
+    ]
+
+    # A default branch that cannot be read stops the check: git did not run.
+    def missing(*_: object, **__: object) -> None:
+        raise FileNotFoundError
+
+    monkeypatch.setattr(verify_check.subprocess, "run", missing)
+    ranged = _tasks("1.1 x\n  Verify: `git diff main..HEAD` prints a line.")
+    code, out = _run(root, ranged, capsys, monkeypatch)
+    assert (code, out) == (2, "verify: cannot check — git symbolic-ref did not run\n")
 
 
 def test_a_search_runs_with_no_shell(tmp_path: Path) -> None:

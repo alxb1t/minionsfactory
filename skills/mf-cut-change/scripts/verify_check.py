@@ -32,18 +32,22 @@ SPAN, Unparsed, commands, tokens = (
     PLAN["commands"],
     PLAN["tokens"],
 )
+CUT_PRE = Path(__file__).resolve().parent / "cut_pre.py"
+PRE = runpy.run_path(str(CUT_PRE))
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
 VARIABLE = re.compile(r"\$\{?[A-Za-z_]")
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 MATCH = re.compile(r"(.+?):(\d+):(.*)")
+LINE_NUMBER = re.compile(r"[^:\s]+:\d+(?:-\d+)?")
+PHRASE = re.compile(r"[^\W\d_]+(?: [^\W\d_]+){2,}")
+RANGE = re.compile(r"(?:origin/)?(.+?)\.\.\.?HEAD")
 LOOPS = {"for", "while", "until"}
 OPERATOR = set("();<>|&")
 # Flags that hide the matching lines; the search prints them.
-HIDING = set("clLqh")
+HIDING = set("clqh")
 HIDING_LONG = {
     "--count",
     "--files-with-matches",
-    "--files-without-match",
     "--quiet",
     "--silent",
     "--no-filename",
@@ -74,16 +78,18 @@ class Stop(Exception):
 
 
 class Search(NamedTuple):
-    """The argv that prints a search's matching lines, and what it would read.
+    """The argv that prints a search's lines, and what it would read.
 
-    `refused` holds each option it does not run, `paths` each file operand, and
-    `revision` the operand a `git grep` reads as one when git resolves it.
+    `refused` is each option not run, `paths` each file, `revision` the operand git may
+    read as one, `patterns` each pattern, `form` the form a count on it breaks, or "".
     """
 
     argv: list[str]
     refused: list[str]
     paths: list[str]
     revision: str | None
+    patterns: list[str]
+    form: str
 
 
 def _spawn(
@@ -175,10 +181,24 @@ def plain(words: list[str], shell: list[str]) -> list[str]:
     return words[: (ends or [len(words)])[0]]
 
 
+def count_form(git: bool, counted: bool, recursive: bool, paths: list[str]) -> str:
+    """Return the form a stated count breaks, empty when `grep -c` over one file fits.
+
+    e.g. `grep -c x a b` → "grep -c over more than one file"
+    """
+    if git:
+        return "git grep"
+    if not counted:
+        return "grep with no -c or --count"
+    if recursive:
+        return "grep -c with -r or -R"
+    return "grep -c over more than one file" if len(paths) > 1 else ""
+
+
 def search(words: list[str]) -> Search | None:
     """Return how a search's plain words run, printing its lines; None for no search.
 
-    e.g. ["grep", "-c", "x", "a"] → (["grep", "-H", "-n", "x", "a"], [], ["a"], None)
+    e.g. ["grep", "-c", "x", "a"] → argv ["grep", "-H", "-n", "x", "a"], paths ["a"]
     """
     if words[:1] == ["grep"]:
         head, rest = ["grep", "-H", "-n"], words[1:]
@@ -189,22 +209,28 @@ def search(words: list[str]) -> Search | None:
     kept: list[str] = []
     refused: list[str] = []
     operands: list[str] = []
+    given: list[str] = []
     tail: list[str] = []
-    pattern = value = False
+    pattern = value = counted = recursive = False
     for i, word in enumerate(rest):
         if value or not word.startswith("-"):
             operands += [] if value else [word]
+            given += [word] if value else []
             kept.append(word)
             value = False
         elif word == "--":
             tail = rest[i:]
             break
         elif word in LONG:
+            counted |= word == "--count"
+            recursive |= word == "--recursive"
             kept += [] if word in HIDING_LONG else [word]
         elif re.fullmatch(r"-(?:[A-Za-df-z]+e?|e)", word) and set(word[1:]) <= SHORT:
             # `e` ends its word, so a pattern attached to it is refused, never read.
             value = word.endswith("e")
             pattern = pattern or value
+            counted |= "c" in word
+            recursive |= bool({"r", "R"} & set(word))
             flags = "".join(flag for flag in word[1:] if flag not in HIDING)
             kept += [f"-{flags}"] if flags else []
         else:
@@ -212,7 +238,9 @@ def search(words: list[str]) -> Search | None:
     after = operands[0 if pattern else 1 :]
     revision = after[0] if head[0] == "git" and after else None
     paths = (operands + tail[1:])[0 if pattern else 1 :]
-    return Search(head + kept + tail, refused, paths, revision)
+    form = count_form(head[0] == "git", counted, recursive, paths)
+    patterns = given if pattern else operands[:1]
+    return Search(head + kept + tail, refused, paths, revision, patterns, form)
 
 
 class Head:
@@ -283,15 +311,60 @@ class Head:
         return self.env
 
 
-def check_command(subtask: str, command: Any, head: Head) -> bool:  # noqa: ANN401
-    """Print a command's breaks, else its search's matches; return whether it broke."""
+def ranged(word: str) -> bool:
+    """Return whether `word` is `<default>..HEAD` or `<default>...HEAD`.
+
+    e.g. `origin/main...HEAD` → True where main is the default branch
+    """
+    match = RANGE.fullmatch(word)
+    if match is None:
+        return False
+    try:
+        return bool(match[1] == PRE["default_branch"]())
+    except PRE["Stop"] as stop:
+        raise Stop(2, f"verify: cannot check — {stop}") from None
+
+
+def unplain(words: list[str], query: Search | None) -> list[str]:
+    """Return a plain check's forms that go stale: a line number, a phrase, a range.
+
+    e.g. ["git", "diff", "main..HEAD"] → ["a range: main..HEAD"]
+    """
+    patterns = query.patterns if query else []
+    return (
+        [f"a line number: {word}" for word in words if LINE_NUMBER.fullmatch(word)]
+        + [
+            f"a prose phrase: {pattern}"
+            for pattern in patterns
+            if PHRASE.fullmatch(pattern.removeprefix("^").removesuffix("$"))
+        ]
+        + [f"a range: {word}" for word in words if ranged(word)]
+    )
+
+
+def check_command(
+    subtask: str,
+    command: Any,  # noqa: ANN401
+    head: Head,
+    halt: bool,
+) -> bool:
+    """Print a command's breaks, else its search's matches; return whether it broke.
+
+    A `**HALT CHECK**` (`halt`) checks the state before the edits: no stale form.
+    """
     words, shell = tokens(command.text), tokens(masked(command.text))
     if found := breaks(command.text, shell):
         print(f"{subtask}: I19 — {' · '.join(found)}: `{command.text}`")
         return True
     query = search(plain(words, shell))
+    if not halt and (found := unplain(words, query)):
+        print(f"{subtask}: I19 — {' · '.join(found)}: `{command.text}`")
+        return True
     if query is None:
         return False
+    if command.count is not None and query.form:
+        print(f"{subtask}: I19 — a count on {query.form}: `{command.text}`")
+        return True
     if query.refused:
         refused = " · ".join(query.refused)
         print(
@@ -333,8 +406,11 @@ def check(tasks: str, head: Head) -> list[str]:
         if (at := masked.find("Verify:")) < 0:
             continue
         verify = text[at + len("Verify:") :]
+        halt = "**HALT CHECK**" in text
         try:
-            hits = [check_command(name, command, head) for command in commands(verify)]
+            hits = [
+                check_command(name, command, head, halt) for command in commands(verify)
+            ]
         except Unparsed as error:
             raise Stop(2, f"verify: cannot check — {name}: {error}") from None
         if any(hits):

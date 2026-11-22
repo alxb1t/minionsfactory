@@ -5,7 +5,7 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 ## Progress
 
 - [x] 1 — The judge · moderate
-- [ ] 2 — The cut · moderate
+- [x] 2 — The cut · moderate
 - [ ] 3 — The build · moderate
 - [ ] 4 — Time · moderate
 
@@ -26,19 +26,19 @@ Phases, each green on its own: the judge, the cut, the build, then time. Decisio
 
 ## 2 — The cut
 
-- [ ] 2.1 **HALT CHECK** The search options stand in `skills/mf-cut-change/scripts/verify_check.py` before they change.
+- [x] 2.1 **HALT CHECK** The search options stand in `skills/mf-cut-change/scripts/verify_check.py` before they change.
   Verify: `git grep -n -e HIDING_LONG -- skills/mf-cut-change/scripts/verify_check.py` prints a line.
-- [ ] 2.2 Refuse a count off `grep -c` over one file per [D4](design.md#d4): `search` and `check_command` in `skills/mf-cut-change/scripts/verify_check.py`. Add `test_a_form_the_close_refuses_breaks_at_the_cut` to `tests/test_verify_check.py` and move the `git grep -c` and multi-file `grep -c` sub-tasks of `test_a_search_prints_the_lines_it_matches_at_head` into it.
+- [x] 2.2 Refuse a count off `grep -c` over one file per [D4](design.md#d4): `search` and `check_command` in `skills/mf-cut-change/scripts/verify_check.py`. Add `test_a_form_the_close_refuses_breaks_at_the_cut` to `tests/test_verify_check.py` and move the `git grep -c` and multi-file `grep -c` sub-tasks of `test_a_search_prints_the_lines_it_matches_at_head` into it.
   Verify: `uv run pytest tests/test_verify_check.py::test_a_form_the_close_refuses_breaks_at_the_cut tests/test_verify_check.py::test_a_search_prints_the_lines_it_matches_at_head -q` exits 0.
-- [ ] 2.3 Refuse `-L` and `--files-without-match` per [D5](design.md#d5): `SHORT`, `HIDING` and `LONG` in `skills/mf-cut-change/scripts/verify_check.py`. Add a `-L` sub-task to `test_a_check_out_of_shape_breaks_and_is_not_run` and to the new test.
+- [x] 2.3 Refuse `-L` and `--files-without-match` per [D5](design.md#d5): `SHORT`, `HIDING` and `LONG` in `skills/mf-cut-change/scripts/verify_check.py`. Add a `-L` sub-task to `test_a_check_out_of_shape_breaks_and_is_not_run` and to the new test.
   Verify: `uv run pytest tests/test_verify_check.py::test_a_check_out_of_shape_breaks_and_is_not_run -q` exits 0.
-- [ ] 2.4 Refuse a line number, a prose phrase and a range per [D6](design.md#d6): `check_command` and `check` in `skills/mf-cut-change/scripts/verify_check.py`, which loads `default_branch` from `cut_pre.py` by `runpy`. Add `cut_pre.py` to the `verify_check.py` row of `docs/modules.md`. Add to the new test a sub-task for each of a line number, a prose phrase and a range, each refused, and one for the HALT CHECK exemption.
+- [x] 2.4 Refuse a line number, a prose phrase and a range per [D6](design.md#d6): `check_command` and `check` in `skills/mf-cut-change/scripts/verify_check.py`, which loads `default_branch` from `cut_pre.py` by `runpy`. Add `cut_pre.py` to the `verify_check.py` row of `docs/modules.md`. Add to the new test a sub-task for each of a line number, a prose phrase and a range, each refused, and one for the HALT CHECK exemption.
   Verify: `uv run pytest tests/test_verify_check.py::test_a_form_the_close_refuses_breaks_at_the_cut tests/test_structure.py -q` exits 0.
-- [ ] 2.5 In `skills/mf-cut-change/SKILL.md` put the `I3` row right (`openspec validate --strict` and `verify_check.py`), word `I19` to name the count form, the absence form and the plain forms, and drop `-L` from Step 8's options, `-l -L -n` becoming `-l -n`.
+- [x] 2.5 In `skills/mf-cut-change/SKILL.md` put the `I3` row right (`openspec validate --strict` and `verify_check.py`), word `I19` to name the count form, the absence form and the plain forms, and drop `-L` from Step 8's options, `-l -L -n` becoming `-l -n`.
   Verify: `git grep -c -e '-l -L -n' -- skills/mf-cut-change/SKILL.md` prints nothing.
-- [ ] 2.6 In `skills/mf-cut-change/SKILL.md` Step 3 add a line for a search of the tests with `facts.py readers --string` for each input a new refusal blocks, and a line for a task that reruns the deriver of a generated file whose input a task changes.
+- [x] 2.6 In `skills/mf-cut-change/SKILL.md` Step 3 add a line for a search of the tests with `facts.py readers --string` for each input a new refusal blocks, and a line for a task that reruns the deriver of a generated file whose input a task changes.
   Verify: `git grep -n -e 'deriver' -- skills/mf-cut-change/SKILL.md` prints a line.
-- [ ] 2.7 Put the `I3` and `I19` rows of `skills/mf-build/SKILL.md` in the cut skill's words, so `tests/test_skills.py` keeps the ids equal and no `\*\*I3\*\*.*plan check` match stands in the build skill.
+- [x] 2.7 Put the `I3` and `I19` rows of `skills/mf-build/SKILL.md` in the cut skill's words, so `tests/test_skills.py` keeps the ids equal and no `\*\*I3\*\*.*plan check` match stands in the build skill.
   Verify: `git grep -c -e '\*\*I3\*\*.*plan check' -- skills/mf-build/SKILL.md` prints nothing.
 
 ## 3 — The build

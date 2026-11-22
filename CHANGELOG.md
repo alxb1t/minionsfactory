@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `plan_check.py` reads every span after an output verb as output to `then`, `;`, a `Verify:` label or a sentence end,
   compares stdout alone and shows stderr on a failure, and starts a command only under the core count or when none
   runs (0143-verify-forms, phase 1).
+- `verify_check.py` refuses at the cut a count off `grep -c` or `--count` over one file, `-L`, and in a plain `Verify:`
+  a `path:line`, a pattern of three plain words and a `<default>..HEAD` range; the cut and build skills word `I3` and
+  `I19` alike (0143-verify-forms, phase 2).
 
 ## [0.113.0] - 2026-11-21
 
