@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
-  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86
+  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86, D87
 ```
 
 ## The shape
@@ -314,7 +314,8 @@ Each is its own pass.**
 
 ### D13 · Simplify runs inside the build and blocks nothing
 
-**The build closes with a simplify pass, its own worker under `mf-ship`, that edits in place and re-runs the gate. Its edits are then inside the
+**The build closes with a simplify pass, its own worker under `mf-ship`, that edits in place and runs `make check` after
+each angle; the conductor then runs the gate ([D87](#d87--the-conductor-runs-the-gate)). Its edits are then inside the
 frozen diff, so converge's checkers judge them. It is `mf-simplify`. Simplify is a producer, not a checker: it holds no
 verdict.**
 
@@ -538,10 +539,11 @@ searches the whole tree for each claim the amend changes.**
 ### D73 · A build runs a fresh worker per phase
 
 **Under `mf-ship`, the build station spawns `mf-build` once per unticked phase, `phase=<N>`, and once for the close,
-`phase=close`: simplify, the metrics and `build.done`. A phase spawn passes only on its phase ticked at `HEAD` on a clean
-tree, so none runs twice without an amend between. Phases hand over through `.minions/changes/<id>/build-notes.md`, of
-which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` or `hard`; a moderate one runs on
-`[build.moderate]` when the models file names it.**
+`phase=close`: simplify alone, on `[build.close]` when the models file names it. A phase spawn passes only on its phase
+ticked at `HEAD` on a clean tree, so none runs twice without an amend between. The conductor's `close` runs the gate, the
+metrics and the plan check, and writes `build.done`; a gate red after the last phase gets one `phase=repair` worker.
+Phases hand over through `.minions/changes/<id>/build-notes.md`, of which the conductor keeps 40 lines a phase. The cut
+rates each phase `moderate` or `hard`; a moderate one runs on `[build.moderate]` when the models file names it.**
 
 - **Why:** one session carried every phase's reads to its end, most at the last phase; a fresh worker per phase
   simulated cheaper on the largest build and level on the smaller, per the change's design Evidence table.
@@ -555,7 +557,7 @@ which the conductor keeps 40 lines a phase. The cut rates each phase `moderate` 
 records how the code now builds a decision in a `Fix note` closing its entry, which the run reads as no decision change.
 `plan_check.py` re-runs each ticked `Verify:` in parallel, passes a bare `pytest` on the gate's green record and
 keeps results by tree, and finds unticked boxes, removed names the plan still claims and the base's tests gone, at the
-build's close and after each fix. The build runs it at each phase through `--only`: the phase's `**HALT CHECK**` sub-tasks
+build's close, which the conductor's `close` runs, and after each fix. The build runs it at each phase through `--only`: the phase's `**HALT CHECK**` sub-tasks
 first, then each other sub-task's `Verify:`. `make corpus` runs the readers of run data over the repo's own, outside the gate. The
 Markdown readers parse with `markdown-it-py`. Plan reviews run on Sonnet 5.5 · high; the cut's default model is Sonnet
 5.5 · high.**
@@ -953,6 +955,17 @@ machine cuts, builds or releases one. The README states it; nothing enforces it.
   machine cuts the same number, and a cloud machine's tags never reach `origin`.
 - **Rejected:** building the two-line case.
 
+### D87 · The conductor runs the gate
+
+**The gate runs in the conductor, as a script: after the last phase and in `conduct.py close`, through `gate_run.py`
+under the sandbox runner ([D51](#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)), which reads a gate past its
+limit as red. A worker runs `make check`, and the gate through `gate_run.py` only where the repository has no `check`
+target.**
+
+- **Why:** a worker that waits on a gate longer than the 5-minute cache writes its context again; a script's gate costs
+  no tokens, is timed and logged, and runs again.
+- **Rejected:** a gate in a worker's session.
+
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,
@@ -1009,7 +1022,7 @@ worktrees of open versions and queued cuts. Every station asks for the 5-minute 
 A tool its station lacks halts the version. The cut and the build read the decisions they cite and an index.**
 
 - **Why:** a worker's first turn was ~28.6k tokens before any work, re-read every turn; build carried all 55 decisions for
-  206 turns; no station's wait outlasts 5 minutes.
+  206 turns; a gate that outlasts the cache runs in the conductor ([D87](#d87--the-conductor-runs-the-gate)).
 - **Accepts:** a station that needs a new tool halts until its row changes · a decision the build does not cite is read by
   its index line alone · a review past the cache's lapse re-writes the cut's context.
 - **Rejected:** `Agent` for every station · `--setting-sources` without user settings · 1h for every station.

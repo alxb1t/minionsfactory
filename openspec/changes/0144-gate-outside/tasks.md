@@ -8,7 +8,7 @@ Each phase ends on a green `make check`, the last on a green gate: the close's m
 - [x] 2 — The close command · hard
 - [x] 3 — The build loop · hard
 - [x] 4 — The skills and converge · moderate
-- [ ] 5 — The records · moderate
+- [x] 5 — The records · moderate
 
 ## 1 — The close's model key
 
@@ -70,11 +70,11 @@ Each phase ends on a green `make check`, the last on a green gate: the close's m
 
 ## 5 — The records
 
-- [ ] 5.1 In `docs/decisions.md` edit [D13](../../../docs/decisions.md): the build closes with a simplify worker alone that runs `make check` after each angle, and the conductor then runs the gate; edit D73: `phase=close` is simplify alone on `[build.close]`, the conductor's `close` runs the gate, the metrics, the plan check and writes `build.done`, and a gate red after the last phase gets one `phase=repair` worker.
+- [x] 5.1 In `docs/decisions.md` edit [D13](../../../docs/decisions.md): the build closes with a simplify worker alone that runs `make check` after each angle, and the conductor then runs the gate; edit D73: `phase=close` is simplify alone on `[build.close]`, the conductor's `close` runs the gate, the metrics, the plan check and writes `build.done`, and a gate red after the last phase gets one `phase=repair` worker.
   Verify: `git grep -n -e "phase=repair" -- docs/decisions.md` exits `0`.
-- [ ] 5.2 In `docs/decisions.md` edit D70 so its *Why* no longer says no station's wait outlasts 5 minutes, and D74 so the plan check at the build's close is the conductor's `close` and not the build's own step.
+- [x] 5.2 In `docs/decisions.md` edit D70 so its *Why* no longer says no station's wait outlasts 5 minutes, and D74 so the plan check at the build's close is the conductor's `close` and not the build's own step.
   Verify: `git grep -c -e "no station's wait outlasts" -- docs/decisions.md` prints nothing.
-- [ ] 5.3 In `docs/decisions.md` add `### D87 · The conductor runs the gate` after D86: the gate runs in the conductor after the last phase and in the close, under the sandbox runner, and a worker runs `make check`; *Rejected:* a gate in a worker's session.
+- [x] 5.3 In `docs/decisions.md` add `### D87 · The conductor runs the gate` after D86: the gate runs in the conductor after the last phase and in the close, under the sandbox runner, and a worker runs `make check`; *Rejected:* a gate in a worker's session.
   Verify: `git grep -n -e "### D87" -- docs/decisions.md` exits `0`.
-- [ ] 5.4 In `CHANGELOG.md` rewrite the first bullet of the `[0.114.0]` section, the line debt card `0143·R3` names, to: "`plan_check.py` opens output only at a verb right before a span, and the `Verify:` label ends it, compares stdout alone and shows stderr on a failure, and starts a command only under the core count or when none runs (0143-verify-forms, phase 1)."
+- [x] 5.4 In `CHANGELOG.md` rewrite the first bullet of the `[0.114.0]` section, the line debt card `0143·R3` names, to: "`plan_check.py` opens output only at a verb right before a span, and the `Verify:` label ends it, compares stdout alone and shows stderr on a failure, and starts a command only under the core count or when none runs (0143-verify-forms, phase 1)."
   Verify: `git grep -n -e "right before a span, and the" -- CHANGELOG.md` exits `0`.
