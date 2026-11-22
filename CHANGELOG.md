@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.115.0] - 2026-11-23
+
+Gate: local 7m7s · CI not read under mf-ship · 0.114.0: local 7m26s · CI not read under mf-ship
+
 - The models line takes a `build-close` part, written as `[build.close]`, and the close's spawn runs on it, else on `[build.moderate]`, else on `[build]`, key by key; its table names no executor (0144-gate-outside, phase 1).
 - `conduct.py close <change-id>` ends a build with one command for a run and a hand build: the gate under the OS sandbox, the metrics, the plan check kept in `plan-check.txt`, then `build.done`; a failed step writes `gate.red` or `build.halt`. `gate_run.py` reads a gate past its limit as red, exit 124 (0144-gate-outside, phase 2).
 - The build loop gates the build itself: after the last phase it runs the gate, and a red one gets one `phase=repair` worker, then halts. The close worker only simplifies; the conductor then marks `build.simplified`, runs `close`, drops a simplify commit the gate is red with, and closes with no worker after an amend of the change directory alone (0144-gate-outside, phase 3).
