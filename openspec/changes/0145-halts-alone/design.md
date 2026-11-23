@@ -131,13 +131,15 @@ Base counts, each from `git grep -c "^def test_" -- <file>`:
 | layer | file | tests added |
 |---|---|---|
 | unit | `tests/test_statuslog.py` | `test_names_worker_reads_a_workers_halt` |
-| unit | `tests/test_converge.py` | `test_a_scope_that_misses_once_is_sent_out_again`, `test_a_worker_halt_with_no_verdict_is_a_halt_before_round_1`, `test_a_codex_failure_fallback_is_named_in_the_verdicts_line` |
+| unit | `tests/test_converge.py` | `test_a_scope_that_misses_once_is_sent_out_again`, `test_a_scope_missed_twice_halts_on_a_file_gone_or_malformed`, `test_a_worker_halt_with_no_verdict_is_a_halt_before_round_1`, `test_a_codex_failure_fallback_is_named_in_the_verdicts_line` |
 | integration | `tests/test_conduct.py` | `test_a_decided_amend_needs_no_trailer_under_the_switch`, `test_a_refused_amend_is_reset_off_head`, `test_a_gate_red_under_load_waits_and_runs_again`, `test_a_codex_checker_that_fails_twice_runs_on_claude`, `test_a_failed_checker_probe_leaves_the_checkers_on_claude`, `test_a_worker_halt_is_a_rerun_at_the_same_head`, `test_a_hand_converge_reads_the_models_file`, `test_the_supervisor_re_plans_a_design_cap_once`, `test_wait_halt_ends_at_a_final_halt` |
 | integration | `tests/test_integrate.py` | `test_changelog_drops_a_stacked_bases_released_entries` |
 | end-to-end | none | none: no browser shows any of it (T1) |
 
-Each new `test_conduct.py` test runs the conductor against `fake_worker.py` or `fake_codex.py`, as its neighbours do (T2). None
-runs over 5 s.
+Each new `test_conduct.py` test runs the conductor against `fake_worker.py` or `fake_codex.py`, as its neighbours do (T2). Three
+carry `@pytest.mark.slow`, which `make check` skips (T1): `test_a_refused_amend_is_reset_off_head` (11.73 s),
+`test_the_supervisor_re_plans_a_design_cap_once` (37.97 s) and `test_a_failed_checker_probe_leaves_the_checkers_on_claude`.
+No other added test runs over 5 s.
 
 ## Dependencies
 

@@ -96,5 +96,5 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
   Verify: `git grep -c -F "is missing: its checker left no findings file" -- skills/mf-converge/scripts/converge.py` prints `skills/mf-converge/scripts/converge.py:3`.
 - [x] 7.2 In `converge.py`, drop `rescoped`'s missing-file branch ([D7](design.md#d7)): `rescoped` returns `Verdict | None`, raising only on a malformed file, and `held` reads a file missing after its first read or after the rescope through its one existing `<role>.md is missing` halt, placed after the rescope. No behaviour changes.
   Verify: `git grep -c -F "is missing: its checker left no findings file" -- skills/mf-converge/scripts/converge.py` prints `skills/mf-converge/scripts/converge.py:2`.
-- [x] 7.3 Keep `test_a_scope_missed_twice_halts_on_a_file_gone_or_malformed` in `tests/test_converge.py`: its gone case asserts the halt `retried` raises, its malformed case `rescoped`'s; edit it only if 7.2 turns it red.
+- [x] 7.3 Add `test_a_scope_missed_twice_halts_on_a_file_gone_or_malformed` to `tests/test_converge.py`: its gone case asserts the halt `retried` raises, its malformed case `rescoped`'s.
   Verify: `uv run pytest tests/test_converge.py -k "scope_missed_twice or scope_that_misses_once or findings_file_is_read_by_its_fields" -q` exits 0.
