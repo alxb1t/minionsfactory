@@ -780,6 +780,46 @@ def test_the_plan_review_asks_what_else_produces_a_rule_subject(tmp_path: Path) 
     assert len(_review_question_problems(tmp_path)) == 3
 
 
+_MODELS = "## Suggesting models"
+_PARTS = ("`[rescue]`", "`[supervise]`", "[rescue]  #", "[supervise]  #")
+
+
+def _models_parts_problems(base: Path) -> list[str]:
+    """Return one line per rescue or supervise mention *Suggesting models* lacks.
+
+    e.g. a section with no `[supervise]` → ["... has no `[supervise]`"].
+    """
+    prefix = f"skills/{_CUT}/SKILL.md"
+    path = base / prefix
+    if not path.is_file():
+        return [f"{prefix}: does not exist"]
+    section = path.read_text().partition(f"{_MODELS}\n")[2].partition("\n## ")[0]
+    return [
+        f"{prefix}: `{_MODELS}` has no `{part}`"
+        for part in _PARTS
+        if part not in section
+    ]
+
+
+def test_the_skills_name_the_rescue_and_supervise_parts(tmp_path: Path) -> None:
+    assert _models_parts_problems(_REPO) == []
+    plan = (_REPO / "skills" / "mf-plan" / "SKILL.md").read_text()
+    assert "rescue <model> <effort> · supervise <model> <effort> · shadow" in plan
+
+    prefix = f"skills/{_CUT}/SKILL.md"
+    _plant(tmp_path, {_CUT: f"{_MODELS}\n\n`[rescue]` [rescue]  # a\n"})
+
+    assert _models_parts_problems(tmp_path) == [
+        f"{prefix}: `{_MODELS}` has no `{part}`"
+        for part in ("`[supervise]`", "[supervise]  #")
+    ]
+
+    # A part past the section's end must not count.
+    _plant(tmp_path, {_CUT: f"{_MODELS}\n\n## Never\n\n{' '.join(_PARTS)}\n"})
+
+    assert len(_models_parts_problems(tmp_path)) == len(_PARTS)
+
+
 # No skill tells a worker to run a command substitution: the conductor's shell rules
 # refuse one. `$(shell …)` and `$(MAKE)` in a rule's prose are not one.
 # Why: 0130-small-fixes design D5.

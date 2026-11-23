@@ -507,6 +507,45 @@ def test_the_models_line_takes_build_close(
     )
 
 
+def test_a_models_line_takes_rescue_and_supervise_after_fix(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    parts = "fix claude-opus-5-5 medium · rescue claude-sonnet-5-5 high · supervise"
+    ordered = _READY.replace(
+        "cut opus high", f"cut opus high · {parts} claude-opus-5-5 high · shadow"
+    )
+    assert ordered != _READY
+    assert brief_check.main([str(_write(tmp_path, ordered))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    assert "rescue" in brief_check.PARTS and "supervise" in brief_check.PARTS
+
+
+def test_a_models_line_out_of_order_or_with_a_host_halts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rescue, supervise = "rescue a b", "supervise a b"
+    swapped = f"cut a b · {supervise} · {rescue}"
+    before_fix = f"cut a b · {rescue} · fix a b"
+    lines = (
+        swapped,
+        before_fix,
+        "cut a b · rescue claude/a b",
+        "cut a b · supervise codex/a b",
+    )
+    brief = _READY + "".join(
+        f"{n}. **ok** · minor · after: none\n"
+        f"   - models: build a b · converge a b · release a b · {line}\n"
+        for n, line in enumerate(lines, 2)
+    )
+    assert brief_check.main([str(_write(tmp_path, brief))]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"brief: halt — ## For the cut: item 2 — {brief_check.MODELS}",
+        f"brief: halt — ## For the cut: item 3 — {brief_check.MODELS}",
+        "brief: halt — ## For the cut: item 4 — rescue takes no host: `claude/a`",
+        "brief: halt — ## For the cut: item 5 — supervise takes no host: `codex/a`",
+    ]
+
+
 def test_an_npm_row_is_checked_at_the_plan(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -597,8 +636,8 @@ def test_a_brief_out_of_shape_halts(
         "brief: halt — ## For the cut: item 3 — no after:",
         "brief: halt — ## For the cut: item 3 — the models line is not"
         " build · converge · release · cut, then any of build-moderate · build-close"
-        " · conformance · adversarial · fix, each <model> <effort>, or skip for"
-        " converge, conformance and adversarial, then shadow",
+        " · conformance · adversarial · fix · rescue · supervise, each <model>"
+        " <effort>, or skip for converge, conformance and adversarial, then shadow",
         "brief: halt — ## For the cut: item 4 — no models line",
     ]
     # A host it does not know, a host on cut or build-moderate, shadow before
@@ -624,8 +663,9 @@ def test_a_brief_out_of_shape_halts(
         *(
             f"brief: halt — ## For the cut: item {n} — the models line is not"
             " build · converge · release · cut, then any of build-moderate ·"
-            " build-close · conformance · adversarial · fix, each <model> <effort>,"
-            " or skip for converge, conformance and adversarial, then shadow"
+            " build-close · conformance · adversarial · fix · rescue · supervise,"
+            " each <model> <effort>, or skip for converge, conformance and"
+            " adversarial, then shadow"
             for n in (5, 6, 7, 8, 9)
         ),
         "brief: halt — ## For the cut: item 10 — build-moderate takes no host:"
@@ -959,8 +999,8 @@ def test_a_models_line_naming_a_skip(
         " skip together: write converge skip",
         "brief: halt — ## For the cut: item 9 — the models line is not"
         " build · converge · release · cut, then any of build-moderate · build-close"
-        " · conformance · adversarial · fix, each <model> <effort>, or skip for"
-        " converge, conformance and adversarial, then shadow",
+        " · conformance · adversarial · fix · rescue · supervise, each <model>"
+        " <effort>, or skip for converge, conformance and adversarial, then shadow",
     ]
 
 

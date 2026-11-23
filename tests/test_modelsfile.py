@@ -42,7 +42,8 @@ _EVERY_PART: str = (
     " · release claude-sonnet-5-5 medium · cut claude-opus-5-5 high"
     " · build-moderate claude-sonnet-5-5 high · build-close claude-sonnet-5-5 high"
     " · conformance codex/gpt-6.1-sol high"
-    " · adversarial claude/claude-opus-5-5 high · fix claude-opus-5-5 medium · shadow"
+    " · adversarial claude/claude-opus-5-5 high · fix claude-opus-5-5 medium"
+    " · rescue claude-sonnet-5-5 high · supervise claude-opus-5-5 high · shadow"
 )
 _EVERY_TABLE = (
     'decide = "recommended"\n\n'
@@ -55,6 +56,8 @@ _EVERY_TABLE = (
     '[converge.adversarial]\nmodel = "claude-opus-5-5"\neffort = "high"\n'
     'executor = "claude"\n\n'
     '[converge.fix]\nmodel = "claude-opus-5-5"\neffort = "medium"\n\n'
+    '[rescue]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n\n'
+    '[supervise]\nmodel = "claude-opus-5-5"\neffort = "high"\n\n'
     '[release]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n'
 )
 _DEFAULTS = ("claude", None, None)
@@ -333,7 +336,7 @@ def test_case_g_the_token_check_reaches_every_table(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
     models, minions = conduct["_models"], tmp_path / ".minions"
-    tables = (*modelsfile.TABLES.values(), *modelsfile.PERSON)
+    tables = modelsfile.TABLES.values()
     assert set(tables) >= {*conduct["WORKERS"], conduct["MODERATE"], "build"}
     for table in tables:
         for key in ("model", "effort"):
@@ -1030,6 +1033,16 @@ def test_the_text_writes_a_build_close_table(tmp_path: Path) -> None:
         modelsfile.read(tmp_path, _CHANGE)
 
 
+def test_a_rescue_and_a_supervise_part_write_their_tables() -> None:
+    named = {"rescue": ["claude-sonnet-5-5", "high"], "supervise": ["s", "low"]}
+    written = modelsfile.text(False, named, False)
+    assert written == (
+        '[rescue]\nmodel = "claude-sonnet-5-5"\neffort = "high"\n\n'
+        '[supervise]\nmodel = "s"\neffort = "low"\n'
+    )
+    assert "executor" not in written
+
+
 def test_module_read(tmp_path: Path) -> None:
     assert modelsfile.read(tmp_path, _CHANGE) == {}
     path = _models_toml(tmp_path, '[build]\nmodel = "m"\n')
@@ -1067,7 +1080,7 @@ def test_module_read(tmp_path: Path) -> None:
         modelsfile.read(tmp_path, _CHANGE)
     path.rmdir()
     # Every table's words are tokens; a key the map does not name is ignored.
-    for table in (*modelsfile.TABLES.values(), *modelsfile.PERSON):
+    for table in modelsfile.TABLES.values():
         _models_toml(tmp_path, f'[{table}]\nmodel = "m"\neffort = "a;b"\n')
         said = f"^{table} 'a;b' is not a model or effort$"
         with pytest.raises(modelsfile.Broken, match=said):
@@ -1238,7 +1251,7 @@ def test_module_write(tmp_path: Path) -> None:
 
 
 def test_the_one_map_round_trips(tmp_path: Path) -> None:
-    """Read back every key `text` writes, and the person's keys it writes none of.
+    """Read back every key `text` writes, and the keys it writes none of.
 
     Why: 0142-models design D12.
     """
@@ -1258,7 +1271,6 @@ def test_the_one_map_round_trips(tmp_path: Path) -> None:
         modelsfile.write(tmp_path, _CHANGE, skip)
         skipped = modelsfile.read(tmp_path, _CHANGE)
         assert modelsfile.skipping(skipped, (table,)) == {table}
-    assert not any(f"[{name}]" in written for name in modelsfile.PERSON)
     assert "auto_grant" not in written
     person = (
         '[rescue]\nmodel = "m"\neffort = "high"\nskip = true\n\n'

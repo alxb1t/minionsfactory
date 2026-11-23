@@ -443,7 +443,8 @@ else. A `converge skip` part is `skip = true` under `[converge]`, no worker tabl
 skip` or `adversarial skip` part is `skip = true` alone under that checker's table. A `build-moderate` part is
 `[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. A `build-close`
 part is `[build.close]`, the same keys and no `executor`: the close runs on it, else on `[build.moderate]`, else on
-`[build]`. Write `decide = "recommended"` before the tables when that item says
+`[build]`. A `rescue` part is `[rescue]` and a `supervise` part `[supervise]`, each its `model` and `effort` and no
+`executor`. Write `decide = "recommended"` before the tables when that item says
 `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
@@ -467,6 +468,8 @@ a change for `[build]`.
   A new code path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent
   wrong output — calls for the tiers named. Say which you found. A `skip` is the person's: it stands in the
   brief's models line, and you suggest none.
+- **Rescue** — `[rescue]`: Sonnet 5.5 · high, where the session offers it. **Supervisor** — `[supervise]`: the strongest
+  tier · high.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
@@ -499,6 +502,12 @@ effort = "<effort>"
 model = "<offered model>"
 effort = "<effort>"
 [converge.fix]
+model = "<offered model>"
+effort = "<effort>"
+[rescue]  # optional, from the brief's rescue
+model = "<offered model>"
+effort = "<effort>"
+[supervise]  # optional, from the brief's supervise
 model = "<offered model>"
 effort = "<effort>"
 [release]

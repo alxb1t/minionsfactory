@@ -779,7 +779,8 @@ the change, for `mf-ship`; model selection
 and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close:
 `conduct.py` writes those when it queues the cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and a cut
 by hand writes what `brief_check.py --models` prints, which `--write` writes through `skills/mflib/modelsfile.py`; no
-station's prose calls `--write` yet.**
+station's prose calls `--write` yet. The models line's rescue and supervise part, each a model and an effort with no
+host, after `fix`, are the `[rescue]` and `[supervise]` tables: Sonnet 5.5 · high and the strongest tier · high.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.

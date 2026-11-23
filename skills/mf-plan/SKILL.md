@@ -190,7 +190,7 @@ Fixed sections, so the cut relies on fixed places. The title carries the depth; 
 
   ## For the cut
   <n>. **<slug>** · <bump> · after: <ids, or the slug of an earlier item, or none> · beside: <ids, or the slug of an earlier item> · debt: [<ids>] or none · decide: recommended
-     - models: build <model> <effort> · converge <model> <effort> | converge skip · release <model> <effort> · cut <model> <effort> · build-moderate <model> <effort> · build-close <model> <effort> · conformance <host/model> <effort> | conformance skip · adversarial <host/model> <effort> | adversarial skip · fix <host/model> <effort> · shadow
+     - models: build <model> <effort> · converge <model> <effort> | converge skip · release <model> <effort> · cut <model> <effort> · build-moderate <model> <effort> · build-close <model> <effort> · conformance <host/model> <effort> | conformance skip · adversarial <host/model> <effort> | adversarial skip · fix <host/model> <effort> · rescue <model> <effort> · supervise <model> <effort> · shadow
      - **Acceptance:** <commands>
   ```
 
@@ -203,11 +203,12 @@ proposed fix. `conduct.py cut` writes `models.toml` from the `models:` line when
 shares files with, which nothing waits on (D69). A root `AGENTS.md` line `**Converge:** skip`, `conformance skip` or `adversarial skip` pre-fills the suggested line with that
 part; the person confirms or changes it. Read the line for nothing else.
 
-The `build-moderate`, `build-close`, `conformance`, `adversarial`, `fix` and `shadow` parts are optional.
-`build-moderate` builds the phases the cut rates `moderate`; `build-close` runs the close's simplify worker. A host
+The `build-moderate`, `build-close`, `conformance`, `adversarial`, `fix`, `rescue`, `supervise` and `shadow` parts are optional.
+`build-moderate` builds the phases the cut rates `moderate`; `build-close` runs the close's simplify worker; `rescue` and
+`supervise` pick the models of the rescue and the supervisor, each after `fix`. A host
 prefix, `claude/` or `codex/`, names a part's executor:
 `converge codex/gpt-6.1-sol high`. None means the run's for a station and converge's for a checker; `cut`,
-`build-moderate` and `build-close` take none; `fix codex/<model> <effort>` runs the fixer on Codex, and a `fix` with no host runs on Claude. `shadow` turns on the shadow round 1, the person's choice at each close. `skip` takes no
+`build-moderate`, `build-close`, `rescue` and `supervise` take none; `fix codex/<model> <effort>` runs the fixer on Codex, and a `fix` with no host runs on Claude. `shadow` turns on the shadow round 1, the person's choice at each close. `skip` takes no
 model, no effort and no `shadow`; both checkers skipped is `converge skip`.
 
 `## Dependencies` is required in a hard brief: `None.`, or a row per package the person approved — `item` its

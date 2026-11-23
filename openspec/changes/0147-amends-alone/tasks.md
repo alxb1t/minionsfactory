@@ -7,7 +7,7 @@ The phases that budget a halt by its head, ask the review's new question, let th
 - [x] 1 — The budgets by halt · hard
 - [x] 2 — The plan review's question · moderate
 - [x] 3 — The fixer and the plan's text · hard
-- [ ] 4 — The rescue's and the supervisor's models · moderate
+- [x] 4 — The rescue's and the supervisor's models · moderate
 - [ ] 5 — The Linux test and the records · moderate
 
 ## 1 — The budgets by halt
@@ -81,25 +81,25 @@ The phases that budget a halt by its head, ask the review's new question, let th
 
 ## 4 — The rescue's and the supervisor's models
 
-- [ ] 4.1 In `skills/mflib/modelsfile.py` add `rescue` and `supervise` to `TABLES` after `fix`, read `TABLES` alone and delete
+- [x] 4.1 In `skills/mflib/modelsfile.py` add `rescue` and `supervise` to `TABLES` after `fix`, read `TABLES` alone and delete
   `PERSON` ([D4](design.md#d4)); edit `_EVERY_PART`, `_EVERY_TABLE` and each test of `tests/test_modelsfile.py` that reads it or loops `TABLES`.
   Verify: `uv run pytest tests/test_modelsfile.py -q` exits 0.
-- [ ] 4.2 Add `test_a_rescue_and_a_supervise_part_write_their_tables` to `tests/test_modelsfile.py`: a models text with the parts
+- [x] 4.2 Add `test_a_rescue_and_a_supervise_part_write_their_tables` to `tests/test_modelsfile.py`: a models text with the parts
   writes `[rescue]` and `[supervise]`, each with `model` and `effort` and no `executor`.
   Verify: `uv run pytest tests/test_modelsfile.py -q -k rescue_and_a_supervise_part` exits 0.
-- [ ] 4.3 In `skills/mf-plan/scripts/brief_check.py` add `rescue` and `supervise` to `PARTS` after the checks, to `HOSTLESS` and to `MODELS`
+- [x] 4.3 In `skills/mf-plan/scripts/brief_check.py` add `rescue` and `supervise` to `PARTS` after the checks, to `HOSTLESS` and to `MODELS`
   ([D4](design.md#d4)); edit the tests of `tests/test_brief_check.py` that assert the `MODELS` text.
   Verify: `git grep -n -e "supervise" -- skills/mf-plan/scripts/brief_check.py` exits 0.
-- [ ] 4.4 Add `test_a_models_line_takes_rescue_and_supervise_after_fix` and `test_a_models_line_out_of_order_or_with_a_host_halts` to
+- [x] 4.4 Add `test_a_models_line_takes_rescue_and_supervise_after_fix` and `test_a_models_line_out_of_order_or_with_a_host_halts` to
   `tests/test_brief_check.py`: the parts after `fix` pass, out of order or with a host they halt.
   Verify: `uv run pytest tests/test_brief_check.py -q -k "takes_rescue_and_supervise or out_of_order_or_with_a_host"` exits 0.
-- [ ] 4.5 Edit the models grammar and the optional-parts paragraph of `skills/mf-plan/SKILL.md`: `supervise <model> <effort>` and
+- [x] 4.5 Edit the models grammar and the optional-parts paragraph of `skills/mf-plan/SKILL.md`: `supervise <model> <effort>` and
   `rescue <model> <effort>`, no host, after `fix`.
   Verify: `git grep -n -e "supervise <model>" -- skills/mf-plan/SKILL.md` exits 0.
-- [ ] 4.6 Edit *Suggesting models* of `skills/mf-cut-change/SKILL.md`: the rescue on Sonnet 5.5 · high, the supervisor on the
+- [x] 4.6 Edit *Suggesting models* of `skills/mf-cut-change/SKILL.md`: the rescue on Sonnet 5.5 · high, the supervisor on the
   strongest tier · high, a `[rescue]` and `[supervise]` table in the template; test `test_the_skills_name_the_rescue_and_supervise_parts`.
   Verify: `uv run pytest tests/test_skills.py -q -k name_the_rescue_and_supervise_parts` exits 0.
-- [ ] 4.7 Edit the decision "Model suggestions use offered capabilities" in `docs/decisions.md`: the models line's rescue and
+- [x] 4.7 Edit the decision "Model suggestions use offered capabilities" in `docs/decisions.md`: the models line's rescue and
   supervise part ([D4](design.md#d4)).
   Verify: `git grep -n -e "supervise part" -- docs/decisions.md` exits 0.
 
