@@ -988,8 +988,10 @@ no rescue or supervisor answers.**
 
 **After the cut commit the conductor runs `cut_check.py` through the sandbox runner ([D51](#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)),
 then each `Cut checks` command of the primary's `AGENTS.md`. A failure writes its lines to `cut.red`, resets the branch this
-call cut to the default branch, and starts the cutter once more; a second failure halts the cut. A branch the run found
-already holding the change halts at the first failure, and nothing is reset. A person's phase is refused at the cut.**
+call cut to the default branch, and starts the cutter once more; a second failure resets the branch again and halts the cut.
+A file a check leaves in the tree fails it. Each run ends after 1800 s, keeps 2000 lines, and writes the tree and the run
+directory alone. A branch the run found already holding the change halts at the first failure, and nothing is reset. A
+person's phase is refused at the cut.**
 
 - **Why:** a row binds only as far as the cutter obeys its skill, and the faults the rows read cost a halt, a rescue and a new
   run once the build finds them.
