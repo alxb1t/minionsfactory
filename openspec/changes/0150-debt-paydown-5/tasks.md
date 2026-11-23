@@ -5,7 +5,7 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 ## Progress
 
 - [x] 1 — The cut's rows · moderate
-- [ ] 2 — The conductor's small fixes · moderate
+- [x] 2 — The conductor's small fixes · moderate
 - [ ] 3 — The drain · hard
 - [ ] 4 — Converge and the viewer · moderate
 - [ ] 5 — The texts · moderate
@@ -21,22 +21,22 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 
 ## 2 — The conductor's small fixes
 
-- [ ] 2.1 Keep the newline of a cut line in `_Tail.write` in `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
+- [x] 2.1 Keep the newline of a cut line in `_Tail.write` in `skills/mf-ship/scripts/conduct.py`, per [D5](design.md#d5).
   Add `test_a_kept_line_cut_at_4000_characters_keeps_its_newline` to `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k test_a_kept_line_cut_at_4000_characters_keeps_its_newline` exits 0.
-- [ ] 2.2 Make `_cut_checked` in `skills/mf-ship/scripts/conduct.py` take the checker's exit 1 as a failed plan only when a line starts with `CUT_HALT`, per [D5](design.md#d5).
+- [x] 2.2 Make `_cut_checked` in `skills/mf-ship/scripts/conduct.py` take the checker's exit 1 as a failed plan only when a line starts with `CUT_HALT`, per [D5](design.md#d5).
   Add `test_a_crash_that_quotes_the_halt_marker_mid_line_is_no_failed_plan` to `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k test_a_crash_that_quotes_the_halt_marker_mid_line_is_no_failed_plan` exits 0.
-- [ ] 2.3 Add `_operator_env()` to `skills/mf-ship/scripts/conduct.py`, and build the environments of `_sync_scripts` and `_prefetch` from it, per [D13](design.md#d13).
+- [x] 2.3 Add `_operator_env()` to `skills/mf-ship/scripts/conduct.py`, and build the environments of `_sync_scripts` and `_prefetch` from it, per [D13](design.md#d13).
   Add `test_an_operators_uv_python_reaches_no_preparation_or_fetch` to `tests/test_conduct.py`.
   Verify: `uv run pytest -q tests/test_conduct.py -k test_an_operators_uv_python_reaches_no_preparation_or_fetch` exits 0.
-- [ ] 2.4 Build the environment of `sandboxed()` from `_operator_env()` in `skills/mf-ship/scripts/conduct.py`, per [D13](design.md#d13).
+- [x] 2.4 Build the environment of `sandboxed()` from `_operator_env()` in `skills/mf-ship/scripts/conduct.py`, per [D13](design.md#d13).
   In `tests/test_sandboxed.py` set `UV_PYTHON` and `PIP_INDEX_URL` in `test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment` and assert neither reaches the command.
   Verify: `uv run pytest -q tests/test_sandboxed.py -k test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment` exits 0.
-- [ ] 2.5 Start each worker of `argv` in `skills/mf-ship/scripts/conduct.py` through `env -u` for every `UV_` and `PIP_` name the conductor holds, per [D13](design.md#d13).
+- [x] 2.5 Start each worker of `argv` in `skills/mf-ship/scripts/conduct.py` through `env -u` for every `UV_` and `PIP_` name the conductor holds, per [D13](design.md#d13).
   Add `test_an_operators_uv_python_reaches_no_worker` to `tests/test_conduct.py`, setting names in mixed order and asserting the sorted `-u` pairs; edit the tests there that read a worker command's prefix after `env -u VIRTUAL_ENV`, each clearing every `UV_` and `PIP_` variable first.
   Verify: `uv run pytest -q tests/test_conduct.py -k test_an_operators_uv_python_reaches_no_worker` exits 0.
-- [ ] 2.6 End an `OSError` of the log's write in the halt handler of `run()` and at both stops of `stop_run`, in `skills/mf-ship/scripts/conduct.py`, as a `Stop` of exit 2 naming the log, per [D13](design.md#d13).
+- [x] 2.6 End an `OSError` of the log's write in the halt handler of `run()` and at both stops of `stop_run`, in `skills/mf-ship/scripts/conduct.py`, as a `Stop` of exit 2 naming the log, per [D13](design.md#d13).
   Add `test_a_run_log_removed_mid_run_ends_the_run_in_a_named_stop` to `tests/test_conduct.py`, and to `tests/test_runlog.py` `test_case_e_stop_run_names_a_log_it_cannot_write` and `test_case_e_stop_run_names_a_log_it_cannot_write_after_a_failed_clear`.
   Verify: `uv run pytest -q tests/test_conduct.py tests/test_runlog.py -k "test_a_run_log_removed_mid_run_ends_the_run_in_a_named_stop or test_case_e_stop_run_names_a_log_it_cannot_write"` exits 0.
 

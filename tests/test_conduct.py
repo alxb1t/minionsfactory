@@ -76,6 +76,12 @@ def _primary(tmp_path: Path, agents: str = _WORKTREES) -> Path:
     return root.resolve()
 
 
+def _clear_uv_and_pip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unset every `UV_` and `PIP_` variable, so a worker's prefix holds none."""
+    for name in [n for n in os.environ if n.startswith(("UV_", "PIP_"))]:
+        monkeypatch.delenv(name)
+
+
 def _version(
     root: Path, change: str, progress: str, after: str = "", beside: str = ""
 ) -> Path:
@@ -5635,6 +5641,66 @@ sys.exit(int(os.environ.get("FAKE_UV_EXIT", "0")))
 """
 
 
+def test_an_operators_uv_python_reaches_no_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0150-debt-paydown-5 design D13.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    repo = (root, root / ".git")
+    monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    _clear_uv_and_pip(monkeypatch)
+    for name in ("UV_PYTHON", "PIP_INDEX_URL", "UV_INDEX_URL", "PIP_CACHE_DIR"):
+        monkeypatch.setenv(name, "operator")
+    monkeypatch.setenv("KEPT", "yes")
+    pairs = ["-u", "VIRTUAL_ENV"]
+    for name in ("PIP_CACHE_DIR", "PIP_INDEX_URL", "UV_INDEX_URL", "UV_PYTHON"):
+        pairs += ["-u", name]
+
+    for executor in conduct["EXECUTORS"]:
+        command = conduct["argv"](executor, "Do it.", root, None, None, repo)
+
+        assert command[: len(pairs) + 1] == ["env", *pairs]
+        assert command[len(pairs) + 1 :][: len(conduct["HOOKS_OFF"])] == list(
+            conduct["HOOKS_OFF"]
+        )
+
+
+def test_an_operators_uv_python_reaches_no_preparation_or_fetch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0150-debt-paydown-5 design D13.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    skills = tmp_path / "skills"
+    (skills / "mf-new" / "scripts").mkdir(parents=True)
+    (skills / "mf-new" / "scripts" / "a.py").write_text("# /// script\n# ///\n")
+    for name in ("UV_PYTHON", "PIP_INDEX_URL", "VIRTUAL_ENV"):
+        monkeypatch.setenv(name, "operator")
+    monkeypatch.setenv("KEPT", "yes")
+    seen: list[dict[str, str]] = []
+
+    def run(
+        command: list[str], env: dict[str, str] | None = None, **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        if command[0] == "uv" and env is not None:
+            seen.append(env)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert conduct["_sync_scripts"](root, [skills]) is None
+    assert conduct["_prefetch"](root, [["left-pad", ">=1.3"]]) == []
+
+    cache = str(root / ".minions" / "uv-cache")
+    assert len(seen) == 2
+    for env in seen:
+        assert [n for n in env if n.startswith(("UV_", "PIP_"))] == ["UV_CACHE_DIR"]
+        assert env["UV_CACHE_DIR"] == cache
+        assert "VIRTUAL_ENV" not in env
+        assert env["KEPT"] == "yes"
+
+
 @pytest.mark.slow
 def test_a_cut_prefetches_its_approved_wheels(
     tmp_path: Path,
@@ -6878,6 +6944,29 @@ def test_cutcheck_cannot_run_halts(
     assert len(prompts) == 1
 
 
+def test_a_crash_that_quotes_the_halt_marker_mid_line_is_no_failed_plan(
+    tmp_path: Path, cut_check: Path
+) -> None:
+    # Why: 0150-debt-paydown-5 design D5.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-a", "- [ ] 1 — One\n")
+    (root / ".minions").mkdir(exist_ok=True)
+    quoted = f"ValueError: saw {conduct['CUT_HALT']}V7"
+    _checks(cut_check, 1, said=quoted)
+
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["_cut_checked"](root, "0001-a", tree, "minor")
+
+    assert str(stopped.value) == f"the cut check cannot run — {quoted}"
+
+    _checks(cut_check, 1, said=f"{quoted}\n{_FAILING}")
+
+    assert conduct["_cut_checked"](root, "0001-a", tree, "minor") == (
+        f"{quoted}\n{_FAILING}\n"
+    )
+
+
 def test_cutcheck_never_resets_a_rejoin(tmp_path: Path, cut_check: Path) -> None:
     # Why: 0146-cut-catches design D2.
     conduct = _conduct()
@@ -6958,6 +7047,16 @@ def test_a_cut_run_is_boxed_to_the_cutters_reach_and_bounded(
     kept = output.splitlines()
     assert len(kept) == names["CUT_KEPT"]
     assert kept[-1] == f"line {names['CUT_KEPT'] + 49}"
+
+
+def test_a_kept_line_cut_at_4000_characters_keeps_its_newline() -> None:
+    # Why: 0150-debt-paydown-5 design D5.
+    tail = _conduct()["_Tail"]()
+
+    tail.write("x" * 4100 + "\nnext\n")
+
+    assert tail.getvalue() == "x" * 4000 + "\nnext\n"
+    assert tail.getvalue().splitlines() == ["x" * 4000, "next"]
 
 
 def test_cutdeclared_command_passes(tmp_path: Path, cut_check: Path) -> None:
@@ -12443,6 +12542,7 @@ def test_no_hook_runs_in_a_worker(
         hook.write_text(f"#!/bin/sh\ntouch {shlex.quote(str(marker))}\n")
         hook.chmod(0o755)
     monkeypatch.delenv("MF_SHIP_AGENT")
+    _clear_uv_and_pip(monkeypatch)
     size = len(conduct["HOOKS_OFF"])
 
     def commit(extra: dict[str, str]) -> None:
@@ -12867,6 +12967,35 @@ def test_a_missing_worktree_or_a_crash_ends_in_a_halt_line(
         == 1
     )
     assert any(" · run · halt — conduct.py failed: sunk" in line for line in _log(root))
+
+
+def test_a_run_log_removed_mid_run_ends_the_run_in_a_named_stop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
+) -> None:
+    # Why: 0150-debt-paydown-5 design D13.
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    named: list[str] = []
+
+    def sunk(self: types.SimpleNamespace) -> int:
+        named.append(self.log.path.name)
+        self.log.path.unlink()
+        raise ValueError("sunk")
+
+    monkeypatch.setattr(conduct["Run"], "ship", sunk)
+    capsys.readouterr()
+
+    code = _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+
+    shown = capsys.readouterr().out
+    assert code == 2
+    assert f"stop: cannot write .minions/runs/{named[0]} · No such file" in shown
+    assert "Traceback" not in shown
+    assert not (root / ".minions" / "runs" / "active").exists()
 
 
 @pytest.mark.slow
@@ -15760,6 +15889,7 @@ def test_a_codex_worker_gets_its_own_temporary_folder(
 ) -> None:
     conduct = _conduct()
     monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
+    _clear_uv_and_pip(monkeypatch)
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
     repo = (root, root / ".git")
@@ -16056,6 +16186,7 @@ def test_a_worker_carries_the_allowlist_and_a_denial_is_named(
     assert conduct["reach"](tmp_path) == [tmp_path.resolve()]
     repo = (root, root / ".git")
     monkeypatch.delenv("MF_SHIP_AGENT")
+    _clear_uv_and_pip(monkeypatch)
     hooks_off = list(conduct["HOOKS_OFF"])
     cache = f"UV_CACHE_DIR={root / '.minions' / 'uv-cache'}"
     tmp = f"TMPDIR={root / '.minions' / 'tmp'}"

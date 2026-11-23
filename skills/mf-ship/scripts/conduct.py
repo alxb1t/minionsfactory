@@ -858,7 +858,7 @@ def _cut_checked(primary: Path, change: str, tree: Path, bump: str) -> str | Non
     if code == 0:
         return _declared_checks(primary, tree) or _left(tree)
     # A crash exits 1 as a failed plan does: only a halt line is a plan's.
-    if code != 1 or CUT_HALT not in output:
+    if code != 1 or not any(line.startswith(CUT_HALT) for line in output.splitlines()):
         raise Stop(1, f"the cut check cannot run — {_last(output)}")
     return output
 
@@ -1189,16 +1189,24 @@ def _pinned_scripts(skills: Path) -> list[Path]:
     return found
 
 
+def _operator_env() -> dict[str, str]:
+    """Return the conductor's environment without its `UV_` and `PIP_` names.
+
+    `VIRTUAL_ENV` goes too. Why: 0150-debt-paydown-5 design D13.
+    """
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("UV_", "PIP_")) and name != "VIRTUAL_ENV"
+    }
+
+
 def _sync_scripts(primary: Path, roots: Iterable[Path]) -> str | None:
     """Build each pinned script's environment, one at a time; return why one failed.
 
     Why: 0112-uv-race design D2. e.g. [Path("skills")] → None
     """
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if not name.startswith(("UV_", "PIP_")) and name != "VIRTUAL_ENV"
-    }
+    env = _operator_env()
     env["UV_CACHE_DIR"] = str(mflib.layout.run_dir(primary) / "uv-cache")
     for script in (s for root in dict.fromkeys(roots) for s in _pinned_scripts(root)):
         failed = f"uv sync --script {script.name} failed: "
@@ -3345,11 +3353,7 @@ def sandboxed(
     except OSError as error:
         raise Stop(2, f"conduct: cannot run — run folder {minions}: {error}") from error
     tmp = _temp_folder("mf-sandbox-")
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if name != "VIRTUAL_ENV" and name not in TOKENS
-    }
+    env = {name: value for name, value in _operator_env().items() if name not in TOKENS}
     for pair in HOOKS_OFF:
         key, _, value = pair.partition("=")
         env[key] = value
@@ -3491,6 +3495,15 @@ def _gitdirs(common: Path) -> list[Path]:
     return found
 
 
+def _unset_pairs() -> list[str]:
+    """Return `env`'s `-u` pairs: `VIRTUAL_ENV`, then each `UV_` and `PIP_` name.
+
+    Why: 0150-debt-paydown-5 design D13. e.g. UV_PYTHON held → [..., "-u", "UV_PYTHON"]
+    """
+    names = sorted(n for n in os.environ if n.startswith(("UV_", "PIP_")))
+    return [arg for name in ("VIRTUAL_ENV", *names) for arg in ("-u", name)]
+
+
 def argv(
     executor: str,
     prompt: str,
@@ -3529,7 +3542,7 @@ def argv(
         allowed, denied = allowlist(trees, tools)
         allowed += [f"Edit(/{path})" for path in edits]
         return [
-            *("env", "-u", "VIRTUAL_ENV", *HOOKS_OFF, cache, scratch),
+            *("env", *_unset_pairs(), *HOOKS_OFF, cache, scratch),
             *(npm, *NPM_SETTINGS),
             *(("FORCE_PROMPT_CACHING_5M=1",) if station else ()),
             *("claude", "-p", prompt),
@@ -3572,8 +3585,7 @@ def argv(
     own = (f"TMPDIR={temp}", f"TMPPREFIX={temp}/zsh")
     env = (
         "env",
-        "-u",
-        "VIRTUAL_ENV",
+        *_unset_pairs(),
         *HOOKS_OFF,
         cache,
         *own,
@@ -7241,7 +7253,10 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
         except Exception as error:  # noqa: BLE001
-            conductor.log.event("run", "halt", f"conduct.py failed: {error}")
+            try:
+                conductor.log.event("run", "halt", f"conduct.py failed: {error}")
+            except OSError as unwritten:
+                raise _unwritable(conductor.log.path, unwritten) from None
             code = 1
         seen = conductor.handled()
         ended = "done" if code == 0 else "halt"
@@ -7350,11 +7365,29 @@ def stop_run(cwd: Path) -> str:
     try:
         _clear(active)
     except Stop as stop:
-        mflib.runlog.stop(runs)
+        try:
+            mflib.runlog.stop(runs)
+        except OSError as error:
+            raise _unwritable(mflib.runlog.newest(runs), error, f" · {stop}") from None
         raise Stop(stop.code, f"stop: conductor stopped · {stop}") from None
-    if (log := mflib.runlog.stop(runs)) is None:
+    try:
+        log = mflib.runlog.stop(runs)
+    except OSError as error:
+        raise _unwritable(mflib.runlog.newest(runs), error) from None
+    if log is None:
         return "stop: stopped · no run log"
     return f"stop: stopped · .minions/runs/{log.name}"
+
+
+def _unwritable(log: Path | None, error: OSError, after: str = "") -> Stop:
+    """Return the `Stop` of exit 2 that names the run log a write could not reach.
+
+    Why: 0150-debt-paydown-5 design D13.
+    e.g. "stop: cannot write .minions/runs/20261101-100000.md · Not a directory"
+    """
+    name = log.name if log else "the run log"
+    reason = error.strerror or error
+    return Stop(2, f"stop: cannot write .minions/runs/{name} · {reason}{after}")
 
 
 def _ship_file() -> tuple[Path, dict[str, Any]]:
@@ -7853,11 +7886,7 @@ def _prefetch(primary: Path, rows: list[list[str]]) -> list[str]:
                 f"cut: cannot run — the brief's row {package} {constraint} is not"
                 f" {plain}",
             )
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if not name.startswith(("UV_", "PIP_"))
-    }
+    env = _operator_env()
     env["UV_CACHE_DIR"] = str(mflib.layout.run_dir(primary) / "uv-cache")
     for package, constraint in rows:
         if package.startswith(NPM_PREFIX):
@@ -8421,8 +8450,14 @@ class _Tail(io.StringIO):
         """Keep the lines of `text`, a last unfinished one apart; return its length."""
         lines = (self.partial + text).splitlines(keepends=True)
         self.partial = lines.pop() if lines and not lines[-1].endswith("\n") else ""
-        self.kept.extend(line[:4000] for line in lines)
+        self.kept.extend(self._cut(line) for line in lines)
         return len(text)
+
+    @staticmethod
+    def _cut(line: str) -> str:
+        """Return `line` cut to 4000 characters, its newline kept when it had one."""
+        cut = line[:4000]
+        return cut if cut.endswith("\n") or not line.endswith("\n") else cut + "\n"
 
     def getvalue(self) -> str:
         """Return the kept lines and the unfinished one."""

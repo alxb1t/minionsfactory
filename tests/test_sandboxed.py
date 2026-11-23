@@ -221,6 +221,8 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     for name in conduct["TOKENS"]:
         monkeypatch.setenv(name, "secret")
     monkeypatch.setenv("VIRTUAL_ENV", "/somewhere/venv")
+    monkeypatch.setenv("UV_PYTHON", "/somewhere/python")
+    monkeypatch.setenv("PIP_INDEX_URL", "https://index.invalid/simple")
     monkeypatch.setenv("KEPT", "yes")
 
     code = conduct["sandboxed"](_python(_DUMP), cwd, trees)
@@ -232,6 +234,8 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     assert seen["stdin"] == ""
     assert not set(conduct["TOKENS"]) & set(env)
     assert "VIRTUAL_ENV" not in env
+    assert "UV_PYTHON" not in env
+    assert "PIP_INDEX_URL" not in env
     assert env["KEPT"] == "yes"
     assert env["UV_OFFLINE"] == "1"
     assert env["UV_CACHE_DIR"] == str(trees[0] / ".minions" / "uv-cache")

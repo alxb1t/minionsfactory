@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Row `V2` of `cut_check.py` stays silent on a `-k` expression with a negated word the test's name lacks, since the word may name a marker. Row `V6` compares the removed and added lines of the searched file's diff block by its `---` and `+++` header; a block with no header takes no part (0150-debt-paydown-5, phase 1).
+- The conductor keeps the newline of a cut line cut at 4000 characters and takes the cut checker's exit 1 for a failed plan only when a line starts with its halt marker. A worker, `sandboxed()`, preparation and the fetch no longer carry an operator's `UV_` or `PIP_` variable. A run log that cannot be written ends the run, or `stop_run`, in a `stop: cannot write` line of exit 2 (0150-debt-paydown-5, phase 2).
 
 ## [0.119.1] - 2026-11-24
 
