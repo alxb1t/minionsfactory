@@ -11,7 +11,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 - [x] 5 — The build's unplanned file · moderate
 - [x] 6 — The records · moderate
 - [x] 7 — The unplanned-file pass scoped · moderate
-- [ ] 8 — The checker's exits and the fix commits · moderate
+- [x] 8 — The checker's exits and the fix commits · moderate
 
 ## 1 — The conductor checks the cut
 
@@ -110,7 +110,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 8 — The checker's exits and the fix commits
 
-- [ ] 8.1 In `skills/mf-converge/references/worker.md` scope the `unplanned-file` row per [D7](design.md#d7), in the words `names as a fix's`: a file changed only by a commit the status log names as a fix's is left out. Say the same in the line of `skills/mf-converge/references/verify.md` on that pass.
+- [x] 8.1 In `skills/mf-converge/references/worker.md` scope the `unplanned-file` row per [D7](design.md#d7), in the words `names as a fix's`: a file changed only by a commit the status log names as a fix's is left out. Say the same in the line of `skills/mf-converge/references/verify.md` on that pass.
   Verify: `git grep -q -F -e "names as a fix" -- skills/mf-converge/references/worker.md` exits `0`.
-- [ ] 8.2 Correct the docstring of `_cut_checked` in `skills/mf-ship/scripts/conduct.py` per [D1](design.md#d1), in the words `exit 1 with no`: an exit 1 with no `cut_check: halt — ` line stops as `the cut check cannot run`, as the code does.
+- [x] 8.2 Correct the docstring of `_cut_checked` in `skills/mf-ship/scripts/conduct.py` per [D1](design.md#d1), in the words `exit 1 with no`: an exit 1 with no `cut_check: halt — ` line stops as `the cut check cannot run`, as the code does.
   Verify: `git grep -q -F -e "exit 1 with no" -- skills/mf-ship/scripts/conduct.py` exits `0`.

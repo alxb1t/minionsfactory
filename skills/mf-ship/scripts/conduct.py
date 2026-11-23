@@ -847,8 +847,8 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
 def _cut_checked(primary: Path, change: str, tree: Path, bump: str) -> str | None:
     """Return the output of the cut's checker that failed in `tree`; None on a pass.
 
-    An exit above 1, or a run that cannot start, stops as `the cut check cannot run`.
-    Why: 0146-cut-catches design D1.
+    An exit above 1, an exit 1 with no `cut_check: halt — ` line or a run that cannot
+    start stops as `the cut check cannot run`. Why: 0146-cut-catches design D1.
     """
     argv_ = [sys.executable, str(CUT_CHECK), change, "--bump", bump]
     try:

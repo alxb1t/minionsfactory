@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The build edits a file no task names when a red `make check` needs it, and lists it on an `Unplanned: <path>` line of the commit body; conformance gains an `unplanned-file` pass, a `nit` for a listed file and `blocking` for one with no line. `I6` and `I7` say the build answers a file a task leaves unnamed: it was the largest class of halts (0146-cut-catches, phase 5).
 - D89 `The conductor checks the cut` records the run's cut check and its single recut; D77 names `V7`, `V8` and `K7` and the conductor's run of the checker, and D60 says the cut refuses a person's phase while the conductor still reads one of a version cut before (0146-cut-catches, phase 6).
 - Conformance's `unplanned-file` pass leaves out `CHANGELOG.md` and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase: read over every unnamed file, the pass raised a `blocking` card no build could clear (0146-cut-catches, phase 7).
+- The `unplanned-file` pass also leaves out a file changed only by a commit the status log names as a fix's, in `worker.md` and `verify.md`: a fix answers cards and carries no `Unplanned:` line. `_cut_checked`'s docstring names an exit 1 with no `cut_check: halt — ` line as `the cut check cannot run`, as the code does (0146-cut-catches, phase 8).
 
 ## [0.116.0] - 2026-11-23
 
