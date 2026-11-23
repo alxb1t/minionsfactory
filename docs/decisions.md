@@ -1003,6 +1003,27 @@ person's phase is refused at the cut.**
 - **Rejected:** an amend by a second cutter · a third try · a reset of a rejoin's branch · a gate at the cut.
 - **Amends:** D7, D60 and D77, each edited where it lives.
 
+### D90 · The run log carries a build's phase, the load, a halt's cause and each gate
+
+**A build worker's spawn line names its phase right after the station word: `build · phase <n> · …`, `build · close · …`,
+`build · repair · …`. Every spawn and finish line the conductor writes, the converge script's pair among them, ends
+` · load <n>`, the 1-minute load to one decimal, and leaves the field out where it cannot be read. Every halt line ends
+` · cause <word>`, a word of `CAUSES` in `skills/mflib/runlog.py`, classed by `cause_of` in `conduct.py` from the reason's start
+before its other words; the closing summary line and the person's stop line carry none. The conductor logs
+`check — gate · start` before each gate it runs, and converge logs each gate it runs, `pass` or `fail — red` with its seconds,
+through `Host.logged`. The viewer shows a worker's phase, a running gate and a cause; review metrics books a build log's cost
+under its phase as `phases` rows; `scripts/metrics/run.py` reads the lines unchanged.**
+
+- **Why:** each measurement of a run read these facts by hand: the phase from a worker's first prompt, a cause from a halt's
+  free text, the load from nowhere. The viewer showed nothing while a gate ran, and converge's gates left an exit in a command
+  log.
+- **Accepts:** a halt text with no row of `cause_of` is `other` until a row is added · a reused gate record reads as a short pass
+  in converge's lines, as in the conductor's · `gate_running` is true at a conductor's start line alone, so a gate inside
+  converge shows as the converge worker running · a log with no spawn line of its ordinal books under no phase.
+- **Rejected:** a phase at the line's end · a new event name · a cause argument at each call site of `Run.halt` · a cause in
+  the status log · `plan_check.py`'s `load_average`, which reads a failure as 0.0 · a start line from converge · a catalogue
+  metric over causes or phases.
+
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,

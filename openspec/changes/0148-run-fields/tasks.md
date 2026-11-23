@@ -9,7 +9,7 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 - [x] 3 — A halt's cause · moderate
 - [x] 4 — The gates' lines · moderate
 - [x] 5 — The readers · moderate
-- [ ] 6 — The records · moderate
+- [x] 6 — The records · moderate
 
 ## 1 — The phase on a build's spawn line
 
@@ -62,7 +62,7 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 ## 6 — The records
 
-- [ ] 6.1 In `docs/decisions.md` add `### D90 · The run log carries a build's phase, the load, a halt's cause and each gate`, after D89: the fields and their reach as [design](design.md) states them, with Why, Accepts and Rejected.
+- [x] 6.1 In `docs/decisions.md` add `### D90 · The run log carries a build's phase, the load, a halt's cause and each gate`, after D89: the fields and their reach as [design](design.md) states them, with Why, Accepts and Rejected.
   Verify: `git grep -n -e "### D90" -- docs/decisions.md` exits 0.
-- [ ] 6.2 In `skills/mf-review-metrics/SKILL.md` add the data key `phases` beside `stations`: one row per build log, its phase, dollars, turns, tokens, seconds and first-turn context.
+- [x] 6.2 In `skills/mf-review-metrics/SKILL.md` add the data key `phases` beside `stations`: one row per build log, its phase, dollars, turns, tokens, seconds and first-turn context.
   Verify: `git grep -n -i -e "phases" -- skills/mf-review-metrics/SKILL.md` exits 0.
