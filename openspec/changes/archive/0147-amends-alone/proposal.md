@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: 0.118
 ---
 
 # Amends alone
