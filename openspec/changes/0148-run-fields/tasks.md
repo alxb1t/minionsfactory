@@ -6,7 +6,7 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 - [x] 1 — The phase on a build's spawn line · moderate
 - [x] 2 — The load on spawn and finish lines · moderate
-- [ ] 3 — A halt's cause · moderate
+- [x] 3 — A halt's cause · moderate
 - [ ] 4 — The gates' lines · moderate
 - [ ] 5 — The readers · moderate
 - [ ] 6 — The records · moderate
@@ -31,13 +31,13 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 ## 3 — A halt's cause
 
-- [ ] 3.1 In `skills/mflib/runlog.py` add `CAUSES`, the list of [D3](design.md#d3), and `cause_suffix`, which returns ` · cause <word>` and raises `ValueError` on a word off the list. Add `test_the_cause_list_and_its_suffix` to `tests/test_runlog.py`.
+- [x] 3.1 In `skills/mflib/runlog.py` add `CAUSES`, the list of [D3](design.md#d3), and `cause_suffix`, which returns ` · cause <word>` and raises `ValueError` on a word off the list. Add `test_the_cause_list_and_its_suffix` to `tests/test_runlog.py`.
   Verify: `uv run pytest tests/test_runlog.py -q -k test_the_cause_list_and_its_suffix` exits 0.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` add `def cause_of(who, reason)`: the table of [D3](design.md#d3), its rows in that order, first row that holds wins, `other` for none.
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` add `def cause_of(who, reason)`: the table of [D3](design.md#d3), its rows in that order, first row that holds wins, `other` for none.
   Verify: `git grep -n -e "def cause_of" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 3.3 `Run.halt` writes the reason and `cause_suffix(cause_of(…))` and keeps the bare reason in `self.halts`. `Run.final` ends with the cause of its first reason. The early crash's line in `run` ends with the cause `run`. The calls of `Run.closing` carry none.
+- [x] 3.3 `Run.halt` writes the reason and `cause_suffix(cause_of(…))` and keeps the bare reason in `self.halts`. `Run.final` ends with the cause of its first reason. The early crash's line in `run` ends with the cause `run`. The calls of `Run.closing` carry none.
   Verify: `git grep -n -e "cause_suffix(" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 3.4 In `tests/test_conduct.py` make each assertion that ends a halt line, the final halt of `test_wait_halt_ends_at_a_final_halt` and the rescue and supervision text of `test_a_stuck_stage_halt_names_its_rescue_and_supervision` take the cause. Add `test_a_halt_line_ends_with_its_cause` for each row of the table, its cases holding the real texts `converge check fail — the status log halts: …`, `integrate check fail — integrate halted — red gate …` and `probe check fail — …`, `test_a_halt_that_fits_no_row_is_other`, `test_the_final_halt_carries_the_first_reasons_cause`, `test_the_run_closing_line_carries_no_cause` over the closing line and the person's stop line, `test_a_converge_halt_is_classed_by_its_words`, `test_a_workers_text_after_a_failed_check_is_no_cause` and `test_an_early_crash_ends_with_the_cause_run`.
+- [x] 3.4 In `tests/test_conduct.py` make each assertion that ends a halt line, the final halt of `test_wait_halt_ends_at_a_final_halt` and the rescue and supervision text of `test_a_stuck_stage_halt_names_its_rescue_and_supervision` take the cause. Add `test_a_halt_line_ends_with_its_cause` for each row of the table, its cases holding the real texts `converge check fail — the status log halts: …`, `integrate check fail — integrate halted — red gate …` and `probe check fail — …`, `test_a_halt_that_fits_no_row_is_other`, `test_the_final_halt_carries_the_first_reasons_cause`, `test_the_run_closing_line_carries_no_cause` over the closing line and the person's stop line, `test_a_converge_halt_is_classed_by_its_words`, `test_a_workers_text_after_a_failed_check_is_no_cause` and `test_an_early_crash_ends_with_the_cause_run`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "test_a_halt_line_ends_with_its_cause or test_a_halt_that_fits_no_row_is_other or test_the_final_halt_carries_the_first_reasons_cause or test_the_run_closing_line_carries_no_cause or test_a_converge_halt_is_classed_by_its_words or test_a_workers_text_after_a_failed_check_is_no_cause or test_an_early_crash_ends_with_the_cause_run"` exits 0.
 
 ## 4 — The gates' lines

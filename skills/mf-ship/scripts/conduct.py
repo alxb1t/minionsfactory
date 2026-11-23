@@ -4524,7 +4524,8 @@ class Run:
             self.halts.append((who, reason))
             if who != "run":
                 self.seen_halts[who] = seen
-        self.log.event(who, "halt", reason)
+        cause = mflib.runlog.cause_suffix(cause_of(who, reason))
+        self.log.event(who, "halt", f"{reason}{cause}")
 
     def on_disk(self, change: str) -> tuple[str, str, str] | None:
         """Return a version's stage, why and `HEAD` on disk; None when a read raises."""
@@ -6104,7 +6105,10 @@ class Run:
             reasons = [reason for who, reason in self.halts if who == change]
         if reasons:
             action = self._needs(change)
-            self.log.event(change, "halt", f"{FINAL}needs {action} · {reasons[0]}")
+            cause = mflib.runlog.cause_suffix(cause_of(change, reasons[0]))
+            self.log.event(
+                change, "halt", f"{FINAL}needs {action} · {reasons[0]}{cause}"
+            )
 
     def cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
         """Cut a queued brief in its own worktree, check it on disk, then take it.
@@ -7255,7 +7259,11 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
         except Exception as error:  # noqa: BLE001
-            conductor.log.event("run", "halt", f"conduct.py failed: {error}")
+            conductor.log.event(
+                "run",
+                "halt",
+                f"conduct.py failed: {error}{mflib.runlog.cause_suffix('run')}",
+            )
             code = 1
         seen = conductor.handled()
         ended = "done" if code == 0 else "halt"
@@ -8471,6 +8479,62 @@ def _first(output: str) -> str:
     """Return the first line of `output` that holds a word, or `no output`."""
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     return lines[0] if lines else "no output"
+
+
+_STATUS_HALTS = "converge check fail — the status log halts:"
+# The rows of design D3 that anchor on a reason's start, in its order.
+_ANCHORED = tuple(
+    (cause, re.compile(pattern))
+    for cause, pattern in (
+        ("cut", r"cut-halted"),
+        (
+            "gate-red",
+            r"\S+ check fail — gate(:| red after the repair)|integrating — red gate"
+            r"|integrate check fail — integrate halted — red gate",
+        ),
+        ("plan-text", r"\S+ check fail — plan check"),
+        ("release", r"release check fail|released —|git push origin"),
+        ("merge", r"integrate check fail|integrating —"),
+        ("human", r"human —"),
+        ("limit", r"probe.*limited until"),
+        ("probe", r"probe|.*cannot write the probe mark"),
+        ("check-red", r"\S+ check fail"),
+        ("run", r"conduct\.py failed"),
+    )
+)
+# The rows of design D3 that hold words, in its order.
+_HELD = tuple(
+    (cause, re.compile(pattern))
+    for cause, pattern in (
+        ("limit", r"usage limit|limited until"),
+        (
+            "worker",
+            r"worker exit|timed out after|asked for a tool|left no findings file",
+        ),
+        ("amend", r"amend needed"),
+        ("cap", r"cap reached|^re-plan"),
+        ("plan-text", r"verify: halt"),
+        ("gate-red", r"the gate is red"),
+    )
+)
+
+
+def _held_cause(text: str) -> str | None:
+    """Return the cause of the first `_HELD` row that holds in `text`, or None."""
+    return next((cause for cause, row in _HELD if row.search(text)), None)
+
+
+def cause_of(who: str, reason: str) -> str:
+    """Return a halt's cause word: the first row of design D3 that holds, else `other`.
+
+    e.g. "build", "build check fail — plan check: x" → "plan-text"
+    """
+    if reason.startswith(_STATUS_HALTS):
+        return _held_cause(reason.removeprefix(_STATUS_HALTS)) or "other"
+    for cause, row in _ANCHORED:
+        if row.match(reason):
+            return cause
+    return "run" if who == "run" else _held_cause(reason) or "other"
 
 
 def _load_tail() -> str:

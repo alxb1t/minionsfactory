@@ -1128,14 +1128,17 @@ def test_wait_halt_ends_at_a_final_halt(
     log = runs / "20261119-100000.md"
     log.write_text("10:00:00 · run · start — executor claude\n")
     answered = "10:00:09 · 0001-todo · halt — build — phase 1 unticked\n"
-    final = "10:00:10 · 0001-todo · halt — final — needs a fix · build — phase 1\n"
+    final = (
+        "10:00:10 · 0001-todo · halt — final — needs a fix · build — phase 1"
+        " · cause check-red\n"
+    )
     steps = [_gain(log, answered), _gain(log, final)]
     _waiting(conduct, monkeypatch, ["live"], steps)
 
     assert _main(conduct, root, "wait", "--halt", monkeypatch=monkeypatch) == 1
     assert capsys.readouterr().out == (
         f"{answered}wait: live · +1 lines\n{final}"
-        "wait: halt — 0001-todo · build — phase 1\n"
+        "wait: halt — 0001-todo · build — phase 1 · cause check-red\n"
         "run · live\n0001-todo · build\n"
     )
 
@@ -1576,7 +1579,7 @@ def test_a_dependents_delta_halts_as_integrating(
     assert "build 0002-marks" not in _calls(calls)
     halted = (
         " · 0002-marks · halt — integrating — semantic conflict:"
-        " .minions/changes/0002-marks/integrate.md\n"
+        " .minions/changes/0002-marks/integrate.md · cause merge\n"
     )
     assert halted in log
     assert " · run · halt — halted 0002-marks · blocked none · released v0.1.0" in log
@@ -1656,7 +1659,7 @@ def test_a_crashed_integrate_script_halts_and_a_rerun_merges(
     assert any(
         line.endswith(
             " · 0002-marks · halt — conduct: cannot run — integrate.py delta:"
-            " OSError: no fork"
+            " OSError: no fork · cause other"
         )
         for line in _log(crashed)
     )
@@ -2175,7 +2178,7 @@ def test_a_merge_in_conflict_halts_naming_the_merge(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — merging main into 0001-todo"
             " conflicts in Makefile: git -C"
-            f" {shlex.quote(str(clashed_tree))} merge main, then re-run"
+            f" {shlex.quote(str(clashed_tree))} merge main, then re-run · cause other"
         )
         for line in _log(clashed)
     )
@@ -2231,6 +2234,7 @@ def test_an_open_merge_with_no_note_halts(
             " · 0001-todo · halt — conduct: halt — a merge is open in 0001-todo's"
             " worktree with no note while phase 1 is unticked: finish it with"
             f" git -C {shlex.quote(str(opened_tree))} commit, then re-run"
+            " · cause other"
         )
         for line in _log(opened)
     )
@@ -2255,7 +2259,7 @@ def test_an_open_merge_with_its_note_halts_as_integrating(
     assert any(
         line.endswith(
             " · 0001-todo · halt — integrating — semantic conflict:"
-            " .minions/changes/0001-todo/integrate.md"
+            " .minions/changes/0001-todo/integrate.md · cause merge"
         )
         for line in _log(noted)
     )
@@ -2366,8 +2370,9 @@ def test_a_dependent_waits_while_its_dependency_works(
     _version(late, "0002-marks", "- [ ] 1 — Marks\n")
     assert _run_claude(conduct, late, monkeypatch) == 1
     assert [line.split(" · ", 1)[1] for line in _log(late) if " · halt — " in line] == [
-        "0001-todo · halt — waiting — after 0001-todo",
-        "0001-todo · halt — final — needs a fix · waiting — after 0001-todo",
+        "0001-todo · halt — waiting — after 0001-todo · cause other",
+        "0001-todo · halt — final — needs a fix · waiting — after 0001-todo"
+        " · cause other",
         "run · halt — halted 0001-todo · blocked none · released v0.1.0"
         " · needs 0001-todo a fix",
     ]
@@ -2481,7 +2486,9 @@ def test_run_halts_on_a_human_phase(
     assert "release 0002-marks" in _calls(calls)
     lines = _log(root)
     assert any(
-        line.endswith(" · 0001-todo · halt — human — phase 2 — Ship **HUMAN**")
+        line.endswith(
+            " · 0001-todo · halt — human — phase 2 — Ship **HUMAN** · cause human"
+        )
         for line in lines
     )
     assert lines[-1].endswith(
@@ -2523,7 +2530,7 @@ def test_run_halts_on_a_human_phase(
     )
     assert _calls(calls) == ["probe", "build 0001-todo"]
     assert _log(built)[-3].endswith(
-        " · 0001-todo · halt — human — phase 2 — Ship **HUMAN**"
+        " · 0001-todo · halt — human — phase 2 — Ship **HUMAN** · cause human"
     )
 
     # A HUMAN phase whose title names a cap, over small open blockers, gets no grant.
@@ -2607,7 +2614,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     assert any(
         line.endswith(
             " · 0001-todo · halt — build check fail — phase 1 unticked"
-            " · denied: Bash(rm -rf build)"
+            " · denied: Bash(rm -rf build) · cause check-red"
         )
         for line in lines
     )
@@ -2621,6 +2628,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     assert any(
         line.endswith(
             " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
+            " · cause check-red"
         )
         for log in logs
         for line in log.read_text().splitlines()
@@ -2677,7 +2685,7 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     assert any(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml:"
-            " it is not UTF-8"
+            " it is not UTF-8 · cause other"
         )
         for line in lines
     )
@@ -2718,6 +2726,7 @@ def test_a_rescue_fixes_a_plan_halt_in_its_run(
     assert any(
         line.endswith(
             " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
+            " · cause check-red"
         )
         for line in lines
     )
@@ -3099,7 +3108,10 @@ def test_a_halt_in_a_phase_resumes_there(
     )
     assert calls.read_text().splitlines().count(f"{build}1") == 1
     assert any(
-        line.endswith(" · 0001-todo · halt — build check fail — phase 1 unticked")
+        line.endswith(
+            " · 0001-todo · halt — build check fail — phase 1 unticked"
+            " · cause check-red"
+        )
         for line in _log(lone)
     )
 
@@ -3205,7 +3217,7 @@ def test_a_rescue_amends_at_amend_needed(
     assert "release 0001-todo" not in _calls(calls)
     design = "openspec/changes/0001-todo/design.md"
     assert any(
-        line.endswith(f" · 0001-todo · halt — rescue touched {design}")
+        line.endswith(f" · 0001-todo · halt — rescue touched {design} · cause other")
         for line in lines
     )
     assert not any(" · run · rescue — " in line for line in lines)
@@ -3344,7 +3356,7 @@ def test_a_refused_amend_is_reset_off_head(
         lines[-4],
     )
     assert lines[-3].endswith(
-        f" · 0001-todo · halt — rescue changed a decision: {design}"
+        f" · 0001-todo · halt — rescue changed a decision: {design} · cause other"
     )
 
     # A trailer-less amend reads as the person's: it stays at `HEAD`.
@@ -3449,7 +3461,7 @@ def test_a_rescue_decides_under_the_switch(
     assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
     design = "openspec/changes/0002-marks/design.md"
     assert lines[-3].endswith(
-        f" · 0002-marks · halt — rescue changed a decision: {design}"
+        f" · 0002-marks · halt — rescue changed a decision: {design} · cause other"
     )
     assert _git(tree, "rev-parse", "HEAD") == cut
     decision = "## Decisions\n\n| D1 | the card's fix |\n"
@@ -3768,7 +3780,9 @@ def test_a_rescue_diagnoses_a_decision_halt(
         for line in lines
     )
     assert any(
-        line.endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+        line.endswith(
+            f" · 0001-todo · halt — rescue diagnosed — {diagnosis} · cause other"
+        )
         for line in lines
     )
     capsys.readouterr()
@@ -3792,7 +3806,7 @@ def test_a_rescue_diagnoses_a_decision_halt(
     )
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
     assert _log(root)[-3].endswith(
-        " · 0001-todo · halt — rescue wrote no amend and no diagnosis"
+        " · 0001-todo · halt — rescue wrote no amend and no diagnosis · cause other"
     )
 
     # A rescue worker that fails halts as any worker does.
@@ -3801,7 +3815,9 @@ def test_a_rescue_diagnoses_a_decision_halt(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(root)[-3].endswith(" · 0001-todo · halt — rescue worker exit 1")
+    assert _log(root)[-3].endswith(
+        " · 0001-todo · halt — rescue worker exit 1 · cause worker"
+    )
 
 
 @pytest.mark.slow
@@ -3820,7 +3836,9 @@ def test_a_rescue_outside_the_plan_halts(
 
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
     assert _log(root)[-4].endswith(" dropped: rescue touched src.py")
-    assert _log(root)[-3].endswith(" · 0001-todo · halt — rescue touched src.py")
+    assert _log(root)[-3].endswith(
+        " · 0001-todo · halt — rescue touched src.py · cause other"
+    )
     assert not any(" · run · rescue — " in line for line in _log(root))
 
     # A rescue that rewrites the history its amend is judged against halts too.
@@ -3831,7 +3849,7 @@ def test_a_rescue_outside_the_plan_halts(
         == 1
     )
     assert _log(root)[-3].endswith(
-        f" · 0001-todo · halt — rescue moved HEAD off {before}"
+        f" · 0001-todo · halt — rescue moved HEAD off {before} · cause other"
     )
 
     # An amend is one commit with the amend's subject and trailer, and none at a
@@ -3875,7 +3893,7 @@ def test_a_sub_task_is_rescued_once(
     ]
     assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
-        " · rescued 1.1 1.1 1.1"
+        " · rescued 1.1 1.1 1.1 · cause check-red"
     )
 
     # The fourth halt gets none, whatever its sub-task.
@@ -4308,8 +4326,11 @@ def test_a_second_red_gate_halts_after_the_repair(
 
     made = _calls(calls)
     assert made == ["probe", "build 0001-todo", "build 0001-todo with phase=repair"]
-    halted = " · 0001-todo · halt — build check fail — gate red after the repair"
-    assert any(halted in line for line in lines), lines
+    halted = (
+        " · 0001-todo · halt — build check fail — gate red after the repair"
+        " · cause gate-red"
+    )
+    assert any(line.endswith(halted) for line in lines), lines
     gate_red = ".minions/changes/0001-todo/gate.red"
     assert _halt_keys(root) == {
         "sub-task": "repair",
@@ -4328,8 +4349,8 @@ def test_a_second_red_gate_halts_after_the_repair(
     fake("dies-phase-repair")
     lines = _run_ok(died, monkeypatch, code=1)
     assert _calls(calls)[-1] == "build 0001-todo with phase=repair"
-    exited = " · 0001-todo · halt — build worker exit 1"
-    assert any(exited in line for line in lines), lines
+    exited = " · 0001-todo · halt — build worker exit 1 · cause worker"
+    assert any(line.endswith(exited) for line in lines), lines
     assert _gate_lines(lines) == ["gate · fail — red · Ns"]
     assert not (_marks(died) / "build.halt").exists()
 
@@ -4702,7 +4723,7 @@ def test_a_spent_rescue_starts_the_supervisor_once(
     ]
     assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
-        " · rescued 1.1 1.1 1.1 · supervised 1.1 1.1"
+        " · rescued 1.1 1.1 1.1 · supervised 1.1 1.1 · cause check-red"
     )
 
     # The third halt gets none, whatever its sub-task.
@@ -4728,7 +4749,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
     )
     lines = _log(root)
     assert lines[-3].endswith(
-        " · 0001-todo · halt — supervisor touched tests/test_todo.py"
+        " · 0001-todo · halt — supervisor touched tests/test_todo.py · cause other"
     )
     assert not any(" · run · supervise — " in line for line in lines)
 
@@ -4741,7 +4762,9 @@ def test_a_supervisor_amend_outside_the_change_halts(
         _main(conduct, none, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(none)[-3].endswith(" · 0002-marks · halt — supervisor wrote no amend")
+    assert _log(none)[-3].endswith(
+        " · 0002-marks · halt — supervisor wrote no amend · cause other"
+    )
 
     # An amend is one commit of one parent, with the amend's subject and both
     # trailers, under the change's folder.
@@ -4887,8 +4910,8 @@ def test_the_supervisor_re_plans_a_design_cap_once(
     decided = f" · run · supervise — 0001-todo: decided · converge-halted · {amend[:7]}"
     assert any(line.endswith(f"{decided} · re-plan") for line in lines)
     assert not any(" · grant — " in line for line in lines)
-    assert lines[-8].endswith(f" · head {_git(tree, 'rev-parse', 'HEAD')}")
-    assert lines[-7].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    assert lines[-8].endswith(f" · head {_git(tree, 'rev-parse', 'HEAD')} · cause cap")
+    assert lines[-7].endswith(" · 0001-todo · halt — re-plan: R1 S1 · cause cap")
     diagnosed = (
         " · rescue — 0001-todo: diagnosed · .minions/changes/0001-todo/rescue.md"
     )
@@ -5016,7 +5039,7 @@ def test_a_supervisor_settle_outside_the_text_halts(
 
     lines = _log(root)
     assert any(
-        line.endswith(" · 0002-marks · halt — supervisor touched src.py")
+        line.endswith(" · 0002-marks · halt — supervisor touched src.py · cause other")
         for line in lines
     )
     assert not any(" · run · supervise — " in line for line in lines)
@@ -5207,7 +5230,9 @@ def test_a_later_version_halts_and_the_earlier_ships(
     # The build check's halt, then its rescue's.
     halts = [line for line in lines if " · 0002-marks · halt — " in line]
     halted = halts[0]
-    assert halts[1].endswith(" · halt — rescue wrote no amend and no diagnosis")
+    assert halts[1].endswith(
+        " · halt — rescue wrote no amend and no diagnosis · cause other"
+    )
     spawned = next(line for line in lines if " · 0001-todo · spawn — release" in line)
     assert lines.index(halted) < lines.index(spawned)
     assert lines[-1].endswith(
@@ -5411,6 +5436,7 @@ def test_a_new_executor_is_probed_mid_run(
                 assert any(
                     line.endswith(
                         f" · {change} · halt — probe-codex — codex is not on PATH"
+                        " · cause probe"
                     )
                     for line in lines
                 )
@@ -7282,7 +7308,8 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert _calls(calls) == ["probe", "cut-change 0001-a"]
     lines = _log(root)
     halted = f" · 0001-a · halt — cut-halted — {doubt}{answer('0001-a', brief)}"
-    after = " · 0002-b · halt — cut-halted — after 0001-a is cut-halted"
+    halted += " · cause cut"
+    after = " · 0002-b · halt — cut-halted — after 0001-a is cut-halted · cause cut"
     assert any(line.endswith(halted) for line in lines)
     assert any(line.endswith(after) for line in lines)
     assert lines[-1].endswith(closing)
@@ -7308,6 +7335,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert _run_claude(conduct, root, monkeypatch) == 1
     nothing = (
         " · 0001-a · halt — cut-halted — 0001-a: no cut commit at the branch's tip"
+        " · cause cut"
     )
     assert any(line.endswith(nothing) for line in _log(root))
 
@@ -7378,7 +7406,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
         fake(mode)
         assert _run_claude(conduct, root, monkeypatch) == 1
         assert conduct["_cuts"](root)[change]["halt"] == line
-        logged = f" · {change} · halt — cut-halted — {line}"
+        logged = f" · {change} · halt — cut-halted — {line} · cause cut"
         assert any(entry.endswith(logged) for entry in _log(root)) != (
             mode == "dies-cut"
         )
@@ -7428,7 +7456,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     unapproved = "design.md adds what the brief did not approve: right-pad ^2"
     unapproved += answer("0020-p", packages)
     assert conduct["_cuts"](root)["0020-p"]["halt"] == unapproved
-    logged = f" · 0020-p · halt — cut-halted — {unapproved}"
+    logged = f" · 0020-p · halt — cut-halted — {unapproved} · cause cut"
     assert any(entry.endswith(logged) for entry in _log(root))
     # A tag of the branch's name at the default branch's tip is not the branch.
     rows = conduct["_unapproved"](root, "0020-p", [])
@@ -7524,7 +7552,7 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     assert models.read_text() != _MODELS
     assert conduct["_cuts"](root)["0030-h"]["halt"] == changed
     assert any(
-        entry.endswith(f" · 0030-h · halt — cut-halted — {changed}")
+        entry.endswith(f" · 0030-h · halt — cut-halted — {changed} · cause cut")
         for entry in _log(root)
     )
     names["_start_run"] = lambda primary, executor: 4242
@@ -7575,7 +7603,9 @@ def test_a_cut_halt_is_shown_and_rejoin_cuts_again(
     join()
     lines = _log(root)
     assert any(
-        line.endswith(" · 0011-x · halt — probe-codex — codex is not on PATH")
+        line.endswith(
+            " · 0011-x · halt — probe-codex — codex is not on PATH · cause probe"
+        )
         for line in lines
     )
     assert "cut-change 0011-x" not in _calls(calls)
@@ -8944,7 +8974,9 @@ def test_a_station_runs_on_its_executor(
     )
     assert _calls(calls) == ["probe"]
     assert any(
-        line.endswith(" · run · halt — probe-codex — codex is not on PATH")
+        line.endswith(
+            " · run · halt — probe-codex — codex is not on PATH · cause probe"
+        )
         for line in _log(second)
     )
 
@@ -8998,7 +9030,9 @@ def test_a_codex_checker_falls_back_where_codex_is_not_installed(
     )
     assert _calls(calls) == ["probe"]
     assert any(
-        line.endswith(" · run · halt — probe-codex — codex is not on PATH")
+        line.endswith(
+            " · run · halt — probe-codex — codex is not on PATH · cause probe"
+        )
         for line in _log(second)
     )
 
@@ -9027,7 +9061,7 @@ def test_a_models_mismatch_halts_its_version(
     assert any(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml:"
-            " executor 'gemini' unknown"
+            " executor 'gemini' unknown · cause other"
         )
         for line in _log(root)
     )
@@ -9045,7 +9079,7 @@ def test_a_models_mismatch_halts_its_version(
     assert any(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml:"
-            " converge on codex, model claude-opus-5-5"
+            " converge on codex, model claude-opus-5-5 · cause other"
         )
         for line in _log(root)
     )
@@ -9060,10 +9094,15 @@ def test_a_changed_git_config_halts_a_merge_in(
     held = (
         " · run · halt — conduct: halt — the repo's git config holds a key that could"
         " name a program: mf.planted; move it to the global config or remove it"
+        " · cause run"
     )
     for mode, said, remote in (
-        ("plant-config", f"{changed} .git/config differs", False),
-        ("plant-attributes", f"{changed} .git/info/attributes differs", False),
+        ("plant-config", f"{changed} .git/config differs · cause other", False),
+        (
+            "plant-attributes",
+            f"{changed} .git/info/attributes differs · cause other",
+            False,
+        ),
         ("plant-held", held, False),
         ("plant-held", held, True),
     ):
@@ -9119,6 +9158,7 @@ def test_run_halts_on_a_timeout(
     assert any(
         line.endswith(
             " · 0001-todo · halt — build timed out after 2s; its group was killed"
+            " · cause worker"
         )
         for line in lines
     )
@@ -9326,7 +9366,10 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     (aside / "tmp" / "kept.txt").write_text("x\n")
     assert run() == 1
     assert (aside / "tmp" / "kept.txt").read_text() == "x\n"
-    linked = " · run · halt — .minions is a link: a person settles what it names\n"
+    linked = (
+        " · run · halt — .minions is a link: a person settles what it names"
+        " · cause run\n"
+    )
     assert any(linked in log.read_text() for log in (aside / "runs").glob("*.md"))
 
 
@@ -9809,7 +9852,7 @@ def test_a_rerun_recovers_a_dead_release(
     run(1)
     assert _calls(calls) == []
     assert any(
-        line.endswith(f" · 0002-marks · halt — released — {said}")
+        line.endswith(f" · 0002-marks · halt — released — {said} · cause release")
         for line in _log(root)
     )
     assert _git(root, "branch", "--no-merged", "main").endswith(" 0002-marks")
@@ -9855,7 +9898,7 @@ def test_a_release_cut_short_is_recovered(
         line.endswith(
             " · 0003-more · halt — released — v0.3.0 is tagged; main moved, so recover"
             " by hand: git tag -d v0.3.0, git reset --hard HEAD~1, then"
-            " /mf-integrate 0003-more, /mf-converge, /mf-release"
+            " /mf-integrate 0003-more, /mf-converge, /mf-release · cause release"
         )
         for line in _log(root)
     )
@@ -10018,7 +10061,9 @@ def test_a_rerun_pushes_what_a_release_left(
     run(1)
     assert _calls(calls) == []
     lines = _log(root)
-    assert lines[-2].endswith(" · run · halt — git push origin main failed, exit 1")
+    assert lines[-2].endswith(
+        " · run · halt — git push origin main failed, exit 1 · cause release"
+    )
     assert lines[-1].endswith(
         " · run · halt — halted run · blocked none · released none"
         " · unpushed main v0.2.0"
@@ -10335,7 +10380,7 @@ def test_a_refused_tag_push_halts_the_run(
 
     assert _run_claude(conduct, root, monkeypatch) == 1
     assert _log(root)[-2].endswith(
-        " · run · halt — git push origin v0.1.0 failed, exit 1"
+        " · run · halt — git push origin v0.1.0 failed, exit 1 · cause release"
     )
     assert _git(origin, "rev-parse", "main") == _git(root, "rev-parse", "main")
     # tags = false: no tag, no halt
@@ -10362,7 +10407,7 @@ def test_a_diverged_default_halts_at_the_push(
 
     assert _run_claude(conduct, root, monkeypatch) == 1
     assert _log(root)[-2].endswith(
-        " · run · halt — git push origin main failed, exit 1"
+        " · run · halt — git push origin main failed, exit 1 · cause release"
     )
     assert _git(root, "rev-parse", "main") == held
 
@@ -10418,7 +10463,7 @@ def _origin_judged(
         assert capsys.readouterr().out.strip() == said
         assert _run_claude(conduct, root, monkeypatch) == 1
         log = conduct["last_log"](root / ".minions" / "runs").read_text()
-        assert f" · run · halt — {said}\n" in log
+        assert f" · run · halt — {said} · cause run\n" in log
         assert _git(root, "ls-remote", "origin", "refs/heads/main").split()[0] == pushed
         assert _calls(calls) == []
 
@@ -10620,7 +10665,7 @@ def test_a_secret_in_the_push_range_halts_the_run(
         "conduct: halt — the push range holds a secret: github-pat in settings.txt"
         f" at {leaked[:7]}; nothing pushed"
     )
-    assert f" · run · halt — {said}\n" in log
+    assert f" · run · halt — {said} · cause run\n" in log
     assert key not in log
     assert _git(root, "ls-remote", "origin") == pushed
     assert _calls(calls) == []
@@ -11547,7 +11592,7 @@ def test_a_forged_release_on_an_older_default_is_not_pushed(
         f" person decides, then removes ~/.mf-ship-origin/{named.name}"
     )
     log = conduct["last_log"](root / ".minions" / "runs").read_text()
-    assert f" · run · halt — {said}\n" in log
+    assert f" · run · halt — {said} · cause run\n" in log
     assert _git(root, "ls-remote", "origin") == listed
     # Twin: a person restores it and removes the kept name; the run keeps it anew.
     _git(origin, "symbolic-ref", "HEAD", "refs/heads/main")
@@ -11790,7 +11835,7 @@ def test_a_worker_repointing_origin_reaches_nothing(
 
     assert _git(elsewhere, "for-each-ref") == ""
     said = " · run · halt — the local git config changed during the run: .git/config"
-    assert any(line.endswith(f"{said} differs") for line in _log(root))
+    assert any(line.endswith(f"{said} differs · cause run") for line in _log(root))
     # An `ls-remote` leaves no ref there: the URL itself is what would leave.
     assert not any(str(elsewhere) in args for args in reached)
     for command in _PUSH_COMMANDS:
@@ -12111,7 +12156,7 @@ def test_a_run_with_no_offline_base_halts_when_origin_is_down(
     assert lines[1:4] == _waits(lines)
     assert lines[4:] == [
         "run · halt — conduct: halt — cannot read origin, and no offline base: a"
-        " person runs conduct.py anchor",
+        " person runs conduct.py anchor · cause run",
         "run · halt — halted run · blocked none · released none",
     ]
     assert _calls(calls) == []
@@ -12131,7 +12176,7 @@ def test_a_commit_past_the_offline_base_halts(
     mine = _git(root, "rev-parse", "--short=7", "main").strip()
     assert run()[4] == (
         f"run · halt — conduct: halt — main holds {mine}, no run's release: a person"
-        " reads it, then git push origin main"
+        " reads it, then git push origin main · cause run"
     )
     assert _calls(calls) == []
 
@@ -12245,7 +12290,9 @@ def test_a_local_release_is_pushed_when_origin_returns(
     _commit(other, {"theirs.txt": "x\n"}, "origin moves")
     _git(other, "push", "-q", "origin", "main")
     _git(root, "fetch", "-q", "origin")
-    assert run(1)[-2] == "run · halt — git push origin main failed, exit 1"
+    assert (
+        run(1)[-2] == "run · halt — git push origin main failed, exit 1 · cause release"
+    )
     assert _git(root, "ls-remote", "--tags", "origin") == ""
     assert conduct["_offline_base"](root) == _git(other, "rev-parse", "main").strip()
     _git(other, "push", "-q", "-f", "origin", f"{held}:refs/heads/main")
@@ -12394,7 +12441,7 @@ def test_the_plan_is_read_once(
     assert any(
         line.endswith(
             " · 0001-todo · halt — conduct: halt — changes/0001-todo/models.toml"
-            " changed during the run"
+            " changed during the run · cause other"
         )
         for line in _log(root)
     )
@@ -12533,7 +12580,7 @@ def test_a_commit_during_a_run_halts_before_integrate(
     commit = _git(root, "rev-parse", "main")[:7]
     said = (
         f" · 0001-todo · halt — conduct: halt — main holds {commit}, no run's release:"
-        " a person reads it, then git push origin main"
+        " a person reads it, then git push origin main · cause other"
     )
     assert any(line.endswith(said) for line in _log(root))
     assert pushed in _git(root, "ls-remote", "origin", "refs/heads/main")
@@ -12891,7 +12938,7 @@ def test_a_small_cap_is_granted_automatically(
 def _replanned(root: Path, ids: str) -> list[str]:
     """Return the run log; 0001-todo's `re-plan` halt is the last before its rescue."""
     lines = _log(root)
-    replan = f" · 0001-todo · halt — re-plan: {ids}"
+    replan = f" · 0001-todo · halt — re-plan: {ids} · cause cap"
     at = next(i for i, line in enumerate(lines) if line.endswith(replan))
     assert " · 0001-todo · spawn — rescue · " in lines[at + 1]
     return lines
@@ -12948,7 +12995,7 @@ def test_an_auto_granted_round_that_blocks_halts_as_replan(
     assert _calls(calls) == []
     lines = _log(root)
     assert not any(" · grant — " in line for line in lines)
-    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1 · cause cap")
 
 
 @pytest.mark.slow
@@ -12974,7 +13021,7 @@ def test_auto_grant_false_grants_none(
     )
     assert _calls(calls) == []
     lines = _log(root)
-    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1 · cause cap")
     assert not any(" · grant — " in line for line in lines)
 
     # So does one the version's own pass meets, as beside a version that builds.
@@ -13114,7 +13161,9 @@ def test_a_grant_buys_one_round(
     assert _calls(calls)[-1] == "rescue 0001-todo"
     diagnosis = ".minions/changes/0001-todo/rescue.md"
     assert lines[-4].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
-    assert lines[-3].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+    assert lines[-3].endswith(
+        f" · 0001-todo · halt — rescue diagnosed — {diagnosis} · cause other"
+    )
     # The granted round's cap is the run's second: a re-plan.
     _replanned(root, "R1 S1")
 
@@ -13141,7 +13190,10 @@ def test_a_grant_buys_one_round(
     assert _calls(calls) == ["probe", *sorted(_capped()), "rescue 0001-todo"]
     answered = "rescue answered its halt — converge: granted"
     lines = _log(root)
-    assert any(line.endswith(f" · 0001-todo · halt — {answered}") for line in lines)
+    assert any(
+        line.endswith(f" · 0001-todo · halt — {answered} · cause other")
+        for line in lines
+    )
     assert any(
         line.endswith(f" · run · rejoin — 0001-todo: still halted — {answered}")
         for line in lines
@@ -13721,7 +13773,8 @@ def test_one_halt_is_answered_once(
 def test_a_stuck_stage_halt_names_its_rescue_and_supervision(tmp_path: Path) -> None:
     # `advance` reads the keys at the tree's head, so its halt line names the words.
     # Why: 0147-amends-alone design D1.
-    run, version, tree = _converge_halted(_primary(tmp_path))
+    root = _primary(tmp_path)
+    run, version, tree = _converge_halted(root)
     run.rescues["0001-todo"] = [f"converge-halted@{_short(tree)}"]
     run.supervisions["0001-todo"] = [f"converge-halted@{_short(tree)}"]
 
@@ -13730,6 +13783,162 @@ def test_a_stuck_stage_halt_names_its_rescue_and_supervision(tmp_path: Path) -> 
     who, said = run.halts[0]
     assert who == "0001-todo"
     assert said.endswith(" · rescued converge-halted · supervised converge-halted")
+    [line] = [line for line in _log(root) if " · 0001-todo · halt — " in line]
+    assert line.endswith(f" · halt — {said} · cause other")
+
+
+_CAUSE_CASES = (
+    ("0001-todo", "cut-halted — after 0002-marks is cut-halted", "cut"),
+    ("0001-todo", "cut-halted — 0001-todo: usage limit worker exit 1", "cut"),
+    ("0001-todo", "build check fail — gate: 3 failed", "gate-red"),
+    ("0001-todo", "build check fail — gate red after the repair", "gate-red"),
+    (
+        "0001-todo",
+        "integrating — red gate: .minions/changes/0001-todo/integrate.red",
+        "gate-red",
+    ),
+    (
+        "0001-todo",
+        "integrate check fail — integrate halted — red gate, see"
+        " .minions/changes/0001-todo/integrate.red",
+        "gate-red",
+    ),
+    ("0001-todo", "build check fail — plan check: 1.1 failed", "plan-text"),
+    ("0001-todo", "release check fail — the tag is missing", "release"),
+    ("0001-todo", "released — v0.3.0 is tagged; main moved", "release"),
+    ("run", "git push origin main failed, exit 1", "release"),
+    ("0001-todo", "integrate check fail — a merge is still open", "merge"),
+    ("0001-todo", "integrating — semantic conflict: a.md", "merge"),
+    ("0001-todo", "human — phase 2 — Ship **HUMAN**", "human"),
+    ("run", "probe-codex — codex limited until 10:00", "limit"),
+    ("0001-todo", "build worker exit 1 · stopped by a usage limit", "limit"),
+    ("0001-todo", "converge — codex limited until 10:00", "limit"),
+    ("run", "probe check fail — claude started an MCP server: x", "probe"),
+    ("run", "probe-codex — codex is not on PATH", "probe"),
+    ("run", "converge — cannot write the probe mark: Read-only", "probe"),
+    ("0001-todo", "build check fail — phase 1 unticked · 1.1: 3", "check-red"),
+    ("0001-todo", "converge check fail — the status log has no done", "check-red"),
+    ("run", "conduct.py failed: sunk", "run"),
+    ("0001-todo", "conduct.py failed: sunk", "run"),
+    ("run", ".minions/debt.lock is held", "run"),
+    ("0001-todo", "build worker exit 1", "worker"),
+    ("0001-todo", "build timed out after 2s; its group was killed", "worker"),
+    ("0001-todo", "build asked for a tool its station lacks: Agent", "worker"),
+    ("0001-todo", "conformance left no findings file", "worker"),
+    ("0001-todo", "amend needed — R1 S1 · head a", "amend"),
+    ("0001-todo", "cap reached, R1, S1 open · head a", "cap"),
+    ("0001-todo", "re-plan: R1 S1", "cap"),
+    ("0001-todo", "converge-halted — verify: halt — 1.1", "plan-text"),
+    ("0001-todo", "converge-halted — the gate is red", "gate-red"),
+)
+
+
+def test_a_halt_line_ends_with_its_cause(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    run = _conduct()["Run"](root, "claude")
+    for who, reason, cause in _CAUSE_CASES:
+        run.halt(who, reason)
+
+        assert run.halts[-1] == (who, reason)
+        assert _log(root)[-1].endswith(f" · {who} · halt — {reason} · cause {cause}")
+
+
+def test_a_halt_that_fits_no_row_is_other(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    run = _conduct()["Run"](root, "claude")
+    none = (
+        "waiting — after 0001-todo",
+        "rescue diagnosed — rescue.md",
+        "0001-todo has no worktree",
+        "rescue wrote no amend and no diagnosis",
+        "converge-halted — red · head abc1234",
+    )
+    for reason in none:
+        run.halt("0001-todo", reason)
+
+        assert _log(root)[-1].endswith(" · cause other")
+    assert [reason for _, reason in run.halts] == list(none)
+
+
+def test_a_converge_halt_is_classed_by_its_words(tmp_path: Path) -> None:
+    cause_of = _conduct()["cause_of"]
+    head = "converge check fail — the status log halts: "
+    said = (
+        ("converge worker exit 1 · stopped by a usage limit", "limit"),
+        ("converge-fix-r1 timed out after 9s · head a", "worker"),
+        ("amend needed — S1 · head a", "amend"),
+        ("cap reached, R1 open · head a", "cap"),
+        ("verify: halt — 1.1 · head a", "plan-text"),
+        ("the gate is red", "gate-red"),
+        ("red · head a", "other"),
+        ("gate red before round 1 · head a", "other"),
+    )
+    for text, cause in said:
+        assert cause_of("0001-todo", f"{head}{text}") == cause, text
+    # Twin: the same texts under another check's start class by that start.
+    assert cause_of("0001-todo", "converge check fail — amend needed") == "check-red"
+    assert cause_of("0001-todo", "build check fail — cap reached") == "check-red"
+
+
+def test_a_workers_text_after_a_failed_check_is_no_cause() -> None:
+    cause_of = _conduct()["cause_of"]
+    quoted = " · worker exit 1 · usage limit · amend needed · cap reached"
+    assert cause_of("0001-todo", f"build check fail — phase 1 unticked{quoted}") == (
+        "check-red"
+    )
+    assert cause_of("0001-todo", f"build check fail — gate: red{quoted}") == "gate-red"
+    assert cause_of("0001-todo", f"build check fail — plan check: x{quoted}") == (
+        "plan-text"
+    )
+    assert cause_of("0001-todo", f"integrate check fail — open{quoted}") == "merge"
+    assert cause_of("run", f"probe check fail — claude said{quoted}") == "probe"
+    assert cause_of("0001-todo", f"release check fail — x{quoted}") == "release"
+    # Twin: the same words with no check before them class by themselves.
+    assert cause_of("0001-todo", f"build{quoted}") == "limit"
+
+
+def test_the_final_halt_carries_the_first_reasons_cause(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    run = _conduct()["Run"](root, "claude")
+    first = "build check fail — plan check: 1.1 failed"
+    run.halt("0001-todo", first)
+    run.halt("0001-todo", "rescue worker exit 1")
+    run.final("0001-todo")
+
+    assert _log(root)[-1].endswith(f" · {first} · cause plan-text")
+    assert run.halts[0] == ("0001-todo", first)
+
+
+def test_the_run_closing_line_carries_no_cause(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    run = _conduct()["Run"](root, "claude")
+    run.halt("0001-todo", "build worker exit 1")
+    run.log.event("run", "halt", run.closing())
+
+    closing = _log(root)[-1]
+    assert " · run · halt — halted 0001-todo · " in closing
+    assert " · cause " not in closing
+    assert runlog.stop(layout.runs_dir(root)) is not None
+    assert _log(root)[-1].endswith(f" · run · halt — {runlog.STOPPED}")
+
+
+def test_an_early_crash_ends_with_the_cause_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+
+    def sunk(*_: object) -> int:
+        raise ValueError("sunk")
+
+    monkeypatch.setattr(conduct["Run"], "ship", sunk)
+    code = _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
+
+    assert code == 1
+    assert _log(root)[-1].endswith(
+        " · run · halt — conduct.py failed: sunk · cause run"
+    )
 
 
 def test_the_caps_stand_across_heads(tmp_path: Path) -> None:
@@ -13819,7 +14028,7 @@ def test_a_version_halted_at_two_heads_ends_on_its_newest_halt(
     fake("rescue-diagnose")
     assert not run.rescue(version, "converge-halted", amends)
     run.final("0001-todo")
-    assert _log(root)[-1].endswith(f" · {newest}")
+    assert _log(root)[-1].endswith(f" · {newest} · cause other")
 
 
 @pytest.mark.slow
@@ -13863,7 +14072,7 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
         for line in lines
     )
     assert any(
-        line.endswith(f" · 0001-todo · halt — rescue diagnosed — {name}")
+        line.endswith(f" · 0001-todo · halt — rescue diagnosed — {name} · cause other")
         for line in lines
     )
 
@@ -14252,7 +14461,10 @@ def test_a_failed_environment_build_halts_the_run(
     assert _run_claude(conduct, root, monkeypatch) == 1
 
     log = conduct["last_log"](root / ".minions" / "runs").read_text()
-    halt = f" · run · halt — uv sync --script {first} failed: error: no environment\n"
+    halt = (
+        f" · run · halt — uv sync --script {first} failed: error: no environment"
+        " · cause run\n"
+    )
     assert halt in log
     assert len(_synced()) == 1
     assert _calls(calls) == []
@@ -14603,7 +14815,9 @@ def test_a_refused_status_log_at_the_start_halts_its_version_alone(
     assert not any(call.endswith(" 0001-todo") for call in seen)
     lines = _log(root)
     said = "conduct: halt — .minions/changes/0001-todo/status_log.md is a link"
-    assert any(line.endswith(f" · 0001-todo · halt — {said}") for line in lines)
+    assert any(
+        line.endswith(f" · 0001-todo · halt — {said} · cause other") for line in lines
+    )
     closing = " · run · halt — halted 0001-todo · blocked none · released v0.1.0"
     assert closing in lines[-1]
     assert outside.read_text() == "# t\n"
@@ -14746,7 +14960,7 @@ def test_a_usage_limit_is_named(
     assert any(
         line.endswith(
             " · 0001-todo · halt — build worker exit 1 · stopped by a usage limit"
-            " · resets 5:50pm (Europe/Athens)"
+            " · resets 5:50pm (Europe/Athens) · cause limit"
         )
         for line in _log(root)
     )
@@ -15202,6 +15416,7 @@ def test_a_worker_asking_for_a_missing_tool_halts(
     assert any(
         line.endswith(
             " · 0001-todo · halt — build asked for a tool its station lacks: Agent"
+            " · cause worker"
         )
         for line in _log(root)
     )
@@ -15263,7 +15478,7 @@ def test_a_probe_halts_on_a_write_out(
     assert any(
         line.endswith(
             " · run · halt — probe check fail — claude wrote outside its reach:"
-            " it runs unsandboxed"
+            " it runs unsandboxed · cause probe"
         )
         for line in _log(root)
     )
@@ -15277,7 +15492,7 @@ def test_a_probe_halts_on_a_write_out(
     log = conduct["last_log"](root / ".minions" / "runs").read_text()
     assert (
         " · run · halt — probe check fail — claude's shell runs as i386 on a"
-        f" {native} host\n"
+        f" {native} host · cause probe\n"
     ) in log
 
     # `.arch` is read before `probe.txt`, never through a link, named only as a shell.
@@ -15310,7 +15525,7 @@ def test_a_probe_halts_on_a_write_out(
     assert any(
         line.endswith(
             " · run · halt — probe check fail — claude started an MCP server:"
-            " runpod, claude.ai Claude Docs"
+            " runpod, claude.ai Claude Docs · cause probe"
         )
         for line in _log(root)
     )

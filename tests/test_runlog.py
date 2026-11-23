@@ -941,6 +941,18 @@ def test_module_line_folds_the_detail_and_ends_on_no_newline() -> None:
     )
 
 
+def test_the_cause_list_and_its_suffix() -> None:
+    listed = (
+        *("plan-text", "gate-red", "check-red", "worker", "limit", "probe", "merge"),
+        *("cut", "amend", "cap", "human", "release", "run", "other"),
+    )
+    assert listed == runlog.CAUSES
+    for cause in runlog.CAUSES:
+        assert runlog.cause_suffix(cause) == f" · cause {cause}"
+    with pytest.raises(ValueError, match="gate_red"):
+        runlog.cause_suffix("gate_red")
+
+
 def test_module_parse_reads_who_name_and_detail() -> None:
     text = "10:00:00 · 0001-to-do · converge skipped — plan — a"
 
