@@ -5,6 +5,7 @@ Why: 0106-cut-scripts design D6.
 
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -844,6 +845,218 @@ def test_k5_reads_the_step_and_the_constant_of_the_one_file(
     assert code == 1
     _edit(root, "tasks.md", "Edit `s.md`", "Add `s.md`")
     assert _halted(_run(root, monkeypatch, capsys)[1]) == []
+
+
+def _task(root: Path, text: str) -> None:
+    """Rewrite sub-task 1.1 up to its `Verify:` line."""
+    path = root / _FOLDER / "tasks.md"
+    pattern = re.compile(r"(?<=- \[ \] 1\.1 ).*?(?=\n  Verify:)", re.DOTALL)
+    path.write_text(pattern.sub(lambda _: text, path.read_text(), count=1))
+
+
+def _verified(root: Path, command: str) -> None:
+    """Rewrite the command of sub-task 1.1's `Verify:`."""
+    path = root / _FOLDER / "tasks.md"
+    path.write_text(
+        re.sub(r"Verify: `[^`\n]*`", f"Verify: `{command}`", path.read_text(), count=1)
+    )
+
+
+def _halted_rows(
+    root: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> list[str]:
+    return _halted(_run(root, monkeypatch, capsys)[1])
+
+
+def test_removed_name_in_design_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _task(root, "Delete `_old_name` from `a.py` per [D1](design.md#d1).")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _edit(root, "design.md", "The thing.", "The thing calls `_old_name`.")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["K7"]
+    assert code == 1
+    assert any(
+        line.startswith("cut_check: halt — K7 — design.md:")
+        and "names `_old_name`, which 1.1 removes" in line
+        for line in lines
+    )
+    _edit(root, "design.md", "The thing calls `_old_name`.", "The thing.")
+    _edit(root, "proposal.md", "Edits the file `a.py`.", "Edits `a.py`, `_old_name`.")
+    _, lines = _run(root, monkeypatch, capsys)
+    assert any(line.startswith("cut_check: halt — K7 — proposal.md:") for line in lines)
+    _edit(root, "proposal.md", ", `_old_name`.", ".")
+    _edit(root, "design.md", "## Tests\n\nNone.", "## Tests\n\nKeeps `_old_name`.")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+
+
+def test_removed_name_with_a_removal_word_holds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _task(root, "Delete `_old_name` from `a.py` per [D1](design.md#d1).")
+    _edit(root, "design.md", "The thing.", "The thing drops `_old_name`.")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _edit(
+        root, "design.md", "drops `_old_name`", "calls `_old_names` and `_old_name()`"
+    )
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _task(root, "Drop `HEAD` and `plain` from `a.py` per [D1](design.md#d1).")
+    _edit(root, "design.md", "`_old_names` and `_old_name()`", "`HEAD` and `plain`")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _task(root, "Add `_old_name` to `a.py` per [D1](design.md#d1).")
+    _edit(root, "design.md", "`HEAD` and `plain`", "`_old_name`")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+
+
+def test_removed_name_in_a_diff_block_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    gone = "  -def _old_name() -> None:\n  -OLD_LIMIT = 3\n  -x = 1\n"
+    edit = "Edit `a.py` per [D1](design.md#d1).\n"
+    _task(root, f"{edit}  ```diff\n{gone}  ```")
+    _edit(root, "design.md", "The thing.", "The thing calls `_old_name`, `OLD_LIMIT`.")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["K7"]
+    assert code == 1
+    text = next(line for line in lines if line.startswith("cut_check: halt — K7"))
+    assert "names `_old_name`, which 1.1 removes" in text
+    assert "names `OLD_LIMIT`, which 1.1 removes" in text
+    _task(root, f"{edit}  ```diff\n{gone}  +def _old_name() -> None:\n  ```")
+    _, lines = _run(root, monkeypatch, capsys)
+    text = next(line for line in lines if line.startswith("cut_check: halt — K7"))
+    assert "`OLD_LIMIT`" in text
+    assert "`_old_name`" not in text
+
+
+def test_first_word_on_path_holds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    for command in ("git status", "openspec list", "grep -n x a.py"):
+        _verified(root, command)
+        assert _halted_rows(root, monkeypatch, capsys) == [], command
+    plan = cut_check._plan()
+    tasks = "- [ ] 1.1 A.\n  Verify: `grep 'x` prints a line.\n"
+    change = cut_check.Change("x", Path("x"), "", "", tasks)
+    assert cut_check.row_v7(change, plan, set()) is None
+
+
+def test_first_word_of_the_tree_holds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _put(root, "tools/run.sh", "#!/bin/sh\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "more")
+    for command in ("tools/run.sh --check", "./tools/run.sh --check"):
+        _verified(root, command)
+        assert _halted_rows(root, monkeypatch, capsys) == [], command
+    _verified(root, "tools/new.sh --check")
+    assert _halted_rows(root, monkeypatch, capsys) == ["V7"]
+    _task(root, "Add `tools/new.sh` for `a.py` per [D1](design.md#d1).")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _verified(root, "newtool --check")
+    _task(root, "Add the `newtool` for `a.py` per [D1](design.md#d1).")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+
+
+def test_first_word_naming_nothing_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _verified(root, "nosuchtool --check")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["V7"]
+    assert code == 1
+    assert "cut_check: halt — V7 — 1.1: `nosuchtool` names nothing" in lines
+
+
+def _head_tests(root: Path) -> None:
+    _put(root, "test_widget.py", "class TestGadget:\n    def test_spin(self): ...\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "tests")
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv run pytest -q test_widget.py -k spin",
+        "uv run pytest -q test_widget.py -k gadget",
+        "uv run pytest -q test_widget.py -k widget",
+        "uv run pytest -q test_widget.py -k 'spin and widget'",
+        "uv run pytest -q test_widget.py::TestGadget -k spin",
+    ],
+)
+def test_kexpr_naming_a_head_test_holds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _head_tests(root)
+    _verified(root, command)
+    assert _halted_rows(root, monkeypatch, capsys) == []
+
+
+def test_kexpr_naming_a_planned_test_holds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _verified(root, "uv run pytest -q tests/test_new.py -k typo")
+    assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
+    _task(root, "Add `test_typo_is_caught`, edit `a.py` per [D1](design.md#d1).")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _task(root, "Edit `a.py` per [D1](design.md#d1).")
+    _verified(root, "uv run pytest -q tests/test_new.py -k new")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+
+
+def test_kexpr_naming_nothing_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _head_tests(root)
+    _verified(root, "uv run pytest -q test_widget.py -k typo")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["V8"]
+    assert code == 1
+    why = "cut_check: halt — V8 — 1.1: `-k typo` selects no test of test_widget.py"
+    assert why in lines
+    for expression in ("'spin and typo'", "'not spin'", "'spin and'"):
+        _verified(root, f"uv run pytest -q test_widget.py -k {expression}")
+        assert _halted_rows(root, monkeypatch, capsys) == ["V8"], expression
+    _verified(root, "uv run pytest -q -k spin")
+    assert _halted_rows(root, monkeypatch, capsys) == ["V5"]
 
 
 def test_an_unreadable_head_exits_2(

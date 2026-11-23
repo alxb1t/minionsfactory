@@ -5,7 +5,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 ## Progress
 
 - [x] 1 — The conductor checks the cut · hard
-- [ ] 2 — The rows · moderate
+- [x] 2 — The rows · moderate
 - [ ] 3 — A person's phase refused · moderate
 - [ ] 4 — The declared cut checks · moderate
 - [ ] 5 — The build's unplanned file · moderate
@@ -30,23 +30,23 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 2 — The rows
 
-- [ ] 2.1 In `tests/test_cut_check.py` add `test_removed_name_in_design_is_refused`, `test_removed_name_with_a_removal_word_holds` and `test_removed_name_in_a_diff_block_is_refused` per [D3](design.md#d3).
+- [x] 2.1 In `tests/test_cut_check.py` add `test_removed_name_in_design_is_refused`, `test_removed_name_with_a_removal_word_holds` and `test_removed_name_in_a_diff_block_is_refused` per [D3](design.md#d3).
   Verify: `uv run pytest tests/test_cut_check.py -q -k removed_name` exits `0`.
-- [ ] 2.2 In `skills/mf-cut-change/scripts/cut_check.py` add `row_k7` and its id `K7` to `ROWS` and to the rows `check` runs, per [D3](design.md#d3).
+- [x] 2.2 In `skills/mf-cut-change/scripts/cut_check.py` add `row_k7` and its id `K7` to `ROWS` and to the rows `check` runs, per [D3](design.md#d3).
   Verify: `git grep -q -e "row_k7" -- skills/mf-cut-change/scripts/cut_check.py` exits `0`.
-- [ ] 2.3 In `tests/test_cut_check.py` add `test_first_word_on_path_holds`, `test_first_word_of_the_tree_holds` and `test_first_word_naming_nothing_is_refused` per [D3](design.md#d3).
+- [x] 2.3 In `tests/test_cut_check.py` add `test_first_word_on_path_holds`, `test_first_word_of_the_tree_holds` and `test_first_word_naming_nothing_is_refused` per [D3](design.md#d3).
   Verify: `uv run pytest tests/test_cut_check.py -q -k first_word` exits `0`.
-- [ ] 2.4 In `skills/mf-cut-change/scripts/cut_check.py` add `row_v7` and its id `V7`, in `ROWS` after `V6` and in the rows `check` runs.
+- [x] 2.4 In `skills/mf-cut-change/scripts/cut_check.py` add `row_v7` and its id `V7`, in `ROWS` after `V6` and in the rows `check` runs.
   Verify: `git grep -q -e "row_v7" -- skills/mf-cut-change/scripts/cut_check.py` exits `0`.
-- [ ] 2.5 In `tests/test_cut_check.py` add `test_kexpr_naming_a_head_test_holds`, `test_kexpr_naming_a_planned_test_holds` and `test_kexpr_naming_nothing_is_refused` per [D3](design.md#d3).
+- [x] 2.5 In `tests/test_cut_check.py` add `test_kexpr_naming_a_head_test_holds`, `test_kexpr_naming_a_planned_test_holds` and `test_kexpr_naming_nothing_is_refused` per [D3](design.md#d3).
   Verify: `uv run pytest tests/test_cut_check.py -q -k kexpr` exits `0`.
-- [ ] 2.6 In `skills/mf-cut-change/scripts/cut_check.py` add `row_v8` and its id `V8`, in `ROWS` after `V7` and in the rows `check` runs; it skips a command naming no test file, which `V5` owns.
+- [x] 2.6 In `skills/mf-cut-change/scripts/cut_check.py` add `row_v8` and its id `V8`, in `ROWS` after `V7` and in the rows `check` runs; it skips a command naming no test file, which `V5` owns.
   Verify: `git grep -q -e "row_v8" -- skills/mf-cut-change/scripts/cut_check.py` exits `0`.
-- [ ] 2.7 In `tests/test_verify_check.py` add `test_searched_range_is_no_range` and `test_oxford_comma_and_e_g_are_refused` per [D4](design.md#d4).
+- [x] 2.7 In `tests/test_verify_check.py` add `test_searched_range_is_no_range` and `test_oxford_comma_and_e_g_are_refused` per [D4](design.md#d4).
   Verify: `uv run pytest tests/test_verify_check.py -q -k "searched_range or oxford"` exits `0`.
-- [ ] 2.8 In `skills/mf-cut-change/scripts/verify_check.py` make `unplain` skip a search's patterns in the range test and `after_verb` read a clause and an `e.g.` per [D4](design.md#d4).
+- [x] 2.8 In `skills/mf-cut-change/scripts/verify_check.py` make `unplain` skip a search's patterns in the range test and `after_verb` read a clause and an `e.g.` per [D4](design.md#d4).
   Verify: `uv run pytest tests/test_verify_check.py -q` exits `0`.
-- [ ] 2.9 In `skills/mf-cut-change/SKILL.md` Step 8, write the ids as `V1`–`V8` and `K1`–`K7`, and name `V8` beside the `-k` rows.
+- [x] 2.9 In `skills/mf-cut-change/SKILL.md` Step 8, write the ids as `V1`–`V8` and `K1`–`K7`, and name `V8` beside the `-k` rows.
   Verify: `git grep -q -F -e "V8" -- skills/mf-cut-change/SKILL.md` exits `0`.
 
 ## 3 — A person's phase refused

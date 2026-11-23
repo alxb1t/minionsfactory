@@ -13,6 +13,7 @@ import functools
 import itertools
 import re
 import runpy
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -60,6 +61,8 @@ STEP = re.compile(r"\bStep (\d+(?:\.\d+)?)")
 CONSTANT = re.compile(r"(?=.*[A-Z])[A-Z0-9_]{3,}")
 NEW_FILE = re.compile(r"\b(?:add|new|create)\b", re.IGNORECASE)
 CHANGES_TEST = re.compile(r"\b(?:adds?|removes?|merges?|renames?)\b", re.IGNORECASE)
+DEFINITION = re.compile(r"(?:async\s+)?(?:def|class)\s+(\w+)|([A-Z_][A-Z0-9_]*)\s*[=:]")
+CODE_DEF = re.compile(r"^\s*(?:async\s+)?(?:def|class)\s+(\w+)", re.MULTILINE)
 PROPOSAL_HEADINGS = [
     "Why",
     "What Changes",
@@ -97,12 +100,15 @@ ROWS = [
     "V4",
     "V5",
     "V6",
+    "V7",
+    "V8",
     "K1",
     "K2",
     "K3",
     "K4",
     "K5",
     "K6",
+    "K7",
     "corpus",
 ]
 JUDGED = {
@@ -843,6 +849,64 @@ def row_v5(change: Change, plan: dict[str, Any]) -> str | None:
     return " · ".join(found) or None
 
 
+def row_v7(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
+    """Return each `Verify:` command whose first word is no program and no path."""
+    tasks = plan["subtasks"](change.tasks)
+    named = {
+        CITED_LINES.sub("", span[2]).removeprefix("./")
+        for task in tasks
+        for span in SPAN.finditer(_body(task.text, plan))
+    }
+    found: list[str] = []
+    for task in tasks:
+        for command in _commands(task.text, plan):
+            first = next(iter(_words(command)), "")
+            path = first.removeprefix("./")
+            if first and not (
+                shutil.which(first) or _at_head(path, tree) or path in named
+            ):
+                found.append(f"{task.name}: `{first}` names nothing")
+    return " · ".join(found) or None
+
+
+def _defined(file: str, tree: set[str]) -> list[str]:
+    """Return the function and class names of a file of `HEAD`, none for another."""
+    if file not in tree:
+        return []
+    return CODE_DEF.findall("\n".join(_git("show", f"HEAD:{file}")[1]))
+
+
+def row_v8(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
+    """Return each `-k` expression that selects no test of the files its command names.
+
+    A test is a name of the file at `HEAD` or of a sub-task, or its module and path.
+    """
+    tasks = plan["subtasks"](change.tasks)
+    planned = [
+        name
+        for task in tasks
+        for name in re.findall(r"test_\w+", _body(task.text, plan))
+    ]
+    found: list[str] = []
+    for task in tasks:
+        for command in _commands(task.text, plan):
+            words = _words(command)
+            files = [w.split("::")[0] for w in _operands(words) if _test_path(w)]
+            if not plan["is_pytest"](words) or not files:
+                continue
+            names = {
+                " ".join((*Path(file).parts, name))
+                for file in files
+                for name in ("", *planned, *_defined(file, tree))
+            }
+            found += [
+                f"{task.name}: `-k {expression}` selects no test of {', '.join(files)}"
+                for flag, expression in itertools.pairwise(words)
+                if flag == "-k" and not any(selects(expression, n) for n in names)
+            ]
+    return " · ".join(found) or None
+
+
 def _record(
     heading: str,
     spans: list[str],
@@ -935,6 +999,66 @@ def row_k6(change: Change, plan: dict[str, Any]) -> str | None:
             cited.setdefault(cite, []).append(task.name)
     found = [f"`{c}` stands in {', '.join(n)}" for c, n in cited.items() if len(n) > 1]
     return " · ".join(found) or None
+
+
+def _identifier(text: str) -> bool:
+    """Return whether a span is one identifier with an `_` or a capital, no `HEAD`.
+
+    e.g. "_old_name" → True; "plain" → False; "a.py" → False
+    """
+    return (
+        text != "HEAD"
+        and re.fullmatch(r"\w+", text) is not None
+        and (text.lower() != text or "_" in text)
+    )
+
+
+def _removed(change: Change, plan: dict[str, Any]) -> dict[str, str]:
+    """Return each identifier a sub-task removes, with the first sub-task that does.
+
+    It removes the spans of a line with a removal word, and each name a `diff` block
+    removes and adds back nowhere.
+    """
+    diffs = _diffs(change.tasks)
+    found: dict[str, str] = {}
+    for name, lines in blocks(change.tasks):
+        for line in lines:
+            head = line.partition("Verify:")[0]
+            if plan["REMOVAL"].search(masked(head)):
+                for span in SPAN.finditer(head):
+                    if _identifier(span[2]):
+                        found.setdefault(span[2], name)
+        removed, added = diffs[name]
+        for text in removed:
+            if match := DEFINITION.match(text.strip()):
+                ident = match[1] or match[2]
+                if _identifier(ident) and not any(ident in line for line in added):
+                    found.setdefault(ident, name)
+    return found
+
+
+def row_k7(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each line naming an identifier a sub-task removes with no removal word.
+
+    The lines are those of `design.md` outside `## Tests` and of `proposal.md`.
+    """
+    removed = _removed(change, plan)
+    tests = False
+    lines: list[tuple[str, int, str]] = [
+        ("proposal.md", number, line) for number, line in prose_lines(change.proposal)
+    ]
+    for number, line in prose_lines(change.design):
+        tests = line[3:].strip() == "Tests" if line.startswith("## ") else tests
+        if not tests:
+            lines.append(("design.md", number, line))
+    found = [
+        f"{file}:{number} names `{span[2]}`, which {removed[span[2]]} removes"
+        for file, number, line in lines
+        if not plan["REMOVAL"].search(line)
+        for span in SPAN.finditer(line)
+        if span[2] in removed
+    ]
+    return " · ".join(dict.fromkeys(found)) or None
 
 
 def counted_lines(change: Change) -> list[str]:
@@ -1031,12 +1155,15 @@ def check(
             ("V4", row_v4(change, plan)),
             ("V5", row_v5(change, plan)),
             ("V6", row_v6(change, plan)),
+            ("V7", row_v7(change, plan, tree)),
+            ("V8", row_v8(change, plan, tree)),
             ("K1", row_k1(change, plan, tree)),
             ("K2", row_k2(change, plan)),
             ("K3", row_k3(change)),
             ("K4", row_k4(change)),
             ("K5", row_k5(change, plan)),
             ("K6", row_k6(change, plan)),
+            ("K7", row_k7(change, plan)),
             *[("corpus", line.removeprefix("plan: ")) for line in corpus],
         ]
     except (pre["Stop"], plan["Stop"]) as error:
