@@ -4,7 +4,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## Progress
 
-- [ ] 1 — The conductor checks the cut · hard
+- [x] 1 — The conductor checks the cut · hard
 - [ ] 2 — The rows · moderate
 - [ ] 3 — A person's phase refused · moderate
 - [ ] 4 — The declared cut checks · moderate
@@ -13,19 +13,19 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 1 — The conductor checks the cut
 
-- [ ] 1.1 **HALT CHECK** `_check_cut` and `_boxed` stand in `skills/mf-ship/scripts/conduct.py`.
+- [x] 1.1 **HALT CHECK** `_check_cut` and `_boxed` stand in `skills/mf-ship/scripts/conduct.py`.
   Verify: `git grep -q -e "def _boxed" -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 1.2 In `tests/test_conduct.py` add `test_cutcheck_passes`, `test_cutcheck_fails_once_then_passes`, `test_cutcheck_fails_twice_halts`, `test_cutcheck_cannot_run_halts` and `test_cutcheck_never_resets_a_rejoin` per [D2](design.md#d2); an autouse fixture there points `CUT_CHECK` at a stub that exits 0, which the new tests override.
+- [x] 1.2 In `tests/test_conduct.py` add `test_cutcheck_passes`, `test_cutcheck_fails_once_then_passes`, `test_cutcheck_fails_twice_halts`, `test_cutcheck_cannot_run_halts` and `test_cutcheck_never_resets_a_rejoin` per [D2](design.md#d2); an autouse fixture there points `CUT_CHECK` at a stub that exits 0, which the new tests override.
   Verify: `uv run pytest tests/test_conduct.py -q -k cutcheck` exits `0`.
-- [ ] 1.3 In `skills/mf-ship/scripts/conduct.py` add `CUT_CHECK` beside `GATE_RUN` and `_cut_checked`, which runs the checker through `_boxed` in the cut's tree per [D1](design.md#d1).
+- [x] 1.3 In `skills/mf-ship/scripts/conduct.py` add `CUT_CHECK` beside `GATE_RUN` and `_cut_checked`, which runs the checker through `_boxed` in the cut's tree per [D1](design.md#d1).
   Verify: `git grep -q -e "_cut_checked" -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 1.4 In `Run.cutting` of `skills/mf-ship/scripts/conduct.py`, route a failure per [D2](design.md#d2): write `cut.red`, reset and clean the tree, start the cutter again; `PROMPTS["cut"]` gains the tail.
+- [x] 1.4 In `Run.cutting` of `skills/mf-ship/scripts/conduct.py`, route a failure per [D2](design.md#d2): write `cut.red`, reset and clean the tree, start the cutter again; `PROMPTS["cut"]` gains the tail.
   Verify: `git grep -q -F -e "cut.red" -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 1.5 In `skills/mf-cut-change/SKILL.md` Step 2, add: unattended, a standing `cut.red` holds the failing lines of an earlier cut of this id; read it with the brief.
+- [x] 1.5 In `skills/mf-cut-change/SKILL.md` Step 2, add: unattended, a standing `cut.red` holds the failing lines of an earlier cut of this id; read it with the brief.
   Verify: `git grep -q -F -e "cut.red" -- skills/mf-cut-change/SKILL.md` exits `0`.
-- [ ] 1.6 In `skills/mf-ship/SKILL.md` add that the run checks each cut with the cut's checker and cuts again once, handing the failing lines in `cut.red`.
+- [x] 1.6 In `skills/mf-ship/SKILL.md` add that the run checks each cut with the cut's checker and cuts again once, handing the failing lines in `cut.red`.
   Verify: `git grep -q -F -e "cut.red" -- skills/mf-ship/SKILL.md` exits `0`.
-- [ ] 1.7 In `docs/modules.md` add `cut_check.py` to the names of the `skills/mf-ship/scripts/conduct.py` row, sorted.
+- [x] 1.7 In `docs/modules.md` add `cut_check.py` to the names of the `skills/mf-ship/scripts/conduct.py` row, sorted.
   Verify: `uv run pytest tests/test_structure.py -q` exits `0`.
 
 ## 2 — The rows

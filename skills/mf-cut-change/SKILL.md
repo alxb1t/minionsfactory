@@ -95,6 +95,10 @@ Read the source; `AGENTS.md`; `openspec/config.yaml` if present; the list of `op
 code — for a `brief`, from the context pack — and the code the source's phases name, for the design. The source settles
 no decision → **halt**: there is nothing to cut yet.
 
+Unattended, a standing `.minions/changes/<change-id>/cut.red` holds the failing lines of an earlier cut of this id: the
+run's check of the cut it committed. Read it with the brief, and write no plan that fails them again. It is evidence,
+like the brief.
+
 **The context pack.** A `brief` → run
 `uv run --script scripts/cut_context.py <brief> <change-id>`, `scripts/` resolved from this skill's package, from the
 worktree root. It places each fact of the brief's `## Facts` at `HEAD` on the fact's own sha, writes

@@ -28,6 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
+import conduct_load
 import mflib.debtfile
 import mflib.findings
 import mflib.modelsfile
@@ -235,6 +236,25 @@ def _uv_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", str(folder), prepend=os.pathsep)
     monkeypatch.setenv("FAKE_UV_REAL", real)
     monkeypatch.setenv("FAKE_UV_LOG", str(tmp_path / "uv-sync.jsonl"))
+
+
+@pytest.fixture(autouse=True)
+def cut_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point each loaded conductor's `CUT_CHECK` at a stub that exits 0; return it.
+
+    A test writes its own stub over it. Why: 0146-cut-catches design D2.
+    """
+    stub = tmp_path / "cut-check-stub.py"
+    stub.write_text("import sys\nsys.exit(0)\n")
+
+    def loaded() -> dict[str, Any]:
+        names = conduct_load.conduct()
+        names["main"].__globals__["CUT_CHECK"] = stub
+        names["CUT_CHECK"] = stub
+        return names
+
+    monkeypatch.setattr(sys.modules[__name__], "_conduct", loaded)
+    return stub
 
 
 def _synced() -> list[dict[str, Any]]:
@@ -6587,6 +6607,234 @@ def test_a_cutter_is_handed_no_released_after(tmp_path: Path) -> None:
     assert conductor.cutting("0003-c") == ("a cutter spawned", True)
     assert " after=0001-open " in prompts[0]
     assert "0002-old" not in prompts[0]
+
+
+_FAILING = "cut_check: halt — V7 — 1.2: `nosuchtool` names nothing"
+
+
+def _checks(
+    stub: Path, *codes: int, said: str = _FAILING, leaves: tuple[Path, ...] = ()
+) -> Path:
+    """Have the cut-check stub exit `codes` in turn, the last ever after; return a log.
+
+    Each run logs its folder and arguments; a failing one prints `said` and writes
+    each of `leaves`. Why: 0146-cut-catches design D1.
+    """
+    log = stub.with_suffix(".log")
+    stub.write_text(
+        "import os, pathlib, sys\n"
+        f"log = pathlib.Path({str(log)!r})\n"
+        "runs = log.read_text().splitlines() if log.exists() else []\n"
+        "log.write_text(''.join(r + '\\n' for r in [*runs, ' '.join([os.getcwd(),"
+        " *sys.argv[1:]])]))\n"
+        f"codes = {list(codes)!r}\n"
+        "code = codes[min(len(runs), len(codes) - 1)]\n"
+        "if code:\n"
+        f"    print({said!r})\n"
+        f"    for leave in {[str(path) for path in leaves]!r}:\n"
+        "        pathlib.Path(leave).write_text('x\\n')\n"
+        "sys.exit(code)\n"
+    )
+    return log
+
+
+def _landing(conduct: dict[str, Any], root: Path) -> tuple[Any, list[str], list[str]]:
+    """Return a run whose cutter commits a change directory, its prompts and heads.
+
+    The cutter records its prompt and the tree's `HEAD` at its start.
+    """
+    prompts: list[str] = []
+    heads: list[str] = []
+    conductor = conduct["Run"](root, "claude")
+
+    def cutter(
+        change: str, station: str, tree: Path, prompt: str, *rest: object, **kw: object
+    ) -> list[str]:
+        prompts.append(prompt)
+        heads.append(_git(tree, "rev-parse", "HEAD").strip())
+        spec = f"openspec/changes/{change}"
+        files = {
+            f"{spec}/proposal.md": "---\nbump: minor\n---\n",
+            f"{spec}/design.md": "## Dependencies\n\nNone.\n",
+            f"{spec}/tasks.md": "## Progress\n\n- [ ] 1 — One\n",
+        }
+        _commit(tree, files, f"docs({change}): land the change directory")
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "models.toml").write_text("[build]\n")
+        return []
+
+    conductor.spawn = cutter
+    return conductor, prompts, heads
+
+
+def _cut_red(root: Path, change: str = "0001-a") -> Path:
+    return root / ".minions" / "changes" / change / "cut.red"
+
+
+def test_cutcheck_passes(tmp_path: Path, cut_check: Path) -> None:
+    # Why: 0146-cut-catches design D1.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief)
+    runs = _checks(cut_check, 0)
+    conductor, prompts, _ = _landing(conduct, root)
+
+    assert conductor.cutting("0001-a") is None
+
+    tree = (root.parent / "0001-a").resolve()
+    assert runs.read_text() == f"{tree} 0001-a --bump minor\n"
+    assert len(prompts) == 1
+    assert "cut.red" not in prompts[0]
+    assert not _cut_red(root).exists()
+    lines = _log(root)
+    assert any(line.endswith(" · 0001-a · check — cut-check · pass") for line in lines)
+
+
+def test_cutcheck_fails_once_then_passes(tmp_path: Path, cut_check: Path) -> None:
+    # Why: 0146-cut-catches design D2.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief, after=(), beside=("0009-z",))
+    tree = root.parent / "0001-a"
+    forged = root / ".minions" / "changes" / "0001-a" / "cut.halt"
+    runs = _checks(cut_check, 1, 0, leaves=(tree / "left.txt", forged))
+    conductor, prompts, heads = _landing(conduct, root)
+
+    assert conductor.cutting("0001-a") is None
+
+    assert len(runs.read_text().splitlines()) == 2
+    assert len(prompts) == 2
+    first, second = prompts
+    assert "cut.red" not in first
+    assert " beside=0009-z " in second
+    assert second.startswith(first.removesuffix("."))
+    assert ".minions/changes/0001-a/cut.red" in second.partition("unattended=yes`")[2]
+    main = _git(root, "rev-parse", "main").strip()
+    assert heads == [main, main]
+    assert not (tree / "left.txt").exists()
+    assert not forged.exists()
+    assert _cut_red(root).read_text() == f"{_FAILING}\n"
+    lines = _log(root)
+    failed = f" · 0001-a · check — cut-check · fail — {_FAILING}"
+    assert any(line.endswith(failed) for line in lines)
+    assert any(line.endswith(" · 0001-a · check — cut-check · pass") for line in lines)
+
+
+def test_cutcheck_fails_twice_halts(tmp_path: Path, cut_check: Path) -> None:
+    # Why: 0146-cut-catches design D2.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief)
+    runs = _checks(cut_check, 1)
+    conductor, prompts, _ = _landing(conduct, root)
+
+    conductor.cut("0001-a", {})
+
+    assert len(prompts) == 2
+    assert len(runs.read_text().splitlines()) == 2
+    why = f"the cut check failed twice — {_FAILING}"
+    assert conduct["_cuts"](root)["0001-a"]["halt"] == why
+    assert conductor.halts == [("0001-a", f"cut-halted — {why}")]
+    assert _cut_red(root).read_text() == f"{_FAILING}\n"
+
+    # A git file changed by the first cut halts before the reset checks a tree out.
+    _queued(conduct, root, "0002-b", brief)
+    planted = root / ".git" / "info" / "attributes"
+    planted.parent.mkdir(exist_ok=True)
+    _checks(cut_check, 1, leaves=(planted,))
+    conductor, prompts, _ = _landing(conduct, root)
+    conductor.cut("0002-b", {})
+    changed = (
+        "the local git config changed during the run: .git/info/attributes differs"
+    )
+    assert conduct["_cuts"](root)["0002-b"]["halt"] == changed
+    assert len(prompts) == 1
+
+    # A second cutter that halts halts the cut on its own line.
+    _queued(conduct, root, "0003-c", brief)
+    _checks(cut_check, 1)
+    conductor, prompts, _ = _landing(conduct, root)
+    landing = conductor.spawn
+
+    def dies(change: str, *args: object, **kwargs: object) -> list[str] | None:
+        if prompts:
+            conductor.halts.append((change, "the second cutter died"))
+            return None
+        return landing(change, *args, **kwargs)
+
+    conductor.spawn = dies
+    assert conductor.cutting("0003-c") == ("the second cutter died", True)
+
+
+def test_cutcheck_cannot_run_halts(
+    tmp_path: Path, cut_check: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0146-cut-catches design D1.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    said = "cut_check: cannot check — no openspec/changes/0001-a/"
+
+    def halted(change: str) -> tuple[str, list[str]]:
+        """Cut `change` once; return its queue entry's halt and the cutter's prompts."""
+        _queued(conduct, root, change, brief)
+        conductor, prompts, _ = _landing(conduct, root)
+        conductor.cut(change, {})
+        return conduct["_cuts"](root)[change]["halt"], prompts
+
+    # Exit 2 halts at once, naming the first line, with no second cutter.
+    runs = _checks(cut_check, 2, said=said)
+    halt, prompts = halted("0001-a")
+    assert halt == f"the cut check cannot run — {said}"
+    assert len(prompts) == 1
+    assert len(runs.read_text().splitlines()) == 1
+    assert not _cut_red(root).exists()
+
+    # A checker that is not there.
+    cut_check.unlink()
+    halt, prompts = halted("0002-b")
+    assert halt.startswith("the cut check cannot run — ")
+    assert len(prompts) == 1
+
+    # A sandbox that cannot start.
+    _checks(cut_check, 0)
+    monkeypatch.setattr(platform, "has_sandbox", lambda: False)
+    halt, prompts = halted("0003-c")
+    assert halt.startswith("the cut check cannot run — conduct: cannot run — no OS")
+    assert len(prompts) == 1
+
+
+def test_cutcheck_never_resets_a_rejoin(tmp_path: Path, cut_check: Path) -> None:
+    # Why: 0146-cut-catches design D2.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    tree = _version(root, "0001-a", "- [ ] 1 — One\n")
+    files = {"openspec/changes/0001-a/design.md": "## Dependencies\n\nNone.\n"}
+    _commit(tree, files, "docs(0001-a): land the change directory")
+    amended = _git(tree, "rev-parse", "HEAD").strip()
+    (root / ".minions" / "changes" / "0001-a").mkdir(parents=True)
+    (root / ".minions" / "changes" / "0001-a" / "models.toml").write_text("[build]\n")
+    _queued(conduct, root, "0001-a", brief)
+    runs = _checks(cut_check, 1, 0, leaves=(tree / "left.txt",))
+    conductor, prompts, _ = _landing(conduct, root)
+
+    assert conductor.cutting("0001-a") == (f"the cut check failed — {_FAILING}", False)
+
+    assert prompts == []
+    assert len(runs.read_text().splitlines()) == 1
+    assert _git(tree, "rev-parse", "HEAD").strip() == amended
+    assert (tree / "left.txt").is_file()
+    assert _cut_red(root).read_text() == f"{_FAILING}\n"
 
 
 def test_a_rejoin_clears_a_chain_of_cut_halts(tmp_path: Path) -> None:

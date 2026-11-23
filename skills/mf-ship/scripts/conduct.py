@@ -78,6 +78,8 @@ CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.p
 # metrics by `uv`. Why: 0144-gate-outside design D2.
 GATE_RUN = CONVERGE.with_name("gate_run.py")
 PLAN_CHECK = CONVERGE.with_name("plan_check.py")
+# The cut's checker, run by the conductor's Python. Why: 0146-cut-catches design D1.
+CUT_CHECK = Path(__file__).resolve().parents[2] / "mf-cut-change/scripts/cut_check.py"
 METRICS = Path(__file__).resolve().parents[2] / "mf-build/scripts/metrics.py"
 CATALOGUE = "metrics/catalogue.toml"
 # The brief's checker, and the runner of its `--models`.
@@ -264,9 +266,14 @@ PROMPTS = {
     ),
     "cut": (
         "Run the mf-cut-change skill for change {change} with arguments"
-        " `{change} {bump} brief={brief}{after}{beside} unattended=yes`."
+        " `{change} {bump} brief={brief}{after}{beside} unattended=yes`{red}."
     ),
 }
+# A second cutter's prompt tail. Why: 0146-cut-catches design D2.
+CUT_RED = (
+    ", reading .minions/changes/{change}/cut.red: the lines the cut check failed on"
+    " in the cut before"
+)
 SHELL_RULES = (
     "Shell rules for this run: one command per Bash call; no `$(…)`, shell variables"
     " or loops — run the inner command first and use its output literally;"
@@ -827,6 +834,24 @@ def _unapproved(primary: Path, change: str, approved: list[list[str]]) -> str | 
         )
     added = [f"{row[0]} {row[1]}" for row in rows[1:] if row[:2] not in approved]
     return f"{UNAPPROVED}: {', '.join(added)}" if added else None
+
+
+def _cut_checked(primary: Path, change: str, tree: Path, bump: str) -> str | None:
+    """Return the output of the cut's checker that failed in `tree`; None on a pass.
+
+    An exit above 1, or a run that cannot start, stops as `the cut check cannot run`.
+    Why: 0146-cut-catches design D1.
+    """
+    argv_ = [sys.executable, str(CUT_CHECK), change, "--bump", bump]
+    try:
+        code, output = _boxed(primary, tree, argv_)
+    except (OSError, Stop) as error:
+        raise Stop(1, f"the cut check cannot run — {_first(str(error))}") from None
+    if code == 0:
+        return None
+    if code != 1:
+        raise Stop(1, f"the cut check cannot run — {_first(output)}")
+    return output
 
 
 def _direct(text: str | None) -> list[tuple[str, str]]:
@@ -6048,7 +6073,8 @@ class Run:
         _remove_in(
             mflib.layout.run_dir(primary), mflib.layout.CHANGES, change, name="cut.halt"
         )
-        if not (branch and _holds(primary, change)):
+        fresh = not (branch and _holds(primary, change))
+        if fresh:
             # A checkout runs the filters a live worker's config names, outside it.
             if changed := _config_changed(primary, self.git_state):
                 raise changed
@@ -6067,34 +6093,20 @@ class Run:
                 _git(primary, "branch", "-D", change)
             default = default_branch(primary)
             _git(primary, "worktree", "add", "-b", change, str(tree), default)
-            unshipped = [x for x in entry["after"] if not _shipped(primary, default, x)]
-            after = f" after={','.join(unshipped)}" if unshipped else ""
-            named = entry.get("beside")
-            beside = f" beside={','.join(named)}" if named else ""
-            prompt = PROMPTS["cut"].format(
-                change=change,
-                bump=entry["bump"],
-                brief=entry["brief"],
-                after=after,
-                beside=beside,
-            )
-            models = (entry["executor"], entry["model"], entry["effort"])
-            brief = Path(entry["brief"])
-            if self.spawn(change, "cut", tree, prompt, models, brief=brief) is None:
-                with self.guard:
-                    why = next(r for who, r in reversed(self.halts) if who == change)
-                return why, True
-        why = _check_cut(primary, change, tree)
-        answered = why is not None and why == _cutter_halt(primary, change)
-        if why is None:
-            why = _unapproved(primary, change, entry.get("dependencies", []))
-            answered = why is not None and why.startswith(UNAPPROVED)
-        result = "pass" if why is None else f"fail — {why}"
-        self.log.event(change, "check", f"cut · {result}")
-        if why is not None:
-            if answered:
-                why += f" · needs {change} {_cut_answer(change, entry['brief'])}"
-            return why, False
+            if failed := self.run_cutter(change, entry, tree, ""):
+                return failed
+        failed, red = self.checked_cut(change, entry, tree)
+        if red is not None and not fresh:
+            return f"the cut check failed — {red}", False
+        if red is not None:
+            self.recut(change, tree)
+            if failed := self.run_cutter(change, entry, tree, CUT_RED):
+                return failed
+            failed, red = self.checked_cut(change, entry, tree)
+            if red is not None:
+                return f"the cut check failed twice — {red}", False
+        if failed is not None:
+            return failed
         with _queue_lock(primary):
             folder = mflib.layout.queue_briefs(primary)
             folder.mkdir(mode=0o700, exist_ok=True)
@@ -6105,6 +6117,82 @@ class Run:
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
         return None
+
+    def run_cutter(
+        self, change: str, entry: dict[str, Any], tree: Path, tail: str
+    ) -> tuple[str, bool] | None:
+        """Spawn the cutter in `tree`, `tail` closing its prompt; return why it halts.
+
+        Why: 0082-cut-station design D4; 0146-cut-catches design D2.
+        """
+        primary = self.primary
+        default = default_branch(primary)
+        unshipped = [x for x in entry["after"] if not _shipped(primary, default, x)]
+        after = f" after={','.join(unshipped)}" if unshipped else ""
+        named = entry.get("beside")
+        beside = f" beside={','.join(named)}" if named else ""
+        prompt = PROMPTS["cut"].format(
+            change=change,
+            bump=entry["bump"],
+            brief=entry["brief"],
+            after=after,
+            beside=beside,
+            red=tail.format(change=change),
+        )
+        models = (entry["executor"], entry["model"], entry["effort"])
+        brief = Path(entry["brief"])
+        if self.spawn(change, "cut", tree, prompt, models, brief=brief) is None:
+            with self.guard:
+                why = next(r for who, r in reversed(self.halts) if who == change)
+            return why, True
+        return None
+
+    def checked_cut(
+        self, change: str, entry: dict[str, Any], tree: Path
+    ) -> tuple[tuple[str, bool] | None, str | None]:
+        """Check the cut on disk, then by its checker; return its halt and failed line.
+
+        A failed checker's output goes to `cut.red`. Why: 0091-cut-halts design D4;
+        0146-cut-catches design D1.
+        """
+        primary = self.primary
+        why = _check_cut(primary, change, tree)
+        answered = why is not None and why == _cutter_halt(primary, change)
+        if why is None:
+            why = _unapproved(primary, change, entry.get("dependencies", []))
+            answered = why is not None and why.startswith(UNAPPROVED)
+        result = "pass" if why is None else f"fail — {why}"
+        self.log.event(change, "check", f"cut · {result}")
+        if why is not None:
+            if answered:
+                why += f" · needs {change} {_cut_answer(change, entry['brief'])}"
+            return (why, False), None
+        red = _cut_checked(primary, change, tree, entry["bump"])
+        if red is None:
+            self.log.event(change, "check", "cut-check · pass")
+            return None, None
+        _write_state(primary, change, "cut.red", red)
+        self.log.event(change, "check", f"cut-check · fail — {_first(red)}")
+        return None, _first(red)
+
+    def recut(self, change: str, tree: Path) -> None:
+        """Reset the cut's tree to the default branch, clean, for a second cutter.
+
+        Why: 0146-cut-catches design D2.
+        """
+        # A reset runs the filters a live worker's config names, outside it.
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
+        _refuse_config_commands(tree)
+        default = default_branch(self.primary)
+        _git(tree, "reset", "-q", "--hard", f"refs/heads/{default}")
+        _git(tree, "clean", "-q", "-fd")
+        _remove_in(
+            mflib.layout.run_dir(self.primary),
+            mflib.layout.CHANGES,
+            change,
+            name="cut.halt",
+        )
 
     def cut_halted(self, change: str, reason: str, logged: bool) -> None:
         """Set a queued cut's halt to `reason`, and log it unless `spawn` did.
@@ -8263,6 +8351,12 @@ def _last(output: str) -> str:
     """Return the last line of `output` that holds a word, or `no output`."""
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     return lines[-1] if lines else "no output"
+
+
+def _first(output: str) -> str:
+    """Return the first line of `output` that holds a word, or `no output`."""
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    return lines[0] if lines else "no output"
 
 
 def _load_wait(say: Callable[[str], None]) -> bool:

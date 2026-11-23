@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The run's cut check runs `cut_check.py` in the cut's worktree, under the sandbox: a row bound only as far as the cutter obeyed its skill. A first failure of a cut the run made writes `cut.red`, resets the tree to the default branch and cuts once more, the prompt naming `cut.red`; a second halts `the cut check failed twice`, a rejoin's branch `the cut check failed` with nothing reset, and an exit above 1 `the cut check cannot run` (0146-cut-catches, phase 1).
+
 ## [0.116.0] - 2026-11-23
 
 Gate: local 7m38s · CI not read under mf-ship · 0.115.0: local 7m7s · CI not read under mf-ship
