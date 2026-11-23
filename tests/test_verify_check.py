@@ -197,16 +197,16 @@ def test_a_command_after_an_output_verb_is_refused_at_the_cut(
         "verify: every check is one plain command",
     ]
 
-    # A `**HUMAN` phase's `Verify:` is no plan check's, so the cut leaves it out.
+    # A `**HUMAN` phase's `Verify:` is read like any other.
     human = (
         "## Progress\n\n- [ ] 1 — One **HUMAN**\n\n## 1 — One\n\n"
         "- [ ] 1.1 x\n  Verify: `grep -n one a.md` prints a line of `a.md`.\n"
     )
     code, out = _run(root, human, capsys, monkeypatch)
-    assert code == 0, out
+    assert code == 1, out
     assert out.splitlines() == [
-        "1.1: a.md:1: one",
-        "verify: every check is one plain command",
+        "1.1: I19 — a command after an output verb: `a.md`",
+        "verify: halt — I19: 1.1",
     ]
 
 

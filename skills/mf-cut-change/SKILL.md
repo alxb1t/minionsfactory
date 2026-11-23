@@ -192,7 +192,7 @@ before each artifact, run `openspec instructions <artifact> --change <change-id>
   leaves the debt alone: `mf-release` deletes the cards.
 - A change with no behaviour change has `skip_specs: true` in its `.openspec.yaml` and `specs/.gitkeep`,
   together: a spec file beside `skip_specs` fails validation.
-- Each `## Progress` line but a `**HUMAN` one ends ` · moderate` or ` · hard`: `hard` when the phase matches
+- Each `## Progress` line ends ` · moderate` or ` · hard`, no exemption: `hard` when the phase matches
   [*Suggesting models*](#suggesting-models)' strongest-tier row, else `moderate`. `mf-ship` builds a `moderate` phase
   on `[build.moderate]` when the models file names it.
 - `design.md` always has `## Tests` (`A8`) and `## Dependencies`, the latter `None.` when empty. Else a table
@@ -356,7 +356,7 @@ the cut: write none, and leave it as it stands, which the run's check compares. 
 | **I11** | need no dependency beyond the `## Dependencies` section of `design.md`, which always exists and says `None.` when empty | writing the section; reading it |
 | **I12** | hold no task for a step another station owns: a gate run, a CHANGELOG entry, a tick, a commit, `mf-simplify`, review, converge, release, archive, tag. `tasks.md` does not copy `mf-build`'s per-phase ritual | reading `tasks.md` |
 | **I13** | open `proposal.md` with `bump:` frontmatter — `minor`, or `patch` | writing it from the `bump` parameter; reading it |
-| **I14** | mark a phase a person must do with `**HUMAN` on its `## Progress` line (qualifiers may follow: `**HUMAN · METERED**`); write each of its sub-tasks as exact commands with real values — names, tags, repo-relative paths — or, for a step with no command, one line naming the file and the exact text; a value known only at run time is the command that prints it, then the edit that uses it; and give it at least one `Verify:` naming the evidence that closes it | reading its checks: none may hold yet, or `mf-build` would close the phase unworked; reading each sub-task for its commands |
+| **I14** | hold no phase a person does: a person's step is no phase, and a `**HUMAN` line of `## Progress` fails the cut | `cut_check.py` |
 | **I15** | mark `**HALT CHECK**` on a sub-task that checks the state before the phase's edits and whose failure means the plan is wrong; its `Verify:` states the exit its command really gives, as `exits <N>` | reading `tasks.md` |
 | **I16** | name, in `design.md`'s `## Tests` table, every test the change deletes or merges, each mapped to the remaining test that carries its assertions and scenario ids, to a decision in force at the base that retires it (`retired by Dn`), or, when its proofs cover only a requirement the change's delta removes, to that requirement removed with the code under test (`retired by removing <requirement title>`) | reading each task that deletes or merges a test, and finding the test in the table |
 | **I17** | name in `after:` only open or released versions with a lower id, each one's archive folder in `HEAD` before its build, or its change in the head `stacked-on` names | Step 1, for each `after` id; reading `proposal.md` |
@@ -451,7 +451,7 @@ write it to `.minions/changes/<change-id>/models.toml`, the run directory's, for
 | mechanical edits; a checklist to follow | the mid tier · medium |
 | settled text to place; small tests | the mid tier · high |
 | prose written fresh; moderate logic — **moderate** | Sonnet 5.5 · high, where the session offers it; else the strongest tier · medium |
-| new logic; a rule of a live skill or prompt written fresh; an irreversible phase; a `**HUMAN` phase | the strongest tier · high |
+| new logic; a rule of a live skill or prompt written fresh; an irreversible phase | the strongest tier · high |
 
 The highest row any phase matches decides the capability; map it to the offered models and supported controls.
 A build whose highest row is the moderate one runs whole on Sonnet 5.5 · high, where the session offers it: one model

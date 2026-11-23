@@ -6,7 +6,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 - [x] 1 — The conductor checks the cut · hard
 - [x] 2 — The rows · moderate
-- [ ] 3 — A person's phase refused · moderate
+- [x] 3 — A person's phase refused · moderate
 - [ ] 4 — The declared cut checks · moderate
 - [ ] 5 — The build's unplanned file · moderate
 - [ ] 6 — The records · moderate
@@ -51,21 +51,21 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 3 — A person's phase refused
 
-- [ ] 3.1 In `tests/test_cut_check.py` replace the `I14` defect with `test_person_phase_is_refused`, which finds `I14` among the rows printed; the clean fixture's phase 2 becomes an ordinary rated phase editing `a.py`, and each defect that rewrote its old text follows.
+- [x] 3.1 In `tests/test_cut_check.py` replace the `I14` defect with `test_person_phase_is_refused`, which finds `I14` among the rows printed; the clean fixture's phase 2 becomes an ordinary rated phase editing `a.py`, and each defect that rewrote its old text follows.
   Verify: `uv run pytest tests/test_cut_check.py -q` exits `0`.
-- [ ] 3.2 In `skills/mf-cut-change/scripts/cut_check.py` add `PERSON_PHASE`, which `row_i14` fails for each such line, and drop the exemptions of `row_i4` and `row_i12` per [D5](design.md#d5).
+- [x] 3.2 In `skills/mf-cut-change/scripts/cut_check.py` add `PERSON_PHASE`, which `row_i14` fails for each such line, and drop the exemptions of `row_i4` and `row_i12` per [D5](design.md#d5).
   Verify: `git grep -q -e "PERSON_PHASE" -- skills/mf-cut-change/scripts/cut_check.py` exits `0`.
-- [ ] 3.3 In `skills/mf-cut-change/scripts/verify_check.py` drop the `phases` exemption of `check`; in `tests/test_verify_check.py` flip the `**HUMAN` step to hold the refusal.
+- [x] 3.3 In `skills/mf-cut-change/scripts/verify_check.py` drop the `phases` exemption of `check`; in `tests/test_verify_check.py` flip the `**HUMAN` step to hold the refusal.
   Verify: `uv run pytest tests/test_verify_check.py -q` exits `0`.
-- [ ] 3.4 In `tests/test_brief_check.py` add `test_brief_phase_marked_for_a_person_halts` and `test_brief_phases_without_one_are_ready` per [D5](design.md#d5).
+- [x] 3.4 In `tests/test_brief_check.py` add `test_brief_phase_marked_for_a_person_halts` and `test_brief_phases_without_one_are_ready` per [D5](design.md#d5).
   Verify: `uv run pytest tests/test_brief_check.py -q -k brief_phase` exits `0`.
-- [ ] 3.5 In `skills/mf-plan/scripts/brief_check.py` add `person_steps`, which reads `## Phases` and halts each line holding `**HUMAN`, run beside `headings`.
+- [x] 3.5 In `skills/mf-plan/scripts/brief_check.py` add `person_steps`, which reads `## Phases` and halts each line holding `**HUMAN`, run beside `headings`.
   Verify: `git grep -q -e "person_steps" -- skills/mf-plan/scripts/brief_check.py` exits `0`.
-- [ ] 3.6 In `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md` reword the `I14` row to one sentence: a person's step is no phase, and a `**HUMAN` line fails the cut; its id stays.
+- [x] 3.6 In `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md` reword the `I14` row to one sentence: a person's step is no phase, and a `**HUMAN` line fails the cut; its id stays.
   Verify: `git grep -q -F -e "person's step" -- skills/mf-build/SKILL.md` exits `0`, and `git grep -q -F -e "person's step" -- skills/mf-cut-change/SKILL.md` exits `0`.
-- [ ] 3.7 In `skills/mf-cut-change/SKILL.md` word the rating rule so each `## Progress` line ends with its rating, no exemption, and drop the person's phase from the strongest-tier row.
+- [x] 3.7 In `skills/mf-cut-change/SKILL.md` word the rating rule so each `## Progress` line ends with its rating, no exemption, and drop the person's phase from the strongest-tier row.
   Verify: `git grep -q -F -e "line ends" -- skills/mf-cut-change/SKILL.md` exits `0`.
-- [ ] 3.8 In `skills/mf-plan/SKILL.md` add to the `hard` depth line that a `**HUMAN` phase is refused: a person's step comes after the release.
+- [x] 3.8 In `skills/mf-plan/SKILL.md` add to the `hard` depth line that a `**HUMAN` phase is refused: a person's step comes after the release.
   Verify: `git grep -q -F -e "**HUMAN" -- skills/mf-plan/SKILL.md` exits `0`.
 
 ## 4 — The declared cut checks

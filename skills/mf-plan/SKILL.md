@@ -111,7 +111,8 @@ facts (Step 3) ─▶ round: the frontier, each with a recommendation ─▶ the
   one as a `## Dependencies` row.
 
 **Depth.** `light` stops once the direction is settled — no phases — and its title says `light`. `hard` walks the
-frontier to empty: phases, and Acceptance as commands in `## Decisions` and `## For the cut`.
+frontier to empty: phases, and Acceptance as commands in `## Decisions` and `## For the cut`. A `**HUMAN` phase is
+refused: a person's step comes after the release.
 
 ## Step 5 — Write the brief
 

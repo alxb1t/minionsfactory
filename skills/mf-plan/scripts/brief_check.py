@@ -480,6 +480,18 @@ def headings(brief: str) -> list[str]:
     return found
 
 
+def person_steps(brief: str) -> list[str]:
+    """Return a halt per `## Phases` line marking a phase for a person.
+
+    A person's step comes after the release. Why: 0146-cut-catches design D5.
+    """
+    return [
+        f"## Phases marks a person's phase: {line.strip()}"
+        for line in sections(brief).get("## Phases", [])
+        if "**HUMAN" in line
+    ]
+
+
 def carriage(brief: str) -> list[str]:
     r"""Return a halt per line holding a carriage return not before a newline.
 
@@ -601,6 +613,7 @@ def main(argv: list[str] | None = None) -> int:
         found.append("## For the cut is empty")
     found += carriage(raw)
     found += headings(brief)
+    found += person_steps(brief)
     found += facts(parts.get("## Facts", []))[1]
     if "## Dependencies" not in parts:
         found.append("no ## Dependencies section")

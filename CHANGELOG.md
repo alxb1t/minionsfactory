@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The run's cut check runs `cut_check.py` in the cut's worktree, under the sandbox: a row bound only as far as the cutter obeyed its skill. A first failure of a cut the run made writes `cut.red`, resets the tree to the default branch and cuts once more, the prompt naming `cut.red`; a second halts `the cut check failed twice`, a rejoin's branch `the cut check failed` with nothing reset, and an exit above 1 `the cut check cannot run` (0146-cut-catches, phase 1).
 - `cut_check.py` gains `K7`, a design or proposal line naming a backticked identifier a sub-task removes with no removal word, `V7`, a `Verify:` whose first word is no program, no path of `HEAD` and no path a sub-task names, and `V8`, a `-k` selecting no test of the files it names: each was a halt at the build. `verify_check.py` stops refusing a search for a range's text, and refuses an Oxford comma and an `e.g.` that the plan check reads as two commands (0146-cut-catches, phase 2).
+- A `**HUMAN` line of `## Progress` fails the cut's `I14`, and a `**HUMAN` line of a brief's `## Phases` halts the brief check: a halt at such a phase idled until a person came. `I4`, `I12` and `verify_check.py` drop their exemptions, so each `## Progress` line ends with its rating; the conductor, the plan check and the build still read one in a version cut before (0146-cut-catches, phase 3).
 
 ## [0.116.0] - 2026-11-23
 

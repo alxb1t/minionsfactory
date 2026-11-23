@@ -453,6 +453,35 @@ def test_a_hard_brief_is_ready_for_the_cut(
     assert capsys.readouterr().out == "brief: ready for the cut\n"
 
 
+def _with_phases(*phases: str) -> str:
+    listed = "".join(f"- {phase}\n" for phase in phases)
+    return _READY.replace(
+        "## For the cut\n", f"## Phases\n{listed}\n## For the cut\n", 1
+    )
+
+
+def test_brief_phase_marked_for_a_person_halts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    brief = _write(tmp_path, _with_phases("1 — Build", "2 — Ship **HUMAN**"))
+    assert brief_check.main([str(brief)]) == 1
+    assert capsys.readouterr().out == (
+        "brief: halt — ## Phases marks a person's phase: - 2 — Ship **HUMAN**\n"
+    )
+
+
+def test_brief_phases_without_one_are_ready(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    brief = _write(tmp_path, _with_phases("1 — Build", "2 — Ship"))
+    assert brief_check.main([str(brief)]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+    marked = _READY.replace("| 1 | a check", "| 1 | a **HUMAN** check", 1)
+    assert marked != _READY
+    assert brief_check.main([str(_write(tmp_path, marked))]) == 0
+    assert capsys.readouterr().out == "brief: ready for the cut\n"
+
+
 def test_the_models_line_takes_build_close(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

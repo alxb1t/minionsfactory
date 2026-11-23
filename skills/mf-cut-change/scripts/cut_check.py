@@ -31,6 +31,7 @@ PLAN_CHECK = CONVERGE / "plan_check.py"
 CHANGE_ID = re.compile(r"\d+-[a-z0-9]+(?:-[a-z0-9]+)*")
 PROGRESS = re.compile(r"^- \[[ x]\] (\d+) — (.+)$")
 PHASE = re.compile(r"(\d+) — ")
+PERSON_PHASE = re.compile(r"\*\*HUMAN")
 SUBTASK = re.compile(r"- \[[ x]\] (\d+\.\d+\b.*)$")
 DEFINED = re.compile(r"^### ([A-Z]\d+)\b")
 SKIP_SPECS = re.compile(r"^skip_specs:\s*true\s*$", re.MULTILINE)
@@ -294,8 +295,7 @@ def row_i4(change: Change, plan: dict[str, Any]) -> str | None:
     if not phases:
         problems.append("`## Progress` lists no phase")
     for phase in phases:
-        suffixed = phase[2].endswith((" · moderate", " · hard"))
-        if not suffixed and "**HUMAN" not in phase[2]:
+        if not phase[2].endswith((" · moderate", " · hard")):
             problems.append(f"phase {phase[1]} lacks ` · moderate` or ` · hard`")
         if int(phase[1]) not in sections:
             problems.append(f"phase {phase[1]} has no `## {phase[1]} — …` section")
@@ -339,13 +339,11 @@ def row_i11(change: Change) -> str | None:
 
 
 def row_i12(change: Change, plan: dict[str, Any]) -> str | None:
-    """Return the sub-tasks that open with another station's step, a person's apart."""
-    human = plan["phases"](change.tasks)[1]
+    """Return the sub-tasks that open with another station's step."""
     found = [
         task.name
         for task in plan["subtasks"](change.tasks)
-        if int(task.name.split(".")[0]) not in human
-        and RITUAL.match(task.text[len(task.name) :].strip())
+        if RITUAL.match(task.text[len(task.name) :].strip())
     ]
     return (
         f"{', '.join(found)} open with a step another station owns" if found else None
@@ -362,16 +360,19 @@ def row_i13(change: Change, bump: str | None) -> str | None:
     return None
 
 
-def row_i14(change: Change, plan: dict[str, Any]) -> str | None:
-    """Return each phase a person does that holds no sub-task with a `Verify:`."""
-    human = plan["phases"](change.tasks)[1]
-    checked = {
-        int(task.name.split(".")[0])
-        for task in plan["subtasks"](change.tasks)
-        if plan["verify_of"](task.text) is not None
-    }
-    bare = ", ".join(str(phase) for phase in sorted(human - checked))
-    return f"phase {bare} holds no sub-task with Verify:" if bare else None
+def row_i14(change: Change) -> str | None:
+    """Return each `## Progress` phase marked for a person."""
+    marked = [
+        m[1]
+        for line in section(change.tasks, "Progress") or []
+        if (m := PROGRESS.match(line)) and PERSON_PHASE.search(m[2])
+    ]
+    return (
+        f"phase {', '.join(marked)} is marked for a person: a person's step follows "
+        "the release"
+        if marked
+        else None
+    )
 
 
 def row_i17(change: Change, pre: dict[str, Any]) -> str | None:
@@ -1144,7 +1145,7 @@ def check(
             ("I11", row_i11(change)),
             ("I12", row_i12(change, plan)),
             ("I13", row_i13(change, bump)),
-            ("I14", row_i14(change, plan)),
+            ("I14", row_i14(change)),
             ("I17", row_i17(change, pre)),
             ("A1", row_a1(change)),
             ("A2", row_a2(change)),

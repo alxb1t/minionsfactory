@@ -103,7 +103,7 @@ Build it.
 ## Progress
 
 - [ ] 1 — First · hard
-- [ ] 2 — Second **HUMAN**
+- [ ] 2 — Second · moderate
 
 ## 1 — First
 
@@ -112,7 +112,7 @@ Build it.
 
 ## 2 — Second
 
-- [ ] 2.1 Run `make gate`.
+- [ ] 2.1 Edit `a.py` again.
   Verify: `git tag` prints v1.
 """
 
@@ -239,11 +239,6 @@ def _bad_bump(root: Path) -> None:
     _edit(root, "proposal.md", "bump: minor", "bump: major")
 
 
-def _human_without_tasks(root: Path) -> None:
-    text = "- [ ] 2.1 Run `make gate`.\n  Verify: `git tag` prints v1.\n"
-    _edit(root, "tasks.md", text, "")
-
-
 def _after_not_open(root: Path) -> None:
     _edit(root, "proposal.md", "bump: minor\n", "bump: minor\nafter: [0002-gone]\n")
 
@@ -265,8 +260,8 @@ def _four_lines(root: Path) -> None:
 
 
 def _check_before_its_task(root: Path) -> None:
-    old = "Run `make gate`.\n  Verify: `git tag` prints v1."
-    new = "Run `make gate` for x.\n  Verify: `grep -n x a.py` prints a line."
+    old = "Edit `a.py` again.\n  Verify: `git tag` prints v1."
+    new = "Edit `a.py` for x.\n  Verify: `grep -n x a.py` prints a line."
     _edit(root, "tasks.md", old, new)
 
 
@@ -274,7 +269,7 @@ def _selects_a_later_test(root: Path) -> None:
     old = "Verify: `grep -n x a.py` prints a line."
     new = "Verify: `uv run pytest -q test_widget.py -k widget` exits 0."
     _edit(root, "tasks.md", old, new)
-    _edit(root, "tasks.md", "Run `make gate`.", "Add `test_widget` to the suite.")
+    _edit(root, "tasks.md", "Edit `a.py` again.", "Add `test_widget` to the suite.")
 
 
 def _git_grep_of_a_file_the_phase_adds(root: Path) -> None:
@@ -297,7 +292,7 @@ def _pytest_names_no_test_file(root: Path) -> None:
 
 
 def _later_task_diffs_a(root: Path, lines: str) -> None:
-    old = "Run `make gate`.\n  Verify: `git tag` prints v1."
+    old = "Edit `a.py` again.\n  Verify: `git tag` prints v1."
     block = f"  ```diff\n{lines}  ```\n"
     new = f"Drop a line of `a.py`.\n{block}  Verify: `git tag` prints v1."
     _edit(root, "tasks.md", old, new)
@@ -334,7 +329,7 @@ def _constant_not_in_its_file(root: Path) -> None:
 def _cite_in_two_tasks(root: Path) -> None:
     old = "Edit `a.py` per [D1](design.md#d1)."
     _edit(root, "tasks.md", old, f"{old[:-1]} as at a.py:1.")
-    _edit(root, "tasks.md", "Run `make gate`.", "Run `make gate` as at a.py:1.")
+    _edit(root, "tasks.md", "Edit `a.py` again.", "Edit `a.py` again as at a.py:1.")
 
 
 @pytest.mark.parametrize(
@@ -345,7 +340,6 @@ def _cite_in_two_tasks(root: Path) -> None:
         ("I11", _prose_dependencies),
         ("I12", _ritual),
         ("I13", _bad_bump),
-        ("I14", _human_without_tasks),
         ("I17", _after_not_open),
         ("A1", _headings_out_of_order),
         ("A2", _proposal_ends_elsewhere),
@@ -404,6 +398,28 @@ def test_a_bump_that_differs_from_the_given_one_fails(
     code, lines = _run(root, monkeypatch, capsys, "--bump", "patch")
     assert _halted(lines) == ["I13"]
     assert code == 1
+
+
+def test_person_phase_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _edit(root, "tasks.md", "- [ ] 2 — Second · moderate", "- [ ] 2 — Second **HUMAN**")
+    code, lines = _run(root, monkeypatch, capsys)
+    assert "I14" in _halted(lines)
+    assert code == 1
+    assert (
+        "cut_check: halt — I14 — phase 2 is marked for a person: a person's step "
+        "follows the release"
+    ) in lines
+    _edit(
+        root, "tasks.md", "- [ ] 1 — First · hard", "- [ ] 1 — First **HUMAN** · hard"
+    )
+    _, lines = _run(root, monkeypatch, capsys)
+    assert any("phase 1, 2 is marked for a person" in line for line in lines)
 
 
 def test_a_change_with_no_delta_holds_skip_specs_and_a_keep_file(
@@ -485,12 +501,12 @@ def test_i4_names_each_defect_of_the_tasks_shape(
     assert "`## Progress` does not follow the title and its line" in text
     # An unlisted phase's sub-task under a listed phase's section, then in its own.
     _edit(root, "tasks.md", "## 3 — First", "## 1 — First")
-    _edit(root, "tasks.md", "- [ ] 2 — Second **HUMAN**\n", "")
+    _edit(root, "tasks.md", "- [ ] 2 — Second · moderate\n", "")
     _edit(root, "tasks.md", "## 2 — Second\n\n", "")
     _, lines = _run(root, monkeypatch, capsys)
     why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
     assert "sub-task 2.1 is not of a listed phase" in why
-    _edit(root, "tasks.md", "- [ ] 2.1 Run", "## 2 — Second\n\n- [ ] 2.1 Run")
+    _edit(root, "tasks.md", "- [ ] 2.1 Edit", "## 2 — Second\n\n- [ ] 2.1 Edit")
     _, lines = _run(root, monkeypatch, capsys)
     why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
     assert "sub-task 2.1 is not of a listed phase" in why
@@ -506,7 +522,7 @@ def test_i4_names_each_defect_of_the_tasks_shape(
     why = " ".join(line for line in lines if line.startswith("cut_check: halt — I4 — "))
     assert "`## Progress` lists no phase" in why
     # A listed phase's sub-task under another phase's heading.
-    second = "- [ ] 2 — Second **HUMAN**\n"
+    second = "- [ ] 2 — Second · moderate\n"
     _edit(root, "tasks.md", "## Progress\n\n", f"## Progress\n\n{first}{second}")
     _edit(root, "tasks.md", "## 1 — First", "## 2 — Second")
     _, lines = _run(root, monkeypatch, capsys)
