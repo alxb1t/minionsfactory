@@ -556,7 +556,7 @@ args = ["tokens-integrate"]
 
 [[metric]]
 id = "codex-window-5h"
-title = "Codex 5-hour window used"
+title = "Codex 5-hour window used, account-wide"
 group = "run"
 unit = "%"
 better = "lower"
@@ -565,7 +565,7 @@ args = ["codex-window-5h"]
 
 [[metric]]
 id = "codex-window-week"
-title = "Codex weekly window used"
+title = "Codex weekly window used, account-wide"
 group = "run"
 unit = "%"
 better = "lower"

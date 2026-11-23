@@ -1075,7 +1075,9 @@ comes from the rollout the log's `thread_id` names, else the `try again at` text
 
 - **Why:** one operator session at 99% of a Plus window stopped run 20261108-200117 whole, a Claude-only version included;
   a wait costs a version's thread; Codex here is plan quota.
-- **Accepts:** the headroom read counts any Codex use, the operator's too · a limited shadow on Codex answers exit 1 and
+- **Accepts:** the headroom read counts any Codex use, the operator's too · a spawn's recorded share, the rise between
+  an `account-wide` read before and one after, counts the use the account made while it ran: a parallel version's, and
+  the operator's · a limited shadow on Codex answers exit 1 and
   drives nothing · a Codex station still halts its version · a Codex fixer halts its version at a limit, with no
   fallback · a forged `thread_id` reads another rollout, misstating a reset
   or a share.

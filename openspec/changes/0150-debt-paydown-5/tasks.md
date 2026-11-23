@@ -8,7 +8,7 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 - [x] 2 — The conductor's small fixes · moderate
 - [x] 3 — The drain · hard
 - [x] 4 — Converge and the viewer · moderate
-- [ ] 5 — The texts · moderate
+- [x] 5 — The texts · moderate
 
 ## 1 — The cut's rows
 
@@ -63,9 +63,9 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 
 ## 5 — The texts
 
-- [ ] 5.1 Make the `<path>: the supervisor` row of Step 4's commit table in `skills/mf-integrate/SKILL.md` name each path the index changed, per [D6](design.md#d6).
+- [x] 5.1 Make the `<path>: the supervisor` row of Step 4's commit table in `skills/mf-integrate/SKILL.md` name each path the index changed, per [D6](design.md#d6).
   Verify: `grep -n "index changed" skills/mf-integrate/SKILL.md` prints the row.
-- [ ] 5.2 Name the share's limit in the *Accepts* line of D76 in `docs/decisions.md`, as `account-wide`, per [D8](design.md#d8).
+- [x] 5.2 Name the share's limit in the *Accepts* line of D76 in `docs/decisions.md`, as `account-wide`, per [D8](design.md#d8).
   Verify: `grep -c account-wide docs/decisions.md` prints `1`.
-- [ ] 5.3 Retitle the metrics `codex-window-5h` and `codex-window-week` in `metrics/catalogue.toml` with `, account-wide`, per [D8](design.md#d8).
+- [x] 5.3 Retitle the metrics `codex-window-5h` and `codex-window-week` in `metrics/catalogue.toml` with `, account-wide`, per [D8](design.md#d8).
   Verify: `grep -c account-wide metrics/catalogue.toml` prints `2`.

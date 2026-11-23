@@ -169,7 +169,7 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
    | `<path>: integrate.py decisions` | `docs/decisions.md` and each file whose citations `decisions` renumbered — by `conduct.py`'s run of it too, when that moved the plan's ids |
    | `<path>: the branch <its intent>; <default-branch> <its intent>; union` | each hunk `.minions/changes/<change-id>/integrate.resolved` holds |
    | `<path>: the person` | each path the note named, after a note halt |
-   | `<path>: the supervisor` | each path the note named, after a note the supervisor settled (`settled=supervisor`); none is then `the person` |
+   | `<path>: the supervisor` | each path the index changed, after a note the supervisor settled (`settled=supervisor`), the note's paths and any other Markdown it staged under `openspec/` or `docs/`; none is then `the person` |
    | `<path>: test fixed — <what it now asserts>` | each test Step 3.3 or item 4 fixed |
 
        chore(integrate): merge <default-branch> into <branch>
