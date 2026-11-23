@@ -1011,6 +1011,24 @@ def test_a_start_that_loses_the_bind_leaves_the_winners_files(
     assert (tmp_path / "viewer.pid").read_text() == "4242\n"
     assert (tmp_path / "viewer.port").read_text() == "9123\n"
 
+    # The winner wrote its files before the loser wrote its own: they come back.
+    (tmp_path / "viewer.pid").unlink()
+    (tmp_path / "viewer.port").unlink()
+
+    def early(*_: object) -> _Child:
+        (tmp_path / "viewer.pid").write_text("4242\n")
+        (tmp_path / "viewer.port").write_text("9124\n")
+        return _Child(5, True)
+
+    assert (
+        _viewer()["start"](
+            tmp_path, config, early, lambda p: "vim" if p == 5 else _serving(p)
+        )
+        == 1
+    )
+    assert (tmp_path / "viewer.pid").read_text() == "4242\n"
+    assert (tmp_path / "viewer.port").read_text() == "9124\n"
+
 
 def test_run_ps_reads_a_failing_ps_as_nothing(tmp_path: Path) -> None:
     fake = tmp_path / "ps-bin" / "ps"

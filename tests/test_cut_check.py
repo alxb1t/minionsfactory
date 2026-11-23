@@ -1129,6 +1129,9 @@ def test_kexpr_naming_a_planned_test_holds(
     _task(root, "Edit `a.py` per [D1](design.md#d1).")
     _verified(root, "uv run pytest -q tests/test_new.py -k new")
     assert _halted_rows(root, monkeypatch, capsys) == []
+    # A negated word no name holds is no reason to halt: V8 reads `not slow` as pytest.
+    _verified(root, 'uv run pytest -q tests/test_new.py -k "new and not slow"')
+    assert _halted_rows(root, monkeypatch, capsys) == []
     # A planned class is a name, and a directory operand holds its test files' names.
     _verified(root, "uv run pytest -q tests/test_new.py -k TestFresh")
     assert _halted_rows(root, monkeypatch, capsys) == ["V8"]

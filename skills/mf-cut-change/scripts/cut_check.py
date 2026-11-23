@@ -775,11 +775,11 @@ class _KExpression:
         return held
 
 
-def selects(expression: str, name: str) -> bool:
+def selects(expression: str, name: str, *, certain: bool = True) -> bool:
     """Return whether a `-k` expression picks the test `name` by a positive match.
 
-    True needs an identifier outside every `not` in the name, and none under a `not`
-    missing from it. e.g. "a or not b", "test_a_b" → True
+    True needs an identifier outside every `not` in the name; `certain` adds that none
+    under a `not` is missing, V2's silence, which V8 turns off. e.g. "a or not b" → True
     """
     tokens = re.findall(r"[()]|[\w:+\-.\[\]\\/]+", expression)
     if "".join(tokens) != "".join(expression.split()):
@@ -789,7 +789,8 @@ def selects(expression: str, name: str) -> bool:
         value = parsed.either(0)
     except (ValueError, RecursionError):
         return False
-    return value and parsed.positive and not parsed.unknown and parsed.at == len(tokens)
+    quiet = not certain or not parsed.unknown
+    return value and parsed.positive and quiet and parsed.at == len(tokens)
 
 
 def _selected(text: str, plan: dict[str, Any]) -> list[str]:
@@ -992,7 +993,8 @@ def row_v8(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
             found += [
                 f"{task.name}: `-k {expression}` selects no test of {', '.join(files)}"
                 for flag, expression in itertools.pairwise(words)
-                if flag == "-k" and not any(selects(expression, n) for n in names)
+                if flag == "-k"
+                and not any(selects(expression, n, certain=False) for n in names)
             ]
     return " · ".join(found) or None
 
