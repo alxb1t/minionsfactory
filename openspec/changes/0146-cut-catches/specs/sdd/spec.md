@@ -64,15 +64,17 @@ A repository MAY declare `**Cut checks:**` in its root `AGENTS.md`: a line of ba
 
 ### Requirement: The build edits a file no task names when its check needs it
 
-`skills/mf-build/SKILL.md` SHALL have a worker whose `make check` is red, with an output naming a file no task of the phase names, edit that file when the edit turns the check green, and list it in the commit body, one `Unplanned: <path>` line a file before the trailer block. `skills/mf-converge/references/worker.md` SHALL give conformance an `unplanned-file` pass: each file of the freeze's diff that no task names SHALL stand on an `Unplanned:` line of a commit in range; a file so listed and needed by a red check SHALL be a `nit`, and one changed with no such line, or past what the check needed, SHALL be `blocking`. The `I6` and `I7` rows of both skills SHALL still ask a task to name its files, and SHALL say the build answers a file a task misses.
+`skills/mf-build/SKILL.md` SHALL have a worker whose `make check` is red, with an output naming a file no task of the phase names, edit that file when the edit turns the check green, and list it in the commit body, one `Unplanned: <path>` line a file before the trailer block. `skills/mf-converge/references/worker.md` SHALL give conformance an `unplanned-file` pass: each file of the freeze's diff that no task names, save `CHANGELOG.md` and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase, SHALL stand on an `Unplanned:` line of a commit in range; a file so listed and needed by a red check SHALL be a `nit`, and one changed with no such line, or past what the check needed, SHALL be `blocking`. The `I6` and `I7` rows of both skills SHALL still ask a task to name its files, and SHALL say the build answers a file a task misses.
 
 #### Scenario: A red check needs an unnamed file
 - **WHEN** a phase's `make check` is red on a fixture no task names, and editing it turns the check green
 - **THEN** the worker edits it, and the commit body holds `Unplanned: tests/fixtures/a.json` before the trailer block
 
 #### Scenario: Conformance judges the unplanned file
-- **WHEN** the freeze's diff changes a file no task names
+- **WHEN** the freeze's diff changes a file no task names, other than `CHANGELOG.md` and the change's own folder
 - **THEN** conformance opens a `nit` when an `Unplanned:` line lists it and a red check needed it, and a `blocking` card when no line lists it
+- **AND WHEN** the file is `CHANGELOG.md`, or under `openspec/changes/<change-id>/`
+- **THEN** the pass opens no card for it
 
 ## MODIFIED Requirements
 

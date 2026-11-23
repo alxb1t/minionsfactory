@@ -1,6 +1,6 @@
 # Cut catches — tasks
 
-Phases: the conductor checks the cut, the rows, a person's phase refused, the declared checks, the build's unplanned file, the records.
+Phases: the conductor checks the cut, the rows, a person's phase refused, the declared checks, the build's unplanned file, the records, the unplanned-file pass scoped.
 
 ## Progress
 
@@ -10,6 +10,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 - [x] 4 — The declared cut checks · moderate
 - [x] 5 — The build's unplanned file · moderate
 - [x] 6 — The records · moderate
+- [ ] 7 — The unplanned-file pass scoped · moderate
 
 ## 1 — The conductor checks the cut
 
@@ -100,3 +101,8 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
   Verify: `git grep -q -F -e "V7" -- docs/decisions.md` exits `0`.
 - [x] 6.3 In `docs/decisions.md` edit the decision `A run heals its own halts`: the cut refuses a person's phase, and the conductor still reads one of a version cut before.
   Verify: `git grep -q -F -e "cut before" -- docs/decisions.md` exits `0`.
+
+## 7 — The unplanned-file pass scoped
+
+- [ ] 7.1 In `skills/mf-converge/references/worker.md` scope the `unplanned-file` row per [D7](design.md#d7): the pass leaves out the changelog and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase, each named as the decision names it.
+  Verify: `git grep -q -F -e "CHANGELOG.md" -- skills/mf-converge/references/worker.md` exits `0`.
