@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A build worker's spawn line names its phase right after the station: `build · phase 3 · model …`, `build · close · …`, `build · repair · …`. Every measurement of a run read the phase from a worker's first prompt; no other station's line changes (0148-run-fields, phase 1).
 - Every worker spawn and finish line, and the converge script's pair, ends with the 1-minute load: ` · load 0.4`. The load was in no log, and reds and slow tests follow it; a load the machine cannot read leaves the field out (0148-run-fields, phase 2).
 - Every halt line ends with a cause from a fixed list: ` · cause gate-red`, `plan-text`, `worker`, `limit` and the rest of `CAUSES`. `cause_of` classes a reason by its start first, so a worker's text quoted after `check fail` wins no cause. A cause was free text, classed by hand in each measurement; the closing line and the stop line carry none (0148-run-fields, phase 3).
+- The run log says `check — gate · start` before each gate the conductor runs, and converge writes `check — gate · pass · 41s` or `fail — red` for each gate it runs, through a new `Host.logged`. The viewer showed nothing while a gate ran, and converge's gates left only an exit in a command log (0148-run-fields, phase 4).
 
 ## [0.118.0] - 2026-11-23
 

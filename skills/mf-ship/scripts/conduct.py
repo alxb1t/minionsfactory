@@ -4527,6 +4527,13 @@ class Run:
         cause = mflib.runlog.cause_suffix(cause_of(who, reason))
         self.log.event(who, "halt", f"{reason}{cause}")
 
+    def logged(self, change: str, event: str, detail: str) -> None:
+        """Write one run-log line for `change`.
+
+        Why: 0148-run-fields design D4.
+        """
+        self.log.event(change, event, detail)
+
     def on_disk(self, change: str) -> tuple[str, str, str] | None:
         """Return a version's stage, why and `HEAD` on disk; None when a read raises."""
         try:
@@ -8575,12 +8582,14 @@ def _run_gate(
     Red keeps the output in `gate.red`, green removes it; red under load runs again.
     Why: 0144-gate-outside D3, 0145-halts-alone D3.
     """
+    say("check — gate · start")
     start = time.monotonic()
     code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
     seconds = round(time.monotonic() - start)
     if code != 0:
         say(f"check — gate · fail — red · {seconds}s")
         if _load_wait(say):
+            say("check — gate · start")
             start = time.monotonic()
             code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
             seconds = round(time.monotonic() - start)

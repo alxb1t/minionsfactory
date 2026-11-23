@@ -7,7 +7,7 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 - [x] 1 — The phase on a build's spawn line · moderate
 - [x] 2 — The load on spawn and finish lines · moderate
 - [x] 3 — A halt's cause · moderate
-- [ ] 4 — The gates' lines · moderate
+- [x] 4 — The gates' lines · moderate
 - [ ] 5 — The readers · moderate
 - [ ] 6 — The records · moderate
 
@@ -42,13 +42,13 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 ## 4 — The gates' lines
 
-- [ ] 4.1 In `_run_gate` of `skills/mf-ship/scripts/conduct.py` say `check — gate · start` before each gate run, the rerun after a load wait included ([D4](design.md#d4)).
+- [x] 4.1 In `_run_gate` of `skills/mf-ship/scripts/conduct.py` say `check — gate · start` before each gate run, the rerun after a load wait included ([D4](design.md#d4)).
   Verify: `git grep -n -e "gate · start" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 4.2 Add `def logged(self, change, event, detail)` to `Run` in `skills/mf-ship/scripts/conduct.py`, one run-log line, and the same method to the `Host` protocol of `skills/mf-converge/scripts/converge.py`.
+- [x] 4.2 Add `def logged(self, change, event, detail)` to `Run` in `skills/mf-ship/scripts/conduct.py`, one run-log line, and the same method to the `Host` protocol of `skills/mf-converge/scripts/converge.py`.
   Verify: `git grep -n -e "def logged" -- skills/mf-converge/scripts/converge.py` exits 0.
-- [ ] 4.3 In `skills/mf-converge/scripts/converge.py` add `def gate_line`, which times a gate and writes `check — gate · pass · <n>s` or `check — gate · fail — red · <n>s` through the host. Call it at `gated`, in `fix` at each fixer pass, and in `finish`; write no start line.
+- [x] 4.3 In `skills/mf-converge/scripts/converge.py` add `def gate_line`, which times a gate and writes `check — gate · pass · <n>s` or `check — gate · fail — red · <n>s` through the host. Call it at `gated`, in `fix` at each fixer pass, and in `finish`; write no start line.
   Verify: `git grep -n -e "def gate_line" -- skills/mf-converge/scripts/converge.py` exits 0.
-- [ ] 4.4 In `tests/test_conduct.py` make the tests that count or order `check — gate` lines, among them `_gate_lines` and the load-wait order of `test_a_gate_red_under_load_waits_and_runs_again` and the printed lines of `test_close_on_a_green_gate_prints_the_gate_line`, `test_close_on_a_red_gate_writes_gate_red_and_build_halt` and `test_a_red_gate_after_simplify_drops_its_commit`, expect each start. Add `test_a_gate_logs_its_start_before_its_result` and `test_a_gate_rerun_after_a_load_wait_logs_a_second_start`. Give the fake hosts of `tests/test_converge.py` a `logged` method and add `test_converge_logs_each_gate_with_its_seconds` and `test_a_reused_gate_record_is_logged_as_a_pass`.
+- [x] 4.4 In `tests/test_conduct.py` make the tests that count or order `check — gate` lines, among them `_gate_lines` and the load-wait order of `test_a_gate_red_under_load_waits_and_runs_again` and the printed lines of `test_close_on_a_green_gate_prints_the_gate_line`, `test_close_on_a_red_gate_writes_gate_red_and_build_halt` and `test_a_red_gate_after_simplify_drops_its_commit`, expect each start. Add `test_a_gate_logs_its_start_before_its_result` and `test_a_gate_rerun_after_a_load_wait_logs_a_second_start`. Give the fake hosts of `tests/test_converge.py` a `logged` method and add `test_converge_logs_each_gate_with_its_seconds` and `test_a_reused_gate_record_is_logged_as_a_pass`.
   Verify: `uv run pytest tests/test_conduct.py tests/test_converge.py -q -k "test_a_gate_logs_its_start_before_its_result or test_a_gate_rerun_after_a_load_wait_logs_a_second_start or test_converge_logs_each_gate_with_its_seconds or test_a_reused_gate_record_is_logged_as_a_pass"` exits 0.
 
 ## 5 — The readers

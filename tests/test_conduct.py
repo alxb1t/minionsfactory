@@ -2979,15 +2979,20 @@ def test_a_build_runs_a_worker_per_phase(
         f"phase 3 · {on[1]}",
         f"close · {on[0]}",
     ]
-    # One gate after the last phase, none after the others, and the close's.
+    # One gate after the last phase, none after the others, and the close's: each a
+    # start and a result. Converge's gates, before round 1 and at its close, follow.
     events = [
         line.split(" · 0001-todo · ")[1].split(" · ")[0]
         for line in lines
         if " · 0001-todo · spawn — build" in line or " · check — gate" in line
     ]
-    assert events == ["spawn — build"] * 3 + ["check — gate", "spawn — build"] + [
-        "check — gate"
-    ]
+    assert events == (
+        ["spawn — build"] * 3
+        + ["check — gate"] * 2
+        + ["spawn — build"]
+        + ["check — gate"] * 2
+        + ["check — gate"] * 2
+    )
     # Each phase appends 50 lines; the conductor keeps 40 of each.
     notes = (folder / "build-notes.md").read_text().splitlines()
     sections = [i for i, line in enumerate(notes) if line.startswith("## ")]
@@ -4082,11 +4087,10 @@ def test_close_on_a_green_gate_prints_the_gate_line(
     code, lines = _close(root, monkeypatch, capsys)
 
     assert code == 0, lines
-    assert (
-        [line for line in lines if line.startswith("check — gate")]
-        == [line for line in lines if re.fullmatch(r"check — gate · pass · \d+s", line)]
-        != []
-    )
+    gates = [line for line in lines if line.startswith("check — gate")]
+    assert gates[0] == "check — gate · start"
+    assert re.fullmatch(r"check — gate · pass · \d+s", gates[1])
+    assert gates[2:] == []
     assert lines[-1] == "close: done"
     assert not (_marks(root) / "gate.red").exists()
 
@@ -4102,9 +4106,9 @@ def test_close_on_a_red_gate_writes_gate_red_and_build_halt(
     code, lines = _close(root, monkeypatch, capsys)
 
     assert code == 1, lines
-    assert any(
-        re.fullmatch(r"check — gate · fail — red · \d+s", line) for line in lines
-    )
+    gates = [line for line in lines if line.startswith("check — gate")]
+    assert gates[0] == "check — gate · start"
+    assert re.fullmatch(r"check — gate · fail — red · \d+s", gates[1])
     gate_red = ".minions/changes/0001-todo/gate.red"
     assert lines[-1] == f"close: fail — gate: red · gate_run.py exit 2 · {gate_red}"
     assert "gate: red — exit 2" in (_marks(root) / "gate.red").read_text()
@@ -4262,12 +4266,17 @@ def test_the_simplify_worker_is_checked_on_a_clean_tree(
         _git(root, "log", "-1", "--format=%s", head) == "refactor(0001-todo): simplify"
     )
     assert (_marks(root) / "build.simplified").read_text() == f"head: {head}\n"
-    # The close's gate is a `check` event of the run log, before the build's check.
-    assert _gate_lines(lines) == ["gate · pass · Ns"]
+    # The close's gate is a `check` event of the run log, before the build's check;
+    # converge's two gates follow, with no start.
+    assert _gate_lines(lines) == [
+        "gate · start",
+        *["gate · pass · Ns"] * 3,
+    ]
     marker = " · 0001-todo · check — "
     checks = [line.split(marker)[1] for line in lines if marker in line]
-    assert checks[0].startswith("gate · pass · ")
-    assert checks[1] == "build · pass"
+    assert checks[0] == "gate · start"
+    assert checks[1].startswith("gate · pass · ")
+    assert checks[2] == "build · pass"
 
 
 @pytest.mark.slow
@@ -4295,9 +4304,13 @@ def test_a_red_gate_after_the_last_phase_is_repaired_once(
     assert made[:4] == ["probe", "build 0001-todo", repair, close]
     assert made[-1] == "release 0001-todo"
     assert _gate_lines(lines) == [
+        "gate · start",
         "gate · fail — red · Ns",
+        "gate · start",
         "gate · pass · Ns",
+        "gate · start",
         "gate · pass · Ns",
+        *["gate · pass · Ns"] * 2,
     ]
     assert not (_marks(root) / "gate.red").exists()
     # The repair builds on the last phase's models: here `[build.moderate]`'s.
@@ -4351,7 +4364,7 @@ def test_a_second_red_gate_halts_after_the_repair(
     assert _calls(calls)[-1] == "build 0001-todo with phase=repair"
     exited = " · 0001-todo · halt — build worker exit 1 · cause worker"
     assert any(line.endswith(exited) for line in lines), lines
-    assert _gate_lines(lines) == ["gate · fail — red · Ns"]
+    assert _gate_lines(lines) == ["gate · start", "gate · fail — red · Ns"]
     assert not (_marks(died) / "build.halt").exists()
 
 
@@ -4380,7 +4393,11 @@ def test_a_green_gate_after_the_last_phase_spawns_no_repair(
         "spawn — build",
         "spawn — build",
         "check — gate",
+        "check — gate",
         "spawn — build",
+        "check — gate",
+        "check — gate",
+        "check — gate",
         "check — gate",
     ]
 
@@ -4423,19 +4440,21 @@ def test_a_gate_red_under_load_waits_and_runs_again(
     assert result is None
     assert ran == 2
     assert sleeps == [30]
-    assert said[:3] == [
+    assert said[:5] == [
+        "check — gate · start",
         "check — gate · fail — red · 0s",
         over,
         "wait — gate · load 0.0 · 30s",
+        "check — gate · start",
     ]
-    assert re.fullmatch(r"check — gate · pass · \d+s", said[3])
+    assert re.fullmatch(r"check — gate · pass · \d+s", said[5])
     assert not (_marks(root) / "gate.red").exists()
 
     # Red twice: the second red is the result, and its output the file's.
     result, said, ran = run([2, 2], [cores + 1.0, 0.0])
     assert result == "red · gate_run.py exit 2 · .minions/changes/0001-todo/gate.red"
     assert ran == 2
-    assert [line.split(" · ")[0] for line in said].count("check — gate") == 2
+    assert [line.split(" · ")[0] for line in said].count("check — gate") == 4
     assert (_marks(root) / "gate.red").read_text() == "gate output 2\n"
 
     # A low load: no wait, no second run.
@@ -4449,9 +4468,81 @@ def test_a_gate_red_under_load_waits_and_runs_again(
     assert result is not None
     assert (ran, sleeps) == (1, [30, 30, 30])
     assert said == [
+        "check — gate · start",
         "check — gate · fail — red · 0s",
         over,
         f"wait — gate · load {cores + 1:.1f} · 90s",
+    ]
+
+
+def _timed(lines: list[str]) -> list[str]:
+    """Return `lines` with each trailing `<n>s` as `Ns`."""
+    return [re.sub(r"\d+s$", "Ns", line) for line in lines]
+
+
+def test_a_gate_logs_its_start_before_its_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0148-run-fields design D4.
+    conduct = _conduct()
+    module = conduct["_run_gate"].__globals__
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    said: list[str] = []
+    codes = iter([0, 2])
+
+    def boxed(primary: Path, where: Path, argv_: list[str]) -> tuple[int, str]:
+        said.append("gate runs")
+        return next(codes), "gate output\n"
+
+    monkeypatch.setitem(module, "_boxed", boxed)
+
+    assert conduct["_run_gate"](root, "0001-todo", tree, said.append) is None
+    assert _timed(said) == [
+        "check — gate · start",
+        "gate runs",
+        "check — gate · pass · Ns",
+    ]
+    said.clear()
+    assert conduct["_run_gate"](root, "0001-todo", tree, said.append) is not None
+    assert _timed(said) == [
+        "check — gate · start",
+        "gate runs",
+        "check — gate · fail — red · Ns",
+    ]
+
+
+def test_a_gate_rerun_after_a_load_wait_logs_a_second_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0148-run-fields design D4.
+    conduct = _conduct()
+    module = conduct["_run_gate"].__globals__
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    cores = os.cpu_count() or 1
+    loads = iter([cores + 1.0, 0.0])
+    codes = iter([2, 0])
+    said: list[str] = []
+
+    def boxed(primary: Path, where: Path, argv_: list[str]) -> tuple[int, str]:
+        said.append("gate runs")
+        return next(codes), "gate output\n"
+
+    monkeypatch.setitem(module, "_boxed", boxed)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(os, "getloadavg", lambda: (next(loads, 0.0), 0.0, 0.0))
+
+    assert conduct["_run_gate"](root, "0001-todo", tree, said.append) is None
+    assert _timed(said) == [
+        "check — gate · start",
+        "gate runs",
+        "check — gate · fail — red · Ns",
+        f"wait — gate · load {cores + 1:.1f} over {cores} cores",
+        "wait — gate · load 0.0 · Ns",
+        "check — gate · start",
+        "gate runs",
+        "check — gate · pass · Ns",
     ]
 
 
@@ -4473,8 +4564,10 @@ def test_a_red_gate_after_simplify_drops_its_commit(
         if line.startswith(("check — gate", "reset — "))
     ]
     assert shown == [
+        "check — gate · start",
         "check — gate · fail — red · Ns",
         "reset — simplify dropped",
+        "check — gate · start",
         "check — gate · pass · Ns",
     ]
     assert _git(tree, "rev-parse", "HEAD") == before
@@ -4552,7 +4645,7 @@ def test_a_close_after_an_amend_of_the_change_directory_spawns_no_worker(
     assert made[-1] == "release 0001-todo"
     assert (_marks(root) / "build.done").read_text().startswith(f"head: {head}\n")
     assert (_marks(root) / "build.simplified").read_text() == f"head: {simplified}\n"
-    assert _gate_lines(lines) == ["gate · pass · Ns"]
+    assert _gate_lines(lines) == ["gate · start", *["gate · pass · Ns"] * 3]
 
 
 @pytest.mark.slow

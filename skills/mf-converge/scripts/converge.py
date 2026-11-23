@@ -189,6 +189,12 @@ class Host(Protocol):
     ) -> Checked:
         """Run the Codex fixer; return what it did."""
 
+    def logged(self, change: str, event: str, detail: str) -> None:
+        """Write one run-log line: `<event> — <detail>` for the change.
+
+        Why: 0148-run-fields design D4.
+        """
+
 
 class SendBack(Exception):
     """Step 7's plan check failed: its subjects go back to the fixer, no round."""
@@ -374,7 +380,7 @@ def gated(context: Context, when: str) -> None:
 
     Why: design D6.
     """
-    if code := sandboxed(context, script("gate_run.py")):
+    if code := gate_line(context)[0]:
         raise Halt(f"the gate is red {when}: gate_run.py exit {code}")
     argv = script("gate_check.py", "--change", context.change, "--base", context.base)
     code, printed = _captured(context, argv)
@@ -384,6 +390,21 @@ def gated(context: Context, when: str) -> None:
     if code != 0:
         lines = (line.strip() for line in printed.splitlines())
         raise Halt(f"gate check: {' · '.join(line for line in lines if line)}")
+
+
+def gate_line(context: Context, keep: bool = False) -> tuple[int, str]:
+    """Run the gate, log its result and seconds through the host; return exit, output.
+
+    `keep` runs it through `_captured`, so its output is returned and kept.
+    Why: 0148-run-fields design D4.
+    """
+    argv = script("gate_run.py")
+    start = time.monotonic()
+    code, printed = _captured(context, argv) if keep else (sandboxed(context, argv), "")
+    result = "fail — red" if code else "pass"
+    seconds = round(time.monotonic() - start)
+    context.host.logged(context.change, "check", f"gate · {result} · {seconds}s")
+    return code, printed
 
 
 def head(context: Context) -> str:
@@ -1129,7 +1150,7 @@ def fix(context: Context, judged: Freeze, ids: str, note: str = "") -> Freeze:
         fixer(context, sent)
         after = head(context)
         plan_text(context, before, after)
-        code, printed = _captured(context, script("gate_run.py"))
+        code, printed = gate_line(context, keep=True)
         status = git(context.tree, "status", "--porcelain").splitlines()
         dirty = ", ".join(line[3:] for line in status)
         why = f"the gate is red, exit {code}" if code else ""
@@ -1277,7 +1298,7 @@ def finish(context: Context, owed: bool = True) -> int:
     """
     stubs(context)
     paid = debt(context) if owed else debted(context)
-    if gate := sandboxed(context, script("gate_run.py")):
+    if gate := gate_line(context)[0]:
         raise Halt(f"the gate is red at the close: gate_run.py exit {gate}")
     rounds_ = _plural(context.round, "round")
     cards = _plural(len(paid.written), "card")
