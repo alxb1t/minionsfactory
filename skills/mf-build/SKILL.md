@@ -65,8 +65,8 @@ A breach of any, found mid-build, is a halt naming the id.
 | **I3** | pass `openspec validate --strict` and `verify_check.py` on the cut commit | — |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`, a last ` · moderate` or ` · hard` no part of the title. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | yes — at least one Progress line parses |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | — (stop-condition 1) |
-| **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | — (stop-condition 3) |
-| **I7** | name, in some task, every existing file the change will turn red | — |
+| **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`). A file a task leaves unnamed is the build's to answer, in Step 2 item 3 | — (stop-condition 3) |
+| **I7** | name, in some task, every existing file the change will turn red. A file left unnamed is the build's to answer, in Step 2 item 3 | — |
 | **I8** | let each phase end on a green `make check`, the build on a green gate; steps that cannot be green apart are one phase | — (stop-condition 5) |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly, or the delta of an `after:` change adds it. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | — |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | — (stop-condition 2) |
@@ -199,6 +199,9 @@ ticking the `N.M` boxes with the phase's box at item 5.
    when it exits non-zero, the full gate: `make gate`, through `gate_run.py` (Step 1). It must exit 0. **Never weaken it to pass** — a deleted or skipped test,
    a blanket suppression, a loosened config: that is a plan problem, so halt (stop-condition 5). A test deleted
    or merged as `design.md`'s `## Tests` table names it (`I16`, `T5`) is not weakening; one outside the table is.
+   **A red check whose output names a file no task of the phase names**, and whose edit turns it green, is edited:
+   a fixture, a coverage test, a doc line. List each such file in the commit body, one `Unplanned: <path>` line a
+   file, before the trailer block. Edit nothing past what the check needs.
 4. **Append the phase's entry under `## [Unreleased]` in `CHANGELOG.md`** — 1–3 short lines: what the phase
    changed and why, following `P`.
 5. **Check the staged tree, then tick the phase's box.** Stage the paths you changed **by name** — never

@@ -349,8 +349,8 @@ the cut: write none, and leave it as it stands, which the run's check compares. 
 | **I3** | pass `openspec validate --strict` and `verify_check.py` on the cut commit | Steps 7 and 8 |
 | **I4** | open `tasks.md` with `## Progress`, one line per phase: `- [ ] N — Title`, a last ` · moderate` or ` · hard` no part of the title. Each phase has a `## N — Title` section of `- [ ] N.M` sub-tasks, and each sub-task states its check after `Verify:` | writing that shape; reading `tasks.md` |
 | **I5** | make every `Verify:` a command that runs on this machine, or a fact visible on disk | reading each check in Step 8 |
-| **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`) | reading each task |
-| **I7** | name, in some task, every existing file the change will turn red | searching the tests and docs for what the change edits |
+| **I6** | give every task one reading: it names its files, offers no "or", and names things rather than counting them (`P12`). A file a task leaves unnamed is the build's to answer | reading each task |
+| **I7** | name, in some task, every existing file the change will turn red. A file left unnamed is the build's to answer | searching the tests and docs for what the change edits |
 | **I8** | let each phase end on a green `make check`, the build on a green gate; steps that cannot be green apart are one phase | reading the phase order |
 | **I9** | have a delta for every behaviour change. A MODIFIED title matches an existing requirement exactly, or the delta of an `after:` change adds it. A rename is REMOVED (old title, with **Reason** and **Migration**) plus ADDED (new title) | comparing each MODIFIED title with `openspec/specs/`; an `after:` change's delta read with `git show <id>:…` |
 | **I10** | agree with HEAD: every file and symbol `design.md` names exists, or the design of an `after:` change adds it, and every line number was re-checked at the cut | re-checking each moved one in Step 3, an unmoved path's standing; an `after:` change's design read with `git show <id>:…` |

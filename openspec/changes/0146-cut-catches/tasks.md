@@ -8,7 +8,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 - [x] 2 — The rows · moderate
 - [x] 3 — A person's phase refused · moderate
 - [x] 4 — The declared cut checks · moderate
-- [ ] 5 — The build's unplanned file · moderate
+- [x] 5 — The build's unplanned file · moderate
 - [ ] 6 — The records · moderate
 
 ## 1 — The conductor checks the cut
@@ -85,11 +85,11 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 5 — The build's unplanned file
 
-- [ ] 5.1 In `skills/mf-build/SKILL.md` Step 2, answer a red `make check` that needs a file no task names by the edit, the file on an `Unplanned:` line of the commit body per [D7](design.md#d7).
+- [x] 5.1 In `skills/mf-build/SKILL.md` Step 2, answer a red `make check` that needs a file no task names by the edit, the file on an `Unplanned:` line of the commit body per [D7](design.md#d7).
   Verify: `git grep -q -F -e "Unplanned:" -- skills/mf-build/SKILL.md` exits `0`.
-- [ ] 5.2 In `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md` add to the `I6` and `I7` rows that a file a task leaves unnamed is the build's to answer; the ids stay.
+- [x] 5.2 In `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md` add to the `I6` and `I7` rows that a file a task leaves unnamed is the build's to answer; the ids stay.
   Verify: `git grep -q -F -e "unnamed" -- skills/mf-build/SKILL.md` exits `0`, and `git grep -q -F -e "unnamed" -- skills/mf-cut-change/SKILL.md` exits `0`.
-- [ ] 5.3 In `skills/mf-converge/references/worker.md` add the `unplanned-file` pass to conformance's table, graded per [D7](design.md#d7).
+- [x] 5.3 In `skills/mf-converge/references/worker.md` add the `unplanned-file` pass to conformance's table, graded per [D7](design.md#d7).
   Verify: `git grep -q -F -e "unplanned-file" -- skills/mf-converge/references/worker.md` exits `0`.
 
 ## 6 — The records
