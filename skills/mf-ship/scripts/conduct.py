@@ -1030,16 +1030,20 @@ def _built_head(primary: Path, change: str) -> str | None:
 
 
 def _replanned(primary: Path, change: str, since: str) -> bool:
-    """Return whether an amend of the change directory past `since` changes a decision.
+    """Return whether an amend or a `Plan-text:` fix past `since` changes a decision.
 
-    Why: 0099-stacked-builds design D6.
+    Why: 0099-stacked-builds design D6; 0147-amends-alone design D3.
     """
     folder = f"openspec/changes/{change}"
     subject = f"docs({change}): amend the change directory"
     listed = ("diff-tree", "--root", "-r", "--no-commit-id", "--name-only")
     span = f"{since}..refs/heads/{change}"
+    worded = "--format=%(trailers:key=Plan-text,valueonly)"
     for sha in _git(primary, "rev-list", "--no-merges", span).split():
-        if _subject(primary, sha) != subject:
+        if (
+            _subject(primary, sha) != subject
+            and not _git(primary, "log", "-1", worded, sha).strip()
+        ):
             continue
         if f"{folder}/proposal.md" in _git(primary, *listed, sha).split():
             return True

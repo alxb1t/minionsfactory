@@ -77,6 +77,7 @@ COMMAND = re.compile(r"`([^`]+)`")
 REPEAT = re.compile(r"repeat of `?([\w·]+)")
 NOTE = re.compile(r"^Fix note \(\d{4}-\d\d-\d\d, ([^)]+)\):")
 DECISION = re.compile(r"^### (D\d+)\b")
+PLAN_TEXT = "Plan-text"
 
 
 class Halt(Exception):
@@ -1023,6 +1024,97 @@ def fixer(context: Context, ids: str) -> None:
         stamp(context, f"fan-out — retry — fix: {why}")
 
 
+class Design(NamedTuple):
+    """A design's frame a fix commit keeps, and the decision bodies it may reword."""
+
+    headings: list[str]
+    table: list[str]
+    bodies: list[list[str]]
+
+
+def _design(text: str) -> Design:
+    """Return a design's `## ` and `### D<n>` headings, decisions table and bodies.
+
+    The table is the `## Decisions` section before its first entry; a body drops its
+    blank lines and fix notes. Why: 0147-amends-alone design D3.
+    """
+    found = Design([], [], [])
+    inside = False
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if line.startswith("## "):
+            found.headings.append(line)
+            inside = line.startswith("## Decisions")
+        elif inside and DECISION.match(line):
+            found.headings.append(line)
+            found.bodies.append([])
+        elif inside and line and not NOTE.match(line):
+            (found.bodies[-1] if found.bodies else found.table).append(line)
+    return found
+
+
+def _shown(context: Context, rev: str, path: str) -> str:
+    """Return `path` at `rev`, or "" where it is missing."""
+    shown = subprocess.run(
+        ["git", "show", f"{rev}:{path}"],
+        cwd=context.tree,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_SECONDS,
+    )
+    return shown.stdout if shown.returncode == 0 else ""
+
+
+def _reworded(context: Context, sha: str, path: str) -> bool:
+    """Return whether `sha` rewords a decision's body; halt on a heading or the table.
+
+    Why: 0147-amends-alone design D3.
+    """
+    was, now = (_design(_shown(context, rev, path)) for rev in (f"{sha}^", sha))
+    if was.headings != now.headings:
+        raise Halt(f"plan edit refused — {sha[:7]} changes a heading of {path}")
+    if was.table != now.table:
+        raise Halt(f"plan edit refused — {sha[:7]} changes the decisions table")
+    return was.bodies != now.bodies
+
+
+def plan_text(context: Context, before: str, after: str) -> None:
+    """Halt `plan edit refused` on a fix commit past the plan text a fixer may edit.
+
+    Under the change's folder, `design.md` and `specs/` alone; the delta and a body
+    under a `Plan-text:` trailer naming no security card. Why: 0147-amends-alone D3.
+    """
+    folder = f"openspec/changes/{context.change}/"
+    span = f"{before}..{after}"
+    for sha in git(context.tree, "rev-list", "--reverse", "--no-merges", span).split():
+        listed = ("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", sha)
+        worded = []
+        for path in git(context.tree, *listed).splitlines():
+            if path.startswith(f"{folder}specs/"):
+                worded.append(path)
+            elif path == f"{folder}design.md":
+                worded += [path] if _reworded(context, sha, path) else []
+            elif path.startswith(folder):
+                raise Halt(f"plan edit refused — {sha[:7]} edits {path}")
+        if not worded:
+            continue
+        said = f"--format=%(trailers:key={PLAN_TEXT},valueonly)"
+        ids = set(re.findall(r"[\w·]+", git(context.tree, "log", "-1", said, sha)))
+        if not ids:
+            raise Halt(
+                f"plan edit refused — {sha[:7]} edits {', '.join(worded)}"
+                f" with no {PLAN_TEXT}: trailer"
+            )
+        cards = (card for verdict in _files(context) for card in verdict.cards)
+        if severe := sorted(
+            card.id for card in cards if card.id in ids and card.security
+        ):
+            raise Halt(
+                f"plan edit refused — {sha[:7]} names security card"
+                f" {', '.join(severe)} under {PLAN_TEXT}:"
+            )
+
+
 def fix(context: Context, judged: Freeze, ids: str, note: str = "") -> Freeze:
     """Run Step 6's fixer on `ids`; return the freeze Step 7 judges.
 
@@ -1034,6 +1126,7 @@ def fix(context: Context, judged: Freeze, ids: str, note: str = "") -> Freeze:
         stamp(context, f"fix — sent {ids}{more or note}")
         fixer(context, sent)
         after = head(context)
+        plan_text(context, before, after)
         code, printed = _captured(context, script("gate_run.py"))
         status = git(context.tree, "status", "--porcelain").splitlines()
         dirty = ", ".join(line[3:] for line in status)

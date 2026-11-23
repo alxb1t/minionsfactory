@@ -30,11 +30,16 @@ from this reference.
 - **Touch no frontmatter counter** — not `round`, `head` or `open_blocking` — and **never write `verdict: clean`**.
   Those are the verify pass's.
 - **Mark a card you believe wrong `wontfix` with a justification**, never silently.
-- **Edit no plan** but as [an amend card](worker.md#the-card) says: never the change's `tasks.md`, nor its `design.md`
-  save the prose a `drift` card names outside its `## Decisions`, `## Tests` and `## Dependencies` sections, and a
-  fix note when your fix changes how the code implements a decision whose words still hold. A card whose fix needs any
-  other plan edit you set `wontfix`, naming the amend the person commits by its path, and its **Amend** `yes`. A
-  blocking one halts the round `amend needed` after your pass; a non-blocking one halts at the debt write.
+- **Edit no plan** but as [an amend card](worker.md#the-card) says: never the change's `tasks.md` or `proposal.md`, nor
+  its `design.md` save the prose a `drift` card names outside its `## Decisions`, `## Tests` and `## Dependencies`
+  sections, and a fix note when your fix changes how the code implements a decision whose words still hold. A card
+  whose fix needs any other plan edit you set `wontfix`, naming the amend the person commits by its path, and its
+  **Amend** `yes`. A blocking one halts the round `amend needed` after your pass; a non-blocking one halts at the debt write.
+- **Say in the plan what your fix does**, where its words lag the code: the change's spec delta, the files under
+  `openspec/changes/<change-id>/specs/`, and the body of a `### D<n>` entry of `design.md`. Edit them in the commit of
+  the fix, which carries a `Plan-text: <card ids>` trailer naming the cards it clears, in the trailer block. Never the
+  decisions table, a `### D<n>` or `## ` heading, or a decision added or removed. A security card of `critical` or
+  `high` severity stays an amend card. `converge.py` halts the round `plan edit refused` on any other plan edit.
 - **A fixer adds no package**: a dependency is the plan's, and a Codex fixer has no network.
 - **Delete, move, rename or empty no findings file and no diff patch, and write no debt**: converge writes the debt;
   a second writer would duplicate ids.

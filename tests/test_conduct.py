@@ -1936,6 +1936,49 @@ def test_a_stacked_dependent_resets_and_merges_back(
     assert _git(race, "rev-parse", "HEAD^1") == race_cut
 
 
+def test_a_plan_text_fix_commit_re_plans_a_stack(tmp_path: Path) -> None:
+    # Why: 0147-amends-alone design D3.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    folder = "openspec/changes/0001-todo"
+    first = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    decided = "# design\n\n## Decisions\n\n### D1\n\nIt holds.\n"
+    _commit(first, {f"{folder}/design.md": decided}, "build: d1")
+    built = _git(first, "rev-parse", "HEAD")
+    _done(root, "0001-todo", built)
+    marks = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    landed = "docs(0002-marks): land the change directory"
+    _git(marks, "commit", "-q", "--amend", "-m", landed)
+    cut = _git(marks, "rev-parse", "HEAD")
+    run = conduct["Run"](root, "claude")
+    run.git_state = conduct["_git_state"](root)
+    version = conduct["Version"]("0002-marks", marks)
+    # Stacked as `ready` stacks it: the built head merged in, and named.
+    _git(marks, "merge", "-q", "--no-ff", "-m", "chore(stack): merge", built)
+    stacked = _git(marks, "rev-parse", "HEAD")
+    stacked_on = root / ".minions" / "changes" / "0002-marks" / "stacked-on"
+    stacked_on.parent.mkdir(parents=True, exist_ok=True)
+    stacked_on.write_text(f"{built}\n")
+    worded = "fix(0001-todo): it\n\nPlan-text: R1\nChange: 0001-todo"
+
+    # A fix commit that rewords the delta alone, or a body with no trailer, is none.
+    _commit(first, {f"{folder}/specs/sdd/spec.md": "## ADDED\n"}, worded)
+    assert not run.reset_stack(version)
+    body: dict[str, str] = {
+        f"{folder}/design.md": decided.replace("holds", "holds at the call")
+    }
+    _commit(first, body, "fix(0001-todo): it\n\nChange: 0001-todo")
+    assert not run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+
+    # One that rewords a decision's body under `Plan-text:` resets it.
+    _commit(first, {f"{folder}/design.md": decided.replace("holds", "binds")}, worded)
+    assert run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == cut
+    reset = f"0001-todo re-planned past {built[:7]}: {stacked[:7]} → {cut[:7]}"
+    assert any(line.endswith(f" · 0002-marks · reset — {reset}") for line in _log(root))
+
+
 @pytest.mark.slow
 def test_a_merge_in_renumbers_a_planned_decision(
     tmp_path: Path, fake: Callable[..., Path]

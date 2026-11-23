@@ -1102,16 +1102,19 @@ ends, waits for a re-run. A halt is a sub-task or stage at a halted head, so a n
 most `RESCUES = 3` a run, and none for a halt rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
 command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
-`## Decisions`, `## Tests` and `## Dependencies` sections, and a `Fix note` closing a decision's entry, which the run reads as no decision change: a card whose
-fix needs any other plan edit halts `amend needed`. A
+`## Decisions`, `## Tests` and `## Dependencies` sections, a `Fix note` closing a decision's entry, which the run reads as no decision change,
+and, in its fix commit under a `Plan-text:` trailer, the spec delta and a decision's body, saying what its fix does; never the
+decisions table, a heading, `tasks.md` or `proposal.md`, nor for a security card of `critical` or `high`, which `converge.py`
+halts `plan edit refused`. A card whose fix needs any other plan edit halts `amend needed`. A
 timeout, a usage limit, a converge halt naming one, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
   amend and every claim it changes ([D63](#d63--an-answered-amend-gets-one-round-over-its-range)).
   The fixer corrects a design's prose: 0098 and 0100 each paid a round and a rescue for a drift line in it the fixer
-  could not touch.
-- **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
+  could not touch; 0146's R7 and R8 were a fixer's right code whose plan text lagged.
+- **Accepts:** a wrong amend that passes the path check, which converge then reads · a fixer's plan-text wording that
+  passes `converge.py`'s check, which the verify pass judges · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
   for a re-run, save the person's amends alone, which go on ([D60](#d60--a-run-heals-its-own-halts)) · a rescue amend

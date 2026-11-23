@@ -2597,6 +2597,184 @@ def test_a_claude_fixers_prompt_names_its_attribution(host: Host) -> None:
     assert host.codexed == []
 
 
+_FOLDER = f"openspec/changes/{_CHANGE}"
+_DESIGN_MD = f"{_FOLDER}/design.md"
+_DELTA = f"{_FOLDER}/specs/sdd/spec.md"
+_DECIDED = (
+    "# A — design\n\nProse.\n\n## Decisions\n\n| id | decision |\n|---|---|\n"
+    "| D1 | One rule |\n\n### D1\n\nIt holds.\n\n## Tests\n\nNone.\n"
+)
+_PLAN_TEXT = "fix(0001-a): it\n\nPlan-text: R1\nChange: 0001-a"
+_NO_TRAILER = "fix(0001-a): it\n\nChange: 0001-a"
+
+
+def _plan_text(host: Host, files: dict[str, str], message: str) -> str | None:
+    """Commit `files` as one fix; return the halt `plan_text` raises on it, or None."""
+    converge = _converge()
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    before = _head(host)
+    _commit(host.tree, files, message)
+    try:
+        converge["plan_text"](context, before, _head(host))
+    except converge["Halt"] as halt:
+        return str(halt)
+    return None
+
+
+def _seeded(host: Host) -> None:
+    """Commit a design with a decisions table, `### D1` and a delta, as a build did."""
+    _commit(host.tree, {_DESIGN_MD: _DECIDED, _DELTA: "## ADDED\n"}, "feat: seed")
+
+
+def test_a_fix_commit_editing_tasks_md_halts(host: Host) -> None:
+    for at, message in enumerate((_NO_TRAILER, _PLAN_TEXT)):
+        said = _plan_text(host, {f"{_FOLDER}/tasks.md": f"{_TASKS}{at}\n"}, message)
+
+        assert said == (
+            f"plan edit refused — {_head(host)[:7]} edits {_FOLDER}/tasks.md"
+        )
+
+
+def test_a_fix_commit_editing_proposal_md_halts(host: Host) -> None:
+    for at, message in enumerate((_NO_TRAILER, _PLAN_TEXT)):
+        proposal = {f"{_FOLDER}/proposal.md": f"---\nbump: minor\n---\n\n# A{at}\n"}
+        said = _plan_text(host, proposal, message)
+
+        assert said == (
+            f"plan edit refused — {_head(host)[:7]} edits {_FOLDER}/proposal.md"
+        )
+
+
+def test_a_fix_commit_may_edit_the_delta_with_the_trailer(host: Host) -> None:
+    _seeded(host)
+    edited = {_DELTA: "## ADDED\n\nWorded.\n", "src/a.py": "A = 2\n"}
+
+    assert _plan_text(host, edited, _PLAN_TEXT) is None
+
+
+def test_a_fix_commit_editing_the_delta_without_the_trailer_halts(host: Host) -> None:
+    _seeded(host)
+
+    said = _plan_text(host, {_DELTA: "## ADDED\n\nWorded.\n"}, _NO_TRAILER)
+
+    assert said == (
+        f"plan edit refused — {_head(host)[:7]} edits {_DELTA}"
+        " with no Plan-text: trailer"
+    )
+
+
+def test_a_fix_commit_editing_a_decisions_body_is_taken(host: Host) -> None:
+    _seeded(host)
+    reworded: dict[str, str] = {
+        _DESIGN_MD: _DECIDED.replace("It holds.", "It holds at the call.")
+    }
+
+    assert _plan_text(host, reworded, _PLAN_TEXT) is None
+
+    # Twin: the same rewording with no trailer halts.
+    again: dict[str, str] = {
+        _DESIGN_MD: _DECIDED.replace("It holds.", "It holds at each call.")
+    }
+    said = _plan_text(host, again, _NO_TRAILER)
+
+    assert said == (
+        f"plan edit refused — {_head(host)[:7]} edits {_DESIGN_MD}"
+        " with no Plan-text: trailer"
+    )
+
+
+def test_a_fix_commit_editing_the_decisions_table_halts(host: Host) -> None:
+    _seeded(host)
+    for edited, what in (
+        (_DECIDED.replace("| One rule |", "| Two rules |"), "the decisions table"),
+        (_DECIDED.replace("### D1\n", "### D1\n\nOne.\n\n### D2\n"), "a heading"),
+        (_DECIDED.replace("## Tests\n", "## Checks\n"), "a heading"),
+    ):
+        said = _plan_text(host, {_DESIGN_MD: edited}, _PLAN_TEXT)
+
+        assert said is not None
+        assert said.startswith(f"plan edit refused — {_head(host)[:7]} changes {what}")
+        _git(host.tree, "reset", "-q", "--hard", "HEAD^")
+
+
+def test_a_fix_note_alone_needs_no_trailer(host: Host) -> None:
+    _seeded(host)
+    note = "It holds.\nFix note (2026-11-09, R1): the rule holds at the call.\n"
+    for edited in (
+        _DECIDED.replace("It holds.\n", note),
+        _DECIDED.replace("Prose.", "Prose, corrected."),
+        _DECIDED.replace("None.", "One test."),
+    ):
+        assert _plan_text(host, {_DESIGN_MD: edited}, _NO_TRAILER) is None
+
+    assert _plan_text(host, {"src/a.py": "A = 3\n"}, _NO_TRAILER) is None
+
+
+def test_a_security_card_of_high_is_left_to_the_halt(host: Host) -> None:
+    _seeded(host)
+    message = _PLAN_TEXT.replace("Plan-text: R1", "Plan-text: R1, S1")
+    for at, (card, blocking, refused) in enumerate(
+        (
+            (_card("S1 high", category="security"), 1, True),
+            (_card("S1 critical", category="security"), 1, True),
+            (_card("S1 high", category="stability"), 1, False),
+            (_card("S1 medium", category="security"), 0, False),
+        )
+    ):
+        answer(host, "adversarial", card, blocking=blocking)(_head(host))
+        said = _plan_text(host, {_DELTA: f"## ADDED\n\nWorded {at}.\n"}, message)
+
+        assert said == (
+            f"plan edit refused — {_head(host)[:7]} names security card S1"
+            " under Plan-text:"
+            if refused
+            else None
+        )
+
+
+def test_the_fix_pass_runs_the_plan_text_check(host: Host) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    def planning(host: Host) -> None:
+        _commit(host.tree, {f"{_FOLDER}/tasks.md": f"{_TASKS}x\n"}, _PLAN_TEXT)
+
+    host.fixers = [planning]
+
+    assert run(host) == 1
+
+    sha = _head(host)
+    assert events(host)[-2:] == [
+        "round 1 · fix — sent R1",
+        f"round 1 · halt — plan edit refused — {sha[:7]} edits {_FOLDER}/tasks.md"
+        f" · head {sha}",
+    ]
+    assert _ran(host) == ["make", "gate_run.py", "gate_check.py", "plan_check.py"]
+
+
+def test_a_verify_round_reads_a_plan_text_edit(host: Host) -> None:
+    _seeded(host)
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    def wording(host: Host) -> None:
+        edited = {_DELTA: "## ADDED\n\nThe rule holds at the call.\n", "src/a.py": "2"}
+        _commit(host.tree, edited, _PLAN_TEXT)
+        (host.folder() / "fix.md").write_text("fixed: R1\nplan check left: none\n")
+
+    host.fixers = [wording]
+
+    assert run(host) == 0
+
+    patch = (host.folder() / "diff.patch").read_text()
+    assert f"+++ b/{_DELTA}" in patch
+    assert "+The rule holds at the call." in patch
+    told = next(text for station, _, _, text in host.checks if "verify-c" in station)
+    assert "- A plan-text edit in the fix diff, its commit under a `Plan-text:`" in told
+
+
 def _twice(
     first: Callable[[str], None], then: Callable[[str], None]
 ) -> Callable[[str], None]:
@@ -2722,13 +2900,17 @@ def test_the_report_names_the_verdicts(
         inconclusive="[design.md]",
     )
 
+    design = f"openspec/changes/{_CHANGE}/design.md"
+    decided = "# A — design\n\n## Decisions\n\n### D1 · One rule\n\nIt holds.\n"
+    _commit(host.tree, {design: decided}, "docs(0001-a): decide D1")
+
     def noting(host: Host) -> None:
-        design = "# A — design\n\n### D1 · One rule\n\nIt holds.\n"
+        worded = decided.replace("It holds.", "It holds at the call.")
         note = "Fix note (2026-11-09, R1): the rule holds at the call.\n"
         _commit(
             host.tree,
-            {f"openspec/changes/{_CHANGE}/design.md": design + note},
-            "fix(0001-a): it",
+            {design: worded + note},
+            "fix(0001-a): it\n\nPlan-text: R1\nChange: 0001-a",
         )
         (host.folder() / "fix.md").write_text("fixed: R1\nplan check left: none\n")
 

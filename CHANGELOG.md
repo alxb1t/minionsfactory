@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A rescue's and a supervisor's budget counts a halt as its sub-task or stage at the halted `HEAD`: a halt at a new head is a new halt, rescued in the same run, while `RESCUES = 3` and `SUPERVISES = 2` a version a run stand. 0146's second halt found both spent by a stage the rescue could have closed. The ` · rescued` and ` · supervised` words still name the sub-task or stage alone, and D53 and D61 say so (0147-amends-alone, phase 1).
 - The cut's plan review asks, of each requirement the delta adds or changes and each rule a decision states, what else produces its subject and what the plan exempts: 0146 passed a rule whose subject the fix commits and the changelog also write. D65 and D80 say so (0147-amends-alone, phase 2).
+- The converge fixer may reword the spec delta and a decision's body in its fix commit, under a `Plan-text:` trailer naming the cards it clears: 0146's R7 and R8 were right code whose plan text lagged. `converge.py` checks each fix commit before the gate and halts `plan edit refused` on `tasks.md`, `proposal.md`, the decisions table, a heading, no trailer, or a trailer naming a security card of `critical` or `high`. The verify pass judges the wording; such a commit re-plans a stacked dependent; D53 and the threat model say so (0147-amends-alone, phase 3).
 
 ## [0.117.0] - 2026-11-23
 
