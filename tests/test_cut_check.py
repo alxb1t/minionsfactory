@@ -420,6 +420,19 @@ def test_person_phase_is_refused(
     )
     _, lines = _run(root, monkeypatch, capsys)
     assert any("phase 1, 2 is marked for a person" in line for line in lines)
+    # A phase line outside `## Progress` is one the conductor reads too.
+    _edit(
+        root, "tasks.md", "- [ ] 1 — First **HUMAN** · hard", "- [ ] 1 — First · hard"
+    )
+    _edit(root, "tasks.md", "- [ ] 2 — Second **HUMAN**", "- [ ] 2 — Second · moderate")
+    assert "I14" not in _halted_rows(root, monkeypatch, capsys)
+    _edit(
+        root,
+        "tasks.md",
+        "## 2 — Second\n",
+        "## 2 — Second\n\n- [ ] 3 — Last **HUMAN**\n",
+    )
+    assert "I14" in _halted_rows(root, monkeypatch, capsys)
 
 
 def test_a_change_with_no_delta_holds_skip_specs_and_a_keep_file(
@@ -1052,6 +1065,18 @@ def test_kexpr_naming_a_planned_test_holds(
     _task(root, "Edit `a.py` per [D1](design.md#d1).")
     _verified(root, "uv run pytest -q tests/test_new.py -k new")
     assert _halted_rows(root, monkeypatch, capsys) == []
+    # A planned class is a name, and a directory operand holds its test files' names.
+    _verified(root, "uv run pytest -q tests/test_new.py -k TestFresh")
+    assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
+    _task(root, "Add `TestFresh`, edit `a.py` per [D1](design.md#d1).")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _put(root, "tests/unit/test_gadget.py", "def test_spin(): ...\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "unit")
+    _verified(root, "uv run pytest -q tests/unit -k spin")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _verified(root, "uv run pytest -q tests/unit -k typo")
+    assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
 
 
 def test_kexpr_naming_nothing_is_refused(

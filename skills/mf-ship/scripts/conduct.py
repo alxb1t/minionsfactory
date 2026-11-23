@@ -8,6 +8,7 @@ Why: 0040-mf-ship design D2.
 """
 
 import argparse
+import collections
 import contextlib
 import errno
 import fcntl
@@ -81,6 +82,12 @@ PLAN_CHECK = CONVERGE.with_name("plan_check.py")
 # The cut's checker, run by the conductor's Python. Why: 0146-cut-catches design D1.
 CUT_CHECK = Path(__file__).resolve().parents[2] / "mf-cut-change/scripts/cut_check.py"
 CHECK_TAIL = 20
+# A cut's checker or declared command is bounded in time and in the output it keeps.
+# Why: 0146-cut-catches design D1, D6.
+CUT_TIMEOUT = 1800
+CUT_KEPT = 2000
+# The line the checker prints for each plan failure; a crash prints none.
+CUT_HALT = "cut_check: halt — "
 METRICS = Path(__file__).resolve().parents[2] / "mf-build/scripts/metrics.py"
 CATALOGUE = "metrics/catalogue.toml"
 # The brief's checker, and the runner of its `--models`.
@@ -845,14 +852,28 @@ def _cut_checked(primary: Path, change: str, tree: Path, bump: str) -> str | Non
     """
     argv_ = [sys.executable, str(CUT_CHECK), change, "--bump", bump]
     try:
-        code, output = _boxed(primary, tree, argv_)
+        code, output = _boxed(primary, tree, argv_, cut=True)
     except (OSError, Stop) as error:
         raise Stop(1, f"the cut check cannot run — {_first(str(error))}") from None
     if code == 0:
-        return _declared_checks(primary, tree)
-    if code != 1:
-        raise Stop(1, f"the cut check cannot run — {_first(output)}")
+        return _declared_checks(primary, tree) or _left(tree)
+    # A crash exits 1 as a failed plan does: only a halt line is a plan's.
+    if code != 1 or CUT_HALT not in output:
+        raise Stop(1, f"the cut check cannot run — {_last(output)}")
     return output
+
+
+def _left(tree: Path) -> str | None:
+    """Return the report of the files the cut's checks left in `tree`, or None.
+
+    `_check_cut` found the tree clean, so a file now is a check's: the first build
+    phase would halt on it. Why: 0146-cut-catches design D6.
+    """
+    _refuse_config_commands(tree)
+    names = [line[3:] for line in _git(tree, "status", "--porcelain").splitlines()]
+    if not names:
+        return None
+    return f"cut check: the checks left files in the tree — {', '.join(names[:5])}\n"
 
 
 def _declared_checks(primary: Path, tree: Path) -> str | None:
@@ -862,7 +883,7 @@ def _declared_checks(primary: Path, tree: Path) -> str | None:
     """
     for command in _agents_values(primary, "Cut checks") or []:
         try:
-            code, output = _boxed(primary, tree, shlex.split(command))
+            code, output = _boxed(primary, tree, shlex.split(command), cut=True)
         except (OSError, Stop, ValueError) as error:
             return f"cut check: {command} cannot start — {_first(str(error))}"
         if code != 0:
@@ -3285,17 +3306,20 @@ def sandboxed(
     out: TextIO | None = None,
     timeout: float | None = None,
     grace: float = 5.0,
+    *,
+    primary: Path | None = None,
 ) -> int:
     """Run `argv` in `cwd` under the host's OS sandbox and return its exit code.
 
-    A `timeout` ends the command's group and gives 124. Why: 0107-sandbox-runner
-    design D2, 0108-converge-script D6, 0111-sandbox-tmp D3, 0114-faster-plan-check D5.
+    A `timeout` ends the command's group and gives 124; `primary` holds the run dir.
+    Why: 0107 D2, 0108 D6, 0111 D3, 0114 D5, 0146-cut-catches D1.
     """
     if not mflib.platform.has_sandbox():
         raise _no_sandbox()
-    minions = mflib.layout.run_dir(trees[0])
+    root = primary or trees[0]
+    minions = mflib.layout.run_dir(root)
     try:
-        os.close(_folder_fd(trees[0], mflib.layout.MINIONS))
+        os.close(_folder_fd(root, mflib.layout.MINIONS))
     except OSError as error:
         raise Stop(2, f"conduct: cannot run — run folder {minions}: {error}") from error
     tmp = _temp_folder("mf-sandbox-")
@@ -6121,6 +6145,8 @@ class Run:
                 return failed
             failed, red = self.checked_cut(change, entry, tree)
             if red is not None:
+                # The branch holds no change again, so a rejoin cuts it fresh.
+                self.recut(change, tree)
                 return f"the cut check failed twice — {red}", False
         if failed is not None:
             return failed
@@ -8357,11 +8383,42 @@ def _halt_build(
     _write_state(primary, change, "build.halt", text)
 
 
-def _boxed(primary: Path, tree: Path, argv_: list[str]) -> tuple[int, str]:
-    """Return the exit and output of `argv_` run in `tree` under the OS sandbox."""
-    buffer = io.StringIO()
-    code = sandboxed(argv_, tree, reach(primary), buffer)
-    return code, buffer.getvalue()
+class _Tail(io.StringIO):
+    """A buffer that keeps the last `CUT_KEPT` lines written, each cut to 4000 chars."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.kept: collections.deque[str] = collections.deque(maxlen=CUT_KEPT)
+        self.partial = ""
+
+    def write(self, text: str) -> int:
+        """Keep the lines of `text`, a last unfinished one apart; return its length."""
+        lines = (self.partial + text).splitlines(keepends=True)
+        self.partial = lines.pop() if lines and not lines[-1].endswith("\n") else ""
+        self.kept.extend(line[:4000] for line in lines)
+        return len(text)
+
+    def getvalue(self) -> str:
+        """Return the kept lines and the unfinished one."""
+        return "".join(self.kept) + self.partial
+
+
+def _boxed(
+    primary: Path, tree: Path, argv_: list[str], *, cut: bool = False
+) -> tuple[int, str]:
+    """Return the exit and output of `argv_` run in `tree` under the OS sandbox.
+
+    A `cut` run writes its tree and the run directory only, ends after `CUT_TIMEOUT` s
+    and keeps `CUT_KEPT` lines. Why: 0146-cut-catches design D1, D6.
+    """
+    if not cut:
+        buffer = io.StringIO()
+        code = sandboxed(argv_, tree, reach(primary), buffer)
+        return code, buffer.getvalue()
+    tail = _Tail()
+    trees = [tree, _run_dir(primary)]
+    code = sandboxed(argv_, tree, trees, tail, CUT_TIMEOUT, primary=primary)
+    return code, tail.getvalue()
 
 
 def _last(output: str) -> str:

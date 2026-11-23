@@ -57,7 +57,7 @@ mode: parallel | sequential | by-rule | skipped
 workers: <int, the workers this role used; 0 by rule or skipped>
 files: <int, the files this round's scope resolved>
 commits: <int, the commits this round's scope resolved>
-passes: [<each conformance pass that ran: stale-claim, test-cost, and coverage-trace or no-removed-test>]
+passes: [<each conformance pass that ran: stale-claim, test-cost, unplanned-file, and coverage-trace or no-removed-test>]
 inconclusive: [<each document whose section you judged inconclusive; [] for none>]
 model: <the model, as the host reports it, or unknown; converge.py's checker call stamps the one it started>
 tokens: <int; converge.py's checker call stamps it from the worker's log>
@@ -151,7 +151,7 @@ a failed command or a mismatch is a scope failure. Neither role may reopen inher
 of supported merges, and each checker's independent `git show --remerge-diff` confirms every resolution diff is
 empty. Each Summary names those merge ids and parents, states that it checked each empty resolution, and reports
 zero changed files and the non-zero examined commit count. `converge.py` checks these against the freeze and
-runs the gate on HEAD. Conformance still reports its stale-claim, test-cost and coverage-trace passes
+runs the gate on HEAD. Conformance still reports its stale-claim, test-cost, unplanned-file and coverage-trace passes
 (no changed paths, new tests or removed tests). All other zero-file scopes are not clean.
 
 ## The card

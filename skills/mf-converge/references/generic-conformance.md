@@ -8,7 +8,7 @@ every host.
 
 Load the contract, [converge's worker reference](worker.md): Conformance and adversarial, Not clean, The verify pass,
 Catch-up scope, The card and Rules for tests. It owns the card, severity anchors, repeats, counters, reviewed head, the
-stale-claim, test-cost and coverage-trace passes, and red runs.
+stale-claim, test-cost, unplanned-file and coverage-trace passes, and red runs.
 
 You read no code beyond the diff's hunks, save `git grep` for the stale-claim pass over the tree, the living spec and
 the decisions. A race, a parser edge or an exploit is adversarial's lane. An input missing or unusable → halt, naming
@@ -74,7 +74,7 @@ review skill and start no workers of your own.
    Start from `evidence.md`'s *Gate integrity* section, never re-derive a line it holds, and judge its judgment half: which
    lines are a defect; a card the section supports cites its line. A defect is always a card, never left to the fixer's judgement.
 
-Then run the contract's stale-claim, test-cost and coverage-trace passes, and
+Then run the contract's stale-claim, test-cost, unplanned-file and coverage-trace passes, and
 check repeats against `debt-cards.md`.
 
 A section whose source document is missing, or reads `Not written yet:`, is **`inconclusive`**: say which document,

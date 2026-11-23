@@ -361,10 +361,13 @@ def row_i13(change: Change, bump: str | None) -> str | None:
 
 
 def row_i14(change: Change) -> str | None:
-    """Return each `## Progress` phase marked for a person."""
+    """Return each phase line of `tasks.md` marked for a person.
+
+    A line anywhere counts, as the conductor and the plan check read the whole file.
+    """
     marked = [
         m[1]
-        for line in section(change.tasks, "Progress") or []
+        for line in change.tasks.splitlines()
         if (m := PROGRESS.match(line)) and PERSON_PHASE.search(m[2])
     ]
     return (
@@ -871,10 +874,21 @@ def row_v7(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
 
 
 def _defined(file: str, tree: set[str]) -> list[str]:
-    """Return the function and class names of a file of `HEAD`, none for another."""
-    if file not in tree:
-        return []
-    return CODE_DEF.findall("\n".join(_git("show", f"HEAD:{file}")[1]))
+    """Return the names a file of `HEAD` defines, or each `.py` file under a directory.
+
+    A path of neither kind defines none.
+    """
+    folder = file.rstrip("/") + "/"
+    held = sorted(
+        path
+        for path in tree
+        if path == file or (path.startswith(folder) and path.endswith(".py"))
+    )
+    return [
+        name
+        for path in held
+        for name in CODE_DEF.findall("\n".join(_git("show", f"HEAD:{path}")[1]))
+    ]
 
 
 def row_v8(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
@@ -886,7 +900,7 @@ def row_v8(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
     planned = [
         name
         for task in tasks
-        for name in re.findall(r"test_\w+", _body(task.text, plan))
+        for name in re.findall(r"(?:test_|Test)\w+", _body(task.text, plan))
     ]
     found: list[str] = []
     for task in tasks:

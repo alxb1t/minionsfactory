@@ -26,7 +26,7 @@ import traceback
 import types
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, TextIO
 
 import conduct_load
 import mflib.debtfile
@@ -6743,6 +6743,12 @@ def test_cutcheck_fails_twice_halts(tmp_path: Path, cut_check: Path) -> None:
     assert conduct["_cuts"](root)["0001-a"]["halt"] == why
     assert conductor.halts == [("0001-a", f"cut-halted — {why}")]
     assert _cut_red(root).read_text() == f"{_FAILING}\n"
+    # The branch holds no change, so a rejoin cuts it fresh.
+    assert (
+        _git(root, "rev-parse", "0001-a").strip()
+        == _git(root, "rev-parse", "main").strip()
+    )
+    assert not conduct["_holds"](root, "0001-a")
 
     # A git file changed by the first cut halts before the reset checks a tree out.
     _queued(conduct, root, "0002-b", brief)
@@ -6804,6 +6810,12 @@ def test_cutcheck_cannot_run_halts(
     assert halt.startswith("the cut check cannot run — ")
     assert len(prompts) == 1
 
+    # A checker that crashes exits 1 with no halt line: no plan failed, no recut.
+    _checks(cut_check, 1, said="ValueError: boom")
+    halt, prompts = halted("0004-d")
+    assert halt == "the cut check cannot run — ValueError: boom"
+    assert len(prompts) == 1
+
     # A sandbox that cannot start.
     _checks(cut_check, 0)
     monkeypatch.setattr(platform, "has_sandbox", lambda: False)
@@ -6848,12 +6860,50 @@ def _boxes(conduct: dict[str, Any]) -> list[tuple[Path, list[str]]]:
     real = names["_boxed"]
     seen: list[tuple[Path, list[str]]] = []
 
-    def boxed(primary: Path, tree: Path, argv_: list[str]) -> tuple[int, str]:
+    def boxed(
+        primary: Path, tree: Path, argv_: list[str], **kwargs: bool
+    ) -> tuple[int, str]:
         seen.append((tree, argv_))
-        return real(primary, tree, argv_)
+        return real(primary, tree, argv_, **kwargs)
 
     names["_boxed"] = boxed
     return seen
+
+
+def test_a_cut_run_is_boxed_to_the_cutters_reach_and_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0146-cut-catches design D1, D6.
+    conduct = _conduct()
+    names = conduct["_boxed"].__globals__
+    root = _primary(tmp_path)
+    tree = root.parent / "0001-a"
+    (root / ".minions").mkdir(exist_ok=True)
+    seen: list[tuple[list[Path], float | None, Path | None]] = []
+
+    def sandboxed(
+        argv_: list[str],
+        cwd: Path,
+        trees: list[Path],
+        out: TextIO,
+        timeout: float | None = None,
+        *,
+        primary: Path | None = None,
+    ) -> int:
+        seen.append((trees, timeout, primary))
+        for number in range(names["CUT_KEPT"] + 50):
+            print(f"line {number}", file=out)
+        return 0
+
+    monkeypatch.setitem(names, "sandboxed", sandboxed)
+
+    code, output = conduct["_boxed"](root, tree, ["x"], cut=True)
+
+    assert code == 0
+    assert seen == [([tree, root / ".minions"], names["CUT_TIMEOUT"], root)]
+    kept = output.splitlines()
+    assert len(kept) == names["CUT_KEPT"]
+    assert kept[-1] == f"line {names['CUT_KEPT'] + 49}"
 
 
 def test_cutdeclared_command_passes(tmp_path: Path, cut_check: Path) -> None:
@@ -6879,6 +6929,23 @@ def test_cutdeclared_command_passes(tmp_path: Path, cut_check: Path) -> None:
     assert any(line.endswith(" · 0001-a · check — cut-check · pass") for line in lines)
 
 
+def test_cutdeclared_command_that_leaves_a_file_fails_the_cut_check(
+    tmp_path: Path, cut_check: Path
+) -> None:
+    # Why: 0146-cut-catches design D6.
+    conduct = _conduct()
+    command = f"{sys.executable} -c \"open('junk.txt', 'w').write('x')\""
+    root = _primary(tmp_path, _declared(command))
+    tree = _version(root, "0001-a", "- [ ] 1 — One\n")
+    (root / ".minions").mkdir(exist_ok=True)
+    _checks(cut_check, 0)
+
+    red = conduct["_cut_checked"](root, "0001-a", tree, "minor")
+
+    assert red == "cut check: the checks left files in the tree — junk.txt\n"
+
+
+@pytest.mark.slow
 def test_cutdeclared_command_fails_the_cut_check(
     tmp_path: Path, cut_check: Path
 ) -> None:
