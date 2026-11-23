@@ -22,8 +22,8 @@ description: Converge a built change through its conductor script — `conduct.p
 | parameter | holds | none given |
 |---|---|---|
 | `change-id` | the change to converge | inferred, as below |
-| `conformance=`, `adversarial=` | `<model>/<effort>`, `default` for none; or `skip`, which stubs that checker | the executor's default |
-| `fix=` | `<model>/<effort>`: the fixer's, whatever card it is sent; it runs on the executor its table names, Claude when it names none, and a Codex fixer at a limit halts the version | the executor's default |
+| `conformance=`, `adversarial=` | `<model>/<effort>`, `default` for none; or `skip`, which stubs that checker | the models file's table, else the executor's default |
+| `fix=` | `<model>/<effort>`: the fixer's, whatever card it is sent; it runs on the executor its table names, Claude when it names none, and a Codex fixer at a limit halts the version | the models file's table, else the executor's default |
 | `grant=yes` | one round past the cap, for a cap the person granted | no grant |
 | `--executor` | `claude` or `codex`: the host every worker runs on | `claude` |
 
@@ -67,6 +67,9 @@ functions' docstrings. What a worker reads is in [the worker reference](referenc
 
 Relay the close-out as printed, or the halt in full, and the exit code. On a halt, the last line names its answer — an amend
 commit, a fixed gate, `/mf-ship grant <change-id>` — then `/mf-converge` again: a re-run resumes from the status log.
+A halt a worker's exit or timeout caused, with no verdict read, needs no answer: the conductor runs it again at the same
+`HEAD`, once a run. A hand converge reads the version's `models.toml`: each checker's and the fixer's models, and a
+checker's `skip`, each argument over the file.
 
 ## Never
 

@@ -901,6 +901,13 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     narrow = folder / "conformance.md"
     narrow.write_text(findings("conformance", head, files=0, commits=0))
     small = converge["read_findings"](narrow, "conformance", frozen)
+
+    # A first miss sends the checker out once more; test_a_scope_that_misses_once_is
+    # _sent_out_again holds it. A second miss halts.
+    def narrowed(now: str) -> None:
+        narrow.write_text(findings("conformance", now, files=0, commits=0))
+
+    host.answers["converge-conformance-r1"] = narrowed
     with pytest.raises(halt, match="scope resolved 0 files"):
         converge["held"](context, read | {"conformance": small}, frozen)
     # A file with no open card is judged on its scope first, so it never reads clean.
@@ -918,6 +925,59 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     short = converge["read_findings"](narrow, "conformance", frozen)
     assert short.malformed is None
     assert "lacks test-cost" in short.unclean
+
+
+def test_a_scope_that_misses_once_is_sent_out_again(host: Host) -> None:
+    converge = _converge()
+    sent: list[str] = []
+
+    def narrow_once(head: str) -> None:
+        scope = {"files": 0, "commits": 0} if not sent else _WIDE
+        sent.append(head)
+        host.write("conformance", findings("conformance", head, **scope))
+
+    host.answers["converge-conformance-r1"] = narrow_once
+
+    assert run(host) == 0
+
+    head = _head(host)
+    stations = [station for station, *_ in host.checks]
+    assert stations.count("converge-conformance-r1") == 2
+    missed = (
+        "round 1 · fan-out — rescope — conformance: conformance.md is not clean:"
+        " its scope resolved 0 files and 0 commits of the freeze's 1 file and 1 commit"
+    )
+    lines = events(host)
+    at = lines.index(missed)
+    assert lines[at + 1].startswith("round 1 · fan-out — conformance dispatched · ")
+    assert f"..{head[:7]} · 1 worker" in lines[at + 1]
+    assert lines[at + 2] == _verdicts("conformance")
+    assert lines[-1].startswith("round 1 · done — ")
+
+    # A verify round sends its verify worker out once more, at its effort.
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    context.round = 2
+    context.stations["conformance"] = ("converge-verify-conformance-r2", "medium")
+    converge["open_run"](context)
+    frozen = converge["Freeze"]("b" * 40, head, 1, 1)
+    folder = host.folder()
+    (folder / "conformance.md").write_text(
+        findings("conformance", head, files=0, commits=0)
+    )
+    (folder / "conformance.open.md").write_text("")
+    read = {
+        role: converge["read_findings"](folder / f"{role}.md", role, frozen)
+        for role in ("conformance", "adversarial")
+    }
+
+    kept = converge["held"](context, read, frozen)
+
+    assert kept["conformance"].unclean is None
+    assert host.checks[-1][:3] == (
+        "converge-verify-conformance-r2",
+        "conformance",
+        "medium",
+    )
 
 
 def test_a_codex_failure_fallback_is_named_in_the_verdicts_line(host: Host) -> None:
@@ -1500,6 +1560,45 @@ def test_a_pickup_check_runs_on_the_needed_role(host: Host) -> None:
     assert events(host)[-1] == (
         f"round 1 · halt — converge-verify-pickup-r1 worker exit 1 · head {_head(host)}"
     )
+
+
+@pytest.mark.parametrize(
+    ("mark", "events", "before"),
+    [
+        (None, ["halt — gate red · head a", "freeze — a..b"], True),
+        (None, ["halt — converge-conformance-r1 worker exit 1", "start — b"], True),
+        (None, ["halt — converge-fix-r1 timed out after 9s", "start — b"], True),
+        (None, ["halt — red · head a", "start — b"], False),
+        (
+            None,
+            ["halt — converge-fix-r1 worker exit 1", "verdicts — c", "start"],
+            False,
+        ),
+        ("grant", ["halt — converge-fix-r3 worker exit 1", "fix — sent R1"], False),
+        (None, ["halt — verify: halt · converge-fix-r1 worker exit 1", "start"], False),
+        (
+            None,
+            ["halt — c-r1 worker exit 1 · stopped by a usage limit", "start"],
+            False,
+        ),
+    ],
+    ids=[
+        "no-start",
+        "exit",
+        "timeout",
+        "other",
+        "verdicts",
+        "grant",
+        "verify",
+        "limit",
+    ],
+)
+def test_a_worker_halt_with_no_verdict_is_a_halt_before_round_1(
+    mark: str | None, events: list[str], before: bool
+) -> None:
+    parsed = [statuslog.parse_event(f"10:00:00 · round 1 · {e}") for e in events]
+    run = statuslog.Run(mark, [event for event in parsed if event])
+    assert _converge()["before_round"](run) == before
 
 
 def _plant(host: Host, *lines: str, mark: str | None = None) -> None:

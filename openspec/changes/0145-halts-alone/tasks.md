@@ -7,7 +7,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 - [x] 1 — The rescue's amend · hard
 - [x] 2 — The gate under load · moderate
 - [x] 3 — Codex's fallbacks · hard
-- [ ] 4 — Converge's ways back · hard
+- [x] 4 — Converge's ways back · hard
 - [ ] 5 — The supervisor at the cap · hard
 - [ ] 6 — The changelog rule, the wait and the records · moderate
 
@@ -46,19 +46,19 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 ## 4 — Converge's ways back
 
-- [ ] 4.1 **HALT CHECK** `skills/mflib/statuslog.py` has no `names_worker` yet.
+- [x] 4.1 **HALT CHECK** `skills/mflib/statuslog.py` has no `names_worker` yet.
   Verify: `git grep -n -e "def names_worker" -- skills/mflib/statuslog.py` exits 1.
-- [ ] 4.2 Add `names_worker(text)` to `skills/mflib/statuslog.py`, true when a halt's reason holds `worker exit <code>` or `timed out after` ([D6](design.md#d6)); add `test_names_worker_reads_a_workers_halt` to `tests/test_statuslog.py`.
+- [x] 4.2 Add `names_worker(text)` to `skills/mflib/statuslog.py`, true when a halt's reason holds `worker exit <code>` or `timed out after` ([D6](design.md#d6)); add `test_names_worker_reads_a_workers_halt` to `tests/test_statuslog.py`.
   Verify: `uv run pytest tests/test_statuslog.py -k "names_worker" -q` exits 0.
-- [ ] 4.3 In `converge.py`, make `before_round(run)` true for a halt that `names_worker` in a run with no `verdicts` event and no grant mark; add `test_a_worker_halt_with_no_verdict_is_a_halt_before_round_1` to `tests/test_converge.py`.
+- [x] 4.3 In `converge.py`, make `before_round(run)` true for a halt that `names_worker` in a run with no `verdicts` event and no grant mark; add `test_a_worker_halt_with_no_verdict_is_a_halt_before_round_1` to `tests/test_converge.py`.
   Verify: `uv run pytest tests/test_converge.py -k "worker_halt_with_no_verdict_is_a_halt_before_round_1" -q` exits 0.
-- [ ] 4.4 In `conduct.py`, add `_has_verdicts(runs, change)` beside `_run_started` and extend `_before_round` so `_rerun` and `_answered` read that halt as a rerun at `HEAD`; the `self.reruns` guard stays. Add `test_a_worker_halt_is_a_rerun_at_the_same_head`: stage `converge`, a second halt stays, a new run reads it again, a halt after a `verdicts` line stands.
+- [x] 4.4 In `conduct.py`, add `_has_verdicts(runs, change)` beside `_run_started` and extend `_before_round` so `_rerun` and `_answered` read that halt as a rerun at `HEAD`; the `self.reruns` guard stays. Add `test_a_worker_halt_is_a_rerun_at_the_same_head`: stage `converge`, a second halt stays, a new run reads it again, a halt after a `verdicts` line stands.
   Verify: `uv run pytest tests/test_conduct.py -k "worker_halt_is_a_rerun_at_the_same_head" -q` exits 0.
-- [ ] 4.5 In `converge.py`, make `held` send a role whose file `read_findings` marks `its scope resolved` out once more through `dispatch(..., roles=[role])`, verify mode read from the role's station, stamping `fan-out — rescope — <role>: <why>` ([D7](design.md#d7)). Add `test_a_scope_that_misses_once_is_sent_out_again`; read `test_a_findings_file_is_read_by_its_fields` and edit what it expects of a first miss.
+- [x] 4.5 In `converge.py`, make `held` send a role whose file `read_findings` marks `its scope resolved` out once more through `dispatch(..., roles=[role])`, verify mode read from the role's station, stamping `fan-out — rescope — <role>: <why>` ([D7](design.md#d7)). Add `test_a_scope_that_misses_once_is_sent_out_again`; read `test_a_findings_file_is_read_by_its_fields` and edit what it expects of a first miss.
   Verify: `uv run pytest tests/test_converge.py -k "scope_that_misses_once" -q` exits 0.
-- [ ] 4.6 In `conduct.py`, make `converge_by_hand` read the version's models file for each checker's and the fixer's models and a checker's skip, its arguments over the file ([D8](design.md#d8)). Add `test_a_hand_converge_reads_the_models_file`: a file, an argument over it, no file; read `test_the_converge_command_runs_by_hand`.
+- [x] 4.6 In `conduct.py`, make `converge_by_hand` read the version's models file for each checker's and the fixer's models and a checker's skip, its arguments over the file ([D8](design.md#d8)). Add `test_a_hand_converge_reads_the_models_file`: a file, an argument over it, no file; read `test_the_converge_command_runs_by_hand`.
   Verify: `uv run pytest tests/test_conduct.py -k "hand_converge_reads_the_models_file" -q` exits 0.
-- [ ] 4.7 In `skills/mf-converge/SKILL.md`, *Report, then stop*: a halt a worker's exit or timeout caused, with no verdict read, is run again by the conductor; a hand converge reads the models file.
+- [x] 4.7 In `skills/mf-converge/SKILL.md`, *Report, then stop*: a halt a worker's exit or timeout caused, with no verdict read, is run again by the conductor; a hand converge reads the models file.
   Verify: `git grep -n -F "verdict read" -- skills/mf-converge/SKILL.md` exits 0.
 
 ## 5 — The supervisor at the cap

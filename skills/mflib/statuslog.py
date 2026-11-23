@@ -20,6 +20,7 @@ EVENT = re.compile(
     r"^\d\d:\d\d:\d\d · round (\d+) · (by rule|[a-z-]+)(?: —(?: (.*))?)?$"
 )
 LINE_BREAKS = re.compile(r"[\r\n]+")
+WORKER = re.compile(r" worker exit -?\d+| timed out after ")
 NAMES = (
     *("start", "freeze", "fan-out", "verdicts", "shadow", "fix", "verify"),
     *("pickup", "catch-up", "by rule", "debt", "halt", "done"),
@@ -165,6 +166,15 @@ def names_lock(text: str) -> bool:
     here = Path()
     locks = (layout.debt_lock(here), layout.backlog_lock(here))
     return any(str(lock) in text for lock in locks)
+
+
+def names_worker(text: str) -> bool:
+    """Return whether a halt names a worker's exit or timeout.
+
+    e.g. "converge-fix-r1 worker exit 1" → True; "gate_run.py exit 2" → False
+    Why: 0145-halts-alone design D6.
+    """
+    return WORKER.search(text) is not None
 
 
 def insert(

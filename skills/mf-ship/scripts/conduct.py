@@ -1176,16 +1176,31 @@ def _run_started(runs: Path, change: str) -> bool:
     return any(_is_event(line, "start") for line in run)
 
 
-def _before_round(runs: Path, change: str, halt: str) -> bool:
-    """Return whether `halt` is a halt before round 1: no `start`, no `verify: halt`.
+def _has_verdicts(runs: Path, change: str) -> bool:
+    """Return whether the newest converge run, to the next heading, holds a `verdicts`.
 
-    A granted round writes no `start`, and its halt is none: its cap re-plans.
-    Why: 0084-ship-fixes-2 design D1, D2; D56.
+    e.g. "## Run 2 — d", "… · halt — red", "… · verdicts — conformance clean" → True
     """
+    block = mflib.statuslog.newest(_log_text(runs, change))
+    run = [] if block is None else block.lines
+    return any(_is_event(line, "verdicts") for line in run)
+
+
+def _before_round(runs: Path, change: str, halt: str) -> bool:
+    """Return whether `halt` is a halt before round 1, or a worker's with no verdict.
+
+    No `verify: halt` and no grant: a granted round writes no `start`, and its cap
+    re-plans. A usage limit stands. Why: 0084-ship-fixes-2 D1, D2; D56; 0145 D6.
+    """
+    unjudged = (
+        mflib.statuslog.names_worker(halt)
+        and "usage limit" not in halt
+        and not _has_verdicts(runs, change)
+    )
     return (
         "verify: halt" not in halt
         and not _granted_run(runs, change)
-        and not _run_started(runs, change)
+        and (not _run_started(runs, change) or unjudged)
     )
 
 
@@ -8070,7 +8085,8 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
 def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) -> int:
     """Run `converge.py` for `change` in its worktree; return its exit.
 
-    Why: 0108-converge-script design D1.
+    Each worker's models and a checker's skip are the models file's, an argument's
+    over them. Why: 0108-converge-script design D1; 0145-halts-alone design D8.
     """
     if _executor_missing(executor):
         raise Stop(2, f"converge: cannot run — {executor} is not on PATH")
@@ -8105,6 +8121,14 @@ def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) ->
                 f"converge: cannot run — {arg} is not <role>=<model>/<effort>,"
                 " <checker>=skip or grant=yes",
             )
+    runs = mflib.layout.run_dir(primary)
+    data = _models_data(runs, change)
+    filed = mflib.modelsfile.skipping(data, CHECKERS)
+    skipped |= {r for r in ROLES if f"converge.{r}" in filed and r not in named}
+    for role in (*ROLES, "fix"):
+        station = f"converge.{role}"
+        if role not in named and mflib.modelsfile.table(data, station) is not None:
+            named[role] = _models(runs, change, station, executor)
     run = Run(primary, executor)
     run.claim = None
     run.lines = ship_lines(primary)

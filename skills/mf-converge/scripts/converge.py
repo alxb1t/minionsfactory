@@ -63,6 +63,7 @@ PLACEHOLDER = re.compile(r"\{(\w+)\}")
 FALLBACK = "fallback: codex usage limit"
 FAILED = "fallback: codex failed"
 NO_OPEN_CARD = "verdict is changes-requested with no open card"
+SCOPE_MISSED = "its scope resolved"
 REWRITE = (
     "role: {role}\nchange: {change}\nround: {round}\n\n"
     "Your findings file {findings} breaks the findings file contract of"
@@ -578,7 +579,7 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
         frozen = (
             f"{_plural(freeze.files, 'file')} and {_plural(freeze.commits, 'commit')}"
         )
-        why = f"its scope resolved {resolved} of the freeze's {frozen}"
+        why = f"{SCOPE_MISSED} {resolved} of the freeze's {frozen}"
         return verdict._replace(unclean=f"{name} is not clean: {why}")
     if role == "conformance":
         passes = set(mflib.findings.listed(front["passes"]))
@@ -644,8 +645,8 @@ def held(
 ) -> dict[str, Verdict]:
     """Return each role's verdict; a malformed file gets one rewrite worker first.
 
-    A file missing, or not clean, halts. A `changes-requested` file no open card
-    blocks is written `clean`. Why: design D5; 0141-halt-fixes design D11.
+    A file missing halts; a scope missed goes out once more; an unblocked
+    `changes-requested` is written `clean`. Why: design D5; 0141 D11; 0145 D7.
     """
     kept: dict[str, Verdict] = {}
     for role in ROLES:
@@ -654,6 +655,8 @@ def held(
             verdict = rewrite(context, role, frozen, verdict.malformed)
         if verdict is None:
             raise Halt(f"{role}.md is missing: its checker left no findings file")
+        if verdict.unclean is not None and SCOPE_MISSED in verdict.unclean:
+            verdict = rescoped(context, role, frozen, verdict.unclean)
         if verdict.unclean is not None:
             raise Halt(verdict.unclean)
         if verdict.verdict == "changes-requested" and not blockers({role: verdict}):
@@ -661,6 +664,22 @@ def held(
             verdict = verdict._replace(verdict="clean", open_blocking=0)
         kept[role] = verdict
     return kept
+
+
+def rescoped(context: Context, role: str, frozen: Freeze, why: str) -> Verdict:
+    """Send `role`'s checker out once more on its station; return its file read again.
+
+    A file missing or malformed then halts. Why: 0145-halts-alone design D7.
+    """
+    station, _ = context.stations.get(role, (f"converge-{role}-r{context.round}", None))
+    stamp(context, f"fan-out — rescope — {role}: {why}")
+    checked = dispatch(context, frozen, verify="-verify-" in station, roles=[role])
+    again = read_verdicts(context, frozen, checked)[role]
+    if again is None:
+        raise Halt(f"{role}.md is missing: its checker left no findings file")
+    if again.malformed is not None:
+        raise Halt(again.malformed)
+    return again
 
 
 def cleared(context: Context, role: str) -> None:
@@ -1715,12 +1734,20 @@ def ruled(path: Path, now: str, round_: int, today: str, lines: str) -> None:
 def before_round(run: mflib.statuslog.Run) -> bool:
     """Return whether the run's halt is a halt before round 1.
 
-    No `start`, no grant, and no `verify: halt`. Why: design D3.
+    No grant and no `verify: halt`, and no `start`, or a halt that names a worker
+    and no usage limit, with no `verdicts`. Why: design D3; 0145-halts-alone D6.
     """
+    names = {event.name for event in run.events}
+    detail = run.events[0].detail
+    unjudged = (
+        "verdicts" not in names
+        and mflib.statuslog.names_worker(detail)
+        and "usage limit" not in detail
+    )
     return (
         run.mark != "grant"
-        and not any(event.name == "start" for event in run.events)
-        and "verify: halt" not in run.events[0].detail
+        and ("start" not in names or unjudged)
+        and "verify: halt" not in detail
     )
 
 

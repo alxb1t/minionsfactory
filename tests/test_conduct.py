@@ -7769,7 +7769,7 @@ def test_the_converge_command_runs_by_hand(
     _version(root, "0001-todo", "- [x] 1 — Todo\n")
     folder = root / ".minions" / "changes" / "0001-todo"
     folder.mkdir(parents=True)
-    # By hand no models file is read: its skip binds nothing.
+    # By hand a `[converge]` skip binds nothing: a checker's skip alone is read.
     (folder / "models.toml").write_text("[converge]\nskip = true\n")
 
     def by_hand(*given: str) -> int:
@@ -7820,6 +7820,69 @@ def test_the_converge_command_runs_by_hand(
         r"^## Run \d+ — .*$", (folder / "status_log.md").read_text(), re.M
     )
     assert runs[0].endswith(" · grant")
+
+
+def test_a_hand_converge_reads_the_models_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    by_hand = conduct["converge_by_hand"]
+    made = conduct["Run"]
+    seen: list[tuple[dict[str, object], object]] = []
+
+    def run_of(*args: object) -> object:
+        run = made(*args)
+
+        def converge(
+            conductor: object,
+            *rest: object,
+            workers: dict[str, object],
+            **keys: object,
+        ) -> int:
+            seen.append((workers, run.plan[("0001-todo", "converge.fix")]))
+            return 0
+
+        run.converge = converge
+        return run
+
+    monkeypatch.setitem(by_hand.__globals__, "Run", run_of)
+    opus, sonnet = (
+        ("claude", "claude-opus-5-5", "high"),
+        ("claude", "claude-sonnet-5-5", "medium"),
+    )
+    (folder / "models.toml").write_text(
+        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n\n'
+        "[converge.adversarial]\nskip = true\n\n"
+        '[converge.fix]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n'
+    )
+
+    # The file's models and a checker's skip bind a hand converge.
+    # Why: 0145-halts-alone design D8.
+    assert by_hand(root, "0001-todo", [], "claude") == 0
+    workers, fixer = seen[-1]
+    assert (workers["conformance"], workers["adversarial"]) == (opus, "skip")
+    assert (workers["fix"], fixer) == (sonnet, sonnet)
+
+    # An argument is over the file, for its role alone.
+    given = ["adversarial=default/low", "fix=claude-haiku-5-5/low"]
+    assert by_hand(root, "0001-todo", given, "claude") == 0
+    workers, fixer = seen[-1]
+    assert workers["conformance"] == opus
+    assert workers["adversarial"] == ("claude", None, "low")
+    assert workers["fix"] == fixer == ("claude", "claude-haiku-5-5", "low")
+
+    # No file: the executor's default, as each role had before.
+    (folder / "models.toml").unlink()
+    assert by_hand(root, "0001-todo", [], "claude") == 0
+    workers, fixer = seen[-1]
+    bare = ("claude", None, None)
+    assert [workers[r] for r in ("conformance", "adversarial", "fix")] == [bare] * 3
+    assert fixer == bare
 
 
 @pytest.mark.slow
@@ -12879,6 +12942,51 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
     amended = ("converge", "amended: HEAD past the halted head")
     assert conduct["stage_of"](root, version) == amended
+
+
+def test_a_worker_halt_is_a_rerun_at_the_same_head(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    exited = "converge-conformance-r1 worker exit 1"
+    halt = f"10:00:00 · round 1 · halt — {exited} · head {head}"
+    start = "09:00:00 · round 1 · start — base a · head b"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n{start}\n")
+    version = conduct["find_version"](root, "0001-todo")
+    rerun = ("converge", conduct["RERUN"])
+    # A worker's exit after `start`, with no verdict read, runs again at `HEAD`.
+    # Why: 0145-halts-alone design D6.
+    assert conduct["stage_of"](root, version) == rerun
+    timed = (
+        f"10:00:00 · round 1 · halt — converge-fix-r1 timed out after 9s · head {head}"
+    )
+    log.write_text(f"# t\n\n## Run 1 — d\n{timed}\n{start}\n")
+    assert conduct["stage_of"](root, version) == rerun
+
+    # A second halt in the same run stays: the run reran it once.
+    conductor = conduct["Run"](root, "claude")
+    conductor.reruns.add("0001-todo")
+    assert not conductor.take_back(version, {})
+    reran = f" · run · rejoin — 0001-todo: still halted — {conduct['RERAN']}"
+    assert any(line.endswith(reran) for line in _log(root))
+
+    # A new run reads it as a rerun again.
+    assert conduct["Run"](root, "claude").stage(version) == rerun
+
+    # Twin: a worker's halt after a `verdicts` line stands, as another halt does.
+    verdicts = "09:30:00 · round 1 · verdicts — conformance clean · open_blocking 0"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n{verdicts}\n{start}\n")
+    assert conduct["stage_of"](root, version) == ("converge-halted", halt)
+    red = f"10:00:00 · round 1 · halt — red · head {head}"
+    limited = (
+        f"10:00:00 · round 1 · halt — {exited} · stopped by a usage limit · head {head}"
+    )
+    for stands in (red, limited):
+        log.write_text(f"# t\n\n## Run 1 — d\n{stands}\n{start}\n")
+        assert conduct["stage_of"](root, version) == ("converge-halted", stands)
 
 
 @pytest.mark.slow
