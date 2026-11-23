@@ -134,7 +134,7 @@ its own worktree. The spec's *A worker's reach stops at the repository* defines 
 
 - **`MISSING = "No such tool available"`**; **`lacked(log)`** returns the name of each `tool_use` whose `tool_result`
   `is_error` and whose text opens with `MISSING` once its `<tool_use_error>` prefix is removed and its leading
-  whitespace stripped, per 0119-debt-paydown-3b design D11, read as `denials` reads a log.
+  whitespace stripped, per [0119-debt-paydown-3b design D11](../0119-debt-paydown-3b/design.md#d11), read as `denials` reads a log.
 - **`Run.spawn`** — after the timeout check and before the exit check, `lacked(out)` non-empty halts `who`:
   `<station> asked for a tool its station lacks: <names>`, and returns `None`.
 - **`tests/fake_worker.py`** — under `FAKE_MODE` `missing-tool`, the build prints a `tool_use` of `Agent` and its

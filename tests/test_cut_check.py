@@ -1100,6 +1100,26 @@ def test_kexpr_naming_a_planned_test_holds(
     assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
 
 
+def test_kexpr_naming_a_module_of_a_directory_holds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _put(root, "tests/unit/test_gadget.py", "def test_spin(): ...\n")
+    _put(root, "tests/unit_extra/test_other.py", "def test_turn(): ...\n")
+    _put(root, "tests/test_a.py", "def test_spin(): ...\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "tests")
+    _verified(root, "uv run pytest -q tests/unit -k test_gadget")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _verified(root, "uv run pytest -q ./tests/test_a.py -k spin")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _verified(root, "uv run pytest -q tests/unit -k test_other")
+    assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
+
+
 def test_kexpr_naming_nothing_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

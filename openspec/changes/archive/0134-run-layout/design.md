@@ -157,7 +157,7 @@ None.
 ## Risks / Trade-offs
 
 - **A hand-run station reads the whole table.** `old_layout` calls `old_files`, which lists each old folder and each `runs/<stamp>/`, where a copy tested one name per entry. A run directory with many stamps costs one listing per call; the conductor pays it at each start already.
-- **`OLD_ID` is four digits and a slug.** The conductor's table matches an id by that pattern, where the other copies format any id into each path. Every change id today is of that form, and the decisions page fixes it.
+- **`OLD_ID` is digits of any width and a slug.** The conductor's table matches an id by that pattern, where the other copies format any id into each path. A `1-x` or a `10000-x` id reads as an old entry, as [D5](#d5)'s fix note says.
 - **A seed in `scripts/` loads `skills/mflib/`.** `scripts/` is outside the pin's export, which archives `skills` alone, so the seed reaches the checkout's own `skills/`, and a metric script runs only in a checkout.
 - **The list may start longer than the sites D8 names.** A `.minions` constant that is no join stays, on the list, and each later version shortens it.
 - **The conductor's `_change_dir(runs.parent, change)`** reads as a path of `runs`. It stays: renaming that parameter is no move.

@@ -882,10 +882,10 @@ def row_v7(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
     return " · ".join(found) or None
 
 
-def _defined(file: str, tree: set[str]) -> list[str]:
-    """Return the names a file of `HEAD` defines, or each `.py` file under a directory.
+def _defined(file: str, tree: set[str]) -> list[tuple[str, str]]:
+    """Return `(path, name)` for a file of `HEAD`, or each `.py` file under a directory.
 
-    A path of neither kind defines none.
+    `""` stands once for the file. e.g. "t.py" → [("t.py", ""), ("t.py", "test_a")]
     """
     folder = file.rstrip("/") + "/"
     held = sorted(
@@ -894,9 +894,9 @@ def _defined(file: str, tree: set[str]) -> list[str]:
         if path == file or (path.startswith(folder) and path.endswith(".py"))
     )
     return [
-        name
+        (path, name)
         for path in held
-        for name in CODE_DEF.findall("\n".join(_git("show", f"HEAD:{path}")[1]))
+        for name in ("", *CODE_DEF.findall("\n".join(_git("show", f"HEAD:{path}")[1])))
     ]
 
 
@@ -915,13 +915,21 @@ def row_v8(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
     for task in tasks:
         for command in _commands(task.text, plan):
             words = _words(command)
-            files = [w.split("::")[0] for w in _operands(words) if _test_path(w)]
+            files = [
+                Path(w.split("::")[0]).as_posix()
+                for w in _operands(words)
+                if _test_path(w)
+            ]
             if not plan["is_pytest"](words) or not files:
                 continue
             names = {
                 " ".join((*Path(file).parts, name))
                 for file in files
-                for name in ("", *planned, *_defined(file, tree))
+                for name in ("", *planned)
+            } | {
+                " ".join((*Path(path).parts, name))
+                for file in files
+                for path, name in _defined(file, tree)
             }
             found += [
                 f"{task.name}: `-k {expression}` selects no test of {', '.join(files)}"
