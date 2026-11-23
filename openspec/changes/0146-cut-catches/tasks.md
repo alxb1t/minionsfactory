@@ -10,7 +10,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 - [x] 4 — The declared cut checks · moderate
 - [x] 5 — The build's unplanned file · moderate
 - [x] 6 — The records · moderate
-- [ ] 7 — The unplanned-file pass scoped · moderate
+- [x] 7 — The unplanned-file pass scoped · moderate
 
 ## 1 — The conductor checks the cut
 
@@ -104,5 +104,5 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 7 — The unplanned-file pass scoped
 
-- [ ] 7.1 In `skills/mf-converge/references/worker.md` scope the `unplanned-file` row per [D7](design.md#d7): the pass leaves out the changelog and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase, each named as the decision names it.
+- [x] 7.1 In `skills/mf-converge/references/worker.md` scope the `unplanned-file` row per [D7](design.md#d7): the pass leaves out the changelog and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase, each named as the decision names it.
   Verify: `git grep -q -F -e "CHANGELOG.md" -- skills/mf-converge/references/worker.md` exits `0`.
