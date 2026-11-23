@@ -5,7 +5,7 @@ Build the settled [design](design.md), one phase at a time; the checker row's te
 ## Progress
 
 - [x] 1 — The archived texts · moderate
-- [ ] 2 — The live texts and the row · moderate
+- [x] 2 — The live texts and the row · moderate
 - [ ] 3 — The paid cards · moderate
 
 ## 1 — The archived texts
@@ -27,13 +27,13 @@ Build the settled [design](design.md), one phase at a time; the checker row's te
 
 ## 2 — The live texts and the row
 
-- [ ] 2.1 In `CHANGELOG.md` reword the first clause of the v0.117.0 line of its third phase per [D3](design.md#d3).
+- [x] 2.1 In `CHANGELOG.md` reword the first clause of the v0.117.0 line of its third phase per [D3](design.md#d3).
   Verify: `git grep -c -F -e 'or not,' -- CHANGELOG.md` prints `CHANGELOG.md:1`.
-- [ ] 2.2 In `skills/mf-converge/references/worker.md` insert the words of [D4](design.md#d4) into the `unplanned-file` row.
+- [x] 2.2 In `skills/mf-converge/references/worker.md` insert the words of [D4](design.md#d4) into the `unplanned-file` row.
   Verify: `git grep -c -F -e 'whose files' -- skills/mf-converge/references/worker.md` prints `skills/mf-converge/references/worker.md:1`.
-- [ ] 2.3 In `skills/mf-converge/references/verify.md` insert the words of [D4](design.md#d4) into the line on the unplanned-file pass.
+- [x] 2.3 In `skills/mf-converge/references/verify.md` insert the words of [D4](design.md#d4) into the line on the unplanned-file pass.
   Verify: `git grep -c -F -e 'whose files' -- skills/mf-converge/references/verify.md` prints `skills/mf-converge/references/verify.md:1`.
-- [ ] 2.4 Add `test_kexpr_naming_a_module_of_a_directory_holds` to `tests/test_cut_check.py` per [D5](design.md#d5) and run it red, then change `_defined` and `row_v8` in `skills/mf-cut-change/scripts/cut_check.py` to the same decision.
+- [x] 2.4 Add `test_kexpr_naming_a_module_of_a_directory_holds` to `tests/test_cut_check.py` per [D5](design.md#d5) and run it red, then change `_defined` and `row_v8` in `skills/mf-cut-change/scripts/cut_check.py` to the same decision.
   Verify: `uv run pytest -q tests/test_cut_check.py -k test_kexpr_naming_a_module_of_a_directory_holds` exits 0.
 
 ## 3 — The paid cards
