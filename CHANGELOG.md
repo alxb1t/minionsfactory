@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.117.0] - 2026-11-23
+
+Gate: local 8m21s · CI not read under mf-ship · 0.116.0: local 7m38s · CI not read under mf-ship
+
+- The run's cut check runs `cut_check.py` in the cut's worktree, under the sandbox: a row bound only as far as the cutter obeyed its skill. A first failure of a cut the run made writes `cut.red`, resets the tree to the default branch and cuts once more, the prompt naming `cut.red`; a second resets the branch and halts `the cut check failed twice`, a rejoin's branch `the cut check failed` with nothing reset, and an exit above 1, or an exit 1 with no `cut_check: halt — ` line, `the cut check cannot run`, naming the output's last line. Each run ends after 1800 s, keeps its last 2000 lines and writes the tree and the run directory alone (0146-cut-catches, phase 1).
+- `cut_check.py` gains `K7`, a design or proposal line naming a backticked identifier a sub-task removes with no removal word, `V7`, a `Verify:` whose first word is no program, no path of `HEAD` and no path a sub-task names, and `V8`, a `-k` selecting no test of the files it names: each was a halt at the build. `verify_check.py` stops refusing a search for a range's text, and refuses an Oxford comma and an `e.g.` that the plan check reads as two commands (0146-cut-catches, phase 2).
+- A `**HUMAN` line of `## Progress` fails the cut's `I14`, and a `**HUMAN` line of a brief's `## Phases` halts the brief check: a halt at such a phase idled until a person came. `I4`, `I12` and `verify_check.py` drop their exemptions, so each `## Progress` line ends with its rating; the conductor, the plan check and the build still read one in a version cut before (0146-cut-catches, phase 3).
+- A repository may declare `**Cut checks:**` in its root `AGENTS.md`: after the cut's checker passes, the run runs each backticked command over the cut's worktree under the sandbox, and one that exits non-zero or cannot start fails the cut check on the same route, with the command and the last 20 lines of its output; a file a check leaves in the tree fails it too. The threat model, the cut's Step 8, the bootstrap template and D7 name the line: text the gate rejects reached isekai's build twice (0146-cut-catches, phase 4).
+- The build edits a file no task names when a red `make check` needs it, and lists it on an `Unplanned: <path>` line of the commit body; conformance gains an `unplanned-file` pass, a `nit` for a listed file and `blocking` for one with no line. `I6` and `I7` say the build answers a file a task leaves unnamed: it was the largest class of halts (0146-cut-catches, phase 5).
+- D89 `The conductor checks the cut` records the run's cut check and its single recut; D77 names `V7`, `V8` and `K7` and the conductor's run of the checker, and D60 says the cut refuses a person's phase while the conductor still reads one of a version cut before (0146-cut-catches, phase 6).
+- Conformance's `unplanned-file` pass leaves out `CHANGELOG.md` and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase: read over every unnamed file, the pass raised a `blocking` card no build could clear (0146-cut-catches, phase 7).
+- The `unplanned-file` pass also leaves out a file changed only by a commit the status log names as a fix's, in `worker.md` and `verify.md`: a fix answers cards and carries no `Unplanned:` line. `_cut_checked`'s docstring names an exit 1 with no `cut_check: halt — ` line as `the cut check cannot run`, as the code does (0146-cut-catches, phase 8).
+
 ## [0.116.0] - 2026-11-23
 
 Gate: local 7m38s · CI not read under mf-ship · 0.115.0: local 7m7s · CI not read under mf-ship

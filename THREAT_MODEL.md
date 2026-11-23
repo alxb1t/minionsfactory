@@ -84,8 +84,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   ([D62](docs/decisions.md#d62--a-queued-cuts-packages-are-approved-at-the-plan)). A switch or a decision row a cutter
   plants reaches a later cut only through the person's re-plan, whose close shows each `## For the cut` item and
   `## Dependencies` row before the yes (`0082·S5`).
-- A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:` and `Ship network:` lines
-  (D51 accepts it: every worker of the repo reaches what it lists), its standards, its Makefile.
+- A target repo's files: `AGENTS.md` and its `Worktrees:`, `Ship tools:`, `Ship network:` and `Cut checks:` lines
+  (D51 accepts it: every worker of the repo reaches what it lists; the conductor runs each `Cut checks:` command over a
+  cut's worktree under the worker sandbox, read from the primary's file, never the cut's), its standards, its Makefile.
 - Findings files, status logs, a cut's `cut-notes.md` (its facts are evidence, and a concurrent worker can rewrite
   them) and worker output under `.minions/changes/<change-id>/`. A link a worker plants at
   `changes/` or a change's folder halts the run or that version, and one at an old-layout folder the start-of-run move
@@ -174,7 +175,7 @@ hooks reshape the whole run, is on it.
 - `pyproject.toml` — the dependencies and the tools' settings.
 - `uv.lock` — the pinned dependencies.
 - `.github/*` — CI and its tools.
-- `AGENTS.md` — `Ship tools:` and `Ship network:`, which reach every worker's sandbox.
+- `AGENTS.md` — `Ship tools:` and `Ship network:`, which reach every worker's sandbox, and `Cut checks:`, whose commands the conductor runs.
 - `THREAT_MODEL.md` — this file: what adversarial weighs, and this list.
 
 ## Out of scope

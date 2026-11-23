@@ -197,16 +197,73 @@ def test_a_command_after_an_output_verb_is_refused_at_the_cut(
         "verify: every check is one plain command",
     ]
 
-    # A `**HUMAN` phase's `Verify:` is no plan check's, so the cut leaves it out.
+    # A `**HUMAN` phase's `Verify:` is read like any other.
     human = (
         "## Progress\n\n- [ ] 1 — One **HUMAN**\n\n## 1 — One\n\n"
         "- [ ] 1.1 x\n  Verify: `grep -n one a.md` prints a line of `a.md`.\n"
     )
     code, out = _run(root, human, capsys, monkeypatch)
+    assert code == 1, out
+    assert out.splitlines() == [
+        "1.1: I19 — a command after an output verb: `a.md`",
+        "verify: halt — I19: 1.1",
+    ]
+
+
+def test_oxford_comma_and_e_g_are_refused(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repo(tmp_path / "repo", {"a.md": "one\n"})
+    refused = _tasks(
+        "1.1 x\n  Verify: `grep -n one a.md` prints one integer, a space, and `a.md`.",
+        "1.2 x\n  Verify: `grep -n one a.md` prints a line, e.g. `grep -c one a.md`.",
+        "1.3 x\n  Verify: `grep -n one a.md` prints a line, i.e. `grep -c one a.md`.",
+    )
+    code, out = _run(root, refused, capsys, monkeypatch)
+    assert code == 1, out
+    assert out.splitlines() == [
+        "1.1: I19 — a command after an output verb: `a.md`",
+        "1.2: I19 — a command after an output verb: `grep -c one a.md`",
+        "1.3: I19 — a command after an output verb: `grep -c one a.md`",
+        "verify: halt — I19: 1.1, 1.2, 1.3",
+    ]
+
+    # A clause stands when a verb follows its span, `, and` or `, or`; a sentence
+    # end stands when `e.g.` is no part of the gap.
+    holds = _tasks(
+        "1.1 x\n  Verify: `grep -n one a.md` exits `0`, or `grep -c one a.md` prints "
+        "`1`.",
+        "1.2 x\n  Verify: `grep -n one a.md` prints a line, e.g. one. Then "
+        "`grep -c one a.md` exits `0`.",
+    )
+    code, out = _run(root, holds, capsys, monkeypatch)
     assert code == 0, out
     assert out.splitlines() == [
-        "1.1: a.md:1: one",
+        *[f"1.{n}: a.md:1: one" for n in (1, 1, 2, 2)],
         "verify: every check is one plain command",
+    ]
+
+
+def test_searched_range_is_no_range(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repo(tmp_path / "repo", {"a.md": "see origin/main... here\nmain..HEAD\n"})
+    tasks = _tasks(
+        "1.1 x\n  Verify: `git grep -n origin/main... -- a.md` prints a line.",
+        "1.2 x\n  Verify: `grep -n -e main..HEAD a.md` prints a line.",
+        "1.3 x\n  Verify: `git diff main..HEAD -- a.md` prints a line.",
+    )
+    code, out = _run(root, tasks, capsys, monkeypatch)
+    assert code == 1, out
+    assert out.splitlines() == [
+        "1.1: a.md:1: see origin/main... here",
+        "1.2: a.md:2: main..HEAD",
+        "1.3: I19 — a range: main..HEAD: `git diff main..HEAD -- a.md`",
+        "verify: halt — I19: 1.3",
     ]
 
 

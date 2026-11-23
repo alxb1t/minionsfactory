@@ -22,6 +22,7 @@ coverage-trace stays the worker's:
 |---|---|---|
 | stale-claim | always: `git grep` over the tree outside the diff for every path, symbol, verb, route or count the diff renames, deletes or changes, and in an amend round each claim the amend changes; the Summary names what it searched for | each mention the change made false, as `drift` |
 | test-cost | over every test the diff adds, by the [rules for tests](#rules-for-tests) | an end-to-end test a lower layer already proves (`T1`), that re-opens a state another test reaches (`T2`), or that runs on engines its outcome cannot depend on (`T4`): `nit`, its **Fix** sized `a test`, so the pickup takes it |
+| unplanned-file | always: each file of the freeze's diff that no task of the change names, save `CHANGELOG.md`, the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase, and a file changed only by a commit the status log names as a fix's, stands on an `Unplanned:` line of a commit in range; the Summary names the files it found | `nit`: a file so listed that a red `make check` needed; `blocking`: a file changed with no such line, or past what the check needed |
 | coverage-trace | when the freeze removes a test — a deleted test file, or a case gone from one; otherwise the Summary says the freeze removed no test | `blocking`: a removed assertion or scenario id that no test runs now and that neither a decision in force at the base nor a requirement the change's delta removes, with the code under test, retires as the design's `## Tests` table names; a scenario moved onto a test of another code path; client behaviour on one engine (`T4`); a merged step leaning on an earlier one (`T3`) |
 
 **Scoping.** Judge the explicit base/head range and patch, conformance with no source beyond the hunks,
@@ -56,7 +57,7 @@ mode: parallel | sequential | by-rule | skipped
 workers: <int, the workers this role used; 0 by rule or skipped>
 files: <int, the files this round's scope resolved>
 commits: <int, the commits this round's scope resolved>
-passes: [<each conformance pass that ran: stale-claim, test-cost, and coverage-trace or no-removed-test>]
+passes: [<each conformance pass that ran: stale-claim, test-cost, unplanned-file, and coverage-trace or no-removed-test>]
 inconclusive: [<each document whose section you judged inconclusive; [] for none>]
 model: <the model, as the host reports it, or unknown; converge.py's checker call stamps the one it started>
 tokens: <int; converge.py's checker call stamps it from the worker's log>
@@ -150,7 +151,7 @@ a failed command or a mismatch is a scope failure. Neither role may reopen inher
 of supported merges, and each checker's independent `git show --remerge-diff` confirms every resolution diff is
 empty. Each Summary names those merge ids and parents, states that it checked each empty resolution, and reports
 zero changed files and the non-zero examined commit count. `converge.py` checks these against the freeze and
-runs the gate on HEAD. Conformance still reports its stale-claim, test-cost and coverage-trace passes
+runs the gate on HEAD. Conformance still reports its stale-claim, test-cost, unplanned-file and coverage-trace passes
 (no changed paths, new tests or removed tests). All other zero-file scopes are not clean.
 
 ## The card

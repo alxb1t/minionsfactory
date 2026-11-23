@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
-  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86, D87, D88
+  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86, D87, D88, D89
 ```
 
 ## The shape
@@ -115,7 +115,8 @@ places the brief's facts at `HEAD`, its helpers read the unplaced ones, and `cut
 mechanical rows ([D77](#d77--a-mechanical-step-is-a-script)). It runs each `Verify:`
 search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks whether each task can be
 built as written, a second review only after a fix that changes a decision or a task
-([D65](#d65--a-lighter-plan-review-and-build)); it runs no gate.**
+([D65](#d65--a-lighter-plan-review-and-build)); it runs no gate. The conductor runs the cut's checker and, after it, each
+`Cut checks` command of the primary's `AGENTS.md` over the cut's worktree.**
 
 - **Why:** a change the build cannot run is cheapest to catch at the cut. A check read and never run, or a plan
   read only by its writer, lets a plan the code cannot satisfy reach the build; a gate on the base plus a change
@@ -253,7 +254,8 @@ moved base.**
 
 **The cut's preconditions, the context it reads and the placing of the brief's facts in it, the scaffold of its artifacts,
 the readers of a deleted name, the self-check's mechanical rows and the models file are scripts; the cut's LLM writes the
-plan and judges what no script can check. `conduct.py cut` writes
+plan and judges what no script can check. The conductor runs the checker, whose rows include `V7`, `V8` and `K7`
+([D89](#d89--the-conductor-checks-the-cut)). `conduct.py cut` writes
 `models.toml` from `brief_check.py --models`, through `skills/mflib/modelsfile.py`, when it queues the cut;
 `brief_check.py --models --write` writes it for the attended cut; and a cut halts on a changed file.**
 
@@ -982,6 +984,22 @@ no rescue or supervisor answers.**
 - **Rejected:** a retry of the halted round inside converge · a halt at the first missed scope · a flag for the models file ·
   a halt for every lacking changelog entry · a notification.
 
+### D89 · The conductor checks the cut
+
+**After the cut commit the conductor runs `cut_check.py` through the sandbox runner ([D51](#d51--a-worker-runs-in-an-os-sandbox-and-no-worker-pushes)),
+then each `Cut checks` command of the primary's `AGENTS.md`. A failure writes its lines to `cut.red`, resets the branch this
+call cut to the default branch, and starts the cutter once more; a second failure resets the branch again and halts the cut.
+A file a check leaves in the tree fails it. Each run ends after 1800 s, keeps 2000 lines, and writes the tree and the run
+directory alone. A branch the run found already holding the change halts at the first failure, and nothing is reset. A
+person's phase is refused at the cut.**
+
+- **Why:** a row binds only as far as the cutter obeys its skill, and the faults the rows read cost a halt, a rescue and a new
+  run once the build finds them.
+- **Accepts:** a failed first cut is paid for twice · `V7` halts a first word that resolves only inside the build's
+  environment · `K7` reads a rename's new name as removed.
+- **Rejected:** an amend by a second cutter · a third try · a reset of a rejoin's branch · a gate at the cut.
+- **Amends:** D7, D60 and D77, each edited where it lives.
+
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,
@@ -1110,8 +1128,8 @@ may edit `proposal.md` and `design.md`'s `## Decisions` too, its commit asked to
 trailer-less decided amend taken too, and the run logs it `decided`. It never edits the spec delta, code or a test, takes a
 security `critical` or `high` card, approves a gate makefile, settles an integrate conflict, releases, merges, pushes or
 answers a run-wide halt. A refused amend is reset off `HEAD`, logged `reset`, when every commit past the rescue's start
-carries `Rescue:` and the tree was clean before and after it. The person's amends during a
-rescue let the version go on. At each poll the run takes back every halted version whose stage or `HEAD` changed on disk,
+carries `Rescue:` and the tree was clean before and after it. The cut refuses a phase marked for a person, and the conductor still reads one of a
+version cut before. The person's amends during a rescue let the version go on. At each poll the run takes back every halted version whose stage or `HEAD` changed on disk,
 read the same at two polls, with no request. The run ends when nothing can move, its close naming each halted version's
 need and each version a rescue decided for.**
 

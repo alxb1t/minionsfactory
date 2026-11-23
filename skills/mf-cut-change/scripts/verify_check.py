@@ -32,10 +32,9 @@ SPAN, Unparsed, commands, tokens = (
     PLAN["commands"],
     PLAN["tokens"],
 )
-OUTPUT_END, OUTPUT_VERBS, phases, reads = (
+OUTPUT_END, OUTPUT_VERBS, reads = (
     PLAN["OUTPUT_END"],
     PLAN["OUTPUT_VERBS"],
-    PLAN["phases"],
     PLAN["reads"],
 )
 CUT_PRE = Path(__file__).resolve().parent / "cut_pre.py"
@@ -48,6 +47,7 @@ LINE_NUMBER = re.compile(r"[^:\s]+:\d+(?:-\d+)?")
 PHRASE = re.compile(r"[^\W\d_]+(?: [^\W\d_]+){2,}")
 RANGE = re.compile(r"(?:origin/)?(.+?)\.\.\.?(?:HEAD)?")
 CLAUSE = re.compile(r",\s*(?:and|or)\b")
+ABBREVIATION = re.compile(r"\b(?:e\.g|i\.e)\.")
 LOOPS = {"for", "while", "until"}
 OPERATOR = set("();<>|&")
 # Flags that hide the matching lines; the search prints them.
@@ -350,14 +350,19 @@ def unplain(words: list[str], query: Search | None) -> list[str]:
             for pattern in patterns
             if PHRASE.fullmatch(pattern.removeprefix("^").removesuffix("$"))
         ]
-        + [f"a range: {word}" for word in words if ranged(word)]
+        + [
+            f"a range: {word}"
+            for word in words
+            if word not in patterns and ranged(word)
+        ]
     )
 
 
 def after_verb(verify: str) -> list[str]:
     """Return each command span after an earlier command and an output verb, one clause.
 
-    e.g. "`a` prints one line and `b`" → ["`b`"]
+    A `, and` or `, or` opens a clause only when an output verb follows the span, and
+    `e.g.` or `i.e.` ends no sentence. e.g. "`a` prints one line and `b`" → ["`b`"]
     """
     found: list[str] = []
     end: int | None = None
@@ -365,10 +370,12 @@ def after_verb(verify: str) -> list[str]:
         if output:
             continue
         gap = "" if end is None else SPAN.sub(" ", verify[end : match.start()])
+        after = verify[match.end() :].split()
+        clause = CLAUSE.search(gap) and after[:1] and after[0] in OUTPUT_VERBS
         if (
             any(word in OUTPUT_VERBS for word in gap.split())
-            and not OUTPUT_END.search(gap)
-            and not CLAUSE.search(gap)
+            and not OUTPUT_END.search(ABBREVIATION.sub("", gap))
+            and not clause
         ):
             found.append(match[0])
         end = match.end()
@@ -431,7 +438,6 @@ def check_command(
 def check(tasks: str, head: Head) -> list[str]:
     """Return the sub-tasks whose checks break `I19`; print what each search finds."""
     broken: list[str] = []
-    human = phases(tasks)[1]
     for lines in subtasks(tasks):
         text = " ".join(lines)
         name = lines[0].split()[0]
@@ -442,7 +448,7 @@ def check(tasks: str, head: Head) -> list[str]:
         verify = text[at + len("Verify:") :]
         halt = "**HALT CHECK**" in text
         try:
-            late = [] if int(name.split(".")[0]) in human else after_verb(verify)
+            late = after_verb(verify)
             for span in late:
                 print(f"{name}: I19 — a command after an output verb: {span}")
             hits = [
