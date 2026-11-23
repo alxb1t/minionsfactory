@@ -6,7 +6,7 @@ debt: [0097·R1, 0097·R5, 0097·R6, 0097·S4, 0097·S5, 0101·S8, 0100·R2, 009
 
 # Debt paydown 3a
 
-The debt from 75 cards to about 15: what later versions made moot is settled, the small fixes and this line's ideas are paid, in two versions split by file.
+The debt cards no conductor code decides: what later versions made moot is settled, the small fixes and this line's ideas are paid, in versions split by file.
 
 Reading map: [design](design.md) holds the decisions, the evidence for each card closed without code and the tests; [tasks](tasks.md) its phases.
 

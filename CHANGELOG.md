@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Archived lines of `0118-debt-paydown-3a`, `0119-debt-paydown-3b`, `0099-stacked-builds`, `0100-worker-diet`, `0104-codex-limits`, `0121-ui-prepare`, `0134-run-layout` and `0136-status-log` say what the code and the later decisions hold: no stale count, a link to the decision, the scratch npm config files, an id of any width and the slow run test. Only the lines the debt cards name change (0149-debt-paydown-4, phase 1).
+
 ## [0.118.0] - 2026-11-23
 
 Gate: local 8m24s · CI not read under mf-ship · 0.117.0: local 8m21s · CI not read under mf-ship

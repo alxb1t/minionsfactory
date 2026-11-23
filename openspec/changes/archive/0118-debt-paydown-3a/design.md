@@ -1,6 +1,6 @@
 # Debt paydown 3a — design
 
-The debt cards that no conductor code decides: what later versions made moot is closed with its evidence, the prose and archive cards are corrected in place, and four small ideas of this line are built. Verdict at the end: ready to build.
+The debt cards that no conductor code decides: what later versions made moot is closed with its evidence, the prose and archive cards are corrected in place, and the small ideas of this line are built. Verdict at the end: ready to build.
 
 ## Context
 
@@ -42,8 +42,8 @@ Read at `8fd7364` (v0.97.0), the brief's own `At` commit: every fact it cites st
 
 | id | decision | because | rejected |
 |---|---|---|---|
-| [D1](#d1) | two versions split by file — **3a** touches no `conduct.py`, **3b** only `conduct.py` and its tests; the design-sized cards wait for a conductor-hardening version | reviewable diffs, no file in common, a trivial integrate | — |
-| [D2](#d2) | 3a closes without code the moot cards, the wontfix by precedent and the accepted or wontfix; fixes the prose and archive cards and 0103·S2, 0100·S4, 0101·R7, 0114·R7; and takes four ideas: the corpus skips findings older than the card shape, plan metrics expands `$NAME` from the command's own words and books operator marks to the session's own repo, `cut_check.py` flags a `Verify:` needle a later task removes | about 45 cards, lowest risk | — |
+| [D1](#d1) | versions split by file — **3a** touches no `conduct.py`, **3b** only `conduct.py` and its tests; the design-sized cards wait for a conductor-hardening version | reviewable diffs, no file in common, a trivial integrate | — |
+| [D2](#d2) | 3a closes without code the moot cards, the wontfix by precedent and the accepted or wontfix; fixes the prose and archive cards and 0103·S2, 0100·S4, 0101·R7, 0114·R7; and takes the ideas of this line: the corpus skips findings older than the card shape, plan metrics expands `$NAME` from the command's own words and books operator marks to the session's own repo, `cut_check.py` flags a `Verify:` needle a later task removes | the cards no conductor code decides, lowest risk | — |
 | [D3](#d3) | C4 — the rescue and supervisor decide by card category — stands, recorded under the threat model's *Out of scope*; 0095·S3 closes | the person, 2026-11-11 | — |
 | [D4](#d4) | 3b fixes 0090·S5, 0091·S6, 0095·S2, 0095·S4, 0099·S3, 0099·S4, 0100·S3, 0106·S4, 0111·S2, 0104·S7, 0097·R7, 0100·R5, 0112·R3, 0090·R4, 0111·R2, 0111·R4; and takes two ideas: a rejoin written while its version's rescue runs is kept until the thread ends, and `converge.py`'s halt on an ended log is printed, not stamped | one module, one build | — |
 | [D5](#d5) | both: `fix codex/gpt-6.1-sol medium` and Codex checkers — converge fully on Codex; cut Sonnet medium (H21's second and third points); 3a builds on Sonnet medium (H11), 3b on Sonnet high | the person: prove Codex can converge; conductor code builds high | — |
@@ -151,7 +151,7 @@ None.
 
 ## Risks / Trade-offs
 
-- The seven old findings files the brief's acceptance names are not in this run directory, so the corpus rule is proved by its fixture; the person's `make corpus` with them back at their paths is the last check.
+- The old findings files the brief's acceptance names are not in this run directory, so the corpus rule is proved by its fixture; the person's `make corpus` with them back at their paths is the last check.
 - A findings file with no cards at all has no Status and is skipped by `shape`; it holds nothing a verify judges.
 - A session whose `cwd` names no configured repo books as today, against the nearest mark of any repo: the gap the idea closes stays open for those.
 - An archived `debt:` line edited in place changes no card: only the change that lists the card at its release deletes it.

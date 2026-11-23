@@ -4,25 +4,25 @@ Build the settled [design](design.md), one phase at a time; the checker row's te
 
 ## Progress
 
-- [ ] 1 — The archived texts · moderate
+- [x] 1 — The archived texts · moderate
 - [ ] 2 — The live texts and the row · moderate
 - [ ] 3 — The paid cards · moderate
 
 ## 1 — The archived texts
 
-- [ ] 1.1 In `openspec/changes/archive/0118-debt-paydown-3a/proposal.md` reword the opening line per the rows of [D2](design.md#d2)'s table for that file: it no longer holds `about 15`.
+- [x] 1.1 In `openspec/changes/archive/0118-debt-paydown-3a/proposal.md` reword the opening line per the rows of [D2](design.md#d2)'s table for that file: it no longer holds `about 15`.
   Verify: `git grep -c -F -e 'about 15' -- openspec/changes/archive/0118-debt-paydown-3a/proposal.md` prints nothing.
-- [ ] 1.2 In `openspec/changes/archive/0118-debt-paydown-3a/design.md` reword the introduction, the decision rows and the risk bullet per the rows of [D2](design.md#d2)'s table for that file.
+- [x] 1.2 In `openspec/changes/archive/0118-debt-paydown-3a/design.md` reword the introduction, the decision rows and the risk bullet per the rows of [D2](design.md#d2)'s table for that file.
   Verify: `git grep -c -F -e 'four small' -e 'four ideas' -e 'two versions' -e 'seven old' -e 'about 45' -- openspec/changes/archive/0118-debt-paydown-3a/design.md` prints nothing.
-- [ ] 1.3 In `openspec/changes/archive/0119-debt-paydown-3b/proposal.md` replace the Impact line and the last exclusion with the blocks of [D2](design.md#d2) captioned with that file, each whole.
+- [x] 1.3 In `openspec/changes/archive/0119-debt-paydown-3b/proposal.md` replace the Impact line and the last exclusion with the blocks of [D2](design.md#d2) captioned with that file, each whole.
   Verify: `git grep -c -F -e '[D17]' -- openspec/changes/archive/0119-debt-paydown-3b/proposal.md` prints `openspec/changes/archive/0119-debt-paydown-3b/proposal.md:2`.
-- [ ] 1.4 In `openspec/changes/archive/0099-stacked-builds/design.md`, `openspec/changes/archive/0100-worker-diet/design.md` and `openspec/changes/archive/0104-codex-limits/design.md` link the decision per the rows of [D2](design.md#d2)'s table for those files.
+- [x] 1.4 In `openspec/changes/archive/0099-stacked-builds/design.md`, `openspec/changes/archive/0100-worker-diet/design.md` and `openspec/changes/archive/0104-codex-limits/design.md` link the decision per the rows of [D2](design.md#d2)'s table for those files.
   Verify: `git grep -c -F -e 'per 0119-debt-paydown-3b' -- openspec/changes/archive/0099-stacked-builds/design.md openspec/changes/archive/0100-worker-diet/design.md openspec/changes/archive/0104-codex-limits/design.md` prints nothing.
-- [ ] 1.5 In `openspec/changes/archive/0121-ui-prepare/design.md` replace the fetch command's step 4 with the block of [D2](design.md#d2) captioned with that file.
+- [x] 1.5 In `openspec/changes/archive/0121-ui-prepare/design.md` replace the fetch command's step 4 with the block of [D2](design.md#d2) captioned with that file.
   Verify: `git grep -c -F -e '/dev/null' -- openspec/changes/archive/0121-ui-prepare/design.md` prints nothing.
-- [ ] 1.6 In `openspec/changes/archive/0134-run-layout/design.md` replace the risk bullet on the old-layout id with the block of [D2](design.md#d2) captioned with that file.
+- [x] 1.6 In `openspec/changes/archive/0134-run-layout/design.md` replace the risk bullet on the old-layout id with the block of [D2](design.md#d2) captioned with that file.
   Verify: `git grep -c -F -e 'four digits' -- openspec/changes/archive/0134-run-layout/design.md` prints nothing.
-- [ ] 1.7 In `openspec/changes/archive/0136-status-log/design.md` replace the Tests introduction with the block of [D2](design.md#d2) captioned with that file.
+- [x] 1.7 In `openspec/changes/archive/0136-status-log/design.md` replace the Tests introduction with the block of [D2](design.md#d2) captioned with that file.
   Verify: `git grep -c -F -e 'Nothing runs' -- openspec/changes/archive/0136-status-log/design.md` prints nothing.
 
 ## 2 — The live texts and the row

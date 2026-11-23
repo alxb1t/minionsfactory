@@ -168,7 +168,7 @@ Beside them, a case for each difference the mutants do not reach, in `tests/test
 
 ## Tests
 
-The change adds tests at the lowest layer: unit cases over a module or a script's function, with `tmp_path` files and a patched clock. It adds no end-to-end test (`T1`), and no test that boots a browser or a run. Nothing runs over five seconds.
+The change adds tests at the lowest layer: unit cases over a module or a script's function, with `tmp_path` files and a patched clock. It adds no end-to-end test (`T1`) and no test that boots a browser. One test starts a run, `test_a_refused_status_log_at_the_start_halts_its_version_alone` of `tests/test_conduct.py`: it runs over five seconds and carries the `slow` marker.
 
 | file | layer | adds | turns in phase 5 |
 |---|---|---|---|
