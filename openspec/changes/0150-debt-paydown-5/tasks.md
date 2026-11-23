@@ -7,7 +7,7 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 - [x] 1 — The cut's rows · moderate
 - [x] 2 — The conductor's small fixes · moderate
 - [x] 3 — The drain · hard
-- [ ] 4 — Converge and the viewer · moderate
+- [x] 4 — Converge and the viewer · moderate
 - [ ] 5 — The texts · moderate
 
 ## 1 — The cut's rows
@@ -52,12 +52,12 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 
 ## 4 — Converge and the viewer
 
-- [ ] 4.1 Make `plan_text` in `skills/mf-converge/scripts/converge.py` refuse a `Plan-text:` trailer that names no card of the findings files, per [D13](design.md#d13).
+- [x] 4.1 Make `plan_text` in `skills/mf-converge/scripts/converge.py` refuse a `Plan-text:` trailer that names no card of the findings files, per [D13](design.md#d13).
   Add `test_a_trailer_naming_no_card_of_the_findings_is_refused` and `test_a_trailer_with_prose_beside_a_card_id_passes` to `tests/test_converge.py`; seed a card `R1` in `test_a_fix_commit_may_edit_the_delta_with_the_trailer` and `test_a_fix_commit_editing_a_decisions_body_is_taken`.
   Verify: `uv run pytest -q tests/test_converge.py -k "test_a_trailer_naming_no_card_of_the_findings_is_refused or test_a_trailer_with_prose_beside_a_card_id_passes or test_a_fix_commit_may_edit_the_delta_with_the_trailer or test_a_fix_commit_editing_a_decisions_body_is_taken"` exits 0.
-- [ ] 4.2 Say in `skills/mf-converge/references/fix.md` that the `Plan-text:` trailer names a card of the findings, and that `none` and a `misnamed` id are refused.
+- [x] 4.2 Say in `skills/mf-converge/references/fix.md` that the `Plan-text:` trailer names a card of the findings, and that `none` and a `misnamed` id are refused.
   Verify: `grep -n misnamed skills/mf-converge/references/fix.md` prints the line.
-- [ ] 4.3 Make `start` in `skills/mf-ui/scripts/viewer.py` forget the record of a child that exited only while the pid file holds that child's pid, per [D13](design.md#d13).
+- [x] 4.3 Make `start` in `skills/mf-ui/scripts/viewer.py` forget the record of a child that exited only while the pid file holds that child's pid, per [D13](design.md#d13).
   Add `test_a_start_that_loses_the_bind_leaves_the_winners_files` to `tests/test_viewer.py`.
   Verify: `uv run pytest -q tests/test_viewer.py -k test_a_start_that_loses_the_bind_leaves_the_winners_files` exits 0.
 

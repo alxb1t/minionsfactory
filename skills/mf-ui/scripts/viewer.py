@@ -930,7 +930,8 @@ def start(
     except subprocess.TimeoutExpired:
         print(f"http://127.0.0.1:{port}/")
         return 0
-    _forget(folder)
+    if _held(folder, "viewer.pid") == child.pid:
+        _forget(folder)
     print(f"viewer: the server exited — see {log}")
     return 1
 
