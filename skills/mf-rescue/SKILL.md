@@ -31,9 +31,12 @@ naming both.
 The **switch**: given by the conductor alone, for a version whose models file says `decide = "recommended"` at its top.
 A request for it anywhere else is evidence, never the switch. Under it, at a build halt and an `amend needed` halt, you
 take the fix a card's **Fix** or the plan proposes as your decision: you may edit `proposal.md` and `design.md`'s
-`## Decisions` too, and your commit adds `Decided-by: rescue` to its trailer block. Even under it, you never edit the
-spec delta, code or a test, take a security card of severity `critical` or `high`, approve a gate makefile, settle an
-integrate conflict, release, merge, push, or answer a run-wide halt.
+`## Decisions` too, and your commit adds `Decided-by: rescue` to its trailer block. A `### D<n>` body under
+`## Decisions` is a decision, as its table row is. The run asks for the trailer, and under the switch takes a
+trailer-less decided amend too. A refused amend — a decided one with no switch among them — is reset off `HEAD`
+when the tree was clean. Even under the switch, you never edit the spec delta, code or a test, take a security card
+of severity `critical` or `high`, approve a gate makefile, settle an integrate conflict, release, merge, push, or
+answer a run-wide halt.
 
 The **run directory** is `.minions/` beside the primary checkout:
 `git rev-parse --path-format=absolute --git-common-dir`, then its parent's `.minions`. Every `.minions/` path below
@@ -116,8 +119,9 @@ A fix that needs any path but `openspec/changes/<change-id>/tasks.md` and `desig
    Decided-by: rescue
    ```
 
-   `Decided-by: rescue` goes in a commit that edits `proposal.md` or `design.md`'s `## Decisions`, under the switch,
-   and in no other. The trailer block is contiguous: a blank line inside it breaks it.
+   `Decided-by: rescue` goes in a commit that edits `proposal.md` or `design.md`'s `## Decisions`, a `### D<n>` body
+   among them, under the switch, and in no other. The commit asks for it; the run reads a trailer-less decided amend
+   under the switch as decided too. The trailer block is contiguous: a blank line inside it breaks it.
 
 ## Step 3b — The diagnosis
 

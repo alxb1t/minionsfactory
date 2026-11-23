@@ -322,11 +322,27 @@ def _split_changelog(text: str) -> tuple[str, str, str]:
     return text[: heading.end()], text[heading.end() : cut], text[cut:]
 
 
+def _drop_released(kept: str, stacked: list[str], released: str) -> str:
+    """Return `kept` without the base's entries that a release already holds.
+
+    e.g. stacked ["- d1"], a release line "- d1": the line "- d1" of `kept` goes
+    """
+    gone = {line for line in stacked if line.strip()}
+    if not gone <= set(released.splitlines()):
+        raise Stop(
+            1,
+            "changelog: halt — the branch's [Unreleased] entries do not hold"
+            " the base's",
+        )
+    lines = [line for line in kept.splitlines() if line not in gone]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip("\n")
+
+
 def changelog(tree: Path) -> str:
     """Keep the branch's `[Unreleased]` entries above the default branch's releases.
 
-    A base holding entries is a stacked branch's: its entries lead the branch's, and
-    only the lines past them are kept. Why: 0099-stacked-builds design D4.
+    A stacked base's entries lead the branch's and are dropped, or are dropped where
+    the branch holds them, when a release holds them. Why: 0145 design D10.
     """
     base = _merge_base(tree)
     sides = [_show(tree, rev, "CHANGELOG.md") for rev in (base, "HEAD", "MERGE_HEAD")]
@@ -343,13 +359,10 @@ def changelog(tree: Path) -> str:
     stacked = base_entries.strip("\n").splitlines() if base_entries.strip() else []
     if stacked:
         lines = kept.splitlines()
-        if lines[: len(stacked)] != stacked:
-            raise Stop(
-                1,
-                "changelog: halt — the branch's [Unreleased] entries do not hold"
-                " the base's",
-            )
-        kept = "\n".join(lines[len(stacked) :]).strip("\n")
+        if lines[: len(stacked)] == stacked:
+            kept = "\n".join(lines[len(stacked) :]).strip("\n")
+        else:
+            kept = _drop_released(kept, stacked, their_rest)
     body = f"\n{kept}\n" if kept else ""
     _write(
         tree, "CHANGELOG.md", f"{their_head}{body}\n{their_rest}".rstrip("\n") + "\n"

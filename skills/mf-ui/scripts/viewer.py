@@ -349,7 +349,9 @@ class Reader:
                     "model": fields.get("model"),
                     "effort": fields.get("effort"),
                     "tokens": _int(fields.get("tokens")),
-                    "fallback": self.converge["FALLBACK"] in line,
+                    "fallback": any(
+                        self.converge[name] in line for name in ("FALLBACK", "FAILED")
+                    ),
                 }
         return found
 

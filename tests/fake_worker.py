@@ -315,6 +315,10 @@ def _supervise(tree: Path, primary: Path, change: str, modes: set[str]) -> None:
     elif "supervise-test" in modes:
         test = {"tests/test_todo.py": "x = 1\n"}
         _commit(tree, {tasks: text + _AMENDED, **test}, message)
+    elif "supervise-replan" in modes:
+        decisions = "## Decisions\n\n| D1 | re-planned |\n"
+        replan = {f"{folder}/design.md": decisions, f"{folder}/proposal.md": "x\n"}
+        _commit(tree, replan, message)
     elif "supervise-undecided" in modes:
         design = tree / folder / "design.md"
         prose = (design.read_text() if design.is_file() else "") + _PROSE
@@ -385,23 +389,30 @@ _PROBE = "converge's conformance checker for change 0001-probe"
 _ROLE = re.compile(r"\Arole: (\S+)\nchange: (\S+)\nround: (\d+)\n")
 _RANGE = re.compile(r"\b([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})\b")
 _BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
-# Each caps on blockers of its size; `cap-again` and `grant-halts` keep them through a
-# granted round.
+# Each caps on blockers of its size; `cap-again`, `grant-halts` and `cap-plain` keep
+# them through a granted round, and `cap-plain`'s adversarial cards are no security's.
 _CAPS = {
     "cap-small": "a test",
     "cap-design": "a design change",
     "cap-again": "a test",
     "grant-halts": "a design change",
+    "cap-plain": "a design change",
 }
-_KEPT = ("cap-again", "grant-halts")
+_KEPT = ("cap-again", "grant-halts", "cap-plain")
 _HELD = ("verified", "accepted")
 
 
 def _card(
-    card: str, severity: str, role: str, fix: str, status: str, amend: str = "no"
+    card: str,
+    severity: str,
+    role: str,
+    fix: str,
+    status: str,
+    amend: str = "no",
+    plain: bool = False,
 ) -> str:
     """Return one findings card, its fields as the worker reference names them."""
-    category = "security" if role == "adversarial" else "stability"
+    category = "security" if role == "adversarial" and not plain else "stability"
     return (
         f"- **{card} — a finding**\n"
         f"  - **Priority:** {severity} · {role} · {category} — why.\n"
@@ -492,9 +503,13 @@ def _judged_cards(here: Path, role: str, change: str, modes: set[str]) -> list[s
             _card("R3", "blocking", role, "a fix · size: one line.", "verified — held"),
         ]
     if sizes:
+        plain = "cap-plain" in modes
+        fix = "a fix · size: a design change."
         return [
-            _card("S1", "high", role, f"a fix · size: {sizes[0]}.", "open"),
-            _card("S2", "medium", role, "a fix · size: a design change.", "open"),
+            _card(
+                "S1", "high", role, f"a fix · size: {sizes[0]}.", "open", plain=plain
+            ),
+            _card("S2", "medium", role, fix, "open", plain=plain),
         ]
     if "amend-halts" in modes and role == "conformance" and not _prose(here, change):
         fix = f"amend `openspec/changes/{change}/design.md`'s prose · size: one line."

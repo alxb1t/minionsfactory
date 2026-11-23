@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
-  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86, D87
+  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86, D87, D88
 ```
 
 ## The shape
@@ -966,6 +966,22 @@ target.**
   no tokens, is timed and logged, and runs again.
 - **Rejected:** a gate in a worker's session.
 
+### D88 · The line closes the halts it can
+
+**A halt with a route the line can take alone is closed without a person. A converge halt a worker's exit or timeout caused,
+with no `verdicts` line, is run again once from round 1 by the run, and a new run or `rejoin` reads it as a rerun. A verdict
+whose scope misses the freeze sends its checker out once more, and a second miss halts as before. `conduct.py converge` by hand
+reads the version's models file, its arguments over it. The changelog rule drops a stacked base's entries the default branch
+holds released, and halts on one it does not hold. `conduct.py wait --halt` ends, exit 1, at a version's `final` halt line, one
+no rescue or supervisor answers.**
+
+- **Why:** each cause was read from disk at `8ca85458` and answered by a rule, where a watcher on Opus had answered it by
+  judgment. One command replaces the watching agent.
+- **Accepts:** a rerun starts converge from round 1, which spends a round the halted run had begun, with no verdict lost · a
+  rescoped checker spends one more worker a role · a hand converge's skip and models follow the file, so a stale file runs.
+- **Rejected:** a retry of the halted round inside converge · a halt at the first missed scope · a flag for the models file ·
+  a halt for every lacking changelog entry · a notification.
+
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
 **Every worker runs in its host's OS sandbox: it writes to the repo and its worktrees alone, a cutter to its worktree,
@@ -1044,8 +1060,11 @@ comes from the rollout the log's `thread_id` names, else the `try again at` text
   or a share.
 - **Not installed:** a Codex not on `PATH` is a third cause: a checker a plan gives Codex runs on Claude on converge's
   model and effort, the run says so once, and a station on Codex still halts at its probe.
-- **Rejected:** a wait until any reset · dollar prices for Codex · the conductor telling a limit from a failure — `conduct.py`
-  falls back inside the run's checker call.
+- **A failure:** a Codex checker that exits non-zero twice before a completed turn runs on Claude too, its answer naming
+  `fallback: codex failed`; a failed checker probe halts nothing and leaves on Claude the checkers of a version whose
+  checkers alone are on Codex.
+- **Rejected:** a wait until any reset · dollar prices for Codex · the checker call counts failures, and the conductor tells
+  none from a limit — `conduct.py` falls back inside the run's checker call.
 
 ### D53 · A rescue amends the plan, never the code or a decision
 
@@ -1087,9 +1106,11 @@ timeout, a usage limit, a converge halt naming one, a failed worker, a `**HUMAN`
 **The rescue amends the plan at converge's `amend needed` halt, as at a build halt, and diagnoses one whose cards include a
 security `critical` or `high`. Under a version's `decide = "recommended"`, at the top of its models file and read once with
 the plan, a rescue at a build or `amend needed` halt takes the fix a card's **Fix** or the plan proposes as its decision: it
-may edit `proposal.md` and `design.md`'s `## Decisions` too, its commit carrying `Decided-by: rescue`, and the run logs it
-`decided`. It never edits the spec delta, code or a test, takes a security `critical` or `high` card, approves a gate
-makefile, settles an integrate conflict, releases, merges, pushes or answers a run-wide halt. The person's amends during a
+may edit `proposal.md` and `design.md`'s `## Decisions` too, its commit asked to carry `Decided-by: rescue`, a
+trailer-less decided amend taken too, and the run logs it `decided`. It never edits the spec delta, code or a test, takes a
+security `critical` or `high` card, approves a gate makefile, settles an integrate conflict, releases, merges, pushes or
+answers a run-wide halt. A refused amend is reset off `HEAD`, logged `reset`, when every commit past the rescue's start
+carries `Rescue:` and the tree was clean before and after it. The person's amends during a
 rescue let the version go on. At each poll the run takes back every halted version whose stage or `HEAD` changed on disk,
 read the same at two polls, with no request. The run ends when nothing can move, its close naming each halted version's
 need and each version a rescue decided for.**
@@ -1125,7 +1146,12 @@ halts the version for the person. One try a halt, at most `SUPERVISES = 2` a ver
 - **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
   round, never by rule · its spend, bounded per version · a supervisor amend with no trailer, which reads as the person's and
   converge judges in an amend round, as every amend ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
-  `gate_check.py` then takes as the plan, a `Verify:` a worker edited included.
+  `gate_check.py` then takes as the plan, a `Verify:` a worker edited included · the re-plan at a cap a blocker sized
+  `a design change` holds: one amend a version, given `replan=yes` and marked by `replan.mark` in the change's folder,
+  which may edit `design.md`'s `## Decisions` and `proposal.md`, and gets one amend round, no grant; a second cap and a
+  standing mark are the person's · the paths the amend and the settle take, as `0089·S2` and `0090·S1` weigh them: an
+  amend, any path under `openspec/changes/<id>/`, the spec delta included; a settle, any Markdown under `openspec/` and
+  `docs/`, the living specs and `docs/decisions.md` among them, which converge judges by the merge's remerge-diff.
 - **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
   widening the rescue · a supervisor without the switch · the supervisor committing the merge, which stays integrate's.
 

@@ -165,6 +165,22 @@ def test_names_lock_needs_the_run_folder(text: str, names: bool) -> None:
     assert statuslog.names_lock(text) == names
 
 
+@pytest.mark.parametrize(
+    ("text", "names"),
+    [
+        ("converge-conformance-r1 worker exit 1 · head abc1234", True),
+        ("converge-fix-r2 worker exit -9", True),
+        ("converge-fix-r1 timed out after 3600s; its group was killed", True),
+        ("the gate is red before round 1: gate_run.py exit 2", False),
+        ("converge-fix-r1 worker exit", False),
+        ("cap reached, R1 open · head abc1234", False),
+    ],
+    ids=["exit", "signal", "timeout", "gate", "no-code", "cap"],
+)
+def test_names_worker_reads_a_workers_halt(text: str, names: bool) -> None:
+    assert statuslog.names_worker(text) == names
+
+
 def test_insert_opens_a_run_under_the_title() -> None:
     lines, written = statuslog.insert("# t\n\n\n## Run 1 — d\n", [], 2, "grant")
 

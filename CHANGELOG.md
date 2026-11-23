@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.116.0] - 2026-11-23
+
+Gate: local 7m38s · CI not read under mf-ship · 0.115.0: local 7m7s · CI not read under mf-ship
+
+- Under `decide = "recommended"` the run takes a rescue's decided amend with or without `Decided-by: rescue`: correct amends were refused for the trailer alone. A refused amend whose commits each carry `Rescue:`, on a tree clean before and after, is reset off `HEAD` and logged `reset`, so the next worker builds on no refused commit (0145-halts-alone, phase 1).
+- A conductor gate that is red on a machine whose 1-minute load is at or over its cores waits, polling every 30 s for 1,800 s at most, and runs once more: `timeout=1` tests that pass alone halted a version. A rerun that is red, or a load that never falls, leaves the red (0145-halts-alone, phase 2).
+- A Codex checker that exits non-zero twice before a completed turn runs on Claude, its `verdicts` line naming `fallback: codex failed`: a refused model halted a version with the fallback ready. A shadow stops `· stopped by a codex failure` instead. A failed checker probe of a version whose checkers alone are on Codex halts nothing, logs `codex — <id>: probe failed · its checkers run on Claude`, and probes no more (0145-halts-alone, phase 3).
+- A converge halt a worker's exit or timeout caused, with no `verdicts` line and no usage limit, reads as a rerun at the same `HEAD`, once a run: 0143's halt had no way back. A findings file whose scope misses the freeze sends its checker out once more, stamped `fan-out — rescope`, before it halts. `conduct.py converge` by hand reads the models file's checker and fixer models and a checker's `skip`, each argument over it: a hand converge ran on the host's default model (0145-halts-alone, phase 4).
+- Under `decide = "recommended"` a converge cap held by a blocker sized `a design change` gets the supervisor with `replan=yes`, once a version: its amend may edit `design.md`'s `## Decisions` and `proposal.md`, writes `replan.mark`, is logged `· re-plan` and gets one amend round, and the closing line names `· re-planned <ids>`. A second cap and a standing mark stay the person's. D61 and the threat model name the amend's and the settle's paths (0145-halts-alone, phase 5).
+- The changelog rule drops a stacked base's entries the default branch holds released, from where the branch holds them, and halts on one it does not hold: isekai's 0198 stopped on entries already released. A version's thread that ends with its halt standing logs `halt — final — needs <action> · <reason>`, and `conduct.py wait --halt` ends at the first such line, exit 1, printing `wait: halt` and `status`. D88 records the line's routes (0145-halts-alone, phase 6).
+- `rescoped` in `converge.py` no longer raises its own missing-file halt, which no run reached: `dispatch` halts a gone file first. `held` reads a file missing after the rescope through its one `<role>.md is missing` halt; behaviour is the same (0145-halts-alone, phase 7).
+
 ## [0.115.0] - 2026-11-23
 
 Gate: local 7m7s · CI not read under mf-ship · 0.114.0: local 7m26s · CI not read under mf-ship

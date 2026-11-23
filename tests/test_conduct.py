@@ -26,7 +26,7 @@ import traceback
 import types
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import mflib.debtfile
 import mflib.findings
@@ -178,6 +178,15 @@ def ps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _no_codex_sessions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Read Codex sessions from an empty folder, never the operator's."""
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+
+
+@pytest.fixture(autouse=True)
+def _idle_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read a load of 0, so no red gate of a test waits for the machine.
+
+    Why: 0145-halts-alone design D3.
+    """
+    monkeypatch.setattr(os, "getloadavg", lambda: (0.0, 0.0, 0.0))
 
 
 @pytest.fixture(autouse=True)
@@ -1086,6 +1095,38 @@ def test_wait_ends_on_a_halted_run(
 
     assert _main(conduct, root, "wait", monkeypatch=monkeypatch) == 0
     assert capsys.readouterr().out == f"{halt}wait: ended\n0001-todo · build\n"
+
+
+def test_wait_halt_ends_at_a_final_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — One\n")
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    log = runs / "20261119-100000.md"
+    log.write_text("10:00:00 · run · start — executor claude\n")
+    answered = "10:00:09 · 0001-todo · halt — build — phase 1 unticked\n"
+    final = "10:00:10 · 0001-todo · halt — final — needs a fix · build — phase 1\n"
+    steps = [_gain(log, answered), _gain(log, final)]
+    _waiting(conduct, monkeypatch, ["live"], steps)
+
+    assert _main(conduct, root, "wait", "--halt", monkeypatch=monkeypatch) == 1
+    assert capsys.readouterr().out == (
+        f"{answered}wait: live · +1 lines\n{final}"
+        "wait: halt — 0001-todo · build — phase 1\n"
+        "run · live\n0001-todo · build\n"
+    )
+
+    later = runs / "20261119-110000.md"
+    later.write_text("11:00:00 · run · start — executor claude\n")
+    _waiting(conduct, monkeypatch, ["live", "live", "none"], [_gain(later, answered)])
+
+    assert _main(conduct, root, "wait", "--halt", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == (
+        f"{answered}wait: live · +1 lines\nwait: ended\n0001-todo · build\n"
+    )
 
 
 def test_wait_reads_no_origin_at_a_poll(
@@ -2262,6 +2303,7 @@ def test_a_dependent_waits_while_its_dependency_works(
     assert _run_claude(conduct, late, monkeypatch) == 1
     assert [line.split(" · ", 1)[1] for line in _log(late) if " · halt — " in line] == [
         "0001-todo · halt — waiting — after 0001-todo",
+        "0001-todo · halt — final — needs a fix · waiting — after 0001-todo",
         "run · halt — halted 0001-todo · blocked none · released v0.1.0"
         " · needs 0001-todo a fix",
     ]
@@ -2416,7 +2458,7 @@ def test_run_halts_on_a_human_phase(
         == 1
     )
     assert _calls(calls) == ["probe", "build 0001-todo"]
-    assert _log(built)[-2].endswith(
+    assert _log(built)[-3].endswith(
         " · 0001-todo · halt — human — phase 2 — Ship **HUMAN**"
     )
 
@@ -2959,11 +3001,14 @@ def test_a_rescue_amends_at_amend_needed(
         for line in lines
     )
     assert not any(" · run · rescue — " in line for line in lines)
-    # Its refused amend carries a `Rescue:` trailer: it reads as no person's amend.
+    # Its refused amend carries a `Rescue:` trailer: it is reset off `HEAD`, and no
+    # answer stands on disk.
     assert any(
-        " · 0001-todo · halt — rescue answered its halt — converge: " in line
+        line.endswith(f" dropped: rescue touched {design}")
+        and " · 0001-todo · reset — rescue commit " in line
         for line in lines
     )
+    assert not any(" · halt — rescue answered its halt — " in line for line in lines)
     blocks, minions = conduct["_security_blocks"], secure / ".minions"
     assert blocks(minions, "0001-todo", "halt — amend needed — R1 S1 · head a")
     assert not blocks(minions, "0001-todo", "halt — amend needed — R1 · head a")
@@ -3049,6 +3094,106 @@ def test_a_stub_bars_no_rescue(tmp_path: Path) -> None:
     assert not held(minions, "0001-todo", halt)
 
 
+def test_a_decided_amend_needs_no_trailer_under_the_switch(tmp_path: Path) -> None:
+    # Under the switch a decided amend stands on its `Rescue:` trailer alone; with no
+    # switch it is still refused. Why: 0145-halts-alone design D1.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    amend, switch = conduct["_amend"], ("tasks.md", "design.md", "proposal.md")
+    start = _git(tree, "rev-parse", "HEAD")
+    design = "openspec/changes/0001-todo/design.md"
+    message = "docs(0001-todo): amend the change directory\n\nRescue: R1"
+    _commit(tree, {design: "## Decisions\n\n| D1 | the card's fix |\n"}, message)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0001-todo", start, switch) == (head, "", True)
+    assert amend(tree, "0001-todo", start, switch[:2]) == (
+        None,
+        f"rescue changed a decision: {design}",
+        False,
+    )
+
+
+@pytest.mark.slow
+def test_a_refused_amend_is_reset_off_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # A refused amend whose commits each carry `Rescue:` is reset off `HEAD`, on a
+    # tree clean before and after. Why: 0145-halts-alone design D2.
+    conduct = _conduct()
+    fake("halt-0001-todo", "rescue-decides")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    cut = _git(tree, "rev-parse", "HEAD")
+    run = ("run", "--executor", "claude")
+    assert _main(conduct, root, *run, monkeypatch=monkeypatch) == 1
+    lines = _log(root)
+    design = "openspec/changes/0001-todo/design.md"
+    assert _git(tree, "rev-parse", "HEAD") == cut
+    assert re.search(
+        r" · 0001-todo · reset — rescue commit [0-9a-f]{7} dropped: rescue changed a"
+        f" decision: {design}$",
+        lines[-4],
+    )
+    assert lines[-3].endswith(
+        f" · 0001-todo · halt — rescue changed a decision: {design}"
+    )
+
+    # A trailer-less amend reads as the person's: it stays at `HEAD`.
+    fake("halt-0001-todo", "rescue-decides", "rescue-person-amends")
+    assert _main(conduct, root, *run, monkeypatch=monkeypatch) == 1
+    assert _git(tree, "rev-parse", "HEAD") != cut
+    assert not any(" · reset — " in line for line in _log(root))
+
+    # The rescue's own commit, then work left in the tree when `dirty` names it.
+    _git(tree, "reset", "-q", "--hard", cut)
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0001-todo")
+    conductor.read_plan([version])
+    amends = ("tasks.md", "design.md")
+    message = "docs(0001-todo): amend the change directory\n\nRescue: R1"
+
+    def rescuing(dirty: bool) -> Callable[..., object]:
+        def spawned(*args: object) -> object:
+            _commit(
+                tree, {design: "## Decisions\n\n| D1 | the card's fix |\n"}, message
+            )
+            if dirty:
+                (tree / "work.py").write_text("x = 1\n")
+            return object()
+
+        return spawned
+
+    monkeypatch.setattr(conductor, "spawn", rescuing(False))
+    assert not conductor.rescue(version, "1.1", amends)
+    assert _git(tree, "rev-parse", "HEAD") == cut
+
+    # A tree dirty at the reset holds the build's work: the amend stays.
+    monkeypatch.setattr(conductor, "spawn", rescuing(True))
+    assert not conductor.rescue(version, "1.2", amends)
+    assert _git(tree, "rev-parse", "HEAD") != cut
+    (tree / "work.py").unlink()
+
+    # A tree dirty at the spawn holds the build's work too.
+    _git(tree, "reset", "-q", "--hard", cut)
+    (tree / "work.py").write_text("x = 1\n")
+    monkeypatch.setattr(conductor, "spawn", rescuing(False))
+    assert not conductor.rescue(version, "1.3", amends)
+    assert _git(tree, "rev-parse", "HEAD") != cut
+
+    # A rescue that moved `HEAD` off its start is no amend to drop: `HEAD` stays.
+    _git(tree, "reset", "-q", "--hard", cut)
+
+    def rewinding(*args: object) -> object:
+        _git(tree, "reset", "-q", "--hard", f"{cut}~1")
+        return object()
+
+    monkeypatch.setattr(conductor, "spawn", rewinding)
+    conductor.rescues.clear()
+    assert not conductor.rescue(version, "1.1", amends)
+    assert _git(tree, "rev-parse", "HEAD") == _git(tree, "rev-parse", f"{cut}~1")
+
+
 @pytest.mark.slow
 def test_a_rescue_decides_under_the_switch(
     tmp_path: Path,
@@ -3087,35 +3232,36 @@ def test_a_rescue_decides_under_the_switch(
     said = capsys.readouterr().out.splitlines()
     assert f"0001-todo · decided converge-halted · {amend}" in said
 
-    # Without the switch, the same amend is refused, naming the decision.
+    # Without the switch, the same amend is refused, naming the decision, and reset.
     calls.unlink()
     fake("halt-0002-marks", "rescue-decides")
     tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    cut = _git(tree, "rev-parse", "HEAD")
     lines = run(1)
     assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
     design = "openspec/changes/0002-marks/design.md"
-    assert lines[-2].endswith(
+    assert lines[-3].endswith(
         f" · 0002-marks · halt — rescue changed a decision: {design}"
     )
+    assert _git(tree, "rev-parse", "HEAD") == cut
+    decision = "## Decisions\n\n| D1 | the card's fix |\n"
+    decides = "docs(0002-marks): amend the change directory\n\nRescue: R1"
+    _commit(tree, {design: decision}, f"{decides}\nDecided-by: rescue")
     conductor = conduct["Run"](root, "claude")
     conductor.decided += ["0001-todo", "0001-todo"]
     assert conductor.closing() == (
         "halted none · blocked none · released none · decided 0001-todo"
     )
 
-    # Under the switch, a decided amend stands with its trailer alone, and an edit of
-    # `proposal.md` decides too.
+    # Under the switch, a decided amend stands with or without `Decided-by: rescue`,
+    # and an edit of `proposal.md` decides too.
     amend, switch = conduct["_amend"], ("tasks.md", "design.md", "proposal.md")
     decided = _git(tree, "rev-parse", "HEAD")
     assert amend(tree, "0002-marks", f"{decided}~1", switch) == (decided, "", True)
     message = "docs(0002-marks): amend the change directory\n\nRescue: 1.1"
     _commit(tree, {design: "## Decisions\n\n| D1 | another fix |\n"}, message)
     head = _git(tree, "rev-parse", "HEAD")
-    assert amend(tree, "0002-marks", decided, switch) == (
-        None,
-        f"rescue commit {head[:7]} decided with no Decided-by: rescue trailer",
-        False,
-    )
+    assert amend(tree, "0002-marks", decided, switch) == (head, "", True)
     _git(tree, "reset", "-q", "--hard", decided)
     proposal = "openspec/changes/0002-marks/proposal.md"
     _commit(
@@ -3420,8 +3566,14 @@ def test_a_rescue_diagnoses_a_decision_halt(
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     said = capsys.readouterr().out.splitlines()
-    first, second = (line for line in lines if " · 0001-todo · halt — " in line)
-    assert said[-4:] == [first, f"0001-todo · diagnosed {diagnosis}", second, lines[-1]]
+    first, second, final = (line for line in lines if " · 0001-todo · halt — " in line)
+    assert said[-5:] == [
+        first,
+        f"0001-todo · diagnosed {diagnosis}",
+        second,
+        final,
+        lines[-1],
+    ]
 
     # The diagnosis an earlier rescue left is not this one's.
     calls.unlink()
@@ -3431,7 +3583,7 @@ def test_a_rescue_diagnoses_a_decision_halt(
         == 1
     )
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         " · 0001-todo · halt — rescue wrote no amend and no diagnosis"
     )
 
@@ -3441,7 +3593,7 @@ def test_a_rescue_diagnoses_a_decision_halt(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue worker exit 1")
+    assert _log(root)[-3].endswith(" · 0001-todo · halt — rescue worker exit 1")
 
 
 @pytest.mark.slow
@@ -3459,7 +3611,8 @@ def test_a_rescue_outside_the_plan_halts(
     )
 
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
-    assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue touched src.py")
+    assert _log(root)[-4].endswith(" dropped: rescue touched src.py")
+    assert _log(root)[-3].endswith(" · 0001-todo · halt — rescue touched src.py")
     assert not any(" · run · rescue — " in line for line in _log(root))
 
     # A rescue that rewrites the history its amend is judged against halts too.
@@ -3469,7 +3622,7 @@ def test_a_rescue_outside_the_plan_halts(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         f" · 0001-todo · halt — rescue moved HEAD off {before}"
     )
 
@@ -3478,7 +3631,7 @@ def test_a_rescue_outside_the_plan_halts(
     amend, tasks = conduct["_amend"], "openspec/changes/0001-todo/tasks.md"
     start = _git(tree, "rev-parse", "HEAD")
     named = "docs(0001-todo): amend the change directory\n\nRescue: 1.1"
-    _commit(tree, {tasks: "## Progress\n\n- [ ] 1 — Todo\n"}, named)
+    _commit(tree, {tasks: "## Progress\n\n- [ ] 1 — Todo\n\nAmended.\n"}, named)
     assert amend(tree, "0001-todo", start, ("tasks.md",))[0]
     assert amend(tree, "0001-todo", start, ())[1] == f"rescue touched {tasks}"
     _git(tree, "commit", "-q", "--allow-empty", "-m", "an amend")
@@ -3511,7 +3664,7 @@ def test_a_sub_task_is_rescued_once(
         "rescue 0001-todo",
         "build 0001-todo",
     ]
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
         " · rescued 1.1"
     )
@@ -3993,6 +4146,76 @@ def test_a_green_gate_after_the_last_phase_spawns_no_repair(
     ]
 
 
+def test_a_gate_red_under_load_waits_and_runs_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0145-halts-alone design D3.
+    conduct = _conduct()
+    module = conduct["_run_gate"].__globals__
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    cores = os.cpu_count() or 1
+    over = f"wait — gate · load {cores + 1:.1f} over {cores} cores"
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    monkeypatch.setitem(module, "LOAD_WAIT", 90)
+
+    def run(codes: list[int], loads: list[float]) -> tuple[str | None, list[str], int]:
+        """Run the gate on `codes`, the load reading `loads`; return what it did."""
+        gates = iter(codes)
+        reads = iter(loads)
+        said: list[str] = []
+        ran: list[int] = []
+
+        def boxed(primary: Path, where: Path, argv_: list[str]) -> tuple[int, str]:
+            ran.append(1)
+            return next(gates), f"gate output {len(ran)}\n"
+
+        monkeypatch.setitem(module, "_boxed", boxed)
+        monkeypatch.setattr(
+            os, "getloadavg", lambda: (next(reads, loads[-1]), 0.0, 0.0)
+        )
+        sleeps.clear()
+        result = conduct["_run_gate"](root, "0001-todo", tree, said.append)
+        return result, said, len(ran)
+
+    # Green after the wait: the load falls at the first poll.
+    result, said, ran = run([2, 0], [cores + 1.0, 0.0])
+    assert result is None
+    assert ran == 2
+    assert sleeps == [30]
+    assert said[:3] == [
+        "check — gate · fail — red · 0s",
+        over,
+        "wait — gate · load 0.0 · 30s",
+    ]
+    assert re.fullmatch(r"check — gate · pass · \d+s", said[3])
+    assert not (_marks(root) / "gate.red").exists()
+
+    # Red twice: the second red is the result, and its output the file's.
+    result, said, ran = run([2, 2], [cores + 1.0, 0.0])
+    assert result == "red · gate_run.py exit 2 · .minions/changes/0001-todo/gate.red"
+    assert ran == 2
+    assert [line.split(" · ")[0] for line in said].count("check — gate") == 2
+    assert (_marks(root) / "gate.red").read_text() == "gate output 2\n"
+
+    # A low load: no wait, no second run.
+    result, said, ran = run([2], [0.0])
+    assert result is not None
+    assert (ran, sleeps) == (1, [])
+    assert all(not line.startswith("wait") for line in said)
+
+    # A load that never falls: it waits the whole budget and leaves the red.
+    result, said, ran = run([2], [cores + 1.0])
+    assert result is not None
+    assert (ran, sleeps) == (1, [30, 30, 30])
+    assert said == [
+        "check — gate · fail — red · 0s",
+        over,
+        f"wait — gate · load {cores + 1:.1f} · 90s",
+    ]
+
+
 def test_a_red_gate_after_simplify_drops_its_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -4257,7 +4480,7 @@ def test_a_spent_rescue_starts_the_supervisor_once(
         "supervise 0001-todo with decide=recommended",
         "build 0001-todo",
     ]
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
         " · rescued 1.1 · supervised 1.1"
     )
@@ -4284,7 +4507,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
         == 1
     )
     lines = _log(root)
-    assert lines[-2].endswith(
+    assert lines[-3].endswith(
         " · 0001-todo · halt — supervisor touched tests/test_todo.py"
     )
     assert not any(" · run · supervise — " in line for line in lines)
@@ -4298,7 +4521,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
         _main(conduct, none, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(none)[-2].endswith(" · 0002-marks · halt — supervisor wrote no amend")
+    assert _log(none)[-3].endswith(" · 0002-marks · halt — supervisor wrote no amend")
 
     # An amend is one commit of one parent, with the amend's subject and both
     # trailers, under the change's folder.
@@ -4402,6 +4625,92 @@ def test_a_grant_waits_for_the_supervisor(tmp_path: Path) -> None:
     with log.open("a") as file:
         file.write("12:00:09 · 0001-todo · finish — supervise · exit 0 · 9s\n")
     assert not rescuing(runs, "0001-todo")
+
+
+@pytest.mark.slow
+def test_the_supervisor_re_plans_a_design_cap_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Under the switch, a cap a design-sized blocker holds gets the supervisor with
+    # `replan=yes`: its amend writes the mark and gets one amend round, no grant; the
+    # second cap, a cap with no switch and a standing mark stay the person's.
+    # Why: 0145-halts-alone design D9.
+    conduct = _conduct()
+    modes = ("cap-plain", "rescue-diagnose", "supervise-replan")
+    calls = fake(*modes)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    _switched(root, "0001-todo")
+
+    def run(at: Path) -> int:
+        return _main(
+            conduct, at, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    assert run(root) == 1
+    amend_round = [*_judged(round_=4), *_verified("0001-todo", 4)]
+    assert _calls(calls) == [
+        "probe",
+        *sorted(_capped()),
+        "rescue 0001-todo with decide=recommended",
+        "supervise 0001-todo with decide=recommended and replan=yes",
+        *sorted(amend_round),
+    ]
+    amend = _git(tree, "log", "-1", "--format=%H", "--grep=amend the change")
+    mark = root / ".minions" / "changes" / "0001-todo" / "replan.mark"
+    assert mark.read_text() == f"head: {amend}\n"
+    lines = _log(root)
+    decided = f" · run · supervise — 0001-todo: decided · converge-halted · {amend[:7]}"
+    assert any(line.endswith(f"{decided} · re-plan") for line in lines)
+    assert not any(" · grant — " in line for line in lines)
+    assert lines[-4].endswith(" · rescued converge-halted · supervised converge-halted")
+    assert lines[-3].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    assert " · supervised 0001-todo · re-planned 0001-todo · needs " in lines[-1]
+
+    # A new run's supervisor meets the mark: no re-plan; with no mark it re-plans.
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0001-todo")
+    conductor.read_plan([version])
+    prompts: list[str] = []
+
+    def spawn(*args: object) -> object:
+        prompts.append(str(args[3]))
+        return None
+
+    monkeypatch.setattr(conductor, "spawn", spawn)
+    conductor.diagnosed.add("0001-todo")
+    conductor.halts.append(("0001-todo", "re-plan: R1 S1"))
+    assert not conductor.supervise(version, "converge-halted", False)
+    assert prompts == []
+    mark.unlink()
+    conductor.supervise(version, "converge-halted", False)
+    assert prompts == [
+        "Run the mf-supervise skill for change 0001-todo with decide=recommended"
+        " and replan=yes."
+    ]
+
+    # A design cap is a cap whose newest `re-plan` halt names a design-sized blocker:
+    # S1 is one, R1 is not.
+    capped = "10:00:00 · round 5 · halt — cap reached, R1, S1 open · head abc1234"
+    assert conductor.design_cap("0001-todo", capped)
+    assert not conductor.design_cap("0001-todo", capped.replace("cap reached", "x"))
+    conductor.halts.append(("0001-todo", "re-plan: R1"))
+    assert not conductor.design_cap("0001-todo", capped)
+    conductor.halts.clear()
+    assert not conductor.design_cap("0001-todo", capped)
+    conductor.log.path.unlink()
+
+    # With no switch, the rescue alone runs, and no mark is written.
+    calls.unlink()
+    fake(*modes)
+    (tmp_path / "none").mkdir()
+    none = _primary(tmp_path / "none")
+    tree = _version(none, "0001-todo", "- [x] 1 — Todo\n")
+    _done(none, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    assert run(none) == 1
+    assert _calls(calls) == ["probe", *sorted(_capped()), "rescue 0001-todo"]
+    assert not (none / ".minions" / "changes" / "0001-todo" / "replan.mark").exists()
 
 
 def _delta_noted(tmp_path: Path) -> tuple[Path, Path]:
@@ -4684,7 +4993,7 @@ def test_a_later_version_halts_and_the_earlier_ships(
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     report = capsys.readouterr().out.splitlines()
-    assert report[-3:] == [*halts, lines[-1]]
+    assert report[-4:] == [*halts, lines[-1]]
 
     # The other direction: the earlier version's build check fails, the later ships.
     again = tmp_path / "again"
@@ -6919,6 +7228,15 @@ def _ask(root: Path, table: str, change: str = "0001-todo") -> str:
     )
 
 
+class _Checked(Protocol):
+    """The fields of `conduct.py`'s `Checked` a test reads."""
+
+    code: int
+    models: tuple[str, str | None, str | None]
+    limit: str
+    fallback: bool | str
+
+
 @pytest.mark.slow
 def test_a_limited_checker_falls_back_to_claude(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
@@ -7094,6 +7412,100 @@ def test_a_limited_checker_falls_back_to_claude(
     fake_codex("unsandboxed", "")
     assert check() == fell
     assert [who for who, _ in run.halts] == ["0001-todo"]
+
+
+def test_a_codex_checker_that_fails_twice_runs_on_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setitem(
+        conduct["main"].__globals__, "_executor_missing", lambda _: False
+    )
+    root = _primary(tmp_path)
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    run = conduct["Run"](root, "claude")
+    run.claim = None
+    monkeypatch.setattr(run, "codex_ready", lambda change, deadline: True)
+    failed = {"type": "turn.failed", "error": {"message": "model_not_found"}}
+    limit = {
+        "type": "turn.failed",
+        "error": {"message": "You've hit your usage limit."},
+    }
+    turn = {"type": "turn.completed", "usage": {"input_tokens": 9, "output_tokens": 1}}
+    # Each Codex run's end: its exit, whether its deadline killed it, its event.
+    kinds = {
+        "fail": (1, False, failed),
+        "limit": (1, False, limit),
+        "done": (0, False, turn),
+        "spent": (1, False, turn),
+        "killed": (1, True, failed),
+        "quiet": (0, False, failed),
+    }
+    ends: list[str] = []
+    ran: list[str] = []
+
+    def worker(
+        who: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        **_: object,
+    ) -> tuple[int, bool, Path, list[str]]:
+        code, killed, event = kinds[ends.pop(0) if models[0] == "codex" else "done"]
+        ran.append(models[0])
+        out = tmp_path / f"{len(ran)}.log"
+        out.write_text(json.dumps(event) + "\n")
+        return code, killed, out, []
+
+    monkeypatch.setattr(run, "worker", worker)
+
+    def check(table: str, *runs: str) -> _Checked:
+        (folder / "models.toml").write_text(
+            '[converge]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n'
+            + (
+                'shadow = true\n[converge.conformance]\nexecutor = "claude"\n'
+                if table.startswith("shadow-")
+                else '[converge.conformance]\nexecutor = "codex"\n'
+            )
+        )
+        run.read_plan([conduct["Version"]("0001-todo", root)])
+        ends[:], ran[:] = runs, []
+        deadline = time.monotonic() + 600
+        return run.checker("0001-todo", f"c-{table}", table, root, "p", deadline)
+
+    # One failure stays on Codex: the second run's result names no fallback.
+    once = check("conformance", "fail", "done")
+    assert (once.code, once.models[0], once.fallback) == (0, "codex", False)
+    assert ran == ["codex", "codex"]
+    # Two failures before a completed turn run the checker on Claude, named failed.
+    twice = check("conformance", "fail", "fail")
+    assert twice.models == ("claude", "claude-sonnet-5-5", "medium")
+    assert (twice.code, twice.fallback) == (0, "codex failed")
+    assert ran == ["codex", "codex", "claude"]
+    # A run that ended on a limit keeps the limit's fallback.
+    assert check("conformance", "fail", "limit").fallback is True
+    assert ran == ["codex", "codex", "claude"]
+    # Twins, one per conjunct: an exit 0, a killed run and a completed turn are no
+    # failure, and the result is that run's, on Codex.
+    for end, code in (("quiet", 0), ("killed", 1), ("spent", 1)):
+        result = check("conformance", end)
+        assert (result.code, result.models[0], result.fallback) == (
+            code,
+            "codex",
+            False,
+        )
+        assert ran == ["codex"]
+    # A shadow on Codex falls back nowhere: two failures stop it, named failed.
+    codex = ("codex", None, None)
+    stopped = check("shadow-conformance", "fail", "fail")
+    assert stopped == conduct["Checked"](
+        1, False, codex, " · stopped by a codex failure", False, None
+    )
+    assert ran == ["codex", "codex"]
+    limited = check("shadow-conformance", "fail", "limit")
+    assert limited.limit == " · stopped by a usage limit"
 
 
 @pytest.mark.slow
@@ -7492,7 +7904,7 @@ def test_the_converge_command_runs_by_hand(
     _version(root, "0001-todo", "- [x] 1 — Todo\n")
     folder = root / ".minions" / "changes" / "0001-todo"
     folder.mkdir(parents=True)
-    # By hand no models file is read: its skip binds nothing.
+    # By hand a `[converge]` skip binds nothing: a checker's skip alone is read.
     (folder / "models.toml").write_text("[converge]\nskip = true\n")
 
     def by_hand(*given: str) -> int:
@@ -7543,6 +7955,69 @@ def test_the_converge_command_runs_by_hand(
         r"^## Run \d+ — .*$", (folder / "status_log.md").read_text(), re.M
     )
     assert runs[0].endswith(" · grant")
+
+
+def test_a_hand_converge_reads_the_models_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    by_hand = conduct["converge_by_hand"]
+    made = conduct["Run"]
+    seen: list[tuple[dict[str, object], object]] = []
+
+    def run_of(*args: object) -> object:
+        run = made(*args)
+
+        def converge(
+            conductor: object,
+            *rest: object,
+            workers: dict[str, object],
+            **keys: object,
+        ) -> int:
+            seen.append((workers, run.plan[("0001-todo", "converge.fix")]))
+            return 0
+
+        run.converge = converge
+        return run
+
+    monkeypatch.setitem(by_hand.__globals__, "Run", run_of)
+    opus, sonnet = (
+        ("claude", "claude-opus-5-5", "high"),
+        ("claude", "claude-sonnet-5-5", "medium"),
+    )
+    (folder / "models.toml").write_text(
+        '[converge.conformance]\nmodel = "claude-opus-5-5"\neffort = "high"\n\n'
+        "[converge.adversarial]\nskip = true\n\n"
+        '[converge.fix]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n'
+    )
+
+    # The file's models and a checker's skip bind a hand converge.
+    # Why: 0145-halts-alone design D8.
+    assert by_hand(root, "0001-todo", [], "claude") == 0
+    workers, fixer = seen[-1]
+    assert (workers["conformance"], workers["adversarial"]) == (opus, "skip")
+    assert (workers["fix"], fixer) == (sonnet, sonnet)
+
+    # An argument is over the file, for its role alone.
+    given = ["adversarial=default/low", "fix=claude-haiku-5-5/low"]
+    assert by_hand(root, "0001-todo", given, "claude") == 0
+    workers, fixer = seen[-1]
+    assert workers["conformance"] == opus
+    assert workers["adversarial"] == ("claude", None, "low")
+    assert workers["fix"] == fixer == ("claude", "claude-haiku-5-5", "low")
+
+    # No file: the executor's default.
+    (folder / "models.toml").unlink()
+    assert by_hand(root, "0001-todo", [], "claude") == 0
+    workers, fixer = seen[-1]
+    bare = ("claude", None, None)
+    assert [workers[r] for r in ("conformance", "adversarial", "fix")] == [bare] * 3
+    assert fixer == bare
 
 
 @pytest.mark.slow
@@ -12001,8 +12476,8 @@ def test_a_grant_buys_one_round(
     # The cap reached in the run gets its rescue in that run.
     assert _calls(calls)[-1] == "rescue 0001-todo"
     diagnosis = ".minions/changes/0001-todo/rescue.md"
-    assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
-    assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+    assert lines[-4].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
+    assert lines[-3].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
     # The granted round's cap is the run's second: a re-plan.
     _replanned(root, "R1 S1")
 
@@ -12602,6 +13077,51 @@ def test_a_verify_halt_is_diagnosed_without_a_worker(
     _commit(tree, {tasks: "## Progress\n\n- [x] 1 — Todo\n\nAmended.\n"}, amend)
     amended = ("converge", "amended: HEAD past the halted head")
     assert conduct["stage_of"](root, version) == amended
+
+
+def test_a_worker_halt_is_a_rerun_at_the_same_head(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    exited = "converge-conformance-r1 worker exit 1"
+    halt = f"10:00:00 · round 1 · halt — {exited} · head {head}"
+    start = "09:00:00 · round 1 · start — base a · head b"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n{start}\n")
+    version = conduct["find_version"](root, "0001-todo")
+    rerun = ("converge", conduct["RERUN"])
+    # A worker's exit after `start`, with no verdict read, runs again at `HEAD`.
+    # Why: 0145-halts-alone design D6.
+    assert conduct["stage_of"](root, version) == rerun
+    timed = (
+        f"10:00:00 · round 1 · halt — converge-fix-r1 timed out after 9s · head {head}"
+    )
+    log.write_text(f"# t\n\n## Run 1 — d\n{timed}\n{start}\n")
+    assert conduct["stage_of"](root, version) == rerun
+
+    # A second halt in the same run stays: the run reran it once.
+    conductor = conduct["Run"](root, "claude")
+    conductor.reruns.add("0001-todo")
+    assert not conductor.take_back(version, {})
+    reran = f" · run · rejoin — 0001-todo: still halted — {conduct['RERAN']}"
+    assert any(line.endswith(reran) for line in _log(root))
+
+    # A new run reads it as a rerun again.
+    assert conduct["Run"](root, "claude").stage(version) == rerun
+
+    # Twin: a worker's halt after a `verdicts` line stands, as another halt does.
+    verdicts = "09:30:00 · round 1 · verdicts — conformance clean · open_blocking 0"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}\n{verdicts}\n{start}\n")
+    assert conduct["stage_of"](root, version) == ("converge-halted", halt)
+    red = f"10:00:00 · round 1 · halt — red · head {head}"
+    limited = (
+        f"10:00:00 · round 1 · halt — {exited} · stopped by a usage limit · head {head}"
+    )
+    for stands in (red, limited):
+        log.write_text(f"# t\n\n## Run 1 — d\n{stands}\n{start}\n")
+        assert conduct["stage_of"](root, version) == ("converge-halted", stands)
 
 
 @pytest.mark.slow
@@ -14104,6 +14624,85 @@ def test_the_codex_probe_runs_a_checker(
 
 
 @pytest.mark.slow
+def test_a_failed_checker_probe_leaves_the_checkers_on_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setitem(conduct["main"].__globals__, "_unlinked", lambda _: None)
+    root = _primary(tmp_path)
+    # A run's claim folder, which `ship` makes.
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    tables = {
+        "0001-check": '[converge]\n[converge.conformance]\nexecutor = "codex"\n',
+        "0002-build": '[build]\nexecutor = "codex"\n[converge]\n',
+        "0003-rescue": (
+            '[rescue]\nexecutor = "codex"\n'
+            '[converge]\n[converge.conformance]\nexecutor = "codex"\n'
+        ),
+    }
+    trees = {}
+    for change, table in tables.items():
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True)
+        (folder / "models.toml").write_text(table)
+        trees[change] = _version(root, change, "- [ ] 1 — Todo\n")
+    fake_codex("checker-silent")
+    run = conduct["Run"](root, "claude")
+    run.read_plan([conduct["Version"](change, tree) for change, tree in trees.items()])
+    run.probed.add("claude")
+
+    def check() -> _Checked:
+        ask = _ask(root, "conformance", "0001-check")
+        deadline = time.monotonic() + 600
+        tree = trees["0001-check"]
+        return run.checker("0001-check", "c", "conformance", tree, ask, deadline)
+
+    # A checker-only version's failed checker probe halts nothing, keeps no refusal,
+    # and its checker runs on Claude, named failed.
+    result = check()
+    assert run.halts == [] and run.refused == {} and "codex" not in run.probed
+    assert run.codex_off == {"0001-check"}
+    assert (result.models[0], result.fallback) == ("claude", "codex failed")
+    assert len(_codex_argvs(tmp_path)) == 2
+    said = " · run · codex — 0001-check: probe failed · its checkers run on Claude\n"
+    assert said in run.log.path.read_text()
+    # The mark holds: no second probe, by the checker or by the version's own probe.
+    assert check().fallback == "codex failed"
+    run.probe_for("0001-check", ["codex"], [])
+    assert len(_codex_argvs(tmp_path)) == 2 and run.halts == []
+    # Twin: a version with a station on Codex halts on the same failure, unmarked.
+    run.probe_for("0002-build", ["codex"], ["codex"])
+    assert run.halts == [
+        (
+            "0002-build",
+            "probe-codex-checker check fail — the checker wrote no conformance.md",
+        )
+    ]
+    assert run.codex_off == {"0001-check"}
+    # Twin: a rescue on Codex is a station of its own, so a stage that leaves it out
+    # still halts a failed checker probe, unmarked.
+    run.refused.clear()
+    run.probe_for("0003-rescue", ["codex"], [])
+    assert [who for who, _ in run.halts][1:] == ["0003-rescue"]
+    assert run.codex_off == {"0001-check"}
+    # A solo checker probe that exits non-zero logs a failed check, and halts nothing.
+    out = tmp_path / "failed.log"
+    out.write_text("")
+    monkeypatch.setattr(run, "worker", lambda *given: (1, False, out, []))
+    codex = ("codex", None, None)
+    station = "probe-codex-checker"
+    assert run.spawn("0001-check", station, root, "p", codex, halts=False) is None
+    assert len(run.halts) == 2
+    failed = f" · 0001-check · check — {station} · fail — {station} worker exit 1\n"
+    assert failed in run.log.path.read_text()
+    # A probe the supplied deadline killed is the request's: no mark, no halt.
+    monkeypatch.setattr(run, "worker", lambda *given: (0, True, out, []))
+    run.outs["0004-cut", station] = out
+    cut = run.probe_checker("codex", "0004-cut", time.monotonic() - 1, solo=True)
+    assert not cut and "0004-cut" not in run.codex_off
+
+
+@pytest.mark.slow
 def test_a_usage_limit_at_the_probe_is_no_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -14204,7 +14803,9 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     run = conduct["Run"](root, "claude")
     passed = time.time() - 1
 
-    def limited(executor: str, who: str, deadline: float | None) -> None:
+    def limited(
+        executor: str, who: str, deadline: float | None, solo: bool = False
+    ) -> None:
         run.limited[executor] = passed
 
     run.probe = limited

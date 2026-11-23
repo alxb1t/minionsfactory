@@ -70,6 +70,8 @@ LIMIT_WAIT = 900
 PROBE_ROOM = 120
 HEADROOM = 90
 WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
+# A checker's fallback after Codex failures. Why: 0145-halts-alone design D4.
+CODEX_FAILED = "codex failed"
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
 # The close's scripts: the gate and the plan check run by the conductor's Python, the
@@ -108,6 +110,9 @@ MANIFEST = "package.json"
 DIRECT = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 CLAIM_SECONDS = 30
 WAIT_SECONDS = 60
+# A halt line no rescue or supervisor answers: `final — needs <action> · <reason>`.
+# Why: 0145-halts-alone design D11.
+FINAL = "final — "
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
@@ -161,7 +166,15 @@ PAST = {
 }
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
+# A red gate on a loaded machine waits this long, polling this often, then runs again.
+# Why: 0145-halts-alone design D3.
+LOAD_WAIT = 1800
+LOAD_POLL = 30
 SUPERVISES = 2
+# A design-sized cap's re-plan is taken once a version: this mark records it.
+# Why: 0145-halts-alone design D9.
+REPLAN_MARK = "replan.mark"
+DESIGN = "a design change"
 # A supervisor at an integrate note stages Markdown under these alone.
 # Why: 0090-supervisor-merge design D3.
 SETTLES = ("openspec/", "docs/")
@@ -246,7 +259,8 @@ PROMPTS = {
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}{decide}.",
     "supervise": (
-        "Run the mf-supervise skill for change {change} with decide=recommended{brief}."
+        "Run the mf-supervise skill for change {change} with decide=recommended"
+        "{replan}{brief}."
     ),
     "cut": (
         "Run the mf-cut-change skill for change {change} with arguments"
@@ -1170,16 +1184,31 @@ def _run_started(runs: Path, change: str) -> bool:
     return any(_is_event(line, "start") for line in run)
 
 
-def _before_round(runs: Path, change: str, halt: str) -> bool:
-    """Return whether `halt` is a halt before round 1: no `start`, no `verify: halt`.
+def _has_verdicts(runs: Path, change: str) -> bool:
+    """Return whether the newest converge run, to the next heading, holds a `verdicts`.
 
-    A granted round writes no `start`, and its halt is none: its cap re-plans.
-    Why: 0084-ship-fixes-2 design D1, D2; D56.
+    e.g. "## Run 2 — d", "… · halt — red", "… · verdicts — conformance clean" → True
     """
+    block = mflib.statuslog.newest(_log_text(runs, change))
+    run = [] if block is None else block.lines
+    return any(_is_event(line, "verdicts") for line in run)
+
+
+def _before_round(runs: Path, change: str, halt: str) -> bool:
+    """Return whether `halt` is a halt before round 1, or a worker's with no verdict.
+
+    No `verify: halt` and no grant: a granted round writes no `start`, and its cap
+    re-plans. A usage limit stands. Why: 0084-ship-fixes-2 D1, D2; D56; 0145 D6.
+    """
+    unjudged = (
+        mflib.statuslog.names_worker(halt)
+        and "usage limit" not in halt
+        and not _has_verdicts(runs, change)
+    )
     return (
         "verify: halt" not in halt
         and not _granted_run(runs, change)
-        and not _run_started(runs, change)
+        and (not _run_started(runs, change) or unjudged)
     )
 
 
@@ -2716,7 +2745,7 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
         if cards is None:
             return None
         found += [
-            (card.id, card.size or "a design change")
+            (card.id, card.size or DESIGN)
             for card in cards
             if card.blocking and card.status == "open"
         ]
@@ -2808,7 +2837,8 @@ def _amend(
 ) -> tuple[str | None, str, bool]:
     """Return the rescue's amend past `before`, or None and why; and if it decided.
 
-    Why: 0067-rescue design D3; 0085-self-healing-ship design D4.
+    Why: 0067-rescue design D3; 0085-self-healing-ship design D4;
+    0145-halts-alone design D1.
     """
     if not _ancestor(tree, before, "HEAD"):
         return None, f"rescue moved HEAD off {before[:7]}", False
@@ -2837,11 +2867,19 @@ def _amend(
         return sha, "", False
     if "proposal.md" not in amends:
         return None, f"rescue changed a decision: {decision}", False
-    by = ("log", "-1", "--format=%(trailers:key=Decided-by,valueonly)", sha)
-    if _git(tree, *by).strip() != "rescue":
-        why = f"rescue commit {sha[:7]} decided with no Decided-by: rescue trailer"
-        return None, why, False
     return sha, "", True
+
+
+def _resettable(tree: Path, before: str, clean: bool) -> bool:
+    """Return whether a refused rescue amend may be reset off `HEAD` to `before`.
+
+    Why: 0145-halts-alone design D2.
+    """
+    if not clean or not _ancestor(tree, before, "HEAD") or _dirty(tree):
+        return False
+    commits = _git(tree, "rev-list", f"{before}..HEAD").split()
+    trailer = "--format=%(trailers:key=Rescue)"
+    return all(_git(tree, "log", "-1", trailer, sha).strip() for sha in commits)
 
 
 def _supervised(tree: Path, change: str, before: str) -> tuple[str | None, str]:
@@ -4277,15 +4315,15 @@ def preconditions(cwd: Path, executor: str) -> Path:
 class Checked:
     """What one converge checker did: its exit, the models it ran on, its tokens.
 
-    `limit` is the usage limit or the refusal that ended it, else "".
-    Why: 0108-converge-script design D4.
+    `limit` is the usage limit or the refusal that ended it, else ""; `fallback` is
+    True for a limit, `CODEX_FAILED` for a failure. Why: 0108 D4; 0145-halts-alone D4.
     """
 
     code: int
     killed: bool
     models: tuple[str, str | None, str | None]
     limit: str
-    fallback: bool
+    fallback: bool | str
     tokens: int | None
 
 
@@ -4340,6 +4378,9 @@ class Run:
         self.planned: set[str] = set()
         self.probed: set[str] = set()
         self.refused: dict[str, str] = {}
+        # The versions whose Codex checker probe failed: their checkers run on Claude.
+        # Why: 0145-halts-alone design D5.
+        self.codex_off: set[str] = set()
         self.limited: dict[str, float] = {}
         self.rescues: dict[str, list[str]] = {}
         self.answered: dict[str, str] = {}
@@ -4357,6 +4398,7 @@ class Run:
         # Each settle `_settled` took, by change: the tree integrate must commit.
         self.settled: dict[str, str] = {}
         self.supervisor_decided: list[str] = []
+        self.replanned: list[str] = []
         self.diagnosed: set[str] = set()
         # Each halted version's stage, why and `HEAD` on disk at its halt, and a
         # change from it the re-check read once. Why: 0085-self-healing-ship design D6.
@@ -4494,7 +4536,11 @@ class Run:
         blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
         return f"halted {halted} · blocked {blocked} · released {released}" + (
-            self.decisions() + self.supervisors() + self.needs() + self.unpushed()
+            self.decisions()
+            + self.supervisors()
+            + self.replans()
+            + self.needs()
+            + self.unpushed()
         )
 
     def needs(self) -> str:
@@ -4552,6 +4598,15 @@ class Run:
             ids = " ".join(dict.fromkeys(self.supervisor_decided))
         return f" · supervised {ids}" if ids else ""
 
+    def replans(self) -> str:
+        """Return ` · re-planned <ids>`, each version a supervisor re-planned, or "".
+
+        Why: 0145-halts-alone design D9.
+        """
+        with self.guard:
+            ids = " ".join(dict.fromkeys(self.replanned))
+        return f" · re-planned {ids}" if ids else ""
+
     def unpushed(self) -> str:
         """Return ` · unpushed <names>`, as `status` names them, or "" with none.
 
@@ -4588,29 +4643,37 @@ class Run:
         brief: Path | None = None,
         limits: bool = False,
         deadline: float | None = None,
+        halts: bool = True,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
-        Why: 0100-worker-diet design D5;
-        0104-codex-limits design D2.
+        Without `halts`, a failure is logged as a failed check. Why: 0100 design D5;
+        0104-codex-limits design D2; 0145-halts-alone design D5.
         """
+
+        def stop(reason: str) -> None:
+            if halts:
+                self.halt(who, reason)
+            else:
+                self.log.event(who, "check", f"{station} · fail — {reason}")
+
         timeout = None if deadline is None else deadline - time.monotonic()
         code, killed, out, denied = self.worker(
             who, station, cwd, prompt, models, repo, brief, timeout
         )
         if killed:
             took = TIMEOUT if timeout is None else max(round(timeout), 0)
-            self.halt(who, f"{station} timed out after {took}s; its group was killed")
+            stop(f"{station} timed out after {took}s; its group was killed")
             return None
         # Why: 0100-worker-diet design D5.
         if missing := lacked(out):
             named = ", ".join(missing)
-            self.halt(who, f"{station} asked for a tool its station lacks: {named}")
+            stop(f"{station} asked for a tool its station lacks: {named}")
             return None
         if code != 0:
             if limits and self.limited_until(models[0]) is not None:
                 return None
-            self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
+            stop(f"{station} worker exit {code}{usage_limit(out)}")
             return None
         return denied
 
@@ -4646,15 +4709,20 @@ class Run:
         models = given(models)
         if time.monotonic() >= deadline:
             return Checked(1, False, models, "converge's time is spent", False, None)
-        fallback, codex_runs = False, 0
+        fallback: bool | str = False
+        codex_runs, limited = 0, False
         while True:
             if models[0] == "codex" and (
                 codex_runs == 2 or not self.codex_ready(change, deadline)
             ):
+                failed = (codex_runs == 2 and not limited) or change in self.codex_off
                 if shadow and not _executor_missing("codex"):
-                    stopped = " · stopped by a usage limit"
-                    return Checked(1, False, models, stopped, False, None)
-                models, fallback = given(_shadow(converge, models)), True
+                    cause = "a codex failure" if failed else "a usage limit"
+                    return Checked(
+                        1, False, models, f" · stopped by {cause}", False, None
+                    )
+                models = given(_shadow(converge, models))
+                fallback = CODEX_FAILED if failed else True
             code, killed, out, _ = self.worker(
                 change,
                 station,
@@ -4663,13 +4731,15 @@ class Run:
                 models,
                 timeout=deadline - time.monotonic(),
             )
-            if models[0] != "codex" or not usage_limit(out):
-                tokens = tokens_of(out)
+            tokens, limit = tokens_of(out), usage_limit(out)
+            # A Codex run that ended before a completed turn: a failure, as a limit is.
+            failure = code != 0 and not killed and tokens is None
+            if models[0] != "codex" or not (limit or failure):
                 if code == 0:
                     folder = mflib.layout.change_dir(self.primary, change)
                     _stamp(folder, f"{table}.md", models[1], tokens)
-                return Checked(code, killed, models, usage_limit(out), fallback, tokens)
-            codex_runs += 1
+                return Checked(code, killed, models, limit, fallback, tokens)
+            codex_runs, limited = codex_runs + 1, limited or bool(limit)
 
     def fix(
         self,
@@ -4736,10 +4806,10 @@ class Run:
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.
 
-        Why: 0104-codex-limits design D3; 0117-codex-converge design D4.
+        Why: 0104-codex-limits design D3; 0117 design D4; 0145-halts-alone design D5.
         """
-        # Not installed: the third cause of a fallback.
-        if _executor_missing("codex"):
+        # Not installed, or its checker probe failed for the version: a fallback.
+        if _executor_missing("codex") or change in self.codex_off:
             return False
         held = _headroom(time.time())
         resets = [self.limited_until("codex"), held[0] if held else None]
@@ -4828,8 +4898,9 @@ class Run:
         reason: str | None,
         denied: list[str],
         shown: str = "",
+        halts: bool = True,
     ) -> bool:
-        """Log a station's check, `shown` after a pass; a failure halts.
+        """Log a station's check, `shown` after a pass; a failure halts, given `halts`.
 
         A failure names the denials before it.
         """
@@ -4837,6 +4908,8 @@ class Run:
         self.log.event(who, "check", f"{stage} · {result}")
         if reason is None:
             return True
+        if not halts:
+            return False
         named = f" · denied: {', '.join(denied)}" if denied else ""
         self.halt(who, f"{stage} check fail — {reason}{named}")
         return False
@@ -4906,7 +4979,7 @@ class Run:
         """Run a halted version's rescue on `held`; True when the version goes on.
 
         Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
-        0085-self-healing-ship design D1, D5.
+        0085-self-healing-ship design D1, D5; 0145-halts-alone design D2.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
@@ -4928,6 +5001,7 @@ class Run:
         prompt = PROMPTS["rescue"].format(change=change, decide=decide)
         sha = None
         try:
+            clean = not _dirty(tree)
             spawned = self.spawn(change, "rescue", tree, prompt, models) is not None
             sha, why, decided = (
                 _amend(tree, change, before, amends) if spawned else (None, "", False)
@@ -4942,6 +5016,11 @@ class Run:
                     if decided:
                         self.decided.append(change)
             elif spawned:
+                if why and _resettable(tree, before, clean):
+                    head = _git(tree, "rev-parse", "HEAD").strip()
+                    _git(tree, "reset", "-q", "--hard", before)
+                    said = f"rescue commit {head[:7]} dropped: {why}"
+                    self.log.event(change, "reset", said)
                 name = f".minions/changes/{change}/rescue.md"
                 if not why and _mtime(diagnosis) not in (None, written):
                     self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
@@ -4965,17 +5044,36 @@ class Run:
             return f" · supervised {' '.join(done)}"
         return ""
 
+    def design_cap(self, change: str, halt: str) -> bool:
+        """Return whether a cap's newest `re-plan` halt names a design-sized blocker.
+
+        Why: 0145-halts-alone design D9.
+        """
+        if "cap reached" not in halt:
+            return False
+        with self.guard:
+            reasons = [reason for who, reason in self.halts if who == change]
+        named = next(
+            (r.split()[1:] for r in reversed(reasons) if r.startswith("re-plan: ")), []
+        )
+        blockers = _open_blockers(mflib.layout.run_dir(self.primary), change) or []
+        return any(card in named and size == DESIGN for card, size in blockers)
+
     def supervise(self, version: Version, held: str, spent: bool) -> bool:
         """Run a version's supervisor on `held`; True when the version goes on.
 
         Why: 0089-supervisor design D1, D4,
-        D5, D6; 0090-supervisor-merge design D2, D4.
+        D5, D6; 0090-supervisor-merge design D2, D4; 0145-halts-alone design D9.
         """
         change, tree = version.change, version.tree
         minions = mflib.layout.run_dir(self.primary)
         integrating = held == "integrating"
         converged = held == "converge-halted"
         halt = (_converge_halt(minions, change) or "") if converged else ""
+        replan = converged and self.design_cap(change, halt)
+        marked = os.path.lexists(
+            mflib.layout.change_dir(self.primary, change) / REPLAN_MARK
+        )
         with self.guard:
             left = (change in self.diagnosed or spent) and change not in self.answered
         if (
@@ -4984,6 +5082,7 @@ class Run:
             or not left
             or self.supervised(change, held)
             or self.stopped("run")
+            or (replan and marked)
             or (
                 converged
                 and ("usage limit" in halt or _security_held(minions, change, halt))
@@ -5013,7 +5112,7 @@ class Run:
                 folder.mkdir(mode=0o700, exist_ok=True)
                 (folder / change).write_text(f"{start.merge}\n")
         before = start.head if start else _git(tree, "rev-parse", "HEAD").strip()
-        prompt = _supervise_prompt(self.primary, change)
+        prompt = _supervise_prompt(self.primary, change, replan)
         sha = None
         try:
             if self.spawn(change, "supervise", tree, prompt, models) is not None:
@@ -5025,11 +5124,18 @@ class Run:
                     nothing = "supervisor wrote no amend"
                 if sha is not None:
                     detail = f"{change}: decided · {held} · {sha[:7]}"
+                    if replan:
+                        _write_state(
+                            self.primary, change, REPLAN_MARK, f"head: {sha}\n"
+                        )
+                        detail += " · re-plan"
                     self.log.event("run", "supervise", detail)
                     with self.guard:
                         self.halts = [halt for halt in self.halts if halt[0] != change]
                         self.diagnosed.discard(change)
                         self.supervisor_decided.append(change)
+                        if replan:
+                            self.replanned.append(change)
                         if start is not None:
                             self.settled[change] = sha
                 else:
@@ -5881,6 +5987,18 @@ class Run:
             with self.built:
                 self.ended.add(version.change)
                 self.built.notify_all()
+            self.final(version.change)
+
+    def final(self, change: str) -> None:
+        """Log `final — needs <action> · <reason>` when the version's halt stands.
+
+        Why: 0145-halts-alone design D11.
+        """
+        with self.guard:
+            reasons = [reason for who, reason in self.halts if who == change]
+        if reasons:
+            action = self._needs(change)
+            self.log.event(change, "halt", f"{FINAL}needs {action} · {reasons[0]}")
 
     def cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
         """Cut a queued brief in its own worktree, check it on disk, then take it.
@@ -6366,19 +6484,29 @@ class Run:
     ) -> None:
         """Probe each executor the run has not, once; a refused one halts `change`.
 
-        A limited executor halts `change` only when among `stations`; a probe ends by
-        `deadline`, when given. Why: 0104-codex-limits design D2.
+        A limited executor, or a failed checker probe, halts `change` only when among
+        `stations`; a probe ends by `deadline`. Why: 0104 D2; 0145-halts-alone D5.
         """
         with self.probing:
             for executor in dict.fromkeys(executors):
                 if executor in self.probed or self.stopped(change):
                     continue
+                if executor == "codex" and change in self.codex_off:
+                    continue
                 if (refused := self.refused.get(executor)) is not None:
                     self.halt(change, refused)
                     continue
                 if self.limited_until(executor) is None:
-                    self.probe(executor, change, deadline)
-                    if executor in self.probed:
+                    own = (
+                        models[0]
+                        for station in ("rescue", "supervise")
+                        if (models := self.plan.get((change, station)))
+                    )
+                    solo = executor not in stations and executor not in own
+                    self.probe(executor, change, deadline, solo=solo)
+                    if executor in self.probed or (
+                        executor == "codex" and change in self.codex_off
+                    ):
                         continue
                 # A probe that failed and halted nothing met a limit `spawn` excused.
                 with self.guard:
@@ -6396,12 +6524,16 @@ class Run:
                     self.halt(change, self.limited_reason(executor))
 
     def probe(
-        self, executor: str, who: str = "run", deadline: float | None = None
+        self,
+        executor: str,
+        who: str = "run",
+        deadline: float | None = None,
+        solo: bool = False,
     ) -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
-        Why: 0063-rejoin design D3; D51; 0096-codex-ready
-        design D9; 0100-worker-diet design D6.
+        A `solo` probe's failed checker probe halts nothing. Why: 0063 D3; D51;
+        0096-codex-ready D9; 0100-worker-diet D6; 0145-halts-alone D5.
         """
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
@@ -6461,7 +6593,7 @@ class Run:
                     denied,
                     shown,
                 )
-                and (not codex or self.probe_checker(executor, who, deadline))
+                and (not codex or self.probe_checker(executor, who, deadline, solo))
             ):
                 self.probed.add(executor)
         finally:
@@ -6469,12 +6601,16 @@ class Run:
             mark.unlink(missing_ok=True)
 
     def probe_checker(
-        self, executor: str, who: str, deadline: float | None = None
+        self,
+        executor: str,
+        who: str,
+        deadline: float | None = None,
+        solo: bool = False,
     ) -> bool:
         """Prove a checker writes a findings file to the contract; else halt `who`.
 
-        Its verdict is logged, never judged; it ends by `deadline`, when given. Why:
-        0096-codex-ready design D9.
+        Its verdict is logged, never judged; a `solo` failure marks `who` off Codex.
+        Why: 0096-codex-ready design D9; 0145-halts-alone design D5.
         """
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-checker-")).resolve()
         station = "probe" if executor == self.executor else f"probe-{executor}"
@@ -6493,6 +6629,7 @@ class Run:
                 repo,
                 limits=True,
                 deadline=deadline,
+                halts=not solo,
             )
             with self.guard:
                 out = self.outs[who, checker]
@@ -6503,9 +6640,20 @@ class Run:
                 text = (findings / "conformance.md").read_text(errors="replace")
                 verdict = _frontmatter(text, "verdict")
             shown = f" · verdict {verdict}"
-            return denied is not None and self.judge(
-                who, checker, reason, denied, shown
+            passed = denied is not None and self.judge(
+                who, checker, reason, denied, shown, halts=not solo
             )
+            # A limit is no failure: it falls back by `codex_ready`'s read; a probe
+            # the supplied deadline killed is that request's, not Codex's.
+            cut = (
+                denied is None and deadline is not None and time.monotonic() >= deadline
+            )
+            if solo and not passed and not cut and self.limited_until(executor) is None:
+                with self.guard:
+                    self.codex_off.add(who)
+                said = f"{who}: probe failed · its checkers run on Claude"
+                self.log.event("run", "codex", said)
+            return passed
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
 
@@ -6889,7 +7037,7 @@ class Run:
             "run",
             "done",
             f"released {released}{self.decisions()}{self.supervisors()}"
-            f"{self.unpushed()}",
+            f"{self.replans()}{self.unpushed()}",
         )
         return 0
 
@@ -7122,14 +7270,15 @@ def _merge_tried(primary: Path, change: str, merge: str) -> bool:
         return False
 
 
-def _supervise_prompt(primary: Path, change: str) -> str:
+def _supervise_prompt(primary: Path, change: str, replan: bool = False) -> str:
     """Return the supervisor's prompt, naming the brief `_brief_of` reads.
 
-    e.g. "… with decide=recommended and brief=/b/brief.md."
+    e.g. "… with decide=recommended and replan=yes and brief=/b/brief.md."
     """
     named = _brief_of(primary, change)
     brief = f" and brief={named}" if named else ""
-    return PROMPTS["supervise"].format(change=change, brief=brief)
+    again = " and replan=yes" if replan else ""
+    return PROMPTS["supervise"].format(change=change, replan=again, brief=brief)
 
 
 @contextlib.contextmanager
@@ -8007,7 +8156,8 @@ def agent(cwd: Path, executor: str, prompt: str) -> int:
 def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) -> int:
     """Run `converge.py` for `change` in its worktree; return its exit.
 
-    Why: 0108-converge-script design D1.
+    Each worker's models and a checker's skip are the models file's, an argument's
+    over them. Why: 0108-converge-script design D1; 0145-halts-alone design D8.
     """
     if _executor_missing(executor):
         raise Stop(2, f"converge: cannot run — {executor} is not on PATH")
@@ -8042,6 +8192,14 @@ def converge_by_hand(cwd: Path, change: str, given: list[str], executor: str) ->
                 f"converge: cannot run — {arg} is not <role>=<model>/<effort>,"
                 " <checker>=skip or grant=yes",
             )
+    runs = mflib.layout.run_dir(primary)
+    data = _models_data(runs, change)
+    filed = mflib.modelsfile.skipping(data, CHECKERS)
+    skipped |= {r for r in ROLES if f"converge.{r}" in filed and r not in named}
+    for role in (*ROLES, "fix"):
+        station = f"converge.{role}"
+        if role not in named and mflib.modelsfile.table(data, station) is not None:
+            named[role] = _models(runs, change, station, executor)
     run = Run(primary, executor)
     run.claim = None
     run.lines = ship_lines(primary)
@@ -8107,23 +8265,49 @@ def _last(output: str) -> str:
     return lines[-1] if lines else "no output"
 
 
+def _load_wait(say: Callable[[str], None]) -> bool:
+    """Wait while the 1-minute load is at or over the cores; return True when it fell.
+
+    A load under the cores returns False at once. Why: 0145-halts-alone design D3.
+    """
+    checked = runpy.run_path(str(PLAN_CHECK))
+    cores, load_average = checked["CPUS"], checked["load_average"]
+    if (load := load_average()) < cores:
+        return False
+    say(f"wait — gate · load {load:.1f} over {cores} cores")
+    waited = 0
+    while load >= cores and waited < LOAD_WAIT:
+        time.sleep(LOAD_POLL)
+        waited += LOAD_POLL
+        load = load_average()
+    say(f"wait — gate · load {load:.1f} · {waited}s")
+    return load < cores
+
+
 def _run_gate(
     primary: Path, change: str, tree: Path, say: Callable[[str], None] = print
 ) -> str | None:
     """Run the gate in the version's tree; return why it is red, or None when green.
 
-    Red keeps the output in the change's `gate.red`; green removes it.
-    Why: 0144-gate-outside design D3.
+    Red keeps the output in `gate.red`, green removes it; red under load runs again.
+    Why: 0144-gate-outside D3, 0145-halts-alone D3.
     """
     start = time.monotonic()
     code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
     seconds = round(time.monotonic() - start)
+    if code != 0:
+        say(f"check — gate · fail — red · {seconds}s")
+        if _load_wait(say):
+            start = time.monotonic()
+            code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
+            seconds = round(time.monotonic() - start)
+            if code != 0:
+                say(f"check — gate · fail — red · {seconds}s")
     if code == 0:
         say(f"check — gate · pass · {seconds}s")
         runs = mflib.layout.run_dir(primary)
         _remove_in(runs, mflib.layout.CHANGES, change, name="gate.red")
         return None
-    say(f"check — gate · fail — red · {seconds}s")
     _write_state(primary, change, "gate.red", output)
     return f"red · gate_run.py exit {code} · .minions/changes/{change}/gate.red"
 
@@ -8364,11 +8548,11 @@ def _status_line(primary: Path, version: Version) -> str:
     return line
 
 
-def wait_run(cwd: Path) -> int:
+def wait_run(cwd: Path, halt: bool = False) -> int:
     """Print the newest run log's new lines at each poll, then `status`; return 0.
 
-    A poll reads no `origin`, and the claim before the log, so the last poll prints the
-    lines the run's close wrote. Why: 0137-cloud-session design D5.
+    A poll reads no `origin`, and the claim before the log; `halt` ends the wait at a
+    final halt line, returning 1. Why: 0137-cloud-session D5; 0145-halts-alone D11.
     """
     primary = primary_of(cwd)
     active = mflib.layout.claim_file(primary)
@@ -8382,12 +8566,33 @@ def wait_run(cwd: Path) -> int:
             lines = tail.poll()
             for line in lines:
                 print(line, flush=True)
+            if halt and (final := _final_halt(lines)) is not None:
+                said = final.detail.removeprefix(FINAL).partition(" · ")[2]
+                print(f"wait: halt — {final.who} · {said}", flush=True)
+                print(status(cwd), flush=True)
+                return 1
             if not live:
                 break
             print(f"wait: live · +{len(lines)} lines", flush=True)
     print("wait: ended", flush=True)
     print(status(cwd), flush=True)
     return 0
+
+
+def _final_halt(lines: list[str]) -> mflib.runlog.Event | None:
+    """Return the first halt event among `lines` that no rescue or supervisor answers.
+
+    e.g. "10:00:09 · 0001-a · halt — final — needs a fix · build: x" → that event
+    """
+    events = (mflib.runlog.parse(text) for text in lines)
+    return next(
+        (
+            event
+            for event in events
+            if event and event.name == "halt" and event.detail.startswith(FINAL)
+        ),
+        None,
+    )
 
 
 def _cut_line(change: str, entry: dict[str, Any]) -> str:
@@ -8582,7 +8787,10 @@ def main(argv_: list[str] | None = None) -> int:
     )
     closing.add_argument("change_id", metavar="change-id")
     commands.add_parser("report", help="the last run's close-out lines")
-    commands.add_parser("wait", help="block until the live run ends")
+    waiting = commands.add_parser("wait", help="block until the live run ends")
+    waiting.add_argument(
+        "--halt", action="store_true", help="end at a halt nothing answers, exit 1"
+    )
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
     approving.add_argument("--yes", required=True, metavar="hash")
@@ -8633,7 +8841,7 @@ def main(argv_: list[str] | None = None) -> int:
         elif args.command == "close":
             return close_command(cwd, args.change_id)
         elif args.command == "wait":
-            return wait_run(cwd)
+            return wait_run(cwd, args.halt)
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":
