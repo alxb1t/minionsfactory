@@ -43,9 +43,9 @@ Build the settled [design](design.md), one phase at a time; the checker row's te
 - [ ] 3.2 **HALT CHECK** `0122·S1` is paid, per [D6](design.md#d6): the tick-read command in `skills/mf-build/SKILL.md` holds single backslashes before its brackets.
   Verify: `git grep -c -F -e '- \[.\] <N>' -- skills/mf-build/SKILL.md` exits 0.
 - [ ] 3.3 **HALT CHECK** `0134·R1` is paid, per [D6](design.md#d6): `test_integrate_halts_on_each_old_entry_alone` in `tests/test_integrate.py` carries the `slow` marker.
-  Verify: `uv run pytest -q tests/test_integrate.py -m "not slow" -k test_integrate_halts_on_each_old_entry_alone` exits 5.
+  Verify: `uv run pytest -q tests/test_integrate.py -m "not slow" -k test_integrate_halts_on_each_old_entry_alone` exits `5`.
 - [ ] 3.4 **HALT CHECK** `0146·R5` is paid, per [D6](design.md#d6): `test_cutdeclared_command_fails_the_cut_check` in `tests/test_conduct.py` carries the `slow` marker.
-  Verify: `uv run pytest -q tests/test_conduct.py -m "not slow" -k test_cutdeclared_command_fails_the_cut_check` exits 5.
+  Verify: `uv run pytest -q tests/test_conduct.py -m "not slow" -k test_cutdeclared_command_fails_the_cut_check` exits `5`.
 - [ ] 3.5 **HALT CHECK** `0147·R1` is paid, per [D6](design.md#d6): `test_a_stuck_stage_halt_names_its_rescue_and_supervision` in `tests/test_conduct.py` asserts the halt line's rescue and supervision words.
   Verify: `git grep -c -F -e 'rescued converge-halted · supervised converge-halted' -- tests/test_conduct.py` exits 0.
 - [ ] 3.6 **HALT CHECK** `0147·S4` is paid, per [D6](design.md#d6): `plan_text` in `skills/mf-converge/scripts/converge.py` lists the paths with `-z`.
