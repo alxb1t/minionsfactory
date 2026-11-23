@@ -13171,7 +13171,11 @@ def test_a_missing_worktree_or_a_crash_ends_in_a_halt_line(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert any(" · run · halt — conduct.py failed: sunk" in line for line in _log(root))
+    assert any(
+        " · run · halt — conduct.py failed: sunk" in line
+        and line.endswith(" · cause run")
+        for line in _log(root)
+    )
 
 
 @pytest.mark.slow
@@ -14013,25 +14017,6 @@ def test_the_run_closing_line_carries_no_cause(tmp_path: Path) -> None:
     assert " · cause " not in closing
     assert runlog.stop(layout.runs_dir(root)) is not None
     assert _log(root)[-1].endswith(f" · run · halt — {runlog.STOPPED}")
-
-
-def test_an_early_crash_ends_with_the_cause_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    conduct = _conduct()
-    fake()
-    root = _primary(tmp_path)
-
-    def sunk(*_: object) -> int:
-        raise ValueError("sunk")
-
-    monkeypatch.setattr(conduct["Run"], "ship", sunk)
-    code = _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
-
-    assert code == 1
-    assert _log(root)[-1].endswith(
-        " · run · halt — conduct.py failed: sunk · cause run"
-    )
 
 
 def test_the_caps_stand_across_heads(tmp_path: Path) -> None:

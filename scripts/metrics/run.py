@@ -283,7 +283,7 @@ class Version:
             if event.name == "spawn":
                 counts[event.stamp, station] += 1
                 n = counts[event.stamp, station]
-                script = event.detail == "converge · script"
+                script = event.detail.split(" · ")[:2] == ["converge", "script"]
                 spawns.append(Spawn(event.stamp, station, n, event.at, script=script))
             elif event.name == "finish":
                 running = (event.stamp, station, None)

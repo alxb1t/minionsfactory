@@ -333,6 +333,7 @@ def test_a_worker_shows_its_phase(tmp_path: Path) -> None:
     ]
 
 
+@pytest.mark.slow
 def test_a_running_gate_is_the_versions_last_line(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     _version(root, "0001-a", "- [ ] 1 — One\n")
@@ -369,6 +370,7 @@ def test_a_stale_claim_shows_no_running_gate(tmp_path: Path) -> None:
     assert _by_id(_tree(root))["0001-a"]["gate_running"]
 
 
+@pytest.mark.slow
 def test_a_halt_shows_its_cause(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     _version(root, "0001-a", "- [ ] 1 — One\n")
