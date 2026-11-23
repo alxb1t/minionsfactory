@@ -194,7 +194,7 @@ hooks reshape the whole run, is on it.
   ([D63](docs/decisions.md#d63--an-answered-amend-gets-one-round-over-its-range)). An amend answers a converge halt of any
   kind past its head, a halt past the judged head included, bounded by the amend round's own count. Under a version's
   switch, a rescue commits a worker-written card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
-  besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
+  besides — the `Rescue:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
   ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan as its decision —
   the spec delta included, and at a cap a blocker sized `a design change` holds, `design.md`'s `## Decisions` and
   `proposal.md`, once a version, marked by `replan.mark` — bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`

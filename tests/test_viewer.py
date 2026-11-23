@@ -449,7 +449,8 @@ def test_converge_shows_its_round_cap_blockers_and_each_role(tmp_path: Path) -> 
         " · effort medium · tokens unavailable"
         " · fallback: codex usage limit\n"
         "11:03:00 · round 2 · verdicts — conformance clean · open_blocking 0"
-        " · executor claude · model default · effort high · tokens 1200\n\n"
+        " · executor claude · model default · effort high · tokens 1200"
+        " · fallback: codex failed\n\n"
         "## Run 1 — 2026-11-03 10:00\n\n"
         "10:30:00 · round 1 · verdicts — conformance changes-requested"
         " · open_blocking 2 · executor claude · model old · effort low · tokens 5\n",
@@ -483,7 +484,7 @@ def test_converge_shows_its_round_cap_blockers_and_each_role(tmp_path: Path) -> 
                 "model": "default",
                 "effort": "high",
                 "tokens": 1200,
-                "fallback": False,
+                "fallback": True,
             },
             "adversarial": {
                 "verdict": "changes-requested",

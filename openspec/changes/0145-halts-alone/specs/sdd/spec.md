@@ -10,7 +10,7 @@ halt and an `amend needed` halt: it MAY edit `proposal.md` and `design.md`'s `##
 test, take a security card of `critical` or `high` severity, approve a gate makefile, settle an integrate conflict, release,
 merge or push, or answer a run-wide halt. `conduct.py` SHALL take an amend that touches `proposal.md` or changes `design.md`'s
 `## Decisions` section only under the switch, with the trailer or without it, logging `rescue — <id>: decided · <sub-task> · <commit>`;
-without the switch it SHALL refuse it, naming the decision, and, when the tree was clean at the rescue's start and is clean at the reset, and every commit
+without the switch it SHALL refuse it, naming the decision; and for any amend it refuses, a decision or a touch of code or a test, when the tree was clean at the rescue's start and is clean at the reset, and every commit
 past it carries a `Rescue:` trailer, SHALL reset the branch to the commit before them and log `reset — rescue commit <sha7> dropped: <why>`.
 A commit with no `Rescue:` trailer SHALL stay, as the person's. Lines of the form `Fix note (<YYYY-MM-DD>, <card id>): <text>` that
 end a `### D<n>` entry, added or edited, SHALL be no change to that section; any other edit of the entry, its `### D<n>` body included, SHALL be one, each run of
@@ -32,6 +32,10 @@ run's closing line, and its `done` line, SHALL name
 - **WHEN** the models file has no `decide`, and the rescue commits the same amend
 - **THEN** the run refuses it, naming the decision, the refused commit is no longer at `HEAD`, the run logs `reset`, and the
   version stays halted
+
+#### Scenario: A refused amend under the switch
+- **WHEN** the models file says `decide = "recommended"`, and the rescue commits an amend with a `Rescue:` trailer that touches code
+- **THEN** the run refuses it, the refused commit is no longer at `HEAD`, the run logs `reset`, and the version stays halted
 
 #### Scenario: No switch and a person's amend
 - **WHEN** the models file has no `decide`, and a commit with no `Rescue:` trailer lands past the rescue's start
@@ -62,7 +66,7 @@ run's closing line, and its `done` line, SHALL name
 
 `conduct.py` SHALL run the full gate, as `skills/mf-converge/scripts/gate_run.py` under the sandbox runner over the version's trees, after the last phase's check passes and in the close, and SHALL log each gate it runs as a `check` event of the run log: `check — gate · pass · <n>s`, or `check — gate · fail — <why>`. A red gate after the last phase SHALL write the gate's output to `.minions/changes/<change-id>/gate.red` and start one build worker, once a run, naming `phase=repair`, on the last phase's models; the gate SHALL then run again, and a second red SHALL halt the version `gate red after the repair`, writing `build.halt` with `sub-task: repair`. `gate_run.py` SHALL read a gate that runs past its limit as red: it SHALL print `gate: red — past its limit · <seconds>s` and exit 124, never a traceback. A repository with no `check` target SHALL keep its workers on the gate through `gate_run.py`, and the conductor's gate SHALL take that record on the same tree.
 
-A conductor gate that is red while the 1-minute load, read at once, is at or over the machine's core count SHALL wait: it SHALL log `wait — gate · load <n> over <cores> cores`, poll the load, and when it falls under the core count, or after `1,800` seconds, log `wait — gate · load <n> · <seconds>s` and run the gate once more. A rerun that is green SHALL be the gate's result; a rerun that is red, and a load that never fell, SHALL leave the red it was. Each gate run the conductor makes SHALL wait at most once, apart from the repair's rerun and the rerun after a dropped simplify commit, and a machine that gives no load SHALL read as a load of none.
+A conductor gate that is red while the 1-minute load, read at once, is at or over the machine's core count SHALL wait: it SHALL log `wait — gate · load <n> over <cores> cores`, poll the load, and when it falls under the core count, log `wait — gate · load <n> · <seconds>s` and run the gate once more; when `1,800` seconds pass with no fall, log the same line and run nothing. A rerun that is green SHALL be the gate's result; a rerun that is red, and a load that never fell, SHALL leave the red it was. Each gate run the conductor makes SHALL wait at most once, apart from the repair's rerun and the rerun after a dropped simplify commit, and a machine that gives no load SHALL read as a load of none.
 
 #### Scenario: A gate red after the last phase, green after the repair
 - **WHEN** the last phase's check passes and the conductor's gate is red, and the repair worker commits a fix

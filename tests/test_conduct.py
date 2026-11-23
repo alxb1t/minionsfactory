@@ -1115,7 +1115,7 @@ def test_wait_halt_ends_at_a_final_halt(
     assert _main(conduct, root, "wait", "--halt", monkeypatch=monkeypatch) == 1
     assert capsys.readouterr().out == (
         f"{answered}wait: live · +1 lines\n{final}"
-        "wait: halt — 0001-todo · needs a fix · build — phase 1\n"
+        "wait: halt — 0001-todo · build — phase 1\n"
         "run · live\n0001-todo · build\n"
     )
 
@@ -3114,6 +3114,7 @@ def test_a_decided_amend_needs_no_trailer_under_the_switch(tmp_path: Path) -> No
     )
 
 
+@pytest.mark.slow
 def test_a_refused_amend_is_reset_off_head(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -4183,14 +4184,19 @@ def test_a_gate_red_under_load_waits_and_runs_again(
     assert result is None
     assert ran == 2
     assert sleeps == [30]
-    assert said[:2] == [over, "wait — gate · load 0.0 · 30s"]
-    assert re.fullmatch(r"check — gate · pass · \d+s", said[2])
+    assert said[:3] == [
+        "check — gate · fail — red · 0s",
+        over,
+        "wait — gate · load 0.0 · 30s",
+    ]
+    assert re.fullmatch(r"check — gate · pass · \d+s", said[3])
     assert not (_marks(root) / "gate.red").exists()
 
     # Red twice: the second red is the result, and its output the file's.
     result, said, ran = run([2, 2], [cores + 1.0, 0.0])
     assert result == "red · gate_run.py exit 2 · .minions/changes/0001-todo/gate.red"
     assert ran == 2
+    assert [line.split(" · ")[0] for line in said].count("check — gate") == 2
     assert (_marks(root) / "gate.red").read_text() == "gate output 2\n"
 
     # A low load: no wait, no second run.
@@ -4203,7 +4209,11 @@ def test_a_gate_red_under_load_waits_and_runs_again(
     result, said, ran = run([2], [cores + 1.0])
     assert result is not None
     assert (ran, sleeps) == (1, [30, 30, 30])
-    assert said[:2] == [over, f"wait — gate · load {cores + 1:.1f} · 90s"]
+    assert said == [
+        "check — gate · fail — red · 0s",
+        over,
+        f"wait — gate · load {cores + 1:.1f} · 90s",
+    ]
 
 
 def test_a_red_gate_after_simplify_drops_its_commit(
@@ -8001,7 +8011,7 @@ def test_a_hand_converge_reads_the_models_file(
     assert workers["adversarial"] == ("claude", None, "low")
     assert workers["fix"] == fixer == ("claude", "claude-haiku-5-5", "low")
 
-    # No file: the executor's default, as each role had before.
+    # No file: the executor's default.
     (folder / "models.toml").unlink()
     assert by_hand(root, "0001-todo", [], "claude") == 0
     workers, fixer = seen[-1]
@@ -14625,6 +14635,10 @@ def test_a_failed_checker_probe_leaves_the_checkers_on_claude(
     tables = {
         "0001-check": '[converge]\n[converge.conformance]\nexecutor = "codex"\n',
         "0002-build": '[build]\nexecutor = "codex"\n[converge]\n',
+        "0003-rescue": (
+            '[rescue]\nexecutor = "codex"\n'
+            '[converge]\n[converge.conformance]\nexecutor = "codex"\n'
+        ),
     }
     trees = {}
     for change, table in tables.items():
@@ -14665,6 +14679,12 @@ def test_a_failed_checker_probe_leaves_the_checkers_on_claude(
         )
     ]
     assert run.codex_off == {"0001-check"}
+    # Twin: a rescue on Codex is a station of its own, so a stage that leaves it out
+    # still halts a failed checker probe, unmarked.
+    run.refused.clear()
+    run.probe_for("0003-rescue", ["codex"], [])
+    assert [who for who, _ in run.halts][1:] == ["0003-rescue"]
+    assert run.codex_off == {"0001-check"}
     # A solo checker probe that exits non-zero logs a failed check, and halts nothing.
     out = tmp_path / "failed.log"
     out.write_text("")
@@ -14672,9 +14692,14 @@ def test_a_failed_checker_probe_leaves_the_checkers_on_claude(
     codex = ("codex", None, None)
     station = "probe-codex-checker"
     assert run.spawn("0001-check", station, root, "p", codex, halts=False) is None
-    assert len(run.halts) == 1
+    assert len(run.halts) == 2
     failed = f" · 0001-check · check — {station} · fail — {station} worker exit 1\n"
     assert failed in run.log.path.read_text()
+    # A probe the supplied deadline killed is the request's: no mark, no halt.
+    monkeypatch.setattr(run, "worker", lambda *given: (0, True, out, []))
+    run.outs["0004-cut", station] = out
+    cut = run.probe_checker("codex", "0004-cut", time.monotonic() - 1, solo=True)
+    assert not cut and "0004-cut" not in run.codex_off
 
 
 @pytest.mark.slow

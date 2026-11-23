@@ -6497,7 +6497,12 @@ class Run:
                     self.halt(change, refused)
                     continue
                 if self.limited_until(executor) is None:
-                    solo = executor not in stations
+                    own = (
+                        models[0]
+                        for station in ("rescue", "supervise")
+                        if (models := self.plan.get((change, station)))
+                    )
+                    solo = executor not in stations and executor not in own
                     self.probe(executor, change, deadline, solo=solo)
                     if executor in self.probed or (
                         executor == "codex" and change in self.codex_off
@@ -6638,8 +6643,12 @@ class Run:
             passed = denied is not None and self.judge(
                 who, checker, reason, denied, shown, halts=not solo
             )
-            # A limit is no failure: it falls back by `codex_ready`'s read.
-            if solo and not passed and self.limited_until(executor) is None:
+            # A limit is no failure: it falls back by `codex_ready`'s read; a probe
+            # the supplied deadline killed is that request's, not Codex's.
+            cut = (
+                denied is None and deadline is not None and time.monotonic() >= deadline
+            )
+            if solo and not passed and not cut and self.limited_until(executor) is None:
                 with self.guard:
                     self.codex_off.add(who)
                 said = f"{who}: probe failed · its checkers run on Claude"
@@ -8285,16 +8294,20 @@ def _run_gate(
     """
     start = time.monotonic()
     code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
-    if code != 0 and _load_wait(say):
-        start = time.monotonic()
-        code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
     seconds = round(time.monotonic() - start)
+    if code != 0:
+        say(f"check — gate · fail — red · {seconds}s")
+        if _load_wait(say):
+            start = time.monotonic()
+            code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
+            seconds = round(time.monotonic() - start)
+            if code != 0:
+                say(f"check — gate · fail — red · {seconds}s")
     if code == 0:
         say(f"check — gate · pass · {seconds}s")
         runs = mflib.layout.run_dir(primary)
         _remove_in(runs, mflib.layout.CHANGES, change, name="gate.red")
         return None
-    say(f"check — gate · fail — red · {seconds}s")
     _write_state(primary, change, "gate.red", output)
     return f"red · gate_run.py exit {code} · .minions/changes/{change}/gate.red"
 
@@ -8554,7 +8567,7 @@ def wait_run(cwd: Path, halt: bool = False) -> int:
             for line in lines:
                 print(line, flush=True)
             if halt and (final := _final_halt(lines)) is not None:
-                said = final.detail.removeprefix(FINAL)
+                said = final.detail.removeprefix(FINAL).partition(" · ")[2]
                 print(f"wait: halt — {final.who} · {said}", flush=True)
                 print(status(cwd), flush=True)
                 return 1
