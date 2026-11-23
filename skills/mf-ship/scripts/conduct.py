@@ -159,6 +159,8 @@ MODERATE = "build.moderate"
 # The close's spawn builds on this table, else `MODERATE`, else `[build]`.
 # Why: 0144-gate-outside design D1.
 CLOSE = "build.close"
+# The repair build's phase word on its spawn line. Why: 0148-run-fields design D1.
+REPAIR_PHASE = "repair"
 # The rescue, supervisor, converge's workers and the moderate and close builds are
 # no stage: planned with the stations'. Why: 0067-rescue D3, D5; 0089-supervisor D2;
 # 0094-lighter-converge D1; 0102-build-per-phase D5; 0144-gate-outside D1.
@@ -4732,11 +4734,12 @@ class Run:
         limits: bool = False,
         deadline: float | None = None,
         halts: bool = True,
+        phase: str | None = None,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
-        Without `halts`, a failure is logged as a failed check. Why: 0100 design D5;
-        0104-codex-limits design D2; 0145-halts-alone design D5.
+        Without `halts`, a failure is logged as a failed check; a `phase` follows the
+        station on the spawn line. Why: 0100 D5; 0104-codex-limits D2; 0145 D5; 0148 D1.
         """
 
         def stop(reason: str) -> None:
@@ -4747,7 +4750,7 @@ class Run:
 
         timeout = None if deadline is None else deadline - time.monotonic()
         code, killed, out, denied = self.worker(
-            who, station, cwd, prompt, models, repo, brief, timeout
+            who, station, cwd, prompt, models, repo, brief, timeout, phase
         )
         if killed:
             took = TIMEOUT if timeout is None else max(round(timeout), 0)
@@ -4922,10 +4925,11 @@ class Run:
         repo: Repo | None = None,
         brief: Path | None = None,
         timeout: float | None = None,
+        phase: str | None = None,
     ) -> tuple[int, bool, Path, list[str]]:
         """Run one worker and log it and its denials; halt nothing.
 
-        A `timeout` replaces `TIMEOUT`; `work` is called as before without one.
+        A `timeout` replaces `TIMEOUT`; a `phase` is the spawn line's second field.
 
         Return its exit, whether `TIMEOUT` killed it, its log and its denials.
         """
@@ -4938,8 +4942,11 @@ class Run:
             command = argv(*given, station=station)
         other = f" · executor {executor}" if executor != self.executor else ""
         shown = f" · effort {effort}" if effort else ""
+        named = f" · {phase}" if phase else ""
         self.log.event(
-            who, "spawn", f"{station} · model {model or 'default'}{shown}{other}"
+            who,
+            "spawn",
+            f"{station}{named} · model {model or 'default'}{shown}{other}",
         )
         if who == "run":
             out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
@@ -5033,8 +5040,11 @@ class Run:
         if first:
             runs = mflib.layout.run_dir(self.primary)
             _remove_in(runs, mflib.layout.CHANGES, change, name="build.halt")
-            prompt = PROMPTS["build"].format(change=change, phase="repair")
-            if self.spawn(change, "build", tree, prompt, models) is None:
+            prompt = PROMPTS["build"].format(change=change, phase=REPAIR_PHASE)
+            spawned = self.spawn(
+                change, "build", tree, prompt, models, phase=REPAIR_PHASE
+            )
+            if spawned is None:
                 return False, None
             evidence = _run_gate(self.primary, change, tree, say)
         if evidence is None:
@@ -5539,6 +5549,7 @@ class Run:
                     phase = unticked[0] if unticked else "close"
                     rating = _rating(unticked[1]) if unticked else rating
                 numbered = phase not in (None, "close")
+                label = f"phase {phase}" if numbered else phase
                 # A link at the notes halts here, before the spawn.
                 notes = _note_lines(self.primary, change) if numbered else 0
                 prompt = PROMPTS.get(stage, "").format(
@@ -5592,7 +5603,9 @@ class Run:
                 elif amended:
                     denied = []
                 else:
-                    denied = self.spawn(version.change, stage, cwd, prompt, models)
+                    denied = self.spawn(
+                        version.change, stage, cwd, prompt, models, phase=label
+                    )
                 # A phase that failed after its notes still has them cut.
                 if numbered:
                     self.trim_notes(change, str(phase), notes)

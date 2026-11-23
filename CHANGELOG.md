@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A build worker's spawn line names its phase right after the station: `build · phase 3 · model …`, `build · close · …`, `build · repair · …`. Every measurement of a run read the phase from a worker's first prompt; no other station's line changes (0148-run-fields, phase 1).
+
 ## [0.118.0] - 2026-11-23
 
 Gate: local 8m24s · CI not read under mf-ship · 0.117.0: local 8m21s · CI not read under mf-ship

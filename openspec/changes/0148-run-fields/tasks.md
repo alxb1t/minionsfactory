@@ -4,7 +4,7 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 ## Progress
 
-- [ ] 1 — The phase on a build's spawn line · moderate
+- [x] 1 — The phase on a build's spawn line · moderate
 - [ ] 2 — The load on spawn and finish lines · moderate
 - [ ] 3 — A halt's cause · moderate
 - [ ] 4 — The gates' lines · moderate
@@ -13,11 +13,11 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 ## 1 — The phase on a build's spawn line
 
-- [ ] 1.1 In `skills/mf-ship/scripts/conduct.py` add the constant `REPAIR_PHASE = "repair"`. Give `Run.spawn` and `Run.worker` the keyword `phase`, `None` by default, and write the spawn line as `<station> · <phase> · model …` when it is given ([D1](design.md#d1)).
+- [x] 1.1 In `skills/mf-ship/scripts/conduct.py` add the constant `REPAIR_PHASE = "repair"`. Give `Run.spawn` and `Run.worker` the keyword `phase`, `None` by default, and write the spawn line as `<station> · <phase> · model …` when it is given ([D1](design.md#d1)).
   Verify: `git grep -n -e "REPAIR_PHASE" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 1.2 In `advance` pass `phase N` for a numbered phase and `close` for the close to the build spawn. In `Run.gate_built` pass `phase=REPAIR_PHASE` to the repair spawn. No other call passes one.
+- [x] 1.2 In `advance` pass `phase N` for a numbered phase and `close` for the close to the build spawn. In `Run.gate_built` pass `phase=REPAIR_PHASE` to the repair spawn. No other call passes one.
   Verify: `git grep -n -e "phase=REPAIR_PHASE" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 1.3 In `tests/test_conduct.py` the tests `test_a_build_runs_a_worker_per_phase`, `test_the_close_runs_on_the_close_table_then_moderate_then_build` and `test_a_red_gate_after_the_last_phase_is_repaired_once` split a build spawn line on `" · spawn — build · "`; make each expect the phase before the model. Add `test_a_build_spawn_line_names_its_phase`: phase 2, the close and the repair carry theirs, a release's spawn carries none.
+- [x] 1.3 In `tests/test_conduct.py` the tests `test_a_build_runs_a_worker_per_phase`, `test_the_close_runs_on_the_close_table_then_moderate_then_build` and `test_a_red_gate_after_the_last_phase_is_repaired_once` split a build spawn line on `" · spawn — build · "`; make each expect the phase before the model. Add `test_a_build_spawn_line_names_its_phase`: phase 2, the close and the repair carry theirs, a release's spawn carries none.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_a_build_spawn_line_names_its_phase` exits 0.
 
 ## 2 — The load on spawn and finish lines

@@ -1283,7 +1283,8 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert [line.split(" · ", 1)[1] for line in skipped] == [
         "0002-marks · converge skipped — plan"
     ]
-    assert any(line.endswith(" · spawn — build · model default") for line in lines)
+    built = " · spawn — build · phase 1 · model default"
+    assert any(line.endswith(built) for line in lines)
     assert not (root / ".minions" / "runs" / "active").exists()
     log = conduct["last_log"](root / ".minions" / "runs")
     assert (
@@ -2785,6 +2786,59 @@ def test_a_phase_check_wants_its_line_ticked_and_none_before_it_unticked(
     assert check(one.replace("x", " ") + two + three, "2") == "phase 1 unticked"
 
 
+def test_a_build_spawn_line_names_its_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0148-run-fields design D1.
+    conduct = _conduct()
+    command = [sys.executable, "-c", "pass"]
+    found = conduct["main"].__globals__
+    monkeypatch.setitem(found, "argv", lambda *given, **named: command)
+    root = _primary(tmp_path)
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    log = runlog.RunLog(runs, "20261101-100001")
+    host = types.SimpleNamespace(
+        repo=None,
+        lines=None,
+        executor="claude",
+        log=log,
+        runs=runs,
+        primary=root,
+        guard=threading.Lock(),
+        outs={},
+        claim=None,
+        limited={},
+        halts=[],
+    )
+    host.worker = lambda *given, **named: conduct["Run"].worker(host, *given, **named)
+    models = ("claude", "opus", None)
+
+    for station, phase in (
+        ("build", "phase 2"),
+        ("build", "close"),
+        ("build", conduct["REPAIR_PHASE"]),
+        ("release", None),
+    ):
+        spawned = conduct["Run"].spawn(
+            host, "0001-a", station, root, "prompt", models, phase=phase
+        )
+        assert spawned == []
+
+    spawns = [
+        line.split(" · spawn — ")[1]
+        for line in log.path.read_text().splitlines()
+        if " · spawn — " in line
+    ]
+    assert spawns == [
+        "build · phase 2 · model opus",
+        "build · close · model opus",
+        "build · repair · model opus",
+        "release · model opus",
+    ]
+    assert host.halts == []
+
+
 @pytest.mark.slow
 def test_a_build_runs_a_worker_per_phase(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
@@ -2828,7 +2882,12 @@ def test_a_build_runs_a_worker_per_phase(
         ]
 
     on = ("model claude-sonnet-5-5 · effort high", "model claude-opus-5-5")
-    assert spawned(lines) == [on[0], on[1], on[1], on[0]]
+    assert spawned(lines) == [
+        f"phase 1 · {on[0]}",
+        f"phase 2 · {on[1]}",
+        f"phase 3 · {on[1]}",
+        f"close · {on[0]}",
+    ]
     # One gate after the last phase, none after the others, and the close's.
     events = [
         line.split(" · 0001-todo · ")[1].split(" · ")[0]
@@ -2856,7 +2915,8 @@ def test_a_build_runs_a_worker_per_phase(
     models.write_text(opus)
     calls.unlink()
     fake()
-    assert spawned(run(plain, 0)) == [on[1]] * 4
+    plain_phases = ("phase 1", "phase 2", "phase 3", "close")
+    assert spawned(run(plain, 0)) == [f"{each} · {on[1]}" for each in plain_phases]
 
     # A `[build.moderate]` naming an effort alone keeps `[build]`'s model.
     (tmp_path / "effort").mkdir()
@@ -2867,7 +2927,9 @@ def test_a_build_runs_a_worker_per_phase(
     models.write_text(opus + '[build.moderate]\neffort = "medium"\n')
     calls.unlink()
     fake()
-    assert spawned(run(effort, 0)) == [f"{on[1]} · effort medium"] * 2
+    assert spawned(run(effort, 0)) == [
+        f"{each} · {on[1]} · effort medium" for each in ("phase 1", "close")
+    ]
 
     # A phase that dies after its notes still has them cut.
     (tmp_path / "died").mkdir()
@@ -3814,10 +3876,16 @@ def test_the_close_runs_on_the_close_table_then_moderate_then_build(
     close = '[build.close]\nmodel = "claude-haiku-5-5"\neffort = "low"\n'
     effort = '[build.close]\neffort = "low"\n'
     cases = {
-        "build": (opus, "model claude-opus-5-5"),
-        "moderate": (opus + moderate, "model claude-sonnet-5-5 · effort high"),
-        "close": (opus + moderate + close, "model claude-haiku-5-5 · effort low"),
-        "key": (opus + moderate + effort, "model claude-sonnet-5-5 · effort low"),
+        "build": (opus, "close · model claude-opus-5-5"),
+        "moderate": (opus + moderate, "close · model claude-sonnet-5-5 · effort high"),
+        "close": (
+            opus + moderate + close,
+            "close · model claude-haiku-5-5 · effort low",
+        ),
+        "key": (
+            opus + moderate + effort,
+            "close · model claude-sonnet-5-5 · effort low",
+        ),
     }
     for name, (table, want) in cases.items():
         (tmp_path / name).mkdir()
@@ -4135,7 +4203,10 @@ def test_a_red_gate_after_the_last_phase_is_repaired_once(
     spawns = [
         line.split(" · spawn — build · ")[1] for line in lines if "spawn — b" in line
     ]
-    assert spawns[:2] == ["model claude-sonnet-5-5"] * 2
+    assert spawns[:2] == [
+        "phase 1 · model claude-sonnet-5-5",
+        "repair · model claude-sonnet-5-5",
+    ]
 
 
 @pytest.mark.slow
@@ -8732,7 +8803,8 @@ def test_a_station_runs_on_its_executor(
         "probe-codex · model default · executor codex",
         "probe-codex-checker · model default · executor codex",
     ]
-    assert "build · model default" in spawned
+    assert "build · phase 1 · model default" in spawned
+    assert "build · close · model default" in spawned
     # Each checker runs on Codex, on its table's model and effort, else converge's.
     assert "converge-adversarial-r1 · model default · executor codex" in spawned
     assert (
