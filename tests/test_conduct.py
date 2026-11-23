@@ -1283,7 +1283,7 @@ def test_a_ready_version_ships_past_a_slow_one(
     assert [line.split(" · ", 1)[1] for line in skipped] == [
         "0002-marks · converge skipped — plan"
     ]
-    built = " · spawn — build · phase 1 · model default"
+    built = " · spawn — build · phase 1 · model default · load 0.0"
     assert any(line.endswith(built) for line in lines)
     assert not (root / ".minions" / "runs" / "active").exists()
     log = conduct["last_log"](root / ".minions" / "runs")
@@ -2600,7 +2600,10 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
 
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
     lines = _log(root)
-    assert any(re.search(r" · finish — build · exit 0 · \d+s$", line) for line in lines)
+    assert any(
+        re.search(r" · finish — build · exit 0 · \d+s · load 0\.0$", line)
+        for line in lines
+    )
     assert any(
         line.endswith(
             " · 0001-todo · halt — build check fail — phase 1 unticked"
@@ -2831,12 +2834,88 @@ def test_a_build_spawn_line_names_its_phase(
         if " · spawn — " in line
     ]
     assert spawns == [
-        "build · phase 2 · model opus",
-        "build · close · model opus",
-        "build · repair · model opus",
-        "release · model opus",
+        "build · phase 2 · model opus · load 0.0",
+        "build · close · model opus · load 0.0",
+        "build · repair · model opus · load 0.0",
+        "release · model opus · load 0.0",
     ]
     assert host.halts == []
+
+
+def _worker_lines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, load: Callable[[], Any]
+) -> list[str]:
+    """Run one worker and the converge script's pair; return the lines they log.
+
+    `load` replaces `os.getloadavg`. Why: 0148-run-fields design D6.
+    """
+    conduct = _conduct()
+    command = [sys.executable, "-c", "pass"]
+    monkeypatch.setitem(
+        conduct["main"].__globals__, "argv", lambda *given, **named: command
+    )
+    monkeypatch.setattr(os, "getloadavg", load)
+    root = _primary(tmp_path)
+    runs = root / ".minions" / "runs"
+    runs.mkdir(parents=True)
+    log = runlog.RunLog(runs, "20261101-100001")
+    host = types.SimpleNamespace(
+        repo=None,
+        lines=None,
+        executor="claude",
+        log=log,
+        runs=runs,
+        primary=root,
+        guard=threading.Lock(),
+        outs={},
+        claim=None,
+        limited={},
+        converge=lambda *given, **named: 0,
+    )
+    conduct["Run"].worker(
+        host, "0001-a", "build", root, "prompt", ("claude", "m", None)
+    )
+    conduct["Run"].conducted(host, "0001-a", root, {}, False)
+    return [line.split(" · ", 1)[1] for line in log.path.read_text().splitlines()[2:]]
+
+
+def test_a_spawn_and_finish_end_with_the_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0148-run-fields design D2.
+    lines = _worker_lines(tmp_path, monkeypatch, lambda: (3.14, 0.0, 0.0))
+
+    assert lines[0] == "0001-a · spawn — build · model m · load 3.1"
+    assert re.fullmatch(
+        r"0001-a · finish — build · exit 0 · \d+s · load 3\.1", lines[1]
+    )
+
+
+def test_a_load_that_cannot_be_read_leaves_the_field_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0148-run-fields design D2.
+    def unreadable() -> tuple[float, float, float]:
+        raise OSError(errno.EIO, "no load")
+
+    lines = _worker_lines(tmp_path, monkeypatch, unreadable)
+
+    assert lines[0] == "0001-a · spawn — build · model m"
+    assert re.fullmatch(r"0001-a · finish — build · exit 0 · \d+s", lines[1])
+    assert lines[2] == "0001-a · spawn — converge · script"
+    assert re.fullmatch(r"0001-a · finish — converge · exit 0 · \d+s", lines[3])
+
+
+def test_the_converge_script_pair_ends_with_the_load(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0148-run-fields design D2.
+    lines = _worker_lines(tmp_path, monkeypatch, lambda: (0.96, 0.0, 0.0))
+
+    assert lines[2] == "0001-a · spawn — converge · script · load 1.0"
+    assert re.fullmatch(
+        r"0001-a · finish — converge · exit 0 · \d+s · load 1\.0", lines[3]
+    )
 
 
 @pytest.mark.slow
@@ -2881,7 +2960,10 @@ def test_a_build_runs_a_worker_per_phase(
             if " · spawn — build · " in line
         ]
 
-    on = ("model claude-sonnet-5-5 · effort high", "model claude-opus-5-5")
+    on = (
+        "model claude-sonnet-5-5 · effort high · load 0.0",
+        "model claude-opus-5-5 · load 0.0",
+    )
     assert spawned(lines) == [
         f"phase 1 · {on[0]}",
         f"phase 2 · {on[1]}",
@@ -2928,7 +3010,8 @@ def test_a_build_runs_a_worker_per_phase(
     calls.unlink()
     fake()
     assert spawned(run(effort, 0)) == [
-        f"{each} · {on[1]} · effort medium" for each in ("phase 1", "close")
+        f"{each} · model claude-opus-5-5 · effort medium · load 0.0"
+        for each in ("phase 1", "close")
     ]
 
     # A phase that dies after its notes still has them cut.
@@ -3903,7 +3986,7 @@ def test_the_close_runs_on_the_close_table_then_moderate_then_build(
             for line in _log(root)
             if " · spawn — build · " in line
         ]
-        assert spawns[-1] == want, name
+        assert spawns[-1] == f"{want} · load 0.0", name
 
 
 def _close(
@@ -4204,8 +4287,8 @@ def test_a_red_gate_after_the_last_phase_is_repaired_once(
         line.split(" · spawn — build · ")[1] for line in lines if "spawn — b" in line
     ]
     assert spawns[:2] == [
-        "phase 1 · model claude-sonnet-5-5",
-        "repair · model claude-sonnet-5-5",
+        "phase 1 · model claude-sonnet-5-5 · load 0.0",
+        "repair · model claude-sonnet-5-5 · load 0.0",
     ]
 
 
@@ -5268,7 +5351,10 @@ def test_a_new_executor_is_probed_mid_run(
 ) -> None:
     conduct = _conduct()
     conduct["main"].__globals__["REJOIN_POLL"] = 0.1
-    probe = " · 0002-marks · spawn — probe-codex · model default · executor codex"
+    probe = (
+        " · 0002-marks · spawn — probe-codex · model default · executor codex"
+        " · load 0.0"
+    )
     for missing, code in ((False, 0), (True, 1)):
         scratch = tmp_path / f"missing-{missing}"
         scratch.mkdir()
@@ -5355,7 +5441,7 @@ def test_a_new_executor_is_probed_mid_run(
             assert any(
                 line.endswith(
                     " · 0002-marks · spawn — converge-conformance-r1 · model default"
-                    " · executor codex"
+                    " · executor codex · load 0.0"
                 )
                 for line in lines
             )
@@ -8273,7 +8359,7 @@ def test_a_codex_checker_runs_through_run_checker(
     ]
     assert (
         "converge-conformance-r1 · model gpt-6.1-sol · effort high · executor codex"
-        in spawned
+        " · load 0.0" in spawned
     )
     # The Codex log beside the deadline steps' Claude ones.
     [log] = [
@@ -8478,7 +8564,7 @@ def test_the_converge_command_runs_by_hand(
     )
     spawned = [line for line in _log(root) if " · spawn — " in line]
     assert [line.split(" · spawn — ")[1] for line in spawned] == [
-        "converge-conformance-r1 · model default · effort high"
+        "converge-conformance-r1 · model default · effort high · load 0.0"
     ]
 
     # The fixer runs on `fix=`'s model and effort; a cap is exit 1.
@@ -8488,7 +8574,7 @@ def test_the_converge_command_runs_by_hand(
     assert by_hand("fix=claude-sonnet-5-5/medium") == 1
     assert "converge-fix-r1 0001-todo" in _calls(calls)
     fixer = [line for line in _log(root) if " · spawn — converge-fix-r1 · " in line]
-    assert fixer[0].endswith(" · model claude-sonnet-5-5 · effort medium")
+    assert fixer[0].endswith(" · model claude-sonnet-5-5 · effort medium · load 0.0")
     halt = (folder / "status_log.md").read_text()
     assert " · halt — cap reached, R1, S1 open · security S1 · head " in halt
 
@@ -8603,10 +8689,13 @@ def test_a_version_converges_with_no_conducting_worker(
     # The run log pairs the script's spawn and finish, so `log --verify` passes.
     lines = _log(root)
     assert any(
-        line.endswith(" · 0001-todo · spawn — converge · script") for line in lines
+        line.endswith(" · 0001-todo · spawn — converge · script · load 0.0")
+        for line in lines
     )
     assert any(
-        re.search(r" · 0001-todo · finish — converge · exit 0 · \d+s$", line)
+        re.search(
+            r" · 0001-todo · finish — converge · exit 0 · \d+s · load 0\.0$", line
+        )
         for line in lines
     )
     run_log = conduct["last_log"](root / ".minions" / "runs")
@@ -8725,7 +8814,9 @@ def test_a_shadow_round_drives_no_fix(
     spawned = [
         line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
     ]
-    assert "converge-shadow-adversarial-r1 · model claude-sonnet-5-5" in spawned
+    assert (
+        "converge-shadow-adversarial-r1 · model claude-sonnet-5-5 · load 0.0" in spawned
+    )
     assert _git(root, "tag", "-l") == "v0.1.0"
 
 
@@ -8799,20 +8890,22 @@ def test_a_station_runs_on_its_executor(
         line.split(" · spawn — ")[1] for line in _log(root) if " · spawn — " in line
     ]
     assert spawned[:3] == [
-        "probe · model default",
-        "probe-codex · model default · executor codex",
-        "probe-codex-checker · model default · executor codex",
+        "probe · model default · load 0.0",
+        "probe-codex · model default · executor codex · load 0.0",
+        "probe-codex-checker · model default · executor codex · load 0.0",
     ]
-    assert "build · phase 1 · model default" in spawned
-    assert "build · close · model default" in spawned
+    assert "build · phase 1 · model default · load 0.0" in spawned
+    assert "build · close · model default · load 0.0" in spawned
     # Each checker runs on Codex, on its table's model and effort, else converge's.
-    assert "converge-adversarial-r1 · model default · executor codex" in spawned
+    assert (
+        "converge-adversarial-r1 · model default · executor codex · load 0.0" in spawned
+    )
     assert (
         "converge-conformance-r1 · model gpt-6.1-sol · effort high · executor codex"
-        in spawned
+        " · load 0.0" in spawned
     )
     # A models file's effort is in the spawn line; none, and the line reads as before.
-    assert "release · model opus · effort high" in spawned
+    assert "release · model opus · effort high · load 0.0" in spawned
     assert started == [
         ("probe", "claude"),
         ("probe", "codex"),
@@ -13380,7 +13473,8 @@ def test_a_done_under_the_top_line_is_stamped_again(
     roles = ["converge-adversarial-r1 0001-todo", "converge-conformance-r1 0001-todo"]
     assert _calls(calls) == ["probe", *roles, "release 0001-todo"]
     assert any(
-        line.endswith(" · 0001-todo · spawn — converge · script") for line in _log(root)
+        line.endswith(" · 0001-todo · spawn — converge · script · load 0.0")
+        for line in _log(root)
     )
     assert any(
         line.endswith(" · 0001-todo · check — converge · pass · re-stamped done")
@@ -13901,7 +13995,7 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
         for line in lines
         if " · 0001-todo · spawn — " in line and "converge-" not in line
     ]
-    assert spawned[:2] == ["converge · script", "converge · script"]
+    assert spawned[:2] == ["converge · script · load 0.0"] * 2
     assert made.count("converge-conformance-r1 0001-todo") == 1
     assert {"release 0001-todo", "release 0002-marks"} <= set(made)
     assert not any(call.startswith("rescue") for call in made)
@@ -13929,7 +14023,7 @@ def test_a_halt_before_round_1_runs_again_at_the_same_head(
     )
     join()
     assert not any(call.endswith("-r1 0001-todo") for call in _calls(calls))
-    script = " · 0001-todo · spawn — converge · script"
+    script = " · 0001-todo · spawn — converge · script · load 0.0"
     assert len([line for line in _log(root) if line.endswith(script)]) == 1
     reran = (
         " · run · rejoin — 0001-todo: still halted — halted before round 1 again at"
@@ -15262,7 +15356,8 @@ def test_the_codex_probe_runs_a_checker(
     assert "codex" in conductor.probed
     assert calls == ["probe", "checker"]
     assert (
-        " · run · spawn — probe-codex-checker · model default · executor codex\n" in log
+        " · run · spawn — probe-codex-checker · model default · executor codex"
+        " · load 0.0\n" in log
     )
     assert (
         " · run · check — probe-codex-checker · pass · verdict changes-requested\n"

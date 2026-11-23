@@ -5,7 +5,7 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 ## Progress
 
 - [x] 1 — The phase on a build's spawn line · moderate
-- [ ] 2 — The load on spawn and finish lines · moderate
+- [x] 2 — The load on spawn and finish lines · moderate
 - [ ] 3 — A halt's cause · moderate
 - [ ] 4 — The gates' lines · moderate
 - [ ] 5 — The readers · moderate
@@ -22,11 +22,11 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 ## 2 — The load on spawn and finish lines
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py` add `def _load_tail`: ` · load <n>` from `os.getloadavg()[0]`, one decimal, and `""` when the read raises `OSError` ([D2](design.md#d2)). End the spawn and finish lines of `Run.worker` with it.
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py` add `def _load_tail`: ` · load <n>` from `os.getloadavg()[0]`, one decimal, and `""` when the read raises `OSError` ([D2](design.md#d2)). End the spawn and finish lines of `Run.worker` with it.
   Verify: `git grep -n -e "def _load_tail" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 2.2 End the converge script's spawn and finish lines in `Run.conducted` with the tail, so the spawn line is built as `script{_load_tail()}`.
+- [x] 2.2 End the converge script's spawn and finish lines in `Run.conducted` with the tail, so the spawn line is built as `script{_load_tail()}`.
   Verify: `git grep -n -F -e "script{_load_tail" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 2.3 In `tests/test_conduct.py` add an autouse fixture that fixes `os.getloadavg`, and make each assertion that ends a spawn, finish or converge-finish line take the load ([D6](design.md#d6)). Do the same for the whole-line assertion of `test_case_m_the_spawn_finish_denied_and_limited_lines` in `tests/test_claim.py`. Add `test_a_spawn_and_finish_end_with_the_load`, `test_a_load_that_cannot_be_read_leaves_the_field_out` and `test_the_converge_script_pair_ends_with_the_load` to `tests/test_conduct.py`.
+- [x] 2.3 In `tests/test_conduct.py` add an autouse fixture that fixes `os.getloadavg`, and make each assertion that ends a spawn, finish or converge-finish line take the load ([D6](design.md#d6)). Do the same for the whole-line assertion of `test_case_m_the_spawn_finish_denied_and_limited_lines` in `tests/test_claim.py`. Add `test_a_spawn_and_finish_end_with_the_load`, `test_a_load_that_cannot_be_read_leaves_the_field_out` and `test_the_converge_script_pair_ends_with_the_load` to `tests/test_conduct.py`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "test_a_spawn_and_finish_end_with_the_load or test_a_load_that_cannot_be_read_leaves_the_field_out or test_the_converge_script_pair_ends_with_the_load"` exits 0.
 
 ## 3 — A halt's cause

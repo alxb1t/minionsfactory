@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - A build worker's spawn line names its phase right after the station: `build · phase 3 · model …`, `build · close · …`, `build · repair · …`. Every measurement of a run read the phase from a worker's first prompt; no other station's line changes (0148-run-fields, phase 1).
+- Every worker spawn and finish line, and the converge script's pair, ends with the 1-minute load: ` · load 0.4`. The load was in no log, and reds and slow tests follow it; a load the machine cannot read leaves the field out (0148-run-fields, phase 2).
 
 ## [0.118.0] - 2026-11-23
 

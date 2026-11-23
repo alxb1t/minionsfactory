@@ -4943,11 +4943,8 @@ class Run:
         other = f" · executor {executor}" if executor != self.executor else ""
         shown = f" · effort {effort}" if effort else ""
         named = f" · {phase}" if phase else ""
-        self.log.event(
-            who,
-            "spawn",
-            f"{station}{named} · model {model or 'default'}{shown}{other}",
-        )
+        spawned = f"{station}{named} · model {model or 'default'}{shown}{other}"
+        self.log.event(who, "spawn", f"{spawned}{_load_tail()}")
         if who == "run":
             out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
         else:
@@ -4976,7 +4973,9 @@ class Run:
         finally:
             _temp_gone(command)
         seconds = round(time.monotonic() - started)
-        self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
+        self.log.event(
+            who, "finish", f"{station} · exit {code} · {seconds}s{_load_tail()}"
+        )
         if executor == "codex":
             _quota(out, before)
             if code != 0 and usage_limit(out):
@@ -5431,7 +5430,7 @@ class Run:
         It is logged as a spawn and a finish, so the run log keeps its pairs.
         Why: 0108-converge-script design D1, D8.
         """
-        self.log.event(change, "spawn", "converge · script")
+        self.log.event(change, "spawn", f"converge · script{_load_tail()}")
         started = time.monotonic()
         code = self.converge(
             self,
@@ -5442,7 +5441,9 @@ class Run:
             deadline=started + TIMEOUT,
         )
         seconds = round(time.monotonic() - started)
-        self.log.event(change, "finish", f"converge · exit {code} · {seconds}s")
+        self.log.event(
+            change, "finish", f"converge · exit {code} · {seconds}s{_load_tail()}"
+        )
         return []
 
     def stage(self, version: Version) -> tuple[str, str]:
@@ -8470,6 +8471,17 @@ def _first(output: str) -> str:
     """Return the first line of `output` that holds a word, or `no output`."""
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     return lines[0] if lines else "no output"
+
+
+def _load_tail() -> str:
+    """Return ` · load <n>` from the 1-minute load, or `""` when it cannot be read.
+
+    e.g. 3.14 → " · load 3.1". Why: 0148-run-fields design D2.
+    """
+    try:
+        return f" · load {os.getloadavg()[0]:.1f}"
+    except OSError:
+        return ""
 
 
 def _load_wait(say: Callable[[str], None]) -> bool:
