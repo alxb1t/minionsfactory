@@ -1087,9 +1087,11 @@ timeout, a usage limit, a converge halt naming one, a failed worker, a `**HUMAN`
 **The rescue amends the plan at converge's `amend needed` halt, as at a build halt, and diagnoses one whose cards include a
 security `critical` or `high`. Under a version's `decide = "recommended"`, at the top of its models file and read once with
 the plan, a rescue at a build or `amend needed` halt takes the fix a card's **Fix** or the plan proposes as its decision: it
-may edit `proposal.md` and `design.md`'s `## Decisions` too, its commit carrying `Decided-by: rescue`, and the run logs it
-`decided`. It never edits the spec delta, code or a test, takes a security `critical` or `high` card, approves a gate
-makefile, settles an integrate conflict, releases, merges, pushes or answers a run-wide halt. The person's amends during a
+may edit `proposal.md` and `design.md`'s `## Decisions` too, its commit asked to carry `Decided-by: rescue`, a
+trailer-less decided amend taken too, and the run logs it `decided`. It never edits the spec delta, code or a test, takes a
+security `critical` or `high` card, approves a gate makefile, settles an integrate conflict, releases, merges, pushes or
+answers a run-wide halt. A refused amend is reset off `HEAD`, logged `reset`, when every commit past the rescue's start
+carries `Rescue:` and the tree was clean before and after it. The person's amends during a
 rescue let the version go on. At each poll the run takes back every halted version whose stage or `HEAD` changed on disk,
 read the same at two polls, with no request. The run ends when nothing can move, its close naming each halted version's
 need and each version a rescue decided for.**

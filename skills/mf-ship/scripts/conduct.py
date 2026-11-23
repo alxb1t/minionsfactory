@@ -2808,7 +2808,8 @@ def _amend(
 ) -> tuple[str | None, str, bool]:
     """Return the rescue's amend past `before`, or None and why; and if it decided.
 
-    Why: 0067-rescue design D3; 0085-self-healing-ship design D4.
+    Why: 0067-rescue design D3; 0085-self-healing-ship design D4;
+    0145-halts-alone design D1.
     """
     if not _ancestor(tree, before, "HEAD"):
         return None, f"rescue moved HEAD off {before[:7]}", False
@@ -2837,11 +2838,19 @@ def _amend(
         return sha, "", False
     if "proposal.md" not in amends:
         return None, f"rescue changed a decision: {decision}", False
-    by = ("log", "-1", "--format=%(trailers:key=Decided-by,valueonly)", sha)
-    if _git(tree, *by).strip() != "rescue":
-        why = f"rescue commit {sha[:7]} decided with no Decided-by: rescue trailer"
-        return None, why, False
     return sha, "", True
+
+
+def _resettable(tree: Path, before: str, clean: bool) -> bool:
+    """Return whether a refused rescue amend may be reset off `HEAD` to `before`.
+
+    Why: 0145-halts-alone design D2.
+    """
+    if not clean or not _ancestor(tree, before, "HEAD") or _dirty(tree):
+        return False
+    commits = _git(tree, "rev-list", f"{before}..HEAD").split()
+    trailer = "--format=%(trailers:key=Rescue)"
+    return all(_git(tree, "log", "-1", trailer, sha).strip() for sha in commits)
 
 
 def _supervised(tree: Path, change: str, before: str) -> tuple[str | None, str]:
@@ -4906,7 +4915,7 @@ class Run:
         """Run a halted version's rescue on `held`; True when the version goes on.
 
         Why: 0067-rescue design D2, D3; 0071-ship-fixes design D8;
-        0085-self-healing-ship design D1, D5.
+        0085-self-healing-ship design D1, D5; 0145-halts-alone design D2.
         """
         change, tree = version.change, version.tree
         spent = change in self.skips or self.rescued(change, held)
@@ -4928,6 +4937,7 @@ class Run:
         prompt = PROMPTS["rescue"].format(change=change, decide=decide)
         sha = None
         try:
+            clean = not _dirty(tree)
             spawned = self.spawn(change, "rescue", tree, prompt, models) is not None
             sha, why, decided = (
                 _amend(tree, change, before, amends) if spawned else (None, "", False)
@@ -4942,6 +4952,11 @@ class Run:
                     if decided:
                         self.decided.append(change)
             elif spawned:
+                if why and _resettable(tree, before, clean):
+                    head = _git(tree, "rev-parse", "HEAD").strip()
+                    _git(tree, "reset", "-q", "--hard", before)
+                    said = f"rescue commit {head[:7]} dropped: {why}"
+                    self.log.event(change, "reset", said)
                 name = f".minions/changes/{change}/rescue.md"
                 if not why and _mtime(diagnosis) not in (None, written):
                     self.log.event("run", "rescue", f"{change}: diagnosed · {name}")

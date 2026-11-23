@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Under `decide = "recommended"` the run takes a rescue's decided amend with or without `Decided-by: rescue`: correct amends were refused for the trailer alone. A refused amend whose commits each carry `Rescue:`, on a tree clean before and after, is reset off `HEAD` and logged `reset`, so the next worker builds on no refused commit (0145-halts-alone, phase 1).
+
 ## [0.115.0] - 2026-11-23
 
 Gate: local 7m7s · CI not read under mf-ship · 0.114.0: local 7m26s · CI not read under mf-ship

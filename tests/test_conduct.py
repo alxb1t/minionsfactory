@@ -2959,11 +2959,14 @@ def test_a_rescue_amends_at_amend_needed(
         for line in lines
     )
     assert not any(" · run · rescue — " in line for line in lines)
-    # Its refused amend carries a `Rescue:` trailer: it reads as no person's amend.
+    # Its refused amend carries a `Rescue:` trailer: it is reset off `HEAD`, and no
+    # answer stands on disk.
     assert any(
-        " · 0001-todo · halt — rescue answered its halt — converge: " in line
+        line.endswith(f" dropped: rescue touched {design}")
+        and " · 0001-todo · reset — rescue commit " in line
         for line in lines
     )
+    assert not any(" · halt — rescue answered its halt — " in line for line in lines)
     blocks, minions = conduct["_security_blocks"], secure / ".minions"
     assert blocks(minions, "0001-todo", "halt — amend needed — R1 S1 · head a")
     assert not blocks(minions, "0001-todo", "halt — amend needed — R1 · head a")
@@ -3049,6 +3052,105 @@ def test_a_stub_bars_no_rescue(tmp_path: Path) -> None:
     assert not held(minions, "0001-todo", halt)
 
 
+def test_a_decided_amend_needs_no_trailer_under_the_switch(tmp_path: Path) -> None:
+    # Under the switch a decided amend stands on its `Rescue:` trailer alone; with no
+    # switch it is still refused. Why: 0145-halts-alone design D1.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    amend, switch = conduct["_amend"], ("tasks.md", "design.md", "proposal.md")
+    start = _git(tree, "rev-parse", "HEAD")
+    design = "openspec/changes/0001-todo/design.md"
+    message = "docs(0001-todo): amend the change directory\n\nRescue: R1"
+    _commit(tree, {design: "## Decisions\n\n| D1 | the card's fix |\n"}, message)
+    head = _git(tree, "rev-parse", "HEAD")
+    assert amend(tree, "0001-todo", start, switch) == (head, "", True)
+    assert amend(tree, "0001-todo", start, switch[:2]) == (
+        None,
+        f"rescue changed a decision: {design}",
+        False,
+    )
+
+
+def test_a_refused_amend_is_reset_off_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # A refused amend whose commits each carry `Rescue:` is reset off `HEAD`, on a
+    # tree clean before and after. Why: 0145-halts-alone design D2.
+    conduct = _conduct()
+    fake("halt-0001-todo", "rescue-decides")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    cut = _git(tree, "rev-parse", "HEAD")
+    run = ("run", "--executor", "claude")
+    assert _main(conduct, root, *run, monkeypatch=monkeypatch) == 1
+    lines = _log(root)
+    design = "openspec/changes/0001-todo/design.md"
+    assert _git(tree, "rev-parse", "HEAD") == cut
+    assert re.search(
+        r" · 0001-todo · reset — rescue commit [0-9a-f]{7} dropped: rescue changed a"
+        f" decision: {design}$",
+        lines[-3],
+    )
+    assert lines[-2].endswith(
+        f" · 0001-todo · halt — rescue changed a decision: {design}"
+    )
+
+    # A trailer-less amend reads as the person's: it stays at `HEAD`.
+    fake("halt-0001-todo", "rescue-decides", "rescue-person-amends")
+    assert _main(conduct, root, *run, monkeypatch=monkeypatch) == 1
+    assert _git(tree, "rev-parse", "HEAD") != cut
+    assert not any(" · reset — " in line for line in _log(root))
+
+    # The rescue's own commit, then work left in the tree when `dirty` names it.
+    _git(tree, "reset", "-q", "--hard", cut)
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0001-todo")
+    conductor.read_plan([version])
+    amends = ("tasks.md", "design.md")
+    message = "docs(0001-todo): amend the change directory\n\nRescue: R1"
+
+    def rescuing(dirty: bool) -> Callable[..., object]:
+        def spawned(*args: object) -> object:
+            _commit(
+                tree, {design: "## Decisions\n\n| D1 | the card's fix |\n"}, message
+            )
+            if dirty:
+                (tree / "work.py").write_text("x = 1\n")
+            return object()
+
+        return spawned
+
+    monkeypatch.setattr(conductor, "spawn", rescuing(False))
+    assert not conductor.rescue(version, "1.1", amends)
+    assert _git(tree, "rev-parse", "HEAD") == cut
+
+    # A tree dirty at the reset holds the build's work: the amend stays.
+    monkeypatch.setattr(conductor, "spawn", rescuing(True))
+    assert not conductor.rescue(version, "1.2", amends)
+    assert _git(tree, "rev-parse", "HEAD") != cut
+    (tree / "work.py").unlink()
+
+    # A tree dirty at the spawn holds the build's work too.
+    _git(tree, "reset", "-q", "--hard", cut)
+    (tree / "work.py").write_text("x = 1\n")
+    monkeypatch.setattr(conductor, "spawn", rescuing(False))
+    assert not conductor.rescue(version, "1.3", amends)
+    assert _git(tree, "rev-parse", "HEAD") != cut
+
+    # A rescue that moved `HEAD` off its start is no amend to drop: `HEAD` stays.
+    _git(tree, "reset", "-q", "--hard", cut)
+
+    def rewinding(*args: object) -> object:
+        _git(tree, "reset", "-q", "--hard", f"{cut}~1")
+        return object()
+
+    monkeypatch.setattr(conductor, "spawn", rewinding)
+    conductor.rescues.clear()
+    assert not conductor.rescue(version, "1.1", amends)
+    assert _git(tree, "rev-parse", "HEAD") == _git(tree, "rev-parse", f"{cut}~1")
+
+
 @pytest.mark.slow
 def test_a_rescue_decides_under_the_switch(
     tmp_path: Path,
@@ -3087,35 +3189,36 @@ def test_a_rescue_decides_under_the_switch(
     said = capsys.readouterr().out.splitlines()
     assert f"0001-todo · decided converge-halted · {amend}" in said
 
-    # Without the switch, the same amend is refused, naming the decision.
+    # Without the switch, the same amend is refused, naming the decision, and reset.
     calls.unlink()
     fake("halt-0002-marks", "rescue-decides")
     tree = _version(root, "0002-marks", "- [ ] 1 — Marks\n")
+    cut = _git(tree, "rev-parse", "HEAD")
     lines = run(1)
     assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
     design = "openspec/changes/0002-marks/design.md"
     assert lines[-2].endswith(
         f" · 0002-marks · halt — rescue changed a decision: {design}"
     )
+    assert _git(tree, "rev-parse", "HEAD") == cut
+    decision = "## Decisions\n\n| D1 | the card's fix |\n"
+    decides = "docs(0002-marks): amend the change directory\n\nRescue: R1"
+    _commit(tree, {design: decision}, f"{decides}\nDecided-by: rescue")
     conductor = conduct["Run"](root, "claude")
     conductor.decided += ["0001-todo", "0001-todo"]
     assert conductor.closing() == (
         "halted none · blocked none · released none · decided 0001-todo"
     )
 
-    # Under the switch, a decided amend stands with its trailer alone, and an edit of
-    # `proposal.md` decides too.
+    # Under the switch, a decided amend stands with or without `Decided-by: rescue`,
+    # and an edit of `proposal.md` decides too.
     amend, switch = conduct["_amend"], ("tasks.md", "design.md", "proposal.md")
     decided = _git(tree, "rev-parse", "HEAD")
     assert amend(tree, "0002-marks", f"{decided}~1", switch) == (decided, "", True)
     message = "docs(0002-marks): amend the change directory\n\nRescue: 1.1"
     _commit(tree, {design: "## Decisions\n\n| D1 | another fix |\n"}, message)
     head = _git(tree, "rev-parse", "HEAD")
-    assert amend(tree, "0002-marks", decided, switch) == (
-        None,
-        f"rescue commit {head[:7]} decided with no Decided-by: rescue trailer",
-        False,
-    )
+    assert amend(tree, "0002-marks", decided, switch) == (head, "", True)
     _git(tree, "reset", "-q", "--hard", decided)
     proposal = "openspec/changes/0002-marks/proposal.md"
     _commit(
@@ -3459,6 +3562,7 @@ def test_a_rescue_outside_the_plan_halts(
     )
 
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
+    assert _log(root)[-3].endswith(" dropped: rescue touched src.py")
     assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue touched src.py")
     assert not any(" · run · rescue — " in line for line in _log(root))
 
@@ -3478,7 +3582,7 @@ def test_a_rescue_outside_the_plan_halts(
     amend, tasks = conduct["_amend"], "openspec/changes/0001-todo/tasks.md"
     start = _git(tree, "rev-parse", "HEAD")
     named = "docs(0001-todo): amend the change directory\n\nRescue: 1.1"
-    _commit(tree, {tasks: "## Progress\n\n- [ ] 1 — Todo\n"}, named)
+    _commit(tree, {tasks: "## Progress\n\n- [ ] 1 — Todo\n\nAmended.\n"}, named)
     assert amend(tree, "0001-todo", start, ("tasks.md",))[0]
     assert amend(tree, "0001-todo", start, ())[1] == f"rescue touched {tasks}"
     _git(tree, "commit", "-q", "--allow-empty", "-m", "an amend")

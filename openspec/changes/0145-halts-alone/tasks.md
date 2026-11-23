@@ -4,7 +4,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 ## Progress
 
-- [ ] 1 — The rescue's amend · hard
+- [x] 1 — The rescue's amend · hard
 - [ ] 2 — The gate under load · moderate
 - [ ] 3 — Codex's fallbacks · hard
 - [ ] 4 — Converge's ways back · hard
@@ -13,17 +13,17 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 ## 1 — The rescue's amend
 
-- [ ] 1.1 **HALT CHECK** `_amend` in `skills/mf-ship/scripts/conduct.py` still refuses a decision that lacks the `Decided-by: rescue` trailer.
+- [x] 1.1 **HALT CHECK** `_amend` in `skills/mf-ship/scripts/conduct.py` still refuses a decision that lacks the `Decided-by: rescue` trailer.
   Verify: `git grep -n -e "decided with no Decided-by" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 1.2 In `_amend`, drop the trailer condition per [D1](design.md#d1). Edit `test_a_rescue_decides_under_the_switch` in `tests/test_conduct.py`: the trailer-less amend returns `(head, "", True)`; add `test_a_decided_amend_needs_no_trailer_under_the_switch`.
+- [x] 1.2 In `_amend`, drop the trailer condition per [D1](design.md#d1). Edit `test_a_rescue_decides_under_the_switch` in `tests/test_conduct.py`: the trailer-less amend returns `(head, "", True)`; add `test_a_decided_amend_needs_no_trailer_under_the_switch`.
   Verify: `uv run pytest tests/test_conduct.py -k "decided_amend_needs_no_trailer" -q` exits 0.
-- [ ] 1.3 In `Run.rescue`, reset a refused amend per [D2](design.md#d2): only when `before` is an ancestor of `HEAD`, the tree was clean at the spawn and is clean now, and every commit past `before` has a `Rescue:` trailer, run `_git(tree, "reset", "-q", "--hard", before)` and log `reset` with `rescue commit <sha7> dropped: <why>`, both in the `elif spawned:` branch before `self.halt`. Add `test_a_refused_amend_is_reset_off_head` (a person's trailer-less amend stays).
+- [x] 1.3 In `Run.rescue`, reset a refused amend per [D2](design.md#d2): only when `before` is an ancestor of `HEAD`, the tree was clean at the spawn and is clean now, and every commit past `before` has a `Rescue:` trailer, run `_git(tree, "reset", "-q", "--hard", before)` and log `reset` with `rescue commit <sha7> dropped: <why>`, both in the `elif spawned:` branch before `self.halt`. Add `test_a_refused_amend_is_reset_off_head` (a person's trailer-less amend stays).
   Verify: `uv run pytest tests/test_conduct.py -k "refused_amend_is_reset" -q` exits 0.
-- [ ] 1.4 Edit the no-switch half of `test_a_rescue_decides_under_the_switch` to commit its own decided amend again after the reset, and the security-card case of `test_a_rescue_amends_at_amend_needed`, whose `rescue answered its halt` assertion now reads no such line; read `test_a_rescue_outside_the_plan_halts` for the order of its `halt` lines.
+- [x] 1.4 Edit the no-switch half of `test_a_rescue_decides_under_the_switch` to commit its own decided amend again after the reset, and the security-card case of `test_a_rescue_amends_at_amend_needed`, whose `rescue answered its halt` assertion now reads no such line; read `test_a_rescue_outside_the_plan_halts` for the order of its `halt` lines.
   Verify: `uv run pytest tests/test_conduct.py -k "rescue_decides_under_the_switch or rescue_amends_at_amend_needed or rescue_outside_the_plan" -q` exits 0.
-- [ ] 1.5 In `skills/mf-rescue/SKILL.md`, *Parameter — `decide=recommended`* and the commit paragraph that names `Decided-by: rescue`: a `### D<n>` body is a decision; the commit asks for the trailer; under the switch the run takes a trailer-less decided amend.
+- [x] 1.5 In `skills/mf-rescue/SKILL.md`, *Parameter — `decide=recommended`* and the commit paragraph that names `Decided-by: rescue`: a `### D<n>` body is a decision; the commit asks for the trailer; under the switch the run takes a trailer-less decided amend.
   Verify: `git grep -n -F "trailer-less" -- skills/mf-rescue/SKILL.md` exits 0.
-- [ ] 1.6 In `docs/decisions.md`, D60: change "its commit carrying `Decided-by: rescue`" to "its commit asked to carry `Decided-by: rescue`, a trailer-less decided amend taken too", and add that a refused amend is reset.
+- [x] 1.6 In `docs/decisions.md`, D60: change "its commit carrying `Decided-by: rescue`" to "its commit asked to carry `Decided-by: rescue`, a trailer-less decided amend taken too", and add that a refused amend is reset.
   Verify: `git grep -n -F "trailer-less" -- docs/decisions.md` exits 0.
 
 ## 2 — The gate under load
