@@ -4,6 +4,7 @@ Real git in scratch repositories with linked worktrees; `fake_worker.py` is the 
 agent `MF_SHIP_AGENT` names. Why: 0040-mf-ship design D2.
 """
 
+import contextlib
 import datetime
 import errno
 import fnmatch
@@ -8384,6 +8385,81 @@ def test_the_run_passes_a_deadline_to_the_sandbox(
 
     assert run.sandboxed(slow, tree, run.trees(), out, timeout=0) == 124
     assert out.getvalue() == "sandboxed: timed out — killed after 0 s\n"
+
+
+_HOLDER = (
+    "import subprocess, sys, time;"
+    " child = subprocess.Popen(['sleep', '30'], start_new_session=True);"
+    " open(sys.argv[1], 'w').write(str(child.pid));"
+    " print('started', flush=True);"
+    " time.sleep(30)"
+)
+
+
+def _end_holder(pid_file: Path) -> None:
+    """Kill the child `_HOLDER` left outside its group, once it wrote its pid."""
+    if pid_file.exists():
+        with contextlib.suppress(OSError, ValueError):
+            os.kill(int(pid_file.read_text()), signal.SIGKILL)
+
+
+@pytest.mark.slow
+def test_a_cuts_command_whose_child_holds_the_pipe_ends_at_the_deadline(
+    tmp_path: Path, fake_sandbox_exec: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0150-debt-paydown-5 design D13.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    (root / ".minions").mkdir(exist_ok=True)
+    monkeypatch.setitem(conduct["_boxed"].__globals__, "CUT_TIMEOUT", 3)
+    holder = tmp_path / "holder.pid"
+    started = time.monotonic()
+    try:
+        code, output = conduct["_boxed"](
+            root, tree, [sys.executable, "-c", _HOLDER, str(holder)], cut=True
+        )
+        took = time.monotonic() - started
+    finally:
+        _end_holder(holder)
+
+    assert code == 124
+    assert took < 20
+    assert holder.read_text().isdigit()
+    assert output.splitlines() == ["started", "sandboxed: timed out — killed after 3 s"]
+
+
+@pytest.mark.slow
+def test_a_cards_check_whose_child_holds_the_pipe_ends_at_the_deadline(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    # Why: 0150-debt-paydown-5 design D13.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    run = conduct["Run"](root, "claude")
+    holder = tmp_path / "holder.pid"
+    out = io.StringIO()
+    started = time.monotonic()
+    try:
+        code = run.sandboxed(
+            [sys.executable, "-c", _HOLDER, str(holder)],
+            tree,
+            run.trees(),
+            out,
+            timeout=3,
+        )
+        took = time.monotonic() - started
+    finally:
+        _end_holder(holder)
+
+    assert code == 124
+    assert took < 20
+    assert holder.read_text().isdigit()
+    assert out.getvalue().splitlines() == [
+        "started",
+        "sandboxed: timed out — killed after 3 s",
+    ]
 
 
 def test_the_run_hands_converge_its_trees_and_sandbox(

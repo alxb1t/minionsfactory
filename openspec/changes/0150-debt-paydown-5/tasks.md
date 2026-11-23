@@ -6,7 +6,7 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 
 - [x] 1 — The cut's rows · moderate
 - [x] 2 — The conductor's small fixes · moderate
-- [ ] 3 — The drain · hard
+- [x] 3 — The drain · hard
 - [ ] 4 — Converge and the viewer · moderate
 - [ ] 5 — The texts · moderate
 
@@ -42,12 +42,12 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 
 ## 3 — The drain
 
-- [ ] 3.1 **HALT CHECK** `sandboxed()` in `skills/mf-ship/scripts/conduct.py` still reads its output in one loop over its pipe, the read this phase bounds.
+- [x] 3.1 **HALT CHECK** `sandboxed()` in `skills/mf-ship/scripts/conduct.py` still reads its output in one loop over its pipe, the read this phase bounds.
   Verify: `grep -c "process.stdout or" skills/mf-ship/scripts/conduct.py` prints `1` and exits 0.
-- [ ] 3.2 Bound the read of `sandboxed()` after its deadline, and close the pipe, in `skills/mf-ship/scripts/conduct.py`, per [D13](design.md#d13).
+- [x] 3.2 Bound the read of `sandboxed()` after its deadline, and close the pipe, in `skills/mf-ship/scripts/conduct.py`, per [D13](design.md#d13).
   Add `test_a_child_that_leaves_the_group_holding_the_pipe_returns_after_the_deadline` and `test_a_command_that_ends_in_time_is_read_whole` to `tests/test_sandboxed.py`; the first is red before the edit, the second a guard.
   Verify: `uv run pytest -q tests/test_sandboxed.py -k "test_a_child_that_leaves_the_group_holding_the_pipe_returns_after_the_deadline or test_a_command_that_ends_in_time_is_read_whole"` exits 0.
-- [ ] 3.3 Add `test_a_cuts_command_whose_child_holds_the_pipe_ends_at_the_deadline` and `test_a_cards_check_whose_child_holds_the_pipe_ends_at_the_deadline` to `tests/test_conduct.py`, through `_boxed` and `Run.sandboxed`; both are guards of the bound 3.2 gives.
+- [x] 3.3 Add `test_a_cuts_command_whose_child_holds_the_pipe_ends_at_the_deadline` and `test_a_cards_check_whose_child_holds_the_pipe_ends_at_the_deadline` to `tests/test_conduct.py`, through `_boxed` and `Run.sandboxed`; both are guards of the bound 3.2 gives.
   Verify: `uv run pytest -q tests/test_conduct.py -k "test_a_cuts_command_whose_child_holds_the_pipe_ends_at_the_deadline or test_a_cards_check_whose_child_holds_the_pipe_ends_at_the_deadline"` exits 0.
 
 ## 4 — Converge and the viewer

@@ -8,6 +8,7 @@ Why: 0040-mf-ship design D2.
 """
 
 import argparse
+import codecs
 import collections
 import contextlib
 import errno
@@ -22,6 +23,7 @@ import math
 import os
 import re
 import runpy
+import selectors
 import shlex
 import shutil
 import signal
@@ -35,7 +37,7 @@ import tomllib
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, TextIO
+from typing import IO, TYPE_CHECKING, Any, NamedTuple, TextIO
 
 if TYPE_CHECKING:
     from markdown_it import MarkdownIt
@@ -86,6 +88,9 @@ CHECK_TAIL = 20
 # Why: 0146-cut-catches design D1, D6.
 CUT_TIMEOUT = 1800
 CUT_KEPT = 2000
+# A sandboxed command's pipe is read in chunks, checked this often for a drain's end.
+PIPE_CHUNK = 65536
+DRAIN_TICK = 0.1
 # The line the checker prints for each plan failure; a crash prints none.
 CUT_HALT = "cut_check: halt — "
 METRICS = Path(__file__).resolve().parents[2] / "mf-build/scripts/metrics.py"
@@ -3319,6 +3324,38 @@ def _watch(
         os.killpg(group, signal.SIGKILL)
 
 
+def _ended(expired: threading.Event, watching: threading.Thread | None) -> bool:
+    """Return whether the watch is done ending a group past its deadline."""
+    return expired.is_set() and watching is not None and not watching.is_alive()
+
+
+def _pipe_lines(
+    stream: IO[bytes], ended: Callable[[], bool], grace: float
+) -> Iterator[str]:
+    """Yield `stream`'s lines as text; once `ended()`, read for `grace` s more at most.
+
+    A child that left the group may hold the pipe. Why: 0150-debt-paydown-5 D13.
+    """
+    decoder = io.IncrementalNewlineDecoder(
+        codecs.getincrementaldecoder("utf-8")(errors="replace"), translate=True
+    )
+    held, until = "", math.inf
+    with selectors.DefaultSelector() as selector:
+        selector.register(stream, selectors.EVENT_READ)
+        while time.monotonic() < until:
+            if until == math.inf and ended():
+                until = time.monotonic() + grace
+            if not selector.select(DRAIN_TICK):
+                continue
+            chunk = os.read(stream.fileno(), PIPE_CHUNK)
+            if not chunk:
+                break
+            *lines, held = (held + decoder.decode(chunk)).split("\n")
+            yield from (line + "\n" for line in lines)
+    if tail := held + decoder.decode(b"", final=True):
+        yield tail
+
+
 def _no_sandbox() -> Stop:
     """Return the stop for a run whose OS sandbox does not stand, its why the port's.
 
@@ -3341,8 +3378,8 @@ def sandboxed(
 ) -> int:
     """Run `argv` in `cwd` under the host's OS sandbox and return its exit code.
 
-    A `timeout` ends the command's group and gives 124; `primary` holds the run dir.
-    Why: 0107 D2, 0108 D6, 0111 D3, 0114 D5, 0146-cut-catches D1.
+    A `timeout` ends the group with 124, the read `grace` s on; `primary` is the run's.
+    Why: 0107 D2, 0108 D6, 0111 D3, 0114 D5, 0146-cut-catches D1, 0150 D13.
     """
     if not mflib.platform.has_sandbox():
         raise _no_sandbox()
@@ -3378,15 +3415,15 @@ def sandboxed(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            encoding="utf-8",
-            errors="replace",
             start_new_session=timeout is not None,
         ) as process:
             if timeout is not None:
                 watcher = (process.pid, timeout, grace, done, expired)
                 watching = threading.Thread(target=_watch, args=watcher, daemon=True)
                 watching.start()
-            for line in process.stdout or ():
+            group_ended = functools.partial(_ended, expired, watching)
+            stream = process.stdout
+            for line in _pipe_lines(stream, group_ended, grace) if stream else ():
                 print(line, end="", file=out or sys.stdout, flush=True)
                 denied = denied or mflib.platform.refused(line)
             code = process.wait()
