@@ -980,6 +980,32 @@ def test_a_scope_that_misses_once_is_sent_out_again(host: Host) -> None:
     )
 
 
+def test_a_scope_missed_twice_halts_on_a_file_gone_or_malformed(host: Host) -> None:
+    converge = _converge()
+    head = _git(host.tree, "rev-parse", "HEAD")
+    frozen = converge["Freeze"]("b" * 40, head, 1, 1)
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    converge["open_run"](context)
+    path = host.folder() / "conformance.md"
+    path.write_text(findings("conformance", head, files=0, commits=0))
+    small = converge["read_findings"](path, "conformance", frozen)
+
+    def gone(now: str) -> None:
+        path.unlink(missing_ok=True)
+
+    def broken(now: str) -> None:
+        path.write_text(findings("conformance", now, files=None))
+
+    host.answers["converge-conformance-r1"] = gone
+    with pytest.raises(converge["Halt"], match=r"conformance\.md is missing"):
+        converge["rescoped"](context, "conformance", frozen, small.unclean)
+
+    path.write_text(findings("conformance", head, files=0, commits=0))
+    host.answers["converge-conformance-r1"] = broken
+    with pytest.raises(converge["Halt"], match=r"conformance\.md is malformed"):
+        converge["rescoped"](context, "conformance", frozen, small.unclean)
+
+
 def test_a_codex_failure_fallback_is_named_in_the_verdicts_line(host: Host) -> None:
     converge = _converge()
     head = _git(host.tree, "rev-parse", "HEAD")
