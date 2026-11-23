@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A rescue's and a supervisor's budget counts a halt as its sub-task or stage at the halted `HEAD`: a halt at a new head is a new halt, rescued in the same run, while `RESCUES = 3` and `SUPERVISES = 2` a version a run stand. 0146's second halt found both spent by a stage the rescue could have closed. The ` · rescued` and ` · supervised` words still name the sub-task or stage alone, and D53 and D61 say so (0147-amends-alone, phase 1).
+
 ## [0.117.0] - 2026-11-23
 
 Gate: local 8m21s · CI not read under mf-ship · 0.116.0: local 7m38s · CI not read under mf-ship

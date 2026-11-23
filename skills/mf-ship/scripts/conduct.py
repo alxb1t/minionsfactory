@@ -2945,6 +2945,24 @@ def _resettable(tree: Path, before: str, clean: bool) -> bool:
     return all(_git(tree, "log", "-1", trailer, sha).strip() for sha in commits)
 
 
+def _halt_key(tree: Path | None, held: str) -> str:
+    """Return a halt's budget key: `held` at the short `HEAD`, or `held` alone.
+
+    e.g. "1.1" at abc1234 → "1.1@abc1234". Why: 0147-amends-alone design D1.
+    """
+    if tree is None:
+        return held
+    return f"{held}@{_git(tree, 'rev-parse', '--short', 'HEAD').strip()}"
+
+
+def _helds(keys: list[str]) -> str:
+    """Return each key's sub-task or stage, with no head.
+
+    e.g. ["1.1@abc1234", "1.2"] → "1.1 1.2"
+    """
+    return " ".join(key.partition("@")[0] for key in keys)
+
+
 def _supervised(tree: Path, change: str, before: str) -> tuple[str | None, str]:
     """Return the supervisor's amend past `before`, or None and why.
 
@@ -5030,15 +5048,15 @@ class Run:
         why = close(self.primary, version, self.said(version.change))
         return why if why is not None else _check_build(self.primary, version, tree)
 
-    def rescued(self, change: str, held: str) -> str:
+    def rescued(self, change: str, held: str, tree: Path | None = None) -> str:
         """Return ` · rescued <sub-tasks>` when a halt on `held` gets no rescue.
 
-        Else "". Why: 0067-rescue design D4.
+        Else "". Why: 0067-rescue design D4; 0147-amends-alone design D1.
         """
         with self.guard:
             done = self.rescues.get(change, [])
-        if held in done or len(done) >= RESCUES:
-            return f" · rescued {' '.join(done)}"
+        if _halt_key(tree, held) in done or len(done) >= RESCUES:
+            return f" · rescued {_helds(done)}"
         return ""
 
     def rescue(self, version: Version, held: str, amends: tuple[str, ...]) -> bool:
@@ -5048,7 +5066,7 @@ class Run:
         0085-self-healing-ship design D1, D5; 0145-halts-alone design D2.
         """
         change, tree = version.change, version.tree
-        spent = change in self.skips or self.rescued(change, held)
+        spent = change in self.skips or self.rescued(change, held, tree)
         if tree is None or spent or self.stopped("run"):
             return False
         halt = _converge_halt(mflib.layout.run_dir(self.primary), change)
@@ -5057,8 +5075,9 @@ class Run:
             return False
         if held == "converge-halted" and halt and "usage limit" in halt:
             return False
+        key = _halt_key(version.tree, held)
         with self.guard:
-            self.rescues.setdefault(change, []).append(held)
+            self.rescues.setdefault(change, []).append(key)
         models = self.planned_models(change, "rescue")
         before = _git(tree, "rev-parse", "HEAD").strip()
         diagnosis = mflib.layout.change_dir(self.primary, change) / "rescue.md"
@@ -5099,15 +5118,15 @@ class Run:
             going = held in RESCUED and sha is None and self.hold(version, tree, before)
         return sha is not None or going
 
-    def supervised(self, change: str, held: str) -> str:
+    def supervised(self, change: str, held: str, tree: Path | None = None) -> str:
         """Return ` · supervised <halts>` when a halt on `held` gets no supervisor.
 
-        Else "". Why: 0089-supervisor design D5.
+        Else "". Why: 0089-supervisor design D5; 0147-amends-alone design D1.
         """
         with self.guard:
             done = self.supervisions.get(change, [])
-        if held in done or len(done) >= SUPERVISES:
-            return f" · supervised {' '.join(done)}"
+        if _halt_key(tree, held) in done or len(done) >= SUPERVISES:
+            return f" · supervised {_helds(done)}"
         return ""
 
     def design_cap(self, change: str, halt: str) -> bool:
@@ -5146,7 +5165,7 @@ class Run:
             tree is None
             or change not in self.decides
             or not left
-            or self.supervised(change, held)
+            or self.supervised(change, held, tree)
             or self.stopped("run")
             or (replan and marked)
             or (
@@ -5168,8 +5187,9 @@ class Run:
             )
         ):
             return False
+        key = _halt_key(version.tree, held)
         with self.guard:
-            self.supervisions.setdefault(change, []).append(held)
+            self.supervisions.setdefault(change, []).append(key)
         models = self.planned_models(change, "supervise")
         start = _opened(self.primary, tree, change) if integrating else None
         if start is not None:
@@ -5462,8 +5482,9 @@ class Run:
                     if auto:
                         continue
                     rescued = stage in RESCUED
-                    spent = self.rescued(version.change, stage) if rescued else ""
-                    tried = self.supervised(version.change, stage) if rescued else ""
+                    tree = version.tree
+                    spent = self.rescued(change, stage, tree) if rescued else ""
+                    tried = self.supervised(change, stage, tree) if rescued else ""
                     self.halt(version.change, f"{stage} — {why}{spent}{tried}")
                     if refused:
                         self.halt(version.change, f"re-plan: {refused}")
@@ -5603,9 +5624,10 @@ class Run:
                     if not going:
                         return None
                 held = None if reason is None else self.held(version, stage, cwd)
-                spent = "" if held is None else self.rescued(version.change, held)
+                tree = version.tree
+                spent = "" if held is None else self.rescued(change, held, tree)
                 if held is not None:
-                    reason = f"{reason}{spent}{self.supervised(version.change, held)}"
+                    reason = f"{reason}{spent}{self.supervised(change, held, tree)}"
                 shown = "".join(f" · {note}" for note in restamped)
                 if not self.judge(version.change, stage, reason, denied, shown):
                     if held is None:

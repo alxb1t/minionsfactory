@@ -4,7 +4,7 @@ The phases that budget a halt by its head, ask the review's new question, let th
 
 ## Progress
 
-- [ ] 1 — The budgets by halt · hard
+- [x] 1 — The budgets by halt · hard
 - [ ] 2 — The plan review's question · moderate
 - [ ] 3 — The fixer and the plan's text · hard
 - [ ] 4 — The rescue's and the supervisor's models · moderate
@@ -12,22 +12,22 @@ The phases that budget a halt by its head, ask the review's new question, let th
 
 ## 1 — The budgets by halt
 
-- [ ] 1.1 Add `_halt_key(tree, held)` to `skills/mf-ship/scripts/conduct.py`: `<held>@<short HEAD>`, `held` alone with no tree
+- [x] 1.1 Add `_halt_key(tree, held)` to `skills/mf-ship/scripts/conduct.py`: `<held>@<short HEAD>`, `held` alone with no tree
   ([D1](design.md#d1)). Test it in `tests/test_conduct.py` as `test_a_halt_key_joins_the_halted_head`.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_a_halt_key_joins_the_halted_head` exits 0.
-- [ ] 1.2 `Run.rescue` and `Run.supervise` store `key = _halt_key(version.tree, held)`; `Run.rescued` and `Run.supervised` take an optional `tree`,
+- [x] 1.2 `Run.rescue` and `Run.supervise` store `key = _halt_key(version.tree, held)`; `Run.rescued` and `Run.supervised` take an optional `tree`,
   passed by `Run.rescue`, `Run.supervise` and `Run.advance`; their words print each key's `held` alone ([D1](design.md#d1)).
   Verify: `git grep -n -F -e "key = _halt_key" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 1.3 Edit `test_a_usage_limit_converge_halt_gets_no_rescue` in `tests/test_conduct.py`: its `run.rescues` and `run.supervisions`
+- [x] 1.3 Edit `test_a_usage_limit_converge_halt_gets_no_rescue` in `tests/test_conduct.py`: its `run.rescues` and `run.supervisions`
   assertions read the stored key, `converge-halted@` and the short `HEAD`.
   Verify: `uv run pytest tests/test_conduct.py -q -k test_a_usage_limit_converge_halt_gets_no_rescue` exits 0.
-- [ ] 1.4 Add `test_two_heads_are_two_halts`, `test_one_halt_is_answered_once` and `test_the_caps_stand_across_heads` to
+- [x] 1.4 Add `test_two_heads_are_two_halts`, `test_one_halt_is_answered_once` and `test_the_caps_stand_across_heads` to
   `tests/test_conduct.py`: converge halts at successive heads, each rescued; a key at its head, answered once; the caps count keys.
   Verify: `uv run pytest tests/test_conduct.py -q -k "two_heads_are_two or answered_once or caps_stand"` exits 0.
-- [ ] 1.5 Add `test_a_build_subtask_halted_at_two_heads`, `test_an_integrate_halt_is_keyed_by_its_head` and
+- [x] 1.5 Add `test_a_build_subtask_halted_at_two_heads`, `test_an_integrate_halt_is_keyed_by_its_head` and
   `test_a_version_halted_at_two_heads_ends_on_its_newest_halt` to `tests/test_conduct.py`: each kind of halt, and the final line.
   Verify: `uv run pytest tests/test_conduct.py -q -k "subtask_halted_at_two or keyed_by_its_head or ends_on_its_newest"` exits 0.
-- [ ] 1.6 Edit the budget sentences of the decisions "A rescue amends the plan, never the code or a decision" and "A supervisor
+- [x] 1.6 Edit the budget sentences of the decisions "A rescue amends the plan, never the code or a decision" and "A supervisor
   answers what rescue diagnoses" in `docs/decisions.md`: a halt is a sub-task or stage at a halted head ([D1](design.md#d1)).
   Verify: `git grep -n -e "halted head" -- docs/decisions.md` exits 0.
 

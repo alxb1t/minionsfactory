@@ -1096,8 +1096,8 @@ a commit at any other converge or integrate halt keeps the halt, and such a halt
 a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, save the person's amends, which
 let the version go on, and stands for the run, no rejoin
 taking the version back; a person's grant is refused while that rescue runs, and the person's own fix then, or a grant landing as it
-ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none for a
-sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
+ends, waits for a re-run. A halt is a sub-task or stage at a halted head, so a new head is a new halt. A version gets at
+most `RESCUES = 3` a run, and none for a halt rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
 command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
 `## Decisions`, `## Tests` and `## Dependencies` sections, and a `Fix note` closing a decision's entry, which the run reads as no decision change: a card whose
@@ -1143,12 +1143,13 @@ need and each version a rescue decided for.**
 ### D61 · A supervisor answers what rescue diagnoses
 
 **Under a version's `decide = "recommended"`, when its rescue diagnoses a build, converge or
-integrate semantic-conflict halt or is spent on it — the sub-task rescued before, or `RESCUES` reached — `conduct.py` runs
+integrate semantic-conflict halt or is spent on it — the halt rescued before, or `RESCUES` reached — `conduct.py` runs
 `mf-supervise` in the version's thread. It may amend anything under `openspec/changes/<id>/`, the spec delta included, and tick
 a sub-task whose `Verify:` it ran green; it never edits code or a test, takes a security `critical` or `high` card, approves a
 gate makefile, accepts a threat-model risk, answers an integrate red gate, releases, merges or pushes. The run takes one commit with the amend's subject, `Supervisor:` and `Decided-by: supervisor`
 trailers and paths under the change directory alone, logs it `decided`, clears the halt and goes on in the thread; anything else
-halts the version for the person. One try a halt, at most `SUPERVISES = 2` a version a run; `[supervise]` picks its model,
+halts the version for the person. One try a halt, a sub-task or stage at a halted head, at most `SUPERVISES = 2` a
+version a run; `[supervise]` picks its model,
 `claude-opus-5-5` at `high` on Claude when it names none. The close and `report` name each.**
 
 - **New work:** a sub-task an amend adds — the supervisor's, the rescue's or the person's — goes in a new unticked phase after
