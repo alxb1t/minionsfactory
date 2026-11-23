@@ -281,16 +281,33 @@ def test_changelog_keeps_the_branch_entries_above_the_released_sections(
     assert (tree / "CHANGELOG.md").read_text() == expected
     root, tree = _stacked_merge(tmp_path / "lacking", "- x1\n")
     result = _run(root, "changelog", str(tree))
+    assert result.returncode == 0, result.stdout
+    assert (tree / "CHANGELOG.md").read_text() == expected
+    other = "## [0.2.0] - 2026-02-02\n\n- other\n"
+    root, tree = _stacked_merge(tmp_path / "unreleased", "- x1\n", other)
+    result = _run(root, "changelog", str(tree))
     halted = (
         "changelog: halt — the branch's [Unreleased] entries do not hold the base's\n"
     )
     assert (result.returncode, result.stdout) == (1, halted)
 
 
+def test_changelog_drops_a_stacked_bases_released_entries(tmp_path: Path) -> None:
+    root, tree = _stacked_merge(tmp_path / "held", "- x1\n\n- d1\n\n- x2\n")
+
+    result = _run(root, "changelog", str(tree))
+
+    assert result.returncode == 0, result.stdout
+    expected = f"{_HEAD}\n- x1\n\n- x2\n\n{_STACKED_RELEASE}\n{_OLD}"
+    assert (tree / "CHANGELOG.md").read_text() == expected
+
+
 _STACKED_RELEASE = "## [0.2.0] - 2026-02-02\n\n- d1\n"
 
 
-def _stacked_merge(base: Path, entries: str = "- d1\n- x1\n") -> tuple[Path, Path]:
+def _stacked_merge(
+    base: Path, entries: str = "- d1\n- x1\n", release: str = _STACKED_RELEASE
+) -> tuple[Path, Path]:
     """Return a primary and `0005-b`, stacked on `0004-a`, its merge of `main` open.
 
     `main` released `0004-a`, whose `- d1` is the stacked base's `[Unreleased]`.
@@ -311,7 +328,7 @@ def _stacked_merge(base: Path, entries: str = "- d1\n- x1\n") -> tuple[Path, Pat
     _git(root, "merge", "-q", "--no-ff", "-m", "Merge branch '0004-a'", "0004-a")
     (root / "openspec/changes/archive").mkdir()
     _git(root, "mv", "openspec/changes/0004-a", "openspec/changes/archive/0004-a")
-    released = {"CHANGELOG.md": f"{_HEAD}\n{_STACKED_RELEASE}\n{_OLD}"}
+    released = {"CHANGELOG.md": f"{_HEAD}\n{release}\n{_OLD}"}
     _commit(root, released, "release")
     _git(tree, "merge", "-q", "--no-ff", "--no-commit", "main", check=False)
     return root, tree

@@ -1097,6 +1097,38 @@ def test_wait_ends_on_a_halted_run(
     assert capsys.readouterr().out == f"{halt}wait: ended\n0001-todo · build\n"
 
 
+def test_wait_halt_ends_at_a_final_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    _version(root, "0001-todo", "- [ ] 1 — One\n")
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    log = runs / "20261119-100000.md"
+    log.write_text("10:00:00 · run · start — executor claude\n")
+    answered = "10:00:09 · 0001-todo · halt — build — phase 1 unticked\n"
+    final = "10:00:10 · 0001-todo · halt — final — needs a fix · build — phase 1\n"
+    steps = [_gain(log, answered), _gain(log, final)]
+    _waiting(conduct, monkeypatch, ["live"], steps)
+
+    assert _main(conduct, root, "wait", "--halt", monkeypatch=monkeypatch) == 1
+    assert capsys.readouterr().out == (
+        f"{answered}wait: live · +1 lines\n{final}"
+        "wait: halt — 0001-todo · needs a fix · build — phase 1\n"
+        "run · live\n0001-todo · build\n"
+    )
+
+    later = runs / "20261119-110000.md"
+    later.write_text("11:00:00 · run · start — executor claude\n")
+    _waiting(conduct, monkeypatch, ["live", "live", "none"], [_gain(later, answered)])
+
+    assert _main(conduct, root, "wait", "--halt", monkeypatch=monkeypatch) == 0
+    assert capsys.readouterr().out == (
+        f"{answered}wait: live · +1 lines\nwait: ended\n0001-todo · build\n"
+    )
+
+
 def test_wait_reads_no_origin_at_a_poll(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -2271,6 +2303,7 @@ def test_a_dependent_waits_while_its_dependency_works(
     assert _run_claude(conduct, late, monkeypatch) == 1
     assert [line.split(" · ", 1)[1] for line in _log(late) if " · halt — " in line] == [
         "0001-todo · halt — waiting — after 0001-todo",
+        "0001-todo · halt — final — needs a fix · waiting — after 0001-todo",
         "run · halt — halted 0001-todo · blocked none · released v0.1.0"
         " · needs 0001-todo a fix",
     ]
@@ -2425,7 +2458,7 @@ def test_run_halts_on_a_human_phase(
         == 1
     )
     assert _calls(calls) == ["probe", "build 0001-todo"]
-    assert _log(built)[-2].endswith(
+    assert _log(built)[-3].endswith(
         " · 0001-todo · halt — human — phase 2 — Ship **HUMAN**"
     )
 
@@ -3099,9 +3132,9 @@ def test_a_refused_amend_is_reset_off_head(
     assert re.search(
         r" · 0001-todo · reset — rescue commit [0-9a-f]{7} dropped: rescue changed a"
         f" decision: {design}$",
-        lines[-3],
+        lines[-4],
     )
-    assert lines[-2].endswith(
+    assert lines[-3].endswith(
         f" · 0001-todo · halt — rescue changed a decision: {design}"
     )
 
@@ -3206,7 +3239,7 @@ def test_a_rescue_decides_under_the_switch(
     lines = run(1)
     assert _calls(calls) == ["probe", "build 0002-marks", "rescue 0002-marks"]
     design = "openspec/changes/0002-marks/design.md"
-    assert lines[-2].endswith(
+    assert lines[-3].endswith(
         f" · 0002-marks · halt — rescue changed a decision: {design}"
     )
     assert _git(tree, "rev-parse", "HEAD") == cut
@@ -3532,8 +3565,14 @@ def test_a_rescue_diagnoses_a_decision_halt(
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     said = capsys.readouterr().out.splitlines()
-    first, second = (line for line in lines if " · 0001-todo · halt — " in line)
-    assert said[-4:] == [first, f"0001-todo · diagnosed {diagnosis}", second, lines[-1]]
+    first, second, final = (line for line in lines if " · 0001-todo · halt — " in line)
+    assert said[-5:] == [
+        first,
+        f"0001-todo · diagnosed {diagnosis}",
+        second,
+        final,
+        lines[-1],
+    ]
 
     # The diagnosis an earlier rescue left is not this one's.
     calls.unlink()
@@ -3543,7 +3582,7 @@ def test_a_rescue_diagnoses_a_decision_halt(
         == 1
     )
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         " · 0001-todo · halt — rescue wrote no amend and no diagnosis"
     )
 
@@ -3553,7 +3592,7 @@ def test_a_rescue_diagnoses_a_decision_halt(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue worker exit 1")
+    assert _log(root)[-3].endswith(" · 0001-todo · halt — rescue worker exit 1")
 
 
 @pytest.mark.slow
@@ -3571,8 +3610,8 @@ def test_a_rescue_outside_the_plan_halts(
     )
 
     assert _calls(calls) == ["probe", "build 0001-todo", "rescue 0001-todo"]
-    assert _log(root)[-3].endswith(" dropped: rescue touched src.py")
-    assert _log(root)[-2].endswith(" · 0001-todo · halt — rescue touched src.py")
+    assert _log(root)[-4].endswith(" dropped: rescue touched src.py")
+    assert _log(root)[-3].endswith(" · 0001-todo · halt — rescue touched src.py")
     assert not any(" · run · rescue — " in line for line in _log(root))
 
     # A rescue that rewrites the history its amend is judged against halts too.
@@ -3582,7 +3621,7 @@ def test_a_rescue_outside_the_plan_halts(
         _main(conduct, root, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         f" · 0001-todo · halt — rescue moved HEAD off {before}"
     )
 
@@ -3624,7 +3663,7 @@ def test_a_sub_task_is_rescued_once(
         "rescue 0001-todo",
         "build 0001-todo",
     ]
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
         " · rescued 1.1"
     )
@@ -4431,7 +4470,7 @@ def test_a_spent_rescue_starts_the_supervisor_once(
         "supervise 0001-todo with decide=recommended",
         "build 0001-todo",
     ]
-    assert _log(root)[-2].endswith(
+    assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
         " · rescued 1.1 · supervised 1.1"
     )
@@ -4458,7 +4497,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
         == 1
     )
     lines = _log(root)
-    assert lines[-2].endswith(
+    assert lines[-3].endswith(
         " · 0001-todo · halt — supervisor touched tests/test_todo.py"
     )
     assert not any(" · run · supervise — " in line for line in lines)
@@ -4472,7 +4511,7 @@ def test_a_supervisor_amend_outside_the_change_halts(
         _main(conduct, none, "run", "--executor", "claude", monkeypatch=monkeypatch)
         == 1
     )
-    assert _log(none)[-2].endswith(" · 0002-marks · halt — supervisor wrote no amend")
+    assert _log(none)[-3].endswith(" · 0002-marks · halt — supervisor wrote no amend")
 
     # An amend is one commit of one parent, with the amend's subject and both
     # trailers, under the change's folder.
@@ -4615,8 +4654,8 @@ def test_the_supervisor_re_plans_a_design_cap_once(
     decided = f" · run · supervise — 0001-todo: decided · converge-halted · {amend[:7]}"
     assert any(line.endswith(f"{decided} · re-plan") for line in lines)
     assert not any(" · grant — " in line for line in lines)
-    assert lines[-3].endswith(" · rescued converge-halted · supervised converge-halted")
-    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    assert lines[-4].endswith(" · rescued converge-halted · supervised converge-halted")
+    assert lines[-3].endswith(" · 0001-todo · halt — re-plan: R1 S1")
     assert " · supervised 0001-todo · re-planned 0001-todo · needs " in lines[-1]
 
     # A new run's supervisor meets the mark: no re-plan; with no mark it re-plans.
@@ -4944,7 +4983,7 @@ def test_a_later_version_halts_and_the_earlier_ships(
     capsys.readouterr()
     assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 0
     report = capsys.readouterr().out.splitlines()
-    assert report[-3:] == [*halts, lines[-1]]
+    assert report[-4:] == [*halts, lines[-1]]
 
     # The other direction: the earlier version's build check fails, the later ships.
     again = tmp_path / "again"
@@ -12427,8 +12466,8 @@ def test_a_grant_buys_one_round(
     # The cap reached in the run gets its rescue in that run.
     assert _calls(calls)[-1] == "rescue 0001-todo"
     diagnosis = ".minions/changes/0001-todo/rescue.md"
-    assert lines[-3].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
-    assert lines[-2].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
+    assert lines[-4].endswith(f" · run · rescue — 0001-todo: diagnosed · {diagnosis}")
+    assert lines[-3].endswith(f" · 0001-todo · halt — rescue diagnosed — {diagnosis}")
     # The granted round's cap is the run's second: a re-plan.
     _replanned(root, "R1 S1")
 

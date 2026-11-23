@@ -110,6 +110,9 @@ MANIFEST = "package.json"
 DIRECT = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 CLAIM_SECONDS = 30
 WAIT_SECONDS = 60
+# A halt line no rescue or supervisor answers: `final — needs <action> · <reason>`.
+# Why: 0145-halts-alone design D11.
+FINAL = "final — "
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE = re.compile(r"chore\(release\): (\S+)")
@@ -5984,6 +5987,18 @@ class Run:
             with self.built:
                 self.ended.add(version.change)
                 self.built.notify_all()
+            self.final(version.change)
+
+    def final(self, change: str) -> None:
+        """Log `final — needs <action> · <reason>` when the version's halt stands.
+
+        Why: 0145-halts-alone design D11.
+        """
+        with self.guard:
+            reasons = [reason for who, reason in self.halts if who == change]
+        if reasons:
+            action = self._needs(change)
+            self.log.event(change, "halt", f"{FINAL}needs {action} · {reasons[0]}")
 
     def cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
         """Cut a queued brief in its own worktree, check it on disk, then take it.
@@ -8520,11 +8535,11 @@ def _status_line(primary: Path, version: Version) -> str:
     return line
 
 
-def wait_run(cwd: Path) -> int:
+def wait_run(cwd: Path, halt: bool = False) -> int:
     """Print the newest run log's new lines at each poll, then `status`; return 0.
 
-    A poll reads no `origin`, and the claim before the log, so the last poll prints the
-    lines the run's close wrote. Why: 0137-cloud-session design D5.
+    A poll reads no `origin`, and the claim before the log; `halt` ends the wait at a
+    final halt line, returning 1. Why: 0137-cloud-session D5; 0145-halts-alone D11.
     """
     primary = primary_of(cwd)
     active = mflib.layout.claim_file(primary)
@@ -8538,12 +8553,33 @@ def wait_run(cwd: Path) -> int:
             lines = tail.poll()
             for line in lines:
                 print(line, flush=True)
+            if halt and (final := _final_halt(lines)) is not None:
+                said = final.detail.removeprefix(FINAL)
+                print(f"wait: halt — {final.who} · {said}", flush=True)
+                print(status(cwd), flush=True)
+                return 1
             if not live:
                 break
             print(f"wait: live · +{len(lines)} lines", flush=True)
     print("wait: ended", flush=True)
     print(status(cwd), flush=True)
     return 0
+
+
+def _final_halt(lines: list[str]) -> mflib.runlog.Event | None:
+    """Return the first halt event among `lines` that no rescue or supervisor answers.
+
+    e.g. "10:00:09 · 0001-a · halt — final — needs a fix · build: x" → that event
+    """
+    events = (mflib.runlog.parse(text) for text in lines)
+    return next(
+        (
+            event
+            for event in events
+            if event and event.name == "halt" and event.detail.startswith(FINAL)
+        ),
+        None,
+    )
 
 
 def _cut_line(change: str, entry: dict[str, Any]) -> str:
@@ -8738,7 +8774,10 @@ def main(argv_: list[str] | None = None) -> int:
     )
     closing.add_argument("change_id", metavar="change-id")
     commands.add_parser("report", help="the last run's close-out lines")
-    commands.add_parser("wait", help="block until the live run ends")
+    waiting = commands.add_parser("wait", help="block until the live run ends")
+    waiting.add_argument(
+        "--halt", action="store_true", help="end at a halt nothing answers, exit 1"
+    )
     approving = commands.add_parser("approve-gate", help="the person's yes to a gate")
     approving.add_argument("change_id", metavar="change-id")
     approving.add_argument("--yes", required=True, metavar="hash")
@@ -8789,7 +8828,7 @@ def main(argv_: list[str] | None = None) -> int:
         elif args.command == "close":
             return close_command(cwd, args.change_id)
         elif args.command == "wait":
-            return wait_run(cwd)
+            return wait_run(cwd, args.halt)
         elif args.command == "approve-gate":
             print(approve_gate(cwd, args.change_id, args.yes))
         elif args.command == "anchor":

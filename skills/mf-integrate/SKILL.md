@@ -109,7 +109,7 @@ An `integrate.red` names the commit its `head:` line resolves to, by `git -C <wo
 
    | command | settles |
    |---|---|
-   | `changelog <worktree>` | the branch's `## [Unreleased]` entries kept above the default branch's released sections, blank lines intact |
+   | `changelog <worktree>` | the branch's `## [Unreleased]` entries kept above the default branch's released sections, blank lines intact; a stacked base's entries the branch does not lead with are dropped where it holds them when a released line equals them, else exit 1 |
    | `decisions <worktree>` | the branch's new decision renumbered to the next id free on the default branch, its citations and the group map with it; a decision the plan cites as `D<n> · <title>`, above the base's highest and headed nowhere on the branch, counts as new, unless the default branch's heading of that id carries the title; a path git left conflicted is skipped and printed as `decisions: conflicted — <path>: <moves>`, its renumber for the note |
    | `delta <worktree>` | names each MODIFIED or REMOVED requirement of the branch's delta that the default branch changed since the base, save a MODIFIED one whose delta only inserts into the default branch's block and keeps nothing it removed |
 

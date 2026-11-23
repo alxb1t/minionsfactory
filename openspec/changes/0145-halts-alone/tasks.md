@@ -9,7 +9,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 - [x] 3 — Codex's fallbacks · hard
 - [x] 4 — Converge's ways back · hard
 - [x] 5 — The supervisor at the cap · hard
-- [ ] 6 — The changelog rule, the wait and the records · moderate
+- [x] 6 — The changelog rule, the wait and the records · moderate
 
 ## 1 — The rescue's amend
 
@@ -78,13 +78,13 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 ## 6 — The changelog rule, the wait and the records
 
-- [ ] 6.1 **HALT CHECK** `changelog` in `skills/mf-integrate/scripts/integrate.py` still halts a branch whose entries lack the base's.
+- [x] 6.1 **HALT CHECK** `changelog` in `skills/mf-integrate/scripts/integrate.py` still halts a branch whose entries lack the base's.
   Verify: `git grep -n -e "do not hold" -- skills/mf-integrate/scripts/integrate.py` exits 0.
-- [ ] 6.2 In `changelog`, drop each base entry the branch's entries do not lead with from where the branch holds it, when a line of the default branch's released sections equals it ([D10](design.md#d10)). Add `test_changelog_drops_a_stacked_bases_released_entries` to `tests/test_integrate.py`; edit the `lacking` case of `test_changelog_keeps_the_branch_entries_above_the_released_sections` to exit 0, and add a case whose base entry no release holds, which still halts.
+- [x] 6.2 In `changelog`, drop each base entry the branch's entries do not lead with from where the branch holds it, when a line of the default branch's released sections equals it ([D10](design.md#d10)). Add `test_changelog_drops_a_stacked_bases_released_entries` to `tests/test_integrate.py`; edit the `lacking` case of `test_changelog_keeps_the_branch_entries_above_the_released_sections` to exit 0, and add a case whose base entry no release holds, which still halts.
   Verify: `uv run pytest tests/test_integrate.py -k "drops_a_stacked_bases_released_entries" -q` exits 0.
-- [ ] 6.3 In `Run.take`'s `finally`, log `halt` with `final — needs <action> · <reason>` when the version's halt stands; add `halt: bool` to `wait_run`, ending at the first polled line holding `halt — final — needs`, printing `wait: halt — <id> · <reason>` and `status`, returning 1; add `--halt` to `main` ([D11](design.md#d11)). Add `test_wait_halt_ends_at_a_final_halt`: a final line, a halt a rescue still answers, a run's end; read `test_wait_ends_on_a_halted_run`.
+- [x] 6.3 In `Run.take`'s `finally`, log `halt` with `final — needs <action> · <reason>` when the version's halt stands; add `halt: bool` to `wait_run`, ending at the first polled line holding `halt — final — needs`, printing `wait: halt — <id> · <reason>` and `status`, returning 1; add `--halt` to `main` ([D11](design.md#d11)). Add `test_wait_halt_ends_at_a_final_halt`: a final line, a halt a rescue still answers, a run's end; read `test_wait_ends_on_a_halted_run`.
   Verify: `uv run pytest tests/test_conduct.py -k "wait_halt_ends_at_a_final_halt" -q` exits 0.
-- [ ] 6.4 In `skills/mf-ship/SKILL.md`, name `wait --halt` where it names `wait`; in `skills/mf-integrate/SKILL.md`, name the changelog rule's dropped entries.
+- [x] 6.4 In `skills/mf-ship/SKILL.md`, name `wait --halt` where it names `wait`; in `skills/mf-integrate/SKILL.md`, name the changelog rule's dropped entries.
   Verify: `git grep -n -F "wait --halt" -- skills/mf-ship/SKILL.md` exits 0.
-- [ ] 6.5 In `docs/decisions.md`, add `### D88 · The line closes the halts it can` after D87, holding the worker-halt rerun, the rescoped verdict, the hand converge's models file, the changelog's dropped entries and `wait --halt`, with **Why**, **Accepts** and **Rejected** as its neighbours.
+- [x] 6.5 In `docs/decisions.md`, add `### D88 · The line closes the halts it can` after D87, holding the worker-halt rerun, the rescoped verdict, the hand converge's models file, the changelog's dropped entries and `wait --halt`, with **Why**, **Accepts** and **Rejected** as its neighbours.
   Verify: `git grep -n -F "D88 · The line closes the halts it can" -- docs/decisions.md` exits 0.

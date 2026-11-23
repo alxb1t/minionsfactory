@@ -12,7 +12,7 @@ An id in force is never reused or renumbered. A new decision takes the next numb
     └─ Planning ─┘       └─ The check loop and the release ─┘
      D5…D10, D38, D58, D59, D62, D81, D65, D69, D77, D80  D11…D17, D40, D43, D49, D50, D82, D63, D64, D66, D68, D71, D73, D74, D75, D78, D79
 
-  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86, D87
+  The shape D1…D4, D52, D83 · The target repo D18, D46, D48 · Repo conventions D19…D23, D36, D37, D39, D41, D42, D44, D45, D47, D51, D53, D55, D56, D57, D60, D61, D67, D70, D72, D76, D84, D85, D86, D87, D88
 ```
 
 ## The shape
@@ -965,6 +965,22 @@ target.**
 - **Why:** a worker that waits on a gate longer than the 5-minute cache writes its context again; a script's gate costs
   no tokens, is timed and logged, and runs again.
 - **Rejected:** a gate in a worker's session.
+
+### D88 · The line closes the halts it can
+
+**A halt with a route the line can take alone is closed without a person. A converge halt a worker's exit or timeout caused,
+with no `verdicts` line, is run again once from round 1 by the run, and a new run or `rejoin` reads it as a rerun. A verdict
+whose scope misses the freeze sends its checker out once more, and a second miss halts as before. `conduct.py converge` by hand
+reads the version's models file, its arguments over it. The changelog rule drops a stacked base's entries the default branch
+holds released, and halts on one it does not hold. `conduct.py wait --halt` ends, exit 1, at a version's `final` halt line, one
+no rescue or supervisor answers.**
+
+- **Why:** each cause was read from disk at `8ca85458` and answered by a rule, where a watcher on Opus had answered it by
+  judgment. One command replaces the watching agent.
+- **Accepts:** a rerun starts converge from round 1, which spends a round the halted run had begun, with no verdict lost · a
+  rescoped checker spends one more worker a role · a hand converge's skip and models follow the file, so a stale file runs.
+- **Rejected:** a retry of the halted round inside converge · a halt at the first missed scope · a flag for the models file ·
+  a halt for every lacking changelog entry · a notification.
 
 ### D51 · A worker runs in an OS sandbox, and no worker pushes
 
