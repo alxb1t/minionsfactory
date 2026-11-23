@@ -180,13 +180,16 @@ field — never a heading, since the debt's headings are its changes. This refer
 **Writing limits.** Every card has every field, in this order. Use plain words, at most 2 sentences a field,
 and name things rather than count them: "the conformance and adversarial files", not "the two files".
 
-**An amend card** reads `Amend: yes`. The checker marks it so when its **Fix** names the change's `tasks.md` or
-`design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming `design.md` prose outside
-its `## Decisions`, `## Tests` and `## Dependencies` sections, which the fixer corrects, and a card whose fix a fix note
-records; the fixer marks it so when it sets the card `wontfix` naming the amend by that path. The fixer never edits
-`tasks.md`, nor those sections, a row of their tables, a decision's D-id or a `## ` heading, save a **fix note**: one line,
-`Fix note (<YYYY-MM-DD>, <card id>): <one line>`, appended as the last line of a `### D<n>` entry whose words still hold.
-Converge halts on an amend card.
+**An amend card** reads `Amend: yes`. The checker marks it so when its **Fix** names the change's `tasks.md`,
+`proposal.md` or `design.md` by its path, `openspec/changes/<change-id>/design.md`, save a `drift` card's naming
+`design.md` prose outside its `## Decisions`, `## Tests` and `## Dependencies` sections, which the fixer corrects, a card
+whose fix a fix note records, and a card whose fix rewords the spec delta or a decision's body, which the fixer says
+under `Plan-text:`; a security card of `critical` or `high` severity is an amend card whatever it names. The fixer marks
+it so when it sets the card `wontfix` naming the amend by that path. The fixer never edits `tasks.md` or `proposal.md`,
+nor those sections, a row of their tables, a decision's D-id or a `## ` heading, save a **fix note**: one line,
+`Fix note (<YYYY-MM-DD>, <card id>): <one line>`, appended as the last line of a `### D<n>` entry whose words still hold;
+and, in the commit of its fix under a `Plan-text: <card ids>` trailer, the delta and the body of a `### D<n>` entry,
+saying what its fix does. Converge halts on an amend card.
 
 ```
 - **S1 — The upload reads a file of any size into memory**

@@ -230,7 +230,9 @@ branch lacks and no row approves at that exact version halts before converge.**
 **The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
 decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker on Sonnet 5.5 · high
 ([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
-suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change.**
+suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change. The review's
+question asks, of each requirement the delta adds or changes and each rule a decision states, what else produces its subject
+and what the plan exempts.**
 
 - **Why:** a second review on every cut put reviews at 18–52% of a cut's cost, and the run now repairs a wrong plan — rescue, the supervisor, the amend
   round — at about $3 a time; a Sonnet build costs about half per line, and a fresh session per phase saved about $1 a build.
@@ -271,7 +273,7 @@ plan and judges what no script can check. The conductor runs the checker, whose 
 **The cut's plan reviews run on Sonnet 5.5 · high, the first always and a second only after a fix that changes a decision
 or a task. `cut_check.py` settles what a script finds in the plan — `Verify:` sequencing and the record's consistency — and
 `facts.py readers` the stand-ins, monkeypatches and readers of a changed name; the packet marks each as settled, and the
-reviewer judges the rest. The reviewer's budget is 25 turns, its tool calls counted by the cut from its transcript, an
+reviewer judges the rest, among it what else produces the rule's subject. The reviewer's budget is 25 turns, its tool calls counted by the cut from its transcript, an
 overrun recorded in `cut-notes.md`. Each review runs in the foreground, the cut waiting on it, and the cut runs on the
 5-minute cache with its reviews.**
 
@@ -777,7 +779,8 @@ the change, for `mf-ship`; model selection
 and provider setup stay with the operator. Models the brief names are the person's, chosen at the plan's close:
 `conduct.py` writes those when it queues the cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)), and a cut
 by hand writes what `brief_check.py --models` prints, which `--write` writes through `skills/mflib/modelsfile.py`; no
-station's prose calls `--write` yet.**
+station's prose calls `--write` yet. The models line's rescue and supervise part, each a model and an effort with no
+host, after `fix`, are the `[rescue]` and `[supervise]` tables: Sonnet 5.5 · high and the strongest tier · high.**
 
 - **Why:** model menus and effort controls vary by host; invented choices cannot be acted on.
 - **Rejected:** hardcoded model names, universal effort settings and automatic provider configuration.
@@ -996,7 +999,7 @@ person's phase is refused at the cut.**
 - **Why:** a row binds only as far as the cutter obeys its skill, and the faults the rows read cost a halt, a rescue and a new
   run once the build finds them.
 - **Accepts:** a failed first cut is paid for twice · `V7` halts a first word that resolves only inside the build's
-  environment · `K7` reads a rename's new name as removed.
+  environment, and leaves out a command the plain-command row refuses (`cd`, a loop, an assignment), which that row halts · `K7` reads a rename's new name as removed.
 - **Rejected:** an amend by a second cutter · a third try · a reset of a rejoin's branch · a gate at the cut.
 - **Amends:** D7, D60 and D77, each edited where it lives.
 
@@ -1096,20 +1099,23 @@ a commit at any other converge or integrate halt keeps the halt, and such a halt
 a settled merge, a removed note, a grant — counts as the rescue's answer, whoever wrote it, save the person's amends, which
 let the version go on, and stands for the run, no rejoin
 taking the version back; a person's grant is refused while that rescue runs, and the person's own fix then, or a grant landing as it
-ends, waits for a re-run. A version gets at most `RESCUES = 3` a run, and none for a
-sub-task rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
+ends, waits for a re-run. A halt is a sub-task or stage at a halted head, so a new head is a new halt. A version gets at
+most `RESCUES = 3` a run, and none for a halt rescued before; `[rescue]` in the models file, else `[build]`, picks its model, and `skip = true` there runs
 none. A converge `verify: halt` is the run's to diagnose, with no worker and no rescue counted, its proposal naming the
 command the run takes back. The converge fixer edits no plan, save the `design.md` prose a `drift` card names outside its
-`## Decisions`, `## Tests` and `## Dependencies` sections, and a `Fix note` closing a decision's entry, which the run reads as no decision change: a card whose
-fix needs any other plan edit halts `amend needed`. A
+`## Decisions`, `## Tests` and `## Dependencies` sections, a `Fix note` closing a decision's entry, which the run reads as no decision change,
+and, in its fix commit under a `Plan-text:` trailer, the spec delta and a decision's body, saying what its fix does; never the
+decisions table, a heading, `tasks.md` or `proposal.md`, nor for a security card of `critical` or `high`, which `converge.py`
+halts `plan edit refused`. A card whose fix needs any other plan edit halts `amend needed`. A
 timeout, a usage limit, a converge halt naming one, a failed worker, a `**HUMAN` phase and a stopped release get none: they need the person.**
 
 - **Why:** most cut-side halts were an amend a fresh reader could write — a `Verify:` that could not pass, a file a task
   missed — and each waited hours for the person. The path check keeps the amend to the plan, and converge judges the
   amend and every claim it changes ([D63](#d63--an-answered-amend-gets-one-round-over-its-range)).
   The fixer corrects a design's prose: 0098 and 0100 each paid a round and a rescue for a drift line in it the fixer
-  could not touch.
-- **Accepts:** a wrong amend that passes the path check, which converge then reads · what a rescue leaves uncommitted,
+  could not touch; 0146's R7 and R8 were a fixer's right code whose plan text lagged.
+- **Accepts:** a wrong amend that passes the path check, which converge then reads · a fixer's plan-text wording that
+  passes `converge.py`'s check, which the verify pass judges · what a rescue leaves uncommitted,
   which the path check never reads and the next build pass takes as its own · a rescue's spend, bounded per version · the
   person's own fix landing while a converge or integrate rescue runs, which the run cannot tell from the rescue's and holds
   for a re-run, save the person's amends alone, which go on ([D60](#d60--a-run-heals-its-own-halts)) · a rescue amend
@@ -1143,12 +1149,13 @@ need and each version a rescue decided for.**
 ### D61 · A supervisor answers what rescue diagnoses
 
 **Under a version's `decide = "recommended"`, when its rescue diagnoses a build, converge or
-integrate semantic-conflict halt or is spent on it — the sub-task rescued before, or `RESCUES` reached — `conduct.py` runs
+integrate semantic-conflict halt or is spent on it — the halt rescued before, or `RESCUES` reached — `conduct.py` runs
 `mf-supervise` in the version's thread. It may amend anything under `openspec/changes/<id>/`, the spec delta included, and tick
 a sub-task whose `Verify:` it ran green; it never edits code or a test, takes a security `critical` or `high` card, approves a
 gate makefile, accepts a threat-model risk, answers an integrate red gate, releases, merges or pushes. The run takes one commit with the amend's subject, `Supervisor:` and `Decided-by: supervisor`
 trailers and paths under the change directory alone, logs it `decided`, clears the halt and goes on in the thread; anything else
-halts the version for the person. One try a halt, at most `SUPERVISES = 2` a version a run; `[supervise]` picks its model,
+halts the version for the person. One try a halt, a sub-task or stage at a halted head, at most `SUPERVISES = 2` a
+version a run; `[supervise]` picks its model,
 `claude-opus-5-5` at `high` on Claude when it names none. The close and `report` name each.**
 
 - **New work:** a sub-task an amend adds — the supervisor's, the rescue's or the person's — goes in a new unticked phase after

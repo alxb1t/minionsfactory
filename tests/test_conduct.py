@@ -1936,6 +1936,49 @@ def test_a_stacked_dependent_resets_and_merges_back(
     assert _git(race, "rev-parse", "HEAD^1") == race_cut
 
 
+def test_a_plan_text_fix_commit_re_plans_a_stack(tmp_path: Path) -> None:
+    # Why: 0147-amends-alone design D3.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    folder = "openspec/changes/0001-todo"
+    first = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    decided = "# design\n\n## Decisions\n\n### D1\n\nIt holds.\n"
+    _commit(first, {f"{folder}/design.md": decided}, "build: d1")
+    built = _git(first, "rev-parse", "HEAD")
+    _done(root, "0001-todo", built)
+    marks = _version(root, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
+    landed = "docs(0002-marks): land the change directory"
+    _git(marks, "commit", "-q", "--amend", "-m", landed)
+    cut = _git(marks, "rev-parse", "HEAD")
+    run = conduct["Run"](root, "claude")
+    run.git_state = conduct["_git_state"](root)
+    version = conduct["Version"]("0002-marks", marks)
+    # Stacked as `ready` stacks it: the built head merged in, and named.
+    _git(marks, "merge", "-q", "--no-ff", "-m", "chore(stack): merge", built)
+    stacked = _git(marks, "rev-parse", "HEAD")
+    stacked_on = root / ".minions" / "changes" / "0002-marks" / "stacked-on"
+    stacked_on.parent.mkdir(parents=True, exist_ok=True)
+    stacked_on.write_text(f"{built}\n")
+    worded = "fix(0001-todo): it\n\nPlan-text: R1\nChange: 0001-todo"
+
+    # A fix commit that rewords the delta alone, or a body with no trailer, is none.
+    _commit(first, {f"{folder}/specs/sdd/spec.md": "## ADDED\n"}, worded)
+    assert not run.reset_stack(version)
+    body: dict[str, str] = {
+        f"{folder}/design.md": decided.replace("holds", "holds at the call")
+    }
+    _commit(first, body, "fix(0001-todo): it\n\nChange: 0001-todo")
+    assert not run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == stacked
+
+    # One that rewords a decision's body under `Plan-text:` resets it.
+    _commit(first, {f"{folder}/design.md": decided.replace("holds", "binds")}, worded)
+    assert run.reset_stack(version)
+    assert _git(marks, "rev-parse", "HEAD") == cut
+    reset = f"0001-todo re-planned past {built[:7]}: {stacked[:7]} → {cut[:7]}"
+    assert any(line.endswith(f" · 0002-marks · reset — {reset}") for line in _log(root))
+
+
 @pytest.mark.slow
 def test_a_merge_in_renumbers_a_planned_decision(
     tmp_path: Path, fake: Callable[..., Path]
@@ -3678,15 +3721,16 @@ def test_a_sub_task_is_rescued_once(
         == 1
     )
 
+    # Each hollow amend moves `HEAD`, so each halt is new, until the cap.
+    # Why: 0147-amends-alone design D1.
     assert _calls(calls) == [
         "probe",
-        "build 0001-todo",
-        "rescue 0001-todo",
+        *["build 0001-todo", "rescue 0001-todo"] * 3,
         "build 0001-todo",
     ]
     assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
-        " · rescued 1.1"
+        " · rescued 1.1 1.1 1.1"
     )
 
     # The fourth halt gets none, whatever its sub-task.
@@ -4492,17 +4536,19 @@ def test_a_spent_rescue_starts_the_supervisor_once(
         == 1
     )
 
+    # Each hollow amend moves `HEAD`, so each halt is new, until each cap.
+    # Why: 0147-amends-alone design D1.
+    rescue = ["build 0001-todo", "rescue 0001-todo with decide=recommended"]
+    supervise = ["build 0001-todo", "supervise 0001-todo with decide=recommended"]
     assert _calls(calls) == [
         "probe",
-        "build 0001-todo",
-        "rescue 0001-todo with decide=recommended",
-        "build 0001-todo",
-        "supervise 0001-todo with decide=recommended",
+        *rescue * 3,
+        *supervise * 2,
         "build 0001-todo",
     ]
     assert _log(root)[-3].endswith(
         " · 0001-todo · halt — build check fail — phase 1 unticked · 1.1: 3"
-        " · rescued 1.1 · supervised 1.1"
+        " · rescued 1.1 1.1 1.1 · supervised 1.1 1.1"
     )
 
     # The third halt gets none, whatever its sub-task.
@@ -4676,6 +4722,9 @@ def test_the_supervisor_re_plans_a_design_cap_once(
         "rescue 0001-todo with decide=recommended",
         "supervise 0001-todo with decide=recommended and replan=yes",
         *sorted(amend_round),
+        # The second cap is at a new head: a new halt, its rescue diagnosed.
+        # Why: 0147-amends-alone design D1.
+        "rescue 0001-todo with decide=recommended",
     ]
     amend = _git(tree, "log", "-1", "--format=%H", "--grep=amend the change")
     mark = root / ".minions" / "changes" / "0001-todo" / "replan.mark"
@@ -4684,9 +4733,14 @@ def test_the_supervisor_re_plans_a_design_cap_once(
     decided = f" · run · supervise — 0001-todo: decided · converge-halted · {amend[:7]}"
     assert any(line.endswith(f"{decided} · re-plan") for line in lines)
     assert not any(" · grant — " in line for line in lines)
-    assert lines[-4].endswith(" · rescued converge-halted · supervised converge-halted")
-    assert lines[-3].endswith(" · 0001-todo · halt — re-plan: R1 S1")
-    assert " · supervised 0001-todo · re-planned 0001-todo · needs " in lines[-1]
+    assert lines[-8].endswith(f" · head {_git(tree, 'rev-parse', 'HEAD')}")
+    assert lines[-7].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    diagnosed = (
+        " · rescue — 0001-todo: diagnosed · .minions/changes/0001-todo/rescue.md"
+    )
+    assert lines[-4].endswith(diagnosed)
+    said = " · supervised 0001-todo · re-planned 0001-todo · needs 0001-todo rescue.md"
+    assert lines[-1].endswith(said)
 
     # A new run's supervisor meets the mark: no re-plan; with no mark it re-plans.
     conductor = conduct["Run"](root, "claude")
@@ -13405,15 +13459,201 @@ def test_a_usage_limit_converge_halt_gets_no_rescue(
     assert not run.supervise(version, "converge-halted", True)
     assert run.supervisions == {} and _calls(calls) == []
 
-    # Twin: a converge halt that names none gets its rescue and its supervisor.
+    # Twin: a converge halt that names none gets its rescue and its supervisor, each
+    # keyed by the head it halted at.
     log.write_text(
         f"# t\n\n## Run 1 — d\n10:00:00 · round 1 · halt — red · head {head}\n"
     )
+    halted = _git(tree, "rev-parse", "--short", head)
     run.rescue(version, "converge-halted", amends)
-    assert run.rescues == {"0001-todo": ["converge-halted"]}
+    assert run.rescues == {"0001-todo": [f"converge-halted@{halted}"]}
     assert _calls(calls)[:1] == ["rescue 0001-todo with decide=recommended"]
+    short = _git(tree, "rev-parse", "--short", "HEAD")
     run.supervise(version, "converge-halted", True)
-    assert run.supervisions == {"0001-todo": ["converge-halted"]}
+    assert run.supervisions == {"0001-todo": [f"converge-halted@{short}"]}
+
+
+def _converge_halted(root: Path) -> tuple[Any, Any, Path]:
+    """Return a run, its `0001-todo` version halted `red` in converge, and its tree.
+
+    The version is under the switch, its rescue diagnosed.
+    """
+    conduct = _conduct()
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    _done(root, "0001-todo", head)
+    _findings(root, "0001-todo", head)
+    log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    # Newest first: a halt after round 1's start.
+    halt = f"10:00:00 · round 1 · halt — red · head {head}\n"
+    log.write_text(f"# t\n\n## Run 1 — d\n{halt}09:00:00 · round 1 · start — base\n")
+    version = conduct["find_version"](root, "0001-todo")
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    run.decides.add("0001-todo")
+    run.diagnosed.add("0001-todo")
+    return run, version, tree
+
+
+def _short(tree: Path) -> str:
+    return _git(tree, "rev-parse", "--short", "HEAD")
+
+
+def test_a_halt_key_joins_the_halted_head(tmp_path: Path) -> None:
+    # Why: 0147-amends-alone design D1.
+    key = _conduct()["_halt_key"]
+    root = _primary(tmp_path)
+    assert key(root, "1.1") == f"1.1@{_short(root)}"
+    assert key(None, "converge-halted") == "converge-halted"
+
+
+@pytest.mark.slow
+def test_two_heads_are_two_halts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # A converge halt at the head a rescue's amend left is a new halt, rescued in
+    # the same run. Why: 0147-amends-alone design D1.
+    calls = fake("rescue-hollow")
+    run, version, tree = _converge_halted(_primary(tmp_path))
+    amends = ("tasks.md", "design.md")
+    first = _short(tree)
+    assert run.rescue(version, "converge-halted", amends)
+    second = _short(tree)
+    assert second != first
+    assert run.rescue(version, "converge-halted", amends)
+    keys = [f"converge-halted@{first}", f"converge-halted@{second}"]
+    assert run.rescues == {"0001-todo": keys}
+    assert _calls(calls) == ["rescue 0001-todo with decide=recommended"] * 2
+
+
+@pytest.mark.slow
+def test_one_halt_is_answered_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # A halt at the head it was answered at gets no second rescue and no second
+    # supervisor; its words name the stage with no head.
+    # Why: 0147-amends-alone design D1.
+    calls = fake("rescue-diagnose")
+    run, version, tree = _converge_halted(_primary(tmp_path))
+    amends = ("tasks.md", "design.md")
+    assert not run.rescue(version, "converge-halted", amends)
+    assert not run.rescue(version, "converge-halted", amends)
+    assert not run.supervise(version, "converge-halted", True)
+    assert not run.supervise(version, "converge-halted", True)
+    assert _calls(calls) == [
+        "rescue 0001-todo with decide=recommended",
+        "supervise 0001-todo with decide=recommended",
+    ]
+    said = run.rescued("0001-todo", "converge-halted", tree)
+    assert said == " · rescued converge-halted"
+    said = run.supervised("0001-todo", "converge-halted", tree)
+    assert said == " · supervised converge-halted"
+
+
+def test_a_stuck_stage_halt_names_its_rescue_and_supervision(tmp_path: Path) -> None:
+    # `advance` reads the keys at the tree's head, so its halt line names the words.
+    # Why: 0147-amends-alone design D1.
+    run, version, tree = _converge_halted(_primary(tmp_path))
+    run.rescues["0001-todo"] = [f"converge-halted@{_short(tree)}"]
+    run.supervisions["0001-todo"] = [f"converge-halted@{_short(tree)}"]
+
+    assert run.advance(version, ()) is None
+
+    who, said = run.halts[0]
+    assert who == "0001-todo"
+    assert said.endswith(" · rescued converge-halted · supervised converge-halted")
+
+
+def test_the_caps_stand_across_heads(tmp_path: Path) -> None:
+    # The caps count keys: a halt at a new head gets none once a version's rescues
+    # or supervisions are spent. Why: 0147-amends-alone design D1.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    run = conduct["Run"](root, "claude")
+    run.rescues["0001-todo"] = ["1.1@aaaaaaa", "1.1@bbbbbbb"]
+    run.supervisions["0001-todo"] = ["1.1@aaaaaaa"]
+    # Twin: under the caps, a new head is a new halt.
+    assert run.rescued("0001-todo", "1.1", root) == ""
+    assert run.supervised("0001-todo", "1.1", root) == ""
+    run.rescues["0001-todo"].append("converge-halted@ccccccc")
+    run.supervisions["0001-todo"].append("1.1@bbbbbbb")
+    spent = " · rescued 1.1 1.1 converge-halted"
+    assert run.rescued("0001-todo", "1.1", root) == spent
+    assert run.supervised("0001-todo", "1.1", root) == " · supervised 1.1 1.1"
+
+
+@pytest.mark.slow
+def test_a_build_subtask_halted_at_two_heads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # A build's sub-task halted again at its head gets no rescue; past a commit that
+    # moves the head, it gets one. Why: 0147-amends-alone design D1.
+    calls = fake("rescue-diagnose")
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    version = conduct["find_version"](root, "0001-todo")
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    first = _short(tree)
+    assert not run.rescue(version, "1.1", ())
+    assert not run.rescue(version, "1.1", ())
+    assert _calls(calls) == ["rescue 0001-todo"]
+    _commit(tree, {"src.txt": "mine\n"}, "a person's fix")
+    assert not run.rescue(version, "1.1", ())
+    assert _calls(calls) == ["rescue 0001-todo"] * 2
+    assert run.rescues == {"0001-todo": [f"1.1@{first}", f"1.1@{_short(tree)}"]}
+    assert run.rescued("0001-todo", "1.1", tree) == " · rescued 1.1 1.1"
+
+
+@pytest.mark.slow
+def test_an_integrate_halt_is_keyed_by_its_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # An `integrating` halt a rescue was spent on gets none at that head, and one at
+    # a new head. Why: 0147-amends-alone design D1.
+    calls = fake("rescue-diagnose")
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    version = conduct["find_version"](root, "0001-todo")
+    run = conduct["Run"](root, "claude")
+    run.read_plan([version])
+    first = _short(tree)
+    run.rescue(version, "integrating", ())
+    assert run.rescued("0001-todo", "integrating", tree) == " · rescued integrating"
+    run.rescue(version, "integrating", ())
+    assert _calls(calls) == ["rescue 0001-todo"]
+    _commit(tree, {"src.txt": "mine\n"}, "a person's fix")
+    assert run.rescued("0001-todo", "integrating", tree) == ""
+    run.rescue(version, "integrating", ())
+    assert _calls(calls) == ["rescue 0001-todo"] * 2
+    keys = [f"integrating@{first}", f"integrating@{_short(tree)}"]
+    assert run.rescues == {"0001-todo": keys}
+
+
+@pytest.mark.slow
+def test_a_version_halted_at_two_heads_ends_on_its_newest_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # A taken amend clears the first halt; the halt at the head it left is the one
+    # the final line names. Why: 0147-amends-alone design D1.
+    fake("rescue-hollow")
+    root = _primary(tmp_path)
+    run, version, tree = _converge_halted(root)
+    amends = ("tasks.md", "design.md")
+    run.halt("0001-todo", f"converge-halted — red · head {_short(tree)}")
+    assert run.rescue(version, "converge-halted", amends)
+    newest = f"converge-halted — red · head {_short(tree)}"
+    run.halt("0001-todo", newest)
+    fake("rescue-diagnose")
+    assert not run.rescue(version, "converge-halted", amends)
+    run.final("0001-todo")
+    assert _log(root)[-1].endswith(f" · {newest}")
 
 
 @pytest.mark.slow

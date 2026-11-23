@@ -228,7 +228,7 @@ runs none.
 
 - **Judge `I5`–`I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs** — each `judge` line names what to read, `P12` and `P13`
   with candidates as `path:line`, which only you or the reviewer judge.
-- **Read every `Verify:`; run none as written.** `V1`–`V8` settle a search's sequence, its needles, a needle a later task removes, a `pytest`'s test files, a first word that is no program and a `-k` that selects no test (`V8`); read what
+- **Read every `Verify:`; run none as written.** `V1`–`V8` settle a search's sequence, its needles, a needle a later task removes, a `pytest`'s test files, a first word that is no program (`V7`, which passes over a command `I19 refuses`: `cd`, a loop, an assignment) and a `-k` that selects no test (`V8`); read what
   they leave: a pattern that is no literal. The build runs them, once the human starts it. Rewrite a check you
   can see will not run as written — an unknown flag, bad syntax. Flag to the human a check that already holds, its
   needle already in the file: true before the build, it may prove nothing. Except a `**HALT CHECK**`: it checks a
@@ -249,7 +249,10 @@ it, whatever the session's model — on Claude Code the Agent tool's `model: son
 model. Give it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md`,
 `cut_check.py`'s output, and one question: can each task be built as written,
 each `Verify:` pass after it, and each the search script did not run — a test, a command — fail before it, save a
-`**HALT CHECK**`, which should hold? It starts from the packet, opening
+`**HALT CHECK**`, which should hold? Beside it, of each requirement the delta adds or changes and each rule a decision
+states: what else produces the thing it judges — the build's commits, a fix commit, an amend, the release's edits, a
+generated file — and what does the plan exempt? A plan that adds or changes no requirement and states no rule is passed
+over by this part. It starts from the packet, opening
 another file only at a path or `path:line` the change or the notes cite. A search's "before" is the script's, so the
 reviewer reads only its "after". It answers with doubts, each with its `path:line`.
 
@@ -440,7 +443,8 @@ else. A `converge skip` part is `skip = true` under `[converge]`, no worker tabl
 skip` or `adversarial skip` part is `skip = true` alone under that checker's table. A `build-moderate` part is
 `[build.moderate]`, its `model` and `effort` and no `executor`: the phases rated `moderate` build on it. A `build-close`
 part is `[build.close]`, the same keys and no `executor`: the close runs on it, else on `[build.moderate]`, else on
-`[build]`. Write `decide = "recommended"` before the tables when that item says
+`[build]`. A `rescue` part is `[rescue]` and a `supervise` part `[supervise]`, each its `model` and `effort` and no
+`executor`. Write `decide = "recommended"` before the tables when that item says
 `decide: recommended`.
 
 Suggest effort only when the host and the chosen model expose that setting; otherwise omit it. Do not change the
@@ -464,6 +468,8 @@ a change for `[build]`.
   A new code path, a dependency, or an anchored harm — data loss, spend, exposure of personal data or secrets, silent
   wrong output — calls for the tiers named. Say which you found. A `skip` is the person's: it stands in the
   brief's models line, and you suggest none.
+- **Rescue** — `[rescue]`: Sonnet 5.5 · high, where the session offers it. **Supervisor** — `[supervise]`: the strongest
+  tier · high.
 - **Release** — the mid tier · medium; high when the change flags a hand-edit for the release.
 
 ```
@@ -496,6 +502,12 @@ effort = "<effort>"
 model = "<offered model>"
 effort = "<effort>"
 [converge.fix]
+model = "<offered model>"
+effort = "<effort>"
+[rescue]  # optional, from the brief's rescue
+model = "<offered model>"
+effort = "<effort>"
+[supervise]  # optional, from the brief's supervise
 model = "<offered model>"
 effort = "<effort>"
 [release]

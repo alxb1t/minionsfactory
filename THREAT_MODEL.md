@@ -107,8 +107,9 @@ not follow, and releases its lock only while the lock holds its token. The start
   in-process writes of a change's folder follow no link by their own checks until their formats move. Among the worker output, `build-notes.md`, which any worker of
   the run can write, the next phase reads as evidence, and the conductor counts and trims through a descriptor that
   follows no link and refuses a file that is not a regular file of one name: a hard link, a folder or a pipe halts the
-  version. A design's `Fix note` lines, which the converge fixer appends and the run reads as no decision change: a note
-  can misstate the code, and the verify round and the person read it.
+  version. A design's `Fix note` lines, which the converge fixer appends and the run reads as no decision change, and the
+  spec delta and decision bodies it rewords under a `Plan-text:` trailer: each can misstate the code, and the verify round
+  and the person read it.
 - Rejoin requests, in the home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`: the person's session writes
   them and no worker can, so a file in `.minions/runs/rejoin/` is no request. A request has the live run read a version's
   stage from disk again, which it already trusts, and the models file of a version cut since its start. A version the
@@ -185,9 +186,11 @@ hooks reshape the whole run, is on it.
   and the unsandboxed conductor reads them: git config, worktree entries, the claim. A hostile worker may influence the conductor
   this way. The person accepted this class on 2026-11-01, for confused and prompt-injected agents, with
   credentials denied on Claude; a Codex worker reads `~`, its network off. A route in this class is carded; only a new
-  class blocks, anchors included. A converge fixer correcting the `design.md` prose a `drift` card names, or appending a
-  fix note, is in this class too, as a rescue's amend is: bounded by `tasks.md` and the `## Decisions`, `## Tests` and
-  `## Dependencies` sections it never edits (`0101·S4`). A rescue writing the plan the build is then judged by is in this class
+  class blocks, anchors included. A converge fixer correcting the `design.md` prose a `drift` card names, appending a
+  fix note, or rewording the spec delta and a decision's body under a `Plan-text:` trailer, is in this class too, as a
+  rescue's amend is: bounded by `tasks.md`, `proposal.md`, the decisions table, the headings and the `## Tests` and
+  `## Dependencies` sections, which it never edits (`0101·S4`). `converge.py` refuses a fix commit that edits `tasks.md`,
+  `proposal.md`, the decisions table or a heading, or whose trailer names a security card of `critical` or `high`. A rescue writing the plan the build is then judged by is in this class
   ([D53](docs/decisions.md#d53--a-rescue-amends-the-plan-never-the-code-or-a-decision)): the conductor takes its amend
   only when its commit touches the change's `tasks.md` and `design.md` alone. The check reads that commit's paths alone, never the
   tree: a box the amend ticks, or an edit the rescue leaves uncommitted, the next build pass takes as its own, as it would any

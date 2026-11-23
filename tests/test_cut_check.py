@@ -986,6 +986,27 @@ def test_first_word_on_path_holds(
     assert cut_check.row_v7(change, plan, set()) is None
 
 
+def test_v7_passes_over_a_command_i19_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = cut_check._plan()
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    program = tmp_path / "program"
+    program.mkdir()
+    (program / "cd").write_text("#!/bin/sh\n")
+    (program / "cd").chmod(0o755)
+    for path in (bare, program):
+        monkeypatch.setenv("PATH", str(path))
+        for command in ("cd x", "for f in a; do ls; done", "A=1 make", "while x; do y"):
+            tasks = f"- [ ] 1.1 A.\n  Verify: `{command}` exits 0.\n"
+            change = cut_check.Change("x", Path("x"), "", "", tasks)
+            assert cut_check.row_v7(change, plan, set()) is None, command
+    tasks = "- [ ] 1.1 A.\n  Verify: `nosuchtool x` exits 0.\n"
+    change = cut_check.Change("x", Path("x"), "", "", tasks)
+    assert cut_check.row_v7(change, plan, set()) == "1.1: `nosuchtool` names nothing"
+
+
 def test_first_word_of_the_tree_holds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

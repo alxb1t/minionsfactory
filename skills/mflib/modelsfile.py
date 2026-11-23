@@ -22,11 +22,11 @@ TABLES = {
     "conformance": "converge.conformance",
     "adversarial": "converge.adversarial",
     "fix": "converge.fix",
+    "rescue": "rescue",
+    "supervise": "supervise",
     "release": "release",
 }
 TOKEN = re.compile(r"[A-Za-z0-9._-]+")
-# The person's tables: read, and written by no tool. Why: 0142-models design D4.
-PERSON = ("rescue", "supervise")
 BOUND = 65536
 _PHRASES = {errno.ELOOP: "it is a link", errno.EINVAL: "it is not a regular file"}
 
@@ -90,7 +90,7 @@ def read(primary: Path, change: str) -> dict[str, object]:
     """Return the change's models file parsed; {} with no file.
 
     A broken file raises `Broken`, as does a `model` or `effort` string of a table of
-    `TABLES` or `PERSON` that is no token. Why: 0142-models design D5 and D6.
+    `TABLES` that is no token. Why: 0142-models design D5 and D6.
     """
     if (data := load(primary, change)) is None:
         return {}
@@ -101,7 +101,7 @@ def read(primary: Path, change: str) -> dict[str, object]:
     except RecursionError:
         # why: 3.12's parser recurses per nested array; 0142-models adversarial S1.
         raise Broken("it nests too deep") from None
-    for name in (*TABLES.values(), *PERSON):
+    for name in TABLES.values():
         found = table(parsed, name) or {}
         for word in (found.get("model"), found.get("effort")):
             if isinstance(word, str) and not TOKEN.fullmatch(word):

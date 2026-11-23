@@ -61,16 +61,17 @@ BUMPS = ("minor", "patch")
 STATIONS = ("build", "converge", "release", "cut")
 CHECKS = ("conformance", "adversarial", "fix")
 # The optional parts, in order. Why: 0102-build-per-phase design D6.
-PARTS = ("build-moderate", "build-close", *CHECKS)
+PARTS = ("build-moderate", "build-close", *CHECKS, "rescue", "supervise")
 HOSTS = ("claude", "codex")
-HOSTLESS = ("cut", "build-moderate", "build-close")
+HOSTLESS = ("cut", "build-moderate", "build-close", "rescue", "supervise")
 SKIPPABLE = ("converge", "conformance", "adversarial")
 SHADOW = ["shadow"]
 LIGHT = "the title says light: /mf-plan <what> depth=hard from=<brief>"
 MODELS = (
     "the models line is not build · converge · release · cut, then any of"
-    " build-moderate · build-close · conformance · adversarial · fix, each"
-    " <model> <effort>, or skip for converge, conformance and adversarial, then shadow"
+    " build-moderate · build-close · conformance · adversarial · fix · rescue ·"
+    " supervise, each <model> <effort>, or skip for converge, conformance and"
+    " adversarial, then shadow"
 )
 NEITHER = (
     "## Dependencies is neither None. nor a table of item · package · constraint · why"
