@@ -8,7 +8,7 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 - [x] 2 — The load on spawn and finish lines · moderate
 - [x] 3 — A halt's cause · moderate
 - [x] 4 — The gates' lines · moderate
-- [ ] 5 — The readers · moderate
+- [x] 5 — The readers · moderate
 - [ ] 6 — The records · moderate
 
 ## 1 — The phase on a build's spawn line
@@ -53,11 +53,11 @@ The run log gains a build's phase, the load, a halt's cause and the gates' lines
 
 ## 5 — The readers
 
-- [ ] 5.1 In `skills/mf-ui/scripts/viewer.py` give each worker a `phase`, read from its spawn line, and each version a `gate_running` flag, true only under a live claim, and a `cause` ([D5](design.md#d5)). In `skills/mf-ui/page/index.html` show the phase on the worker's row, a running gate and the cause, each as text.
+- [x] 5.1 In `skills/mf-ui/scripts/viewer.py` give each worker a `phase`, read from its spawn line, and each version a `gate_running` flag, true only under a live claim, and a `cause` ([D5](design.md#d5)). In `skills/mf-ui/page/index.html` show the phase on the worker's row, a running gate and the cause, each as text.
   Verify: `git grep -n -e "gate_running" -- skills/mf-ui/scripts/viewer.py` exits 0.
-- [ ] 5.2 In `skills/mf-review-metrics/scripts/review_metrics.py` add `_phases`, which matches each build log to its spawn line by the stamp and the ordinal its name holds. Add `phases` rows to `review-metrics.json`, and `def phase_table` as a table of each repo's section.
+- [x] 5.2 In `skills/mf-review-metrics/scripts/review_metrics.py` add `_phases`, which matches each build log to its spawn line by the stamp and the ordinal its name holds. Add `phases` rows to `review-metrics.json`, and `def phase_table` as a table of each repo's section.
   Verify: `git grep -n -e "def phase_table" -- skills/mf-review-metrics/scripts/review_metrics.py` exits 0.
-- [ ] 5.3 In `tests/test_viewer.py` add `test_a_worker_shows_its_phase`, `test_a_running_gate_is_the_versions_last_line`, `test_a_stale_claim_shows_no_running_gate` and `test_a_halt_shows_its_cause`, and put the fields in its fixtures. In `tests/test_review_metrics.py` add `test_build_cost_is_booked_by_phase` and `test_the_phase_table_has_a_row_per_build_log`. In `tests/test_metric_scripts.py` add `test_run_reads_a_log_with_the_new_fields`, over lines that hold a phase, a load and a cause.
+- [x] 5.3 In `tests/test_viewer.py` add `test_a_worker_shows_its_phase`, `test_a_running_gate_is_the_versions_last_line`, `test_a_stale_claim_shows_no_running_gate` and `test_a_halt_shows_its_cause`, and put the fields in its fixtures. In `tests/test_review_metrics.py` add `test_build_cost_is_booked_by_phase` and `test_the_phase_table_has_a_row_per_build_log`. In `tests/test_metric_scripts.py` add `test_run_reads_a_log_with_the_new_fields`, over lines that hold a phase, a load and a cause.
   Verify: `uv run pytest tests/test_viewer.py tests/test_review_metrics.py tests/test_metric_scripts.py -q -k "test_a_worker_shows_its_phase or test_a_running_gate_is_the_versions_last_line or test_a_stale_claim_shows_no_running_gate or test_a_halt_shows_its_cause or test_build_cost_is_booked_by_phase or test_the_phase_table_has_a_row_per_build_log or test_run_reads_a_log_with_the_new_fields"` exits 0.
 
 ## 6 — The records

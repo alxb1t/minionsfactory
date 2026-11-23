@@ -580,6 +580,42 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert done.stderr == "no MF_METRICS_CHANGE, _BASE and _HEAD\n"
 
 
+def _with_fields(text: str) -> str:
+    """Return a run log with a build's phase, the load and a halt's cause added."""
+    lines = []
+    for each in text.splitlines():
+        line = each.replace("spawn — build · ", "spawn — build · phase 1 · ")
+        load = " · load 1.5" if " · spawn — " in line or " · finish — " in line else ""
+        halt = " · halt — " in line and " · run · " not in line
+        lines.append(f"{line}{load}{' · cause other' if halt else ''}")
+    return "\n".join(lines) + "\n"
+
+
+def test_run_reads_a_log_with_the_new_fields(tmp_path: Path) -> None:
+    roots = {name: tmp_path / name for name in ("plain", "fielded")}
+    envs = {}
+    for name, root in roots.items():
+        root.mkdir()
+        envs[name] = _run_fixture(root)
+    logs = {"20261101-230000": _RUN_A, "20261102-090000": _RUN_B}
+    _write(
+        roots["fielded"],
+        {f".minions/runs/{stamp}.md": _with_fields(t) for stamp, t in logs.items()},
+    )
+    fielded = (roots["fielded"] / ".minions/runs/20261101-230000.md").read_text()
+    for field in ("spawn — build · phase 1 · model m", " · load 1.5", " · cause other"):
+        assert field in fielded
+
+    read = {name: _reader(roots[name], envs[name]) for name in roots}
+    for metric in _load("run").METRICS:
+        assert read["fielded"](metric) == read["plain"](metric)
+    # A reading that moved would be a gap on both; these are the run's own numbers.
+    assert read["fielded"]("build-minutes") == 30.0
+    assert read["fielded"]("halts-converge") == 2
+    assert read["fielded"]("halts-integrate") == 1
+    assert read["fielded"]("wait-minutes") == 516.5
+
+
 def test_run_metrics_halt_on_an_old_layout(tmp_path: Path) -> None:
     env = _run_fixture(tmp_path)
     run = _load("run")

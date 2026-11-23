@@ -826,6 +826,44 @@ def _cost_logs(repo: Path, change: str) -> Record:
     return record
 
 
+def _phases(repo: Path, change: str) -> list[Record]:
+    """Return a row per build log, its phase read from the run log's spawn line.
+
+    e.g. `A-build-2.log` → the second build spawn line of `A.md`; none names `None`
+    Why: 0148-run-fields design D5.
+    """
+    moved = _moved(repo, change)
+    spawn = re.compile(
+        rf"^\d\d:\d\d:\d\d · {re.escape(change)} · spawn — build"
+        r"(?: · (phase \d+|close|repair))?(?: · |$)",
+        re.MULTILINE,
+    )
+    named: dict[str, list[str]] = {}
+    rows: list[Record] = []
+    for path in _station_logs(repo, change, "build"):
+        before, _, after = path.name.removesuffix(".log").rpartition("build")
+        stamp = before.removesuffix("-") if moved else path.parent.name
+        if stamp not in named:
+            run = mflib.layout.runs_dir(repo) / f"{stamp}.md"
+            text = (
+                run.read_text(encoding="utf-8", errors="replace")
+                if run.is_file()
+                else ""
+            )
+            named[stamp] = spawn.findall(text)
+        count = after.removeprefix("-")
+        ordinal = int(count) if count.isdecimal() else 1
+        held = named[stamp]
+        phase = (held[ordinal - 1] or None) if ordinal <= len(held) else None
+        spent = _spent(_results(path))
+        rows.append(
+            {"repo": repo.name, "change": change, "phase": phase}
+            | {"dollars": spent["cost"]}
+            | {key: spent[key] for key in ("turns", "tokens", "seconds", "first")}
+        )
+    return rows
+
+
 def _usage(usage: object) -> dict[str, int] | None:
     """Return a Claude usage object's tokens by `prices.toml` key; no object, None.
 
@@ -1774,6 +1812,7 @@ def read_change(repo: Path, change: str) -> Record:
         "categories": _merged(files, "categories"),
         **status,
         **_cost_logs(repo, change),
+        "phases": _phases(repo, change),
         "roles": roles,
         "shadow": _shadows(repo, change),
         "repeats": [repeat for found in files for repeat in found["repeats"]],
@@ -2097,6 +2136,37 @@ def cost_table(records: list[Record], booked: Sequence[Record] = ()) -> Table:
     )
 
 
+def phase_table(records: list[Record]) -> Table:
+    """Return a row per build log of the changes: its phase and spend, `—` a gap.
+
+    e.g. ["0148-x", "phase 2", "$1.50 · 15 turns · 376 tokens · 91 s · first 900"]
+    Why: 0148-run-fields design D5.
+    """
+    return (
+        ["change", "phase", "spend"],
+        [
+            [
+                row["change"],
+                row["phase"] or GAP,
+                " · ".join(
+                    [
+                        *_spend_parts(
+                            row["dollars"], row["turns"], row["tokens"], row["seconds"]
+                        ),
+                        *(
+                            [f"first {row['first']}"]
+                            if row["first"] is not None
+                            else []
+                        ),
+                    ]
+                ),
+            ]
+            for record in records
+            for row in record["phases"]
+        ],
+    )
+
+
 def _unbooked_table(booked: Sequence[Record]) -> Table:
     """Return a row per station of the booked rows that name no change."""
     loose = [row for row in booked if row["change"] is None]
@@ -2214,6 +2284,8 @@ def _repo_section(
         _html_table(_severity_table(records)),
         "<h3>cost</h3>",
         _html_table(cost_table(records, mine)),
+        "<h3>build cost by phase</h3>",
+        _html_table(phase_table(records)),
         '<div class="charts">',
     ]
     for field, title in CHARTS.items():
@@ -2328,6 +2400,7 @@ def main(argv: list[str] | None = None) -> int:
                 *(row for record in records for row in _stations(record)),
                 *rows,
             ],
+            "phases": [row for record in records for row in record["phases"]],
             **cross_model(records),
         }
         _write(out.with_name(DATA), json.dumps(data, indent=2) + "\n")

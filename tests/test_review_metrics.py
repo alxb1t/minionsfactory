@@ -11,7 +11,7 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from mflib import layout
@@ -807,6 +807,106 @@ def test_run_logs_give_cost_turns_and_tokens_per_station(
     assert record["read_converge"] == 2
     _, rows = review_metrics.cost_table([record])
     assert rows[0][2] == "— · 1100004 tokens"
+
+
+def _phase_rows(root: Path, change: str) -> list[dict[str, Any]]:
+    return cast("list[dict[str, Any]]", _record(root, change)["phases"])
+
+
+def _built(root: Path) -> None:
+    """Write a change's build logs under two run stamps, and a run log for each."""
+    _findings(root, "0050-x_review.md", _front())
+    one = _result(0.5, 3, 60000, m={"inputTokens": 10, "outputTokens": 20})
+    two = _result(1.25, 4, 30000, m={"inputTokens": 100})
+    opening = {"type": "assistant", "message": {"usage": {"input_tokens": 7}}}
+    _worker_log(root, "0050-x", "A-build.log", opening, one)
+    _worker_log(root, "0050-x", "A-build-2.log", two)
+    _worker_log(root, "0050-x", "A-build-3.log", two)
+    _worker_log(root, "0050-x", "B-build.log", one)
+    _worker_log(root, "0050-x", "C-build.log", "codex: a text log")
+    _run_log(
+        root,
+        "A.md",
+        "10:00:00 · 0050-x · spawn — build · phase 1 · model m · load 0.5",
+        "10:01:00 · 0050-xy · spawn — build · phase 9 · model m",
+        "10:05:00 · 0050-x · spawn — build · close · model m",
+    )
+    _run_log(root, "B.md", "11:00:00 · 0050-x · spawn — build · model m")
+
+
+def test_build_cost_is_booked_by_phase(tmp_path: Path) -> None:
+    _built(tmp_path)
+    rows = _phase_rows(tmp_path, "0050-x")
+    # The stamp and the ordinal of a log's name pick its spawn line: a line of another
+    # change, a line with no phase, a log past the lines and a log with no run log
+    # name none.
+    assert [(r["phase"], r["dollars"], r["turns"], r["tokens"]) for r in rows] == [
+        ("phase 1", 0.5, 3, 30),
+        (None, 0.5, 3, 30),
+        (None, None, None, None),
+        ("close", 1.25, 4, 100),
+        (None, 1.25, 4, 100),
+    ]
+    assert [(r["seconds"], r["first"]) for r in (rows[0], rows[3])] == [
+        (60, 7),
+        (30, None),
+    ]
+    assert {r["repo"] for r in rows} == {tmp_path.name}
+    assert {r["change"] for r in rows} == {"0050-x"}
+
+    # A change no run has moved keeps its logs in the stamp's folder.
+    old = tmp_path / "old"
+    _log(old / ".minions" / "findings" / "0060-y_review.md", _front())
+    _log(old / ".minions" / "runs" / "A" / "0060-y_build.log", _result(2.0, 1, 1000))
+    _log(old / ".minions" / "runs" / "A" / "0060-y_build-2.log", _result(3.0, 1, 1000))
+    _run_log(
+        old,
+        "A.md",
+        "10:00:00 · 0060-y · spawn — build · phase 4 · model m",
+        "10:01:00 · 0060-y · spawn — build · repair · model m",
+    )
+    unmoved = _phase_rows(old, "0060-y")
+    assert [(r["phase"], r["dollars"]) for r in unmoved] == [
+        ("phase 4", 2.0),
+        ("repair", 3.0),
+    ]
+
+    # The data file holds the same rows.
+    config = tmp_path / "config.toml"
+    config.write_text('out = "page.html"\n', encoding="utf-8")
+    out = tmp_path / "site" / "page.html"
+    args = ["--config", str(config), "--repo", str(tmp_path), "--out", str(out)]
+    assert review_metrics.main(args) == 0
+    data = json.loads(out.with_name("review-metrics.json").read_text())
+    assert data["phases"] == json.loads(json.dumps(rows))
+
+
+def test_the_phase_table_has_a_row_per_build_log(tmp_path: Path) -> None:
+    _built(tmp_path)
+    record = _record(tmp_path, "0050-x")
+    headers, rows = review_metrics.phase_table([record])
+    assert headers == ["change", "phase", "spend"]
+    assert rows == [
+        ["0050-x", "phase 1", "$0.50 · 3 turns · 30 tokens · 60 s · first 7"],
+        ["0050-x", "—", "$0.50 · 3 turns · 30 tokens · 60 s"],
+        ["0050-x", "—", "—"],
+        ["0050-x", "close", "$1.25 · 4 turns · 100 tokens · 30 s"],
+        ["0050-x", "—", "$1.25 · 4 turns · 100 tokens · 30 s"],
+    ]
+    assert review_metrics.phase_table([])[1] == []
+
+    # Each repo's section shows its table after the cost table.
+    config = tmp_path / "config.toml"
+    config.write_text('out = "page.html"\n', encoding="utf-8")
+    out = tmp_path / "site" / "page.html"
+    args = ["--config", str(config), "--repo", str(tmp_path), "--out", str(out)]
+    assert review_metrics.main(args) == 0
+    page = out.read_text(encoding="utf-8").splitlines()
+    shown = page[page.index("<h3>build cost by phase</h3>") + 1 :]
+    assert shown[0] == "<table>"
+    assert shown[1] == "<tr><th>change</th><th>phase</th><th>spend</th></tr>"
+    assert shown[2].startswith("<tr><td>0050-x</td><td>phase 1</td>")
+    assert page.index("<h3>cost</h3>") < page.index("<h3>build cost by phase</h3>")
 
 
 def _said(
