@@ -9,7 +9,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 - [x] 3 — A person's phase refused · moderate
 - [x] 4 — The declared cut checks · moderate
 - [x] 5 — The build's unplanned file · moderate
-- [ ] 6 — The records · moderate
+- [x] 6 — The records · moderate
 
 ## 1 — The conductor checks the cut
 
@@ -94,9 +94,9 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 6 — The records
 
-- [ ] 6.1 In `docs/decisions.md` add `### D89 · The conductor checks the cut` after the decision on closing the halts a line can, and its line in the group index.
+- [x] 6.1 In `docs/decisions.md` add `### D89 · The conductor checks the cut` after the decision on closing the halts a line can, and its line in the group index.
   Verify: `git grep -q -F -e "D89" -- docs/decisions.md` exits `0`.
-- [ ] 6.2 In `docs/decisions.md` edit the decision `A mechanical step is a script`: the conductor runs the checker, and the new rows `V7`, `V8` and `K7`.
+- [x] 6.2 In `docs/decisions.md` edit the decision `A mechanical step is a script`: the conductor runs the checker, and the new rows `V7`, `V8` and `K7`.
   Verify: `git grep -q -F -e "V7" -- docs/decisions.md` exits `0`.
-- [ ] 6.3 In `docs/decisions.md` edit the decision `A run heals its own halts`: the cut refuses a person's phase, and the conductor still reads one of a version cut before.
+- [x] 6.3 In `docs/decisions.md` edit the decision `A run heals its own halts`: the cut refuses a person's phase, and the conductor still reads one of a version cut before.
   Verify: `git grep -q -F -e "cut before" -- docs/decisions.md` exits `0`.
