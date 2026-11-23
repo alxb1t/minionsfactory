@@ -78,7 +78,7 @@ Tests that pin a spawn, finish, halt or gate line change their expected end or o
 
 ## Tests
 
-The change adds unit tests only, each named in [tasks](tasks.md). It adds no end-to-end run and no browser run, and each runs under 5 s with no `slow` marker. The tests a file holds are counted by `git grep -c -e "def test_" -- <file>`, read before the build and after it.
+The change adds unit tests only, each named in [tasks](tasks.md). It adds no end-to-end run and no browser run, and each runs under 5 s with no `slow` marker, save `test_a_running_gate_is_the_versions_last_line` and `test_a_halt_shows_its_cause` of `tests/test_viewer.py`, marked `slow` as their neighbours are. The tests a file holds are counted by `git grep -c -e "def test_" -- <file>`, read before the build and after it.
 
 | test file | what it holds for the change |
 |---|---|
