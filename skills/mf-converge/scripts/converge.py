@@ -653,10 +653,14 @@ def held(
         verdict = read[role]
         if verdict is not None and verdict.malformed is not None:
             verdict = rewrite(context, role, frozen, verdict.malformed)
+        if (
+            verdict is not None
+            and verdict.unclean is not None
+            and SCOPE_MISSED in verdict.unclean
+        ):
+            verdict = rescoped(context, role, frozen, verdict.unclean)
         if verdict is None:
             raise Halt(f"{role}.md is missing: its checker left no findings file")
-        if verdict.unclean is not None and SCOPE_MISSED in verdict.unclean:
-            verdict = rescoped(context, role, frozen, verdict.unclean)
         if verdict.unclean is not None:
             raise Halt(verdict.unclean)
         if verdict.verdict == "changes-requested" and not blockers({role: verdict}):
@@ -666,18 +670,16 @@ def held(
     return kept
 
 
-def rescoped(context: Context, role: str, frozen: Freeze, why: str) -> Verdict:
+def rescoped(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | None:
     """Send `role`'s checker out once more on its station; return its file read again.
 
-    A file missing or malformed then halts. Why: 0145-halts-alone design D7.
+    A file malformed then halts. Why: 0145-halts-alone design D7.
     """
     station, _ = context.stations.get(role, (f"converge-{role}-r{context.round}", None))
     stamp(context, f"fan-out — rescope — {role}: {why}")
     checked = dispatch(context, frozen, verify="-verify-" in station, roles=[role])
     again = read_verdicts(context, frozen, checked)[role]
-    if again is None:
-        raise Halt(f"{role}.md is missing: its checker left no findings file")
-    if again.malformed is not None:
+    if again is not None and again.malformed is not None:
         raise Halt(again.malformed)
     return again
 
