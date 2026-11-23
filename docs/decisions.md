@@ -1130,7 +1130,12 @@ halts the version for the person. One try a halt, at most `SUPERVISES = 2` a ver
 - **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a
   round, never by rule · its spend, bounded per version · a supervisor amend with no trailer, which reads as the person's and
   converge judges in an amend round, as every amend ([D60](#d60--a-run-heals-its-own-halts)) · its answer to a converge `verify: halt`, whose amend
-  `gate_check.py` then takes as the plan, a `Verify:` a worker edited included.
+  `gate_check.py` then takes as the plan, a `Verify:` a worker edited included · the re-plan at a cap a blocker sized
+  `a design change` holds: one amend a version, given `replan=yes` and marked by `replan.mark` in the change's folder,
+  which may edit `design.md`'s `## Decisions` and `proposal.md`, and gets one amend round, no grant; a second cap and a
+  standing mark are the person's · the paths the amend and the settle take, as `0089·S2` and `0090·S1` weigh them: an
+  amend, any path under `openspec/changes/<id>/`, the spec delta included; a settle, any Markdown under `openspec/` and
+  `docs/`, the living specs and `docs/decisions.md` among them, which converge judges by the merge's remerge-diff.
 - **Rejected:** a watcher running all night ([D47](#d47--mf-ship-takes-cut-versions-to-the-default-branch-unattended)) ·
   widening the rescue · a supervisor without the switch · the supervisor committing the merge, which stays integrate's.
 

@@ -4578,6 +4578,92 @@ def test_a_grant_waits_for_the_supervisor(tmp_path: Path) -> None:
     assert not rescuing(runs, "0001-todo")
 
 
+@pytest.mark.slow
+def test_the_supervisor_re_plans_a_design_cap_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    # Under the switch, a cap a design-sized blocker holds gets the supervisor with
+    # `replan=yes`: its amend writes the mark and gets one amend round, no grant; the
+    # second cap, a cap with no switch and a standing mark stay the person's.
+    # Why: 0145-halts-alone design D9.
+    conduct = _conduct()
+    modes = ("cap-plain", "rescue-diagnose", "supervise-replan")
+    calls = fake(*modes)
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    _switched(root, "0001-todo")
+
+    def run(at: Path) -> int:
+        return _main(
+            conduct, at, "run", "--executor", "claude", monkeypatch=monkeypatch
+        )
+
+    assert run(root) == 1
+    amend_round = [*_judged(round_=4), *_verified("0001-todo", 4)]
+    assert _calls(calls) == [
+        "probe",
+        *sorted(_capped()),
+        "rescue 0001-todo with decide=recommended",
+        "supervise 0001-todo with decide=recommended and replan=yes",
+        *sorted(amend_round),
+    ]
+    amend = _git(tree, "log", "-1", "--format=%H", "--grep=amend the change")
+    mark = root / ".minions" / "changes" / "0001-todo" / "replan.mark"
+    assert mark.read_text() == f"head: {amend}\n"
+    lines = _log(root)
+    decided = f" · run · supervise — 0001-todo: decided · converge-halted · {amend[:7]}"
+    assert any(line.endswith(f"{decided} · re-plan") for line in lines)
+    assert not any(" · grant — " in line for line in lines)
+    assert lines[-3].endswith(" · rescued converge-halted · supervised converge-halted")
+    assert lines[-2].endswith(" · 0001-todo · halt — re-plan: R1 S1")
+    assert " · supervised 0001-todo · re-planned 0001-todo · needs " in lines[-1]
+
+    # A new run's supervisor meets the mark: no re-plan; with no mark it re-plans.
+    conductor = conduct["Run"](root, "claude")
+    version = conduct["find_version"](root, "0001-todo")
+    conductor.read_plan([version])
+    prompts: list[str] = []
+
+    def spawn(*args: object) -> object:
+        prompts.append(str(args[3]))
+        return None
+
+    monkeypatch.setattr(conductor, "spawn", spawn)
+    conductor.diagnosed.add("0001-todo")
+    conductor.halts.append(("0001-todo", "re-plan: R1 S1"))
+    assert not conductor.supervise(version, "converge-halted", False)
+    assert prompts == []
+    mark.unlink()
+    conductor.supervise(version, "converge-halted", False)
+    assert prompts == [
+        "Run the mf-supervise skill for change 0001-todo with decide=recommended"
+        " and replan=yes."
+    ]
+
+    # A design cap is a cap whose newest `re-plan` halt names a design-sized blocker:
+    # S1 is one, R1 is not.
+    capped = "10:00:00 · round 5 · halt — cap reached, R1, S1 open · head abc1234"
+    assert conductor.design_cap("0001-todo", capped)
+    assert not conductor.design_cap("0001-todo", capped.replace("cap reached", "x"))
+    conductor.halts.append(("0001-todo", "re-plan: R1"))
+    assert not conductor.design_cap("0001-todo", capped)
+    conductor.halts.clear()
+    assert not conductor.design_cap("0001-todo", capped)
+    conductor.log.path.unlink()
+
+    # With no switch, the rescue alone runs, and no mark is written.
+    calls.unlink()
+    fake(*modes)
+    (tmp_path / "none").mkdir()
+    none = _primary(tmp_path / "none")
+    tree = _version(none, "0001-todo", "- [x] 1 — Todo\n")
+    _done(none, "0001-todo", _git(tree, "rev-parse", "HEAD"))
+    assert run(none) == 1
+    assert _calls(calls) == ["probe", *sorted(_capped()), "rescue 0001-todo"]
+    assert not (none / ".minions" / "changes" / "0001-todo" / "replan.mark").exists()
+
+
 def _delta_noted(tmp_path: Path) -> tuple[Path, Path]:
     """Return a primary and `0002-marks`' worktree under the switch.
 

@@ -195,14 +195,15 @@ hooks reshape the whole run, is on it.
   kind past its head, a halt past the judged head included, bounded by the amend round's own count. Under a version's
   switch, a rescue commits a worker-written card's fix as its decision ([D60](docs/decisions.md#d60--a-run-heals-its-own-halts)), bounded by D60's paths — `proposal.md`
   besides — the `Decided-by:` trailer check, and the switch the plan reads once a run. Under the same switch, the supervisor
-  ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan, the spec delta
-  included, as its decision, bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`
+  ([D61](docs/decisions.md#d61--a-supervisor-answers-what-rescue-diagnoses)) commits a worker-written plan as its decision —
+  the spec delta included, and at a cap a blocker sized `a design change` holds, `design.md`'s `## Decisions` and
+  `proposal.md`, once a version, marked by `replan.mark` — bounded by the change directory's paths, its `Supervisor:` and `Decided-by: supervisor`
   trailers, the switch, and one try a halt, two a version a run; converge reads its amend in a round, never by rule. Its
   amend may answer a converge `verify: halt`, so a `Verify:` a worker edited becomes the plan the gate check reads. A
   worker's amend with no trailer reads as the person's, known by its subject and paths alone: it meets no security-card
   rule, decision check or delta bound, and converge judges it in an amend round, as every amend. At an integrate note the
   supervisor stages spec and docs text the integrate station then commits, bounded by the index's changed paths — Markdown under `openspec/` and
-  `docs/` alone — the open merge and note left standing, and the `integrate.settled` it writes; the run halts when
+  `docs/` alone, the living specs and `docs/decisions.md` among them — the open merge and note left standing, and the `integrate.settled` it writes; the run halts when
   integrate's merge holds a path past the checked tree but a test its body names fixed, and converge judges that merge
   by its remerge-diff, never by rule. The automatic grant
   ([D56](docs/decisions.md#d56--the-cap-policy)) is in this class too: it reads the findings cards' severities and sizes and the

@@ -168,6 +168,10 @@ RESCUES = 3
 LOAD_WAIT = 1800
 LOAD_POLL = 30
 SUPERVISES = 2
+# A design-sized cap's re-plan is taken once a version: this mark records it.
+# Why: 0145-halts-alone design D9.
+REPLAN_MARK = "replan.mark"
+DESIGN = "a design change"
 # A supervisor at an integrate note stages Markdown under these alone.
 # Why: 0090-supervisor-merge design D3.
 SETTLES = ("openspec/", "docs/")
@@ -252,7 +256,8 @@ PROMPTS = {
     "release": "Run the mf-release skill for change {change} with merge=yes.",
     "rescue": "Run the mf-rescue skill for change {change}{decide}.",
     "supervise": (
-        "Run the mf-supervise skill for change {change} with decide=recommended{brief}."
+        "Run the mf-supervise skill for change {change} with decide=recommended"
+        "{replan}{brief}."
     ),
     "cut": (
         "Run the mf-cut-change skill for change {change} with arguments"
@@ -2737,7 +2742,7 @@ def _open_blockers(runs: Path, change: str) -> list[tuple[str, str]] | None:
         if cards is None:
             return None
         found += [
-            (card.id, card.size or "a design change")
+            (card.id, card.size or DESIGN)
             for card in cards
             if card.blocking and card.status == "open"
         ]
@@ -4390,6 +4395,7 @@ class Run:
         # Each settle `_settled` took, by change: the tree integrate must commit.
         self.settled: dict[str, str] = {}
         self.supervisor_decided: list[str] = []
+        self.replanned: list[str] = []
         self.diagnosed: set[str] = set()
         # Each halted version's stage, why and `HEAD` on disk at its halt, and a
         # change from it the re-check read once. Why: 0085-self-healing-ship design D6.
@@ -4527,7 +4533,11 @@ class Run:
         blocked = " ".join(self.blocked) or "none"
         released = " ".join(self.released) or "none"
         return f"halted {halted} · blocked {blocked} · released {released}" + (
-            self.decisions() + self.supervisors() + self.needs() + self.unpushed()
+            self.decisions()
+            + self.supervisors()
+            + self.replans()
+            + self.needs()
+            + self.unpushed()
         )
 
     def needs(self) -> str:
@@ -4584,6 +4594,15 @@ class Run:
         with self.guard:
             ids = " ".join(dict.fromkeys(self.supervisor_decided))
         return f" · supervised {ids}" if ids else ""
+
+    def replans(self) -> str:
+        """Return ` · re-planned <ids>`, each version a supervisor re-planned, or "".
+
+        Why: 0145-halts-alone design D9.
+        """
+        with self.guard:
+            ids = " ".join(dict.fromkeys(self.replanned))
+        return f" · re-planned {ids}" if ids else ""
 
     def unpushed(self) -> str:
         """Return ` · unpushed <names>`, as `status` names them, or "" with none.
@@ -5022,17 +5041,36 @@ class Run:
             return f" · supervised {' '.join(done)}"
         return ""
 
+    def design_cap(self, change: str, halt: str) -> bool:
+        """Return whether a cap's newest `re-plan` halt names a design-sized blocker.
+
+        Why: 0145-halts-alone design D9.
+        """
+        if "cap reached" not in halt:
+            return False
+        with self.guard:
+            reasons = [reason for who, reason in self.halts if who == change]
+        named = next(
+            (r.split()[1:] for r in reversed(reasons) if r.startswith("re-plan: ")), []
+        )
+        blockers = _open_blockers(mflib.layout.run_dir(self.primary), change) or []
+        return any(card in named and size == DESIGN for card, size in blockers)
+
     def supervise(self, version: Version, held: str, spent: bool) -> bool:
         """Run a version's supervisor on `held`; True when the version goes on.
 
         Why: 0089-supervisor design D1, D4,
-        D5, D6; 0090-supervisor-merge design D2, D4.
+        D5, D6; 0090-supervisor-merge design D2, D4; 0145-halts-alone design D9.
         """
         change, tree = version.change, version.tree
         minions = mflib.layout.run_dir(self.primary)
         integrating = held == "integrating"
         converged = held == "converge-halted"
         halt = (_converge_halt(minions, change) or "") if converged else ""
+        replan = converged and self.design_cap(change, halt)
+        marked = os.path.lexists(
+            mflib.layout.change_dir(self.primary, change) / REPLAN_MARK
+        )
         with self.guard:
             left = (change in self.diagnosed or spent) and change not in self.answered
         if (
@@ -5041,6 +5079,7 @@ class Run:
             or not left
             or self.supervised(change, held)
             or self.stopped("run")
+            or (replan and marked)
             or (
                 converged
                 and ("usage limit" in halt or _security_held(minions, change, halt))
@@ -5070,7 +5109,7 @@ class Run:
                 folder.mkdir(mode=0o700, exist_ok=True)
                 (folder / change).write_text(f"{start.merge}\n")
         before = start.head if start else _git(tree, "rev-parse", "HEAD").strip()
-        prompt = _supervise_prompt(self.primary, change)
+        prompt = _supervise_prompt(self.primary, change, replan)
         sha = None
         try:
             if self.spawn(change, "supervise", tree, prompt, models) is not None:
@@ -5082,11 +5121,18 @@ class Run:
                     nothing = "supervisor wrote no amend"
                 if sha is not None:
                     detail = f"{change}: decided · {held} · {sha[:7]}"
+                    if replan:
+                        _write_state(
+                            self.primary, change, REPLAN_MARK, f"head: {sha}\n"
+                        )
+                        detail += " · re-plan"
                     self.log.event("run", "supervise", detail)
                     with self.guard:
                         self.halts = [halt for halt in self.halts if halt[0] != change]
                         self.diagnosed.discard(change)
                         self.supervisor_decided.append(change)
+                        if replan:
+                            self.replanned.append(change)
                         if start is not None:
                             self.settled[change] = sha
                 else:
@@ -6967,7 +7013,7 @@ class Run:
             "run",
             "done",
             f"released {released}{self.decisions()}{self.supervisors()}"
-            f"{self.unpushed()}",
+            f"{self.replans()}{self.unpushed()}",
         )
         return 0
 
@@ -7200,14 +7246,15 @@ def _merge_tried(primary: Path, change: str, merge: str) -> bool:
         return False
 
 
-def _supervise_prompt(primary: Path, change: str) -> str:
+def _supervise_prompt(primary: Path, change: str, replan: bool = False) -> str:
     """Return the supervisor's prompt, naming the brief `_brief_of` reads.
 
-    e.g. "… with decide=recommended and brief=/b/brief.md."
+    e.g. "… with decide=recommended and replan=yes and brief=/b/brief.md."
     """
     named = _brief_of(primary, change)
     brief = f" and brief={named}" if named else ""
-    return PROMPTS["supervise"].format(change=change, brief=brief)
+    again = " and replan=yes" if replan else ""
+    return PROMPTS["supervise"].format(change=change, replan=again, brief=brief)
 
 
 @contextlib.contextmanager

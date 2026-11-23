@@ -8,7 +8,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 - [x] 2 — The gate under load · moderate
 - [x] 3 — Codex's fallbacks · hard
 - [x] 4 — Converge's ways back · hard
-- [ ] 5 — The supervisor at the cap · hard
+- [x] 5 — The supervisor at the cap · hard
 - [ ] 6 — The changelog rule, the wait and the records · moderate
 
 ## 1 — The rescue's amend
@@ -63,17 +63,17 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 ## 5 — The supervisor at the cap
 
-- [ ] 5.1 **HALT CHECK** `skills/mf-supervise/SKILL.md` names no re-plan parameter.
+- [x] 5.1 **HALT CHECK** `skills/mf-supervise/SKILL.md` names no re-plan parameter.
   Verify: `git grep -n -e "replan" -- skills/mf-supervise/SKILL.md` exits 1.
-- [ ] 5.2 In `conduct.py`, per [D9](design.md#d9): `Run.supervise` starts at a `cap reached` halt whose last line is `re-plan: <ids>` with a blocker sized `a design change`, under the switch, with no `replan.mark` and no security card held, passing `replan=yes` through `_supervise_prompt`. A taken amend writes the mark through `_write_state`, logs `supervise — <id>: decided · converge-halted · <sha7> · re-plan`, and `Run.closing` names ` · re-planned <ids>`.
+- [x] 5.2 In `conduct.py`, per [D9](design.md#d9): `Run.supervise` starts at a `cap reached` halt whose last line is `re-plan: <ids>` with a blocker sized `a design change`, under the switch, with no `replan.mark` and no security card held, passing `replan=yes` through `_supervise_prompt`. A taken amend writes the mark through `_write_state`, logs `supervise — <id>: decided · converge-halted · <sha7> · re-plan`, and `Run.closing` names ` · re-planned <ids>`.
   Verify: `git grep -n -F "replan.mark" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 5.3 Add `test_the_supervisor_re_plans_a_design_cap_once` to `tests/test_conduct.py`: a design-sized cap under the switch (amend taken, mark written, one amend round), a second cap, the same cap with no switch, a new run that meets the mark.
+- [x] 5.3 Add `test_the_supervisor_re_plans_a_design_cap_once` to `tests/test_conduct.py`: a design-sized cap under the switch (amend taken, mark written, one amend round), a second cap, the same cap with no switch, a new run that meets the mark.
   Verify: `uv run pytest tests/test_conduct.py -k "supervisor_re_plans_a_design_cap_once" -q` exits 0.
-- [ ] 5.4 In `skills/mf-supervise/SKILL.md`, add *Parameter — `replan=yes`*: the conductor gives it alone at a design-sized cap, and the amend may then edit `design.md`'s `## Decisions` and `proposal.md`, once a version.
+- [x] 5.4 In `skills/mf-supervise/SKILL.md`, add *Parameter — `replan=yes`*: the conductor gives it alone at a design-sized cap, and the amend may then edit `design.md`'s `## Decisions` and `proposal.md`, once a version.
   Verify: `git grep -n -F "replan=yes" -- skills/mf-supervise/SKILL.md` exits 0.
-- [ ] 5.5 In `docs/decisions.md`, D61, under **Accepts**: the cap's one amend a version, marked by `replan.mark`, and the paths the amend and the settle take, per `0089·S2` and `0090·S1`.
+- [x] 5.5 In `docs/decisions.md`, D61, under **Accepts**: the cap's one amend a version, marked by `replan.mark`, and the paths the amend and the settle take, per `0089·S2` and `0090·S1`.
   Verify: `git grep -n -F "replan.mark" -- docs/decisions.md` exits 0.
-- [ ] 5.6 In `THREAT_MODEL.md`, *Out of scope*, edit the supervisor sentence to name the spec delta, and at a design-sized cap `design.md`'s `## Decisions` and `proposal.md`, once a version; edit the settle sentence to name Markdown under `openspec/` and `docs/`, the living specs and `docs/decisions.md` among them. No path widens.
+- [x] 5.6 In `THREAT_MODEL.md`, *Out of scope*, edit the supervisor sentence to name the spec delta, and at a design-sized cap `design.md`'s `## Decisions` and `proposal.md`, once a version; edit the settle sentence to name Markdown under `openspec/` and `docs/`, the living specs and `docs/decisions.md` among them. No path widens.
   Verify: `git grep -n -F "living specs" -- THREAT_MODEL.md` exits 0.
 
 ## 6 — The changelog rule, the wait and the records
