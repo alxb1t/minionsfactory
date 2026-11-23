@@ -5,7 +5,7 @@ The phases that budget a halt by its head, ask the review's new question, let th
 ## Progress
 
 - [x] 1 — The budgets by halt · hard
-- [ ] 2 — The plan review's question · moderate
+- [x] 2 — The plan review's question · moderate
 - [ ] 3 — The fixer and the plan's text · hard
 - [ ] 4 — The rescue's and the supervisor's models · moderate
 - [ ] 5 — The Linux test and the records · moderate
@@ -33,13 +33,13 @@ The phases that budget a halt by its head, ask the review's new question, let th
 
 ## 2 — The plan review's question
 
-- [ ] 2.1 Edit Step 8.5 of `skills/mf-cut-change/SKILL.md`: the packet's question asks of each requirement the delta adds or
+- [x] 2.1 Edit Step 8.5 of `skills/mf-cut-change/SKILL.md`: the packet's question asks of each requirement the delta adds or
   changes and each rule a decision states what else produces its subject, and what the plan exempts ([D2](design.md#d2)).
   Verify: `git grep -n -e "else produces" -- skills/mf-cut-change/SKILL.md` exits 0.
-- [ ] 2.2 Add `test_the_plan_review_asks_what_else_produces_a_rule_subject` to `tests/test_skills.py`: the skill holds the new
+- [x] 2.2 Add `test_the_plan_review_asks_what_else_produces_a_rule_subject` to `tests/test_skills.py`: the skill holds the new
   question beside the old one, and passes over a plan with no such rule.
   Verify: `uv run pytest tests/test_skills.py -q -k what_else_produces` exits 0.
-- [ ] 2.3 Edit the decisions "A lighter plan review and build" and "The plan reviews run on Sonnet" in `docs/decisions.md` to
+- [x] 2.3 Edit the decisions "A lighter plan review and build" and "The plan reviews run on Sonnet" in `docs/decisions.md` to
   carry what else produces the rule's subject ([D2](design.md#d2)).
   Verify: `git grep -n -e "else produces" -- docs/decisions.md` exits 0.
 

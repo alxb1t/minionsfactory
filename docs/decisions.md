@@ -230,7 +230,9 @@ branch lacks and no row approves at that exact version halts before converge.**
 **The cut's plan review runs once; a second, by a new worker, runs only when a fix after the first changes a `design.md`
 decision or a brief's `## Decisions` row, a `C` row included, or adds or removes a task. Every plan review is a fresh worker on Sonnet 5.5 · high
 ([D40](#d40--workers-are-fresh-and-observable)). A change whose highest row of *Suggesting models* is the moderate one is
-suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change.**
+suggested Sonnet 5.5 · high for its whole build, where the session offers it: one `[build]` model a change. The review's
+question asks, of each requirement the delta adds or changes and each rule a decision states, what else produces its subject
+and what the plan exempts.**
 
 - **Why:** a second review on every cut put reviews at 18–52% of a cut's cost, and the run now repairs a wrong plan — rescue, the supervisor, the amend
   round — at about $3 a time; a Sonnet build costs about half per line, and a fresh session per phase saved about $1 a build.
@@ -271,7 +273,7 @@ plan and judges what no script can check. The conductor runs the checker, whose 
 **The cut's plan reviews run on Sonnet 5.5 · high, the first always and a second only after a fix that changes a decision
 or a task. `cut_check.py` settles what a script finds in the plan — `Verify:` sequencing and the record's consistency — and
 `facts.py readers` the stand-ins, monkeypatches and readers of a changed name; the packet marks each as settled, and the
-reviewer judges the rest. The reviewer's budget is 25 turns, its tool calls counted by the cut from its transcript, an
+reviewer judges the rest, among it what else produces the rule's subject. The reviewer's budget is 25 turns, its tool calls counted by the cut from its transcript, an
 overrun recorded in `cut-notes.md`. Each review runs in the foreground, the cut waiting on it, and the cut runs on the
 5-minute cache with its reviews.**
 

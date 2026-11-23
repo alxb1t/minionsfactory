@@ -249,7 +249,10 @@ it, whatever the session's model — on Claude Code the Agent tool's `model: son
 model. Give it the **review packet** — the change directory, `HEAD`'s sha, `.minions/changes/<change-id>/cut-notes.md`,
 `cut_check.py`'s output, and one question: can each task be built as written,
 each `Verify:` pass after it, and each the search script did not run — a test, a command — fail before it, save a
-`**HALT CHECK**`, which should hold? It starts from the packet, opening
+`**HALT CHECK**`, which should hold? Beside it, of each requirement the delta adds or changes and each rule a decision
+states: what else produces the thing it judges — the build's commits, a fix commit, an amend, the release's edits, a
+generated file — and what does the plan exempt? A plan that adds or changes no requirement and states no rule is passed
+over by this part. It starts from the packet, opening
 another file only at a path or `path:line` the change or the notes cite. A search's "before" is the script's, so the
 reviewer reads only its "after". It answers with doubts, each with its `path:line`.
 
