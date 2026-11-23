@@ -10,6 +10,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 - [x] 4 — Converge's ways back · hard
 - [x] 5 — The supervisor at the cap · hard
 - [x] 6 — The changelog rule, the wait and the records · moderate
+- [ ] 7 — The rescope's one missing-file halt · moderate
 
 ## 1 — The rescue's amend
 
@@ -88,3 +89,12 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
   Verify: `git grep -n -F "wait --halt" -- skills/mf-ship/SKILL.md` exits 0.
 - [x] 6.5 In `docs/decisions.md`, add `### D88 · The line closes the halts it can` after D87, holding the worker-halt rerun, the rescoped verdict, the hand converge's models file, the changelog's dropped entries and `wait --halt`, with **Why**, **Accepts** and **Rejected** as its neighbours.
   Verify: `git grep -n -F "D88 · The line closes the halts it can" -- docs/decisions.md` exits 0.
+
+## 7 — The rescope's one missing-file halt
+
+- [ ] 7.1 **HALT CHECK** `rescoped` in `skills/mf-converge/scripts/converge.py` still raises its own `<role>.md is missing` halt, a branch no run reaches: `dispatch` → `retried` already halts on a missing file through `_failed`, before `read_verdicts` runs.
+  Verify: `git grep -c -F "is missing: its checker left no findings file" -- skills/mf-converge/scripts/converge.py` prints `skills/mf-converge/scripts/converge.py:3`.
+- [ ] 7.2 In `converge.py`, drop `rescoped`'s missing-file branch ([D7](design.md#d7)): `rescoped` returns `Verdict | None`, raising only on a malformed file, and `held` reads a file missing after its first read or after the rescope through its one existing `<role>.md is missing` halt, placed after the rescope. No behaviour changes.
+  Verify: `git grep -c -F "is missing: its checker left no findings file" -- skills/mf-converge/scripts/converge.py` prints `skills/mf-converge/scripts/converge.py:2`.
+- [ ] 7.3 Keep `test_a_scope_missed_twice_halts_on_a_file_gone_or_malformed` in `tests/test_converge.py`: its gone case asserts the halt `retried` raises, its malformed case `rescoped`'s; edit it only if 7.2 turns it red.
+  Verify: `uv run pytest tests/test_converge.py -k "scope_missed_twice or scope_that_misses_once or findings_file_is_read_by_its_fields" -q` exits 0.
