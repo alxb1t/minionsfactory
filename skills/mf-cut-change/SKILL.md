@@ -228,7 +228,7 @@ runs none.
 
 - **Judge `I5`–`I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs** — each `judge` line names what to read, `P12` and `P13`
   with candidates as `path:line`, which only you or the reviewer judge.
-- **Read every `Verify:`; run none as written.** `V1`–`V8` settle a search's sequence, its needles, a needle a later task removes, a `pytest`'s test files, a first word that is no program and a `-k` that selects no test (`V8`); read what
+- **Read every `Verify:`; run none as written.** `V1`–`V8` settle a search's sequence, its needles, a needle a later task removes, a `pytest`'s test files, a first word that is no program (`V7`, which passes over a command `I19 refuses`: `cd`, a loop, an assignment) and a `-k` that selects no test (`V8`); read what
   they leave: a pattern that is no literal. The build runs them, once the human starts it. Rewrite a check you
   can see will not run as written — an unknown flag, bad syntax. Flag to the human a check that already holds, its
   needle already in the file: true before the build, it may prove nothing. Except a `**HALT CHECK**`: it checks a

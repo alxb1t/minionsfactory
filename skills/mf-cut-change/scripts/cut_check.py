@@ -56,6 +56,9 @@ PATH_SUFFIXES = (".py", ".md", ".toml", ".yaml", ".yml", ".mk")
 RUN_PATHS = ("openspec/changes/", ".minions/")
 CITED_LINES = re.compile(r":\d+(?:-\d+)?$")
 CITE = re.compile(r"[\w./-]+\.\w+:\d+(?:-\d+)?")
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+# The words `verify_check.py` refuses at a command's start under `I19`.
+REFUSED_STARTS = {"cd", "for", "while", "until"}
 DESIGN_LINK = re.compile(r"design\.md#([a-z]\d+)")
 TABLE_ID = re.compile(r"^\|\s*\[?([A-Z]\d+)\b")
 STEP = re.compile(r"\bStep (\d+(?:\.\d+)?)")
@@ -854,7 +857,10 @@ def row_v5(change: Change, plan: dict[str, Any]) -> str | None:
 
 
 def row_v7(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
-    """Return each `Verify:` command whose first word is no program and no path."""
+    """Return each `Verify:` command whose first word is no program and no path.
+
+    A command `I19` refuses is passed over: `cd`, a loop or an assignment.
+    """
     tasks = plan["subtasks"](change.tasks)
     named = {
         CITED_LINES.sub("", span[2]).removeprefix("./")
@@ -866,8 +872,11 @@ def row_v7(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
         for command in _commands(task.text, plan):
             first = next(iter(_words(command)), "")
             path = first.removeprefix("./")
-            if first and not (
-                shutil.which(first) or _at_head(path, tree) or path in named
+            if (
+                first
+                and first not in REFUSED_STARTS
+                and not ASSIGNMENT.match(first)
+                and not (shutil.which(first) or _at_head(path, tree) or path in named)
             ):
                 found.append(f"{task.name}: `{first}` names nothing")
     return " · ".join(found) or None

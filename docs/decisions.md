@@ -999,7 +999,7 @@ person's phase is refused at the cut.**
 - **Why:** a row binds only as far as the cutter obeys its skill, and the faults the rows read cost a halt, a rescue and a new
   run once the build finds them.
 - **Accepts:** a failed first cut is paid for twice · `V7` halts a first word that resolves only inside the build's
-  environment · `K7` reads a rename's new name as removed.
+  environment, and leaves out a command the plain-command row refuses (`cd`, a loop, an assignment), which that row halts · `K7` reads a rename's new name as removed.
 - **Rejected:** an amend by a second cutter · a third try · a reset of a rejoin's branch · a gate at the cut.
 - **Amends:** D7, D60 and D77, each edited where it lives.
 

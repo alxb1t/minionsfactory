@@ -8,7 +8,7 @@ The phases that budget a halt by its head, ask the review's new question, let th
 - [x] 2 — The plan review's question · moderate
 - [x] 3 — The fixer and the plan's text · hard
 - [x] 4 — The rescue's and the supervisor's models · moderate
-- [ ] 5 — The Linux test and the records · moderate
+- [x] 5 — The Linux test and the records · moderate
 
 ## 1 — The budgets by halt
 
@@ -105,11 +105,11 @@ The phases that budget a halt by its head, ask the review's new question, let th
 
 ## 5 — The Linux test and the records
 
-- [ ] 5.1 Make `row_v7` of `skills/mf-cut-change/scripts/cut_check.py` skip a command whose first word is `cd`, a loop keyword or a
+- [x] 5.1 Make `row_v7` of `skills/mf-cut-change/scripts/cut_check.py` skip a command whose first word is `cd`, a loop keyword or a
   shell assignment ([D5](design.md#d5)); test it as `test_v7_passes_over_a_command_i19_refuses` in `tests/test_cut_check.py`.
   Verify: `uv run pytest tests/test_cut_check.py -q -k v7_passes_over` exits 0.
-- [ ] 5.2 Edit Step 8 of `skills/mf-cut-change/SKILL.md`: row `V7` passes over a command `I19 refuses` ([D5](design.md#d5)).
+- [x] 5.2 Edit Step 8 of `skills/mf-cut-change/SKILL.md`: row `V7` passes over a command `I19 refuses` ([D5](design.md#d5)).
   Verify: `git grep -n -e "I19 refuses" -- skills/mf-cut-change/SKILL.md` exits 0.
-- [ ] 5.3 Edit the decision "The conductor checks the cut" in `docs/decisions.md`: its accepted cost on `V7` leaves out a command
+- [x] 5.3 Edit the decision "The conductor checks the cut" in `docs/decisions.md`: its accepted cost on `V7` leaves out a command
   the plain-command row refuses ([D5](design.md#d5)).
   Verify: `git grep -n -e "plain-command row" -- docs/decisions.md` exits 0.

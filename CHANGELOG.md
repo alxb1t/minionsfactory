@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The cut's plan review asks, of each requirement the delta adds or changes and each rule a decision states, what else produces its subject and what the plan exempts: 0146 passed a rule whose subject the fix commits and the changelog also write. D65 and D80 say so (0147-amends-alone, phase 2).
 - The converge fixer may reword the spec delta and a decision's body in its fix commit, under a `Plan-text:` trailer naming the cards it clears: 0146's R7 and R8 were right code whose plan text lagged. `converge.py` checks each fix commit before the gate and halts `plan edit refused` on `tasks.md`, `proposal.md`, the decisions table, a heading, no trailer, or a trailer naming a security card of `critical` or `high`. The verify pass judges the wording; such a commit re-plans a stacked dependent; D53 and the threat model say so (0147-amends-alone, phase 3).
 - A brief's models line gains `rescue` and `supervise` parts, each a model and an effort with no host, after `fix`, written as the `[rescue]` and `[supervise]` tables; `modelsfile.py` drops `PERSON` and reads `TABLES` alone: both stations ran on Opus high for want of a part. D41 says so (0147-amends-alone, phase 4).
+- Row `V7` of `cut_check.py` passes over a `Verify:` command whose first word is `cd`, a loop keyword or a shell assignment: `I19` halts each, and the row read `cd` as a program on macOS and as nothing on Linux. D89's accepted cost says so (0147-amends-alone, phase 5).
 
 ## [0.117.0] - 2026-11-23
 
