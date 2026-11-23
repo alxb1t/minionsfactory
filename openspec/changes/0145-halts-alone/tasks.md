@@ -5,7 +5,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 ## Progress
 
 - [x] 1 — The rescue's amend · hard
-- [ ] 2 — The gate under load · moderate
+- [x] 2 — The gate under load · moderate
 - [ ] 3 — Codex's fallbacks · hard
 - [ ] 4 — Converge's ways back · hard
 - [ ] 5 — The supervisor at the cap · hard
@@ -28,7 +28,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 ## 2 — The gate under load
 
-- [ ] 2.1 Add `LOAD_WAIT = 1800`, `LOAD_POLL = 30` and `_load_wait(say)` to `skills/mf-ship/scripts/conduct.py`, which loads `PLAN_CHECK` with `runpy.run_path`; call it in `_run_gate` on a red gate per [D3](design.md#d3). In `tests/test_conduct.py` add an autouse fixture patching `os.getloadavg` to `(0.0, 0.0, 0.0)` and `test_a_gate_red_under_load_waits_and_runs_again`: green after the wait, red twice, a low load, a load that never falls.
+- [x] 2.1 Add `LOAD_WAIT = 1800`, `LOAD_POLL = 30` and `_load_wait(say)` to `skills/mf-ship/scripts/conduct.py`, which loads `PLAN_CHECK` with `runpy.run_path`; call it in `_run_gate` on a red gate per [D3](design.md#d3). In `tests/test_conduct.py` add an autouse fixture patching `os.getloadavg` to `(0.0, 0.0, 0.0)` and `test_a_gate_red_under_load_waits_and_runs_again`: green after the wait, red twice, a low load, a load that never falls.
   Verify: `uv run pytest tests/test_conduct.py -k "gate_red_under_load" -q` exits 0.
 
 ## 3 — Codex's fallbacks

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Under `decide = "recommended"` the run takes a rescue's decided amend with or without `Decided-by: rescue`: correct amends were refused for the trailer alone. A refused amend whose commits each carry `Rescue:`, on a tree clean before and after, is reset off `HEAD` and logged `reset`, so the next worker builds on no refused commit (0145-halts-alone, phase 1).
+- A conductor gate that is red on a machine whose 1-minute load is at or over its cores waits, polling every 30 s for 1,800 s at most, and runs once more: `timeout=1` tests that pass alone halted a version. A rerun that is red, or a load that never falls, leaves the red (0145-halts-alone, phase 2).
 
 ## [0.115.0] - 2026-11-23
 

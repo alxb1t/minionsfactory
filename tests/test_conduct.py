@@ -181,6 +181,15 @@ def _no_codex_sessions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _idle_machine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read a load of 0, so no red gate of a test waits for the machine.
+
+    Why: 0145-halts-alone design D3.
+    """
+    monkeypatch.setattr(os, "getloadavg", lambda: (0.0, 0.0, 0.0))
+
+
+@pytest.fixture(autouse=True)
 def _sandbox(fake_sandbox_exec: Path) -> None:
     """Run converge's commands under the fake `sandbox-exec`: a Seatbelt cannot nest.
 
@@ -4095,6 +4104,67 @@ def test_a_green_gate_after_the_last_phase_spawns_no_repair(
         "spawn — build",
         "check — gate",
     ]
+
+
+def test_a_gate_red_under_load_waits_and_runs_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0145-halts-alone design D3.
+    conduct = _conduct()
+    module = conduct["_run_gate"].__globals__
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — One\n")
+    cores = os.cpu_count() or 1
+    over = f"wait — gate · load {cores + 1:.1f} over {cores} cores"
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    monkeypatch.setitem(module, "LOAD_WAIT", 90)
+
+    def run(codes: list[int], loads: list[float]) -> tuple[str | None, list[str], int]:
+        """Run the gate on `codes`, the load reading `loads`; return what it did."""
+        gates = iter(codes)
+        reads = iter(loads)
+        said: list[str] = []
+        ran: list[int] = []
+
+        def boxed(primary: Path, where: Path, argv_: list[str]) -> tuple[int, str]:
+            ran.append(1)
+            return next(gates), f"gate output {len(ran)}\n"
+
+        monkeypatch.setitem(module, "_boxed", boxed)
+        monkeypatch.setattr(
+            os, "getloadavg", lambda: (next(reads, loads[-1]), 0.0, 0.0)
+        )
+        sleeps.clear()
+        result = conduct["_run_gate"](root, "0001-todo", tree, said.append)
+        return result, said, len(ran)
+
+    # Green after the wait: the load falls at the first poll.
+    result, said, ran = run([2, 0], [cores + 1.0, 0.0])
+    assert result is None
+    assert ran == 2
+    assert sleeps == [30]
+    assert said[:2] == [over, "wait — gate · load 0.0 · 30s"]
+    assert re.fullmatch(r"check — gate · pass · \d+s", said[2])
+    assert not (_marks(root) / "gate.red").exists()
+
+    # Red twice: the second red is the result, and its output the file's.
+    result, said, ran = run([2, 2], [cores + 1.0, 0.0])
+    assert result == "red · gate_run.py exit 2 · .minions/changes/0001-todo/gate.red"
+    assert ran == 2
+    assert (_marks(root) / "gate.red").read_text() == "gate output 2\n"
+
+    # A low load: no wait, no second run.
+    result, said, ran = run([2], [0.0])
+    assert result is not None
+    assert (ran, sleeps) == (1, [])
+    assert all(not line.startswith("wait") for line in said)
+
+    # A load that never falls: it waits the whole budget and leaves the red.
+    result, said, ran = run([2], [cores + 1.0])
+    assert result is not None
+    assert (ran, sleeps) == (1, [30, 30, 30])
+    assert said[:2] == [over, f"wait — gate · load {cores + 1:.1f} · 90s"]
 
 
 def test_a_red_gate_after_simplify_drops_its_commit(

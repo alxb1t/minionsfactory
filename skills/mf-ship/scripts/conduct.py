@@ -161,6 +161,10 @@ PAST = {
 }
 RESCUED = ("converge-halted", "integrating")
 RESCUES = 3
+# A red gate on a loaded machine waits this long, polling this often, then runs again.
+# Why: 0145-halts-alone design D3.
+LOAD_WAIT = 1800
+LOAD_POLL = 30
 SUPERVISES = 2
 # A supervisor at an integrate note stages Markdown under these alone.
 # Why: 0090-supervisor-merge design D3.
@@ -8122,16 +8126,38 @@ def _last(output: str) -> str:
     return lines[-1] if lines else "no output"
 
 
+def _load_wait(say: Callable[[str], None]) -> bool:
+    """Wait while the 1-minute load is at or over the cores; return True when it fell.
+
+    A load under the cores returns False at once. Why: 0145-halts-alone design D3.
+    """
+    checked = runpy.run_path(str(PLAN_CHECK))
+    cores, load_average = checked["CPUS"], checked["load_average"]
+    if (load := load_average()) < cores:
+        return False
+    say(f"wait — gate · load {load:.1f} over {cores} cores")
+    waited = 0
+    while load >= cores and waited < LOAD_WAIT:
+        time.sleep(LOAD_POLL)
+        waited += LOAD_POLL
+        load = load_average()
+    say(f"wait — gate · load {load:.1f} · {waited}s")
+    return load < cores
+
+
 def _run_gate(
     primary: Path, change: str, tree: Path, say: Callable[[str], None] = print
 ) -> str | None:
     """Run the gate in the version's tree; return why it is red, or None when green.
 
-    Red keeps the output in the change's `gate.red`; green removes it.
-    Why: 0144-gate-outside design D3.
+    Red keeps the output in `gate.red`, green removes it; red under load runs again.
+    Why: 0144-gate-outside D3, 0145-halts-alone D3.
     """
     start = time.monotonic()
     code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
+    if code != 0 and _load_wait(say):
+        start = time.monotonic()
+        code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
     seconds = round(time.monotonic() - start)
     if code == 0:
         say(f"check — gate · pass · {seconds}s")
