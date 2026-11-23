@@ -1,6 +1,6 @@
 # Cut catches — tasks
 
-Phases: the conductor checks the cut, the rows, a person's phase refused, the declared checks, the build's unplanned file, the records, the unplanned-file pass scoped.
+Phases: the conductor checks the cut, the rows, a person's phase refused, the declared checks, the build's unplanned file, the records, the unplanned-file pass scoped, the checker's exits and the fix commits, the cut check's records.
 
 ## Progress
 
@@ -12,6 +12,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 - [x] 6 — The records · moderate
 - [x] 7 — The unplanned-file pass scoped · moderate
 - [x] 8 — The checker's exits and the fix commits · moderate
+- [ ] 9 — The cut check's records · moderate
 
 ## 1 — The conductor checks the cut
 
@@ -114,3 +115,12 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
   Verify: `git grep -q -F -e "names as a fix" -- skills/mf-converge/references/worker.md` exits `0`.
 - [x] 8.2 Correct the docstring of `_cut_checked` in `skills/mf-ship/scripts/conduct.py` per [D1](design.md#d1), in the words `exit 1 with no`: an exit 1 with no `cut_check: halt — ` line stops as `the cut check cannot run`, as the code does.
   Verify: `git grep -q -F -e "exit 1 with no" -- skills/mf-ship/scripts/conduct.py` exits `0`.
+
+## 9 — The cut check's records
+
+- [ ] 9.1 In `docs/decisions.md` edit D89 per [D2](design.md#d2) and [D6](design.md#d6): a second failure resets the `branch again` and halts the cut; a file a `check leaves` in the tree fails it; each run ends after 1800 s, keeps 2000 lines, and writes the tree and the run directory alone.
+  Verify: `git grep -q -F -e "branch again" -- docs/decisions.md` exits `0`, and `git grep -q -F -e "check leaves" -- docs/decisions.md` exits `0`.
+- [ ] 9.2 In `CHANGELOG.md` correct the phase 1 line per [D1](design.md#d1): an exit 1 with no `cut_check: halt — ` line also halts as cannot run, naming the `output's last line`, a second failure resets the branch, and the bounds; to the phase 4 line add that a file a `check leaves` in the tree fails the cut check.
+  Verify: `git grep -q -F -e "output's last line" -- CHANGELOG.md` exits `0`, and `git grep -q -F -e "check leaves" -- CHANGELOG.md` exits `0`.
+- [ ] 9.3 In `skills/mf-build/SKILL.md` and `skills/mf-cut-change/SKILL.md` reword the `I14` row per [D5](design.md#d5): a `**HUMAN` `phase line` of `tasks.md` fails the cut, under `## Progress` or not; its id stays.
+  Verify: `git grep -q -F -e "phase line" -- skills/mf-build/SKILL.md` exits `0`, and `git grep -q -F -e "phase line" -- skills/mf-cut-change/SKILL.md` exits `0`.

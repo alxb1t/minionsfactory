@@ -16,7 +16,7 @@ The conductor reads a cut's commit subject, its tree and its models file, and ru
 | id | decision | because | rejected |
 |---|---|---|---|
 | [D1](#d1) | The conductor runs `cut_check.py` after the cut commit, under the sandbox | a row binds only as far as the cutter obeys its skill | a row inside `_check_cut` · a worker's own check alone |
-| [D2](#d2) | A failed check cuts again from the default branch, once; a second failure halts | the cut's preconditions refuse a branch ahead of the default | an amend by a second cutter · a third try · a reset of a rejoin's branch |
+| [D2](#d2) | A failed check cuts again from the default branch, once; a second failure resets the branch and halts | the cut's preconditions refuse a branch ahead of the default | an amend by a second cutter · a third try · a reset of a rejoin's branch |
 | [D3](#d3) | New rows: `K7`, `V7`, `V8` | each is a class of halts in the brief's table, readable at the cut | `V8` inside `V2` · `K7` over the delta specs |
 | [D4](#d4) | `verify_check.py` spares a search's patterns from the range rule and reads an Oxford comma and an `e.g.` as the plan check does | cards `0143·S6` and `0143·S9` | a looser plan check |
 | [D5](#d5) | A phase marked for a person is refused by `I14` and by the brief check | halts that idled for a person; nothing may answer one | dropping `I14` · removing the conductor's reading |
@@ -26,14 +26,14 @@ The conductor reads a cut's commit subject, its tree and its models file, and ru
 
 ### D1
 
-**After `_check_cut` and `_unapproved` pass, `Run.cutting` runs `cut_check.py <id> --bump <bump>` through `_boxed` in the cut's tree, on the conductor's own Python.** A clean exit passes. A failed check — exit 1 with a `cut_check: halt — ` line — has its output as the failing lines. An exit above that, an exit 1 with no such line, which is the checker crashed, or a run that cannot start, halts the cut as `the cut check cannot run — <first line>`. The log gets `check — cut-check · pass` or `· fail — <first failing line>`. `_check_cut` stays as it is: the branch's tip is still the land commit.
+**After `_check_cut` and `_unapproved` pass, `Run.cutting` runs `cut_check.py <id> --bump <bump>` through `_boxed` in the cut's tree, on the conductor's own Python.** A clean exit passes. A failed check — exit 1 with a `cut_check: halt — ` line — has its output as the failing lines. An exit above that, an exit 1 with no such line, which is the checker crashed, or a run that cannot start, halts the cut as `the cut check cannot run — <line>`: the last line of its output, where a crash says what broke, or the first line of the error that kept it from starting. Each run of the checker and of a [D6](#d6) command ends after `CUT_TIMEOUT`, 1800 s, keeps its last 2000 lines, and writes to the cut's tree and the run directory alone. The log gets `check — cut-check · pass` or `· fail — <first failing line>`. `_check_cut` stays as it is: the branch's tip is still the land commit.
 
 - **Why:** at the base the conductor reads disk alone; the checker is a script the run can start (Q55).
 - **Rejected:** a row in `_check_cut`, which runs nothing · the cutter's own Step 8 alone.
 
 ### D2
 
-**The first failure of a branch this call cut writes the failing lines to `cut.red` in the change's run folder, resets the tree with `git reset --hard <default>` and `git clean -fd`, removes `cut.halt`, and starts the cutter once more, on the same `after` and `beside`.** The prompt gains a tail naming `cut.red`, after its backticked part; the checks then run again. A second failure halts the cut through `cut_halted` as `the cut check failed twice — <first failing line>`. A branch the run found already holding the change fails to a halt at once: a person's amend stays, and nothing is reset.
+**The first failure of a branch this call cut writes the failing lines to `cut.red` in the change's run folder, resets the tree with `git reset --hard <default>` and `git clean -fd`, removes `cut.halt`, and starts the cutter once more, on the same `after` and `beside`.** The prompt gains a tail naming `cut.red`, after its backticked part; the checks then run again. A second failure resets and cleans the tree the same way, so the branch holds no change and a rejoin cuts it fresh, then halts the cut through `cut_halted` as `the cut check failed twice — <first failing line>`; `cut.red` stays as evidence. A branch the run found already holding the change fails to a halt at once: a person's amend stays, and nothing is reset.
 
 - **Why:** `cut_pre.py` wants `HEAD` an ancestor of the default branch and the number above every open version's, so a second cutter cannot amend a branch already ahead. One more cut costs less than a halt a person answers.
 - **Accepts:** a failed first cut is paid for twice.
@@ -62,14 +62,14 @@ The conductor reads a cut's commit subject, its tree and its models file, and ru
 
 ### D5
 
-**`cut_check.py`'s `I14` fails each `## Progress` line holding `**HUMAN`: a person's step comes after the release. The exemptions of `I4` and `I12`, and `verify_check.py`'s, go with it, so such a line fails `I4` for its missing rating as well. `brief_check.py` reads `## Phases` and halts a line holding `**HUMAN`.** The `I14` row of both skills is reworded to the refusal, the id kept so the ids run unbroken. The conductor's `human` stage, the plan check's skip and the build's checklist stay, for a version cut before.
+**`cut_check.py`'s `I14` fails each phase line of `tasks.md` holding `**HUMAN`, under `## Progress` or not: a person's step comes after the release. The exemptions of `I4` and `I12`, and `verify_check.py`'s, go with it, so such a line fails `I4` for its missing rating as well. `brief_check.py` reads `## Phases` and halts a line holding `**HUMAN`.** The `I14` row of both skills is reworded to the refusal, the id kept so the ids run unbroken. The conductor's `human` stage, the plan check's skip and the build's checklist stay, for a version cut before.
 
 - **Why:** a halt at such a phase idles until a person comes, and no worker may answer it (Q15, Q46, Q60).
 - **Rejected:** dropping `I14`, which breaks the ids · removing the conductor's reading.
 
 ### D6
 
-**A repository may declare `**Cut checks:**` in its root `AGENTS.md`: backticked commands, as `Ship tools:` is.** The conductor reads the primary's file, not the cut's, which a cutter can write. After the checker passes it runs each command, split by `shlex`, in the cut's tree through `_boxed`. A non-zero exit, or a command that cannot start, fails the check with the command and the last 20 lines of its output, on [D2](#d2)'s route, never as `the cut check cannot run`. MF's own `AGENTS.md` declares none; the bootstrap template names the line. The cut still runs no gate.
+**A repository may declare `**Cut checks:**` in its root `AGENTS.md`: backticked commands, as `Ship tools:` is.** The conductor reads the primary's file, not the cut's, which a cutter can write. After the checker passes it runs each command, split by `shlex`, in the cut's tree through `_boxed`. A non-zero exit, or a command that cannot start, fails the check with the command and the last 20 lines of its output, on [D2](#d2)'s route, never as `the cut check cannot run`. Each runs under [D1](#d1)'s bounds. A file the checker or a command leaves in the tree, which `_check_cut` found clean, fails the check on the same route, naming the files: the first build phase would halt on it. MF's own `AGENTS.md` declares none; the bootstrap template names the line. The cut still runs no gate.
 
 - **Why:** isekai's halts were text the gate rejects, a long line and a code block the formatter refused; MF's skills may assume no target's tools.
 - **Rejected:** the cut running them, which binds as far as the cutter obeys · a formatter named in MF's own skills.

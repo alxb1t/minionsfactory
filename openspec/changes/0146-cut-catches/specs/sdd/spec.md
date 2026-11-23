@@ -2,7 +2,7 @@
 
 ### Requirement: A run checks each cut with the cut's checker
 
-After the cut commit, the station's `check` for a queued cut SHALL run `skills/mf-cut-change/scripts/cut_check.py <id> --bump <bump>` in the cut's worktree, under the sandbox runner, on the conductor's own Python, once `_check_cut` and the dependency check pass. Exit 0 SHALL pass the cut; exit 1 with a `cut_check: halt — ` line in its output SHALL write its failing lines to `.minions/changes/<id>/cut.red`; exit 2, an exit 1 with no such line, or a run that cannot start, SHALL halt the cut as `the cut check cannot run`. A first failure of a branch the call cut SHALL reset the worktree to the default branch, remove `cut.halt`, and start the cutter once more, its prompt naming `cut.red`; the checks SHALL then run again, and a second failure SHALL halt the cut, naming the first failing line. A branch the run found already holding the change and failing SHALL halt the cut at once, and nothing SHALL be reset. `skills/mf-cut-change/SKILL.md` SHALL have an unattended cut that finds `cut.red` read it with the brief.
+After the cut commit, the station's `check` for a queued cut SHALL run `skills/mf-cut-change/scripts/cut_check.py <id> --bump <bump>` in the cut's worktree, under the sandbox runner, on the conductor's own Python, once `_check_cut` and the dependency check pass. Each run of the checker, and of each declared check, SHALL end after 1800 s, keep the last 2000 lines of its output, and write to the cut's worktree and the run directory alone. Exit 0 SHALL pass the cut; exit 1 with a `cut_check: halt — ` line in its output SHALL write its failing lines to `.minions/changes/<id>/cut.red`; exit 2, an exit 1 with no such line, or a run that cannot start, SHALL halt the cut as `the cut check cannot run`, naming the last line of the run's output, or the first line of the error that kept it from starting. A first failure of a branch the call cut SHALL reset the worktree to the default branch, remove `cut.halt`, and start the cutter once more, its prompt naming `cut.red`; the checks SHALL then run again, and a second failure SHALL reset the worktree to the default branch again, so the branch holds no change, and halt the cut, naming the first failing line. A branch the run found already holding the change and failing SHALL halt the cut at once, and nothing SHALL be reset. `skills/mf-cut-change/SKILL.md` SHALL have an unattended cut that finds `cut.red` read it with the brief.
 
 #### Scenario: A cut whose checker passes
 - **WHEN** the cutter commits a change directory and `cut_check.py` exits 0
@@ -16,11 +16,11 @@ After the cut commit, the station's `check` for a queued cut SHALL run `skills/m
 
 #### Scenario: A cut that fails twice
 - **WHEN** the second cut's check exits 1 too
-- **THEN** the cut halts as `the cut check failed twice`, naming the first failing line, and no third cutter starts
+- **THEN** the worktree is reset to the default branch, so the branch holds no change, the cut halts as `the cut check failed twice`, naming the first failing line, and no third cutter starts
 
 #### Scenario: A checker that cannot run
 - **WHEN** `cut_check.py` exits 2, or exits 1 on a traceback with no `cut_check: halt — ` line, or the sandbox cannot start it
-- **THEN** the cut halts as `the cut check cannot run`, and starts no second cutter
+- **THEN** the cut halts as `the cut check cannot run`, naming the last line of the checker's output, and starts no second cutter
 
 #### Scenario: A rejoin's branch fails
 - **WHEN** a person amends a halted cut's branch and a rejoin finds the check still failing
@@ -28,7 +28,7 @@ After the cut commit, the station's `check` for a queued cut SHALL run `skills/m
 
 ### Requirement: A repository declares the checks a cut passes
 
-A repository MAY declare `**Cut checks:**` in its root `AGENTS.md`: a line of backticked commands. After `cut_check.py` passes, the station SHALL read the line from the primary checkout's `AGENTS.md`, never the cut's, and run each command, split into words and with no shell, in the cut's worktree under the sandbox runner. A command that exits non-zero, or cannot start, SHALL fail the cut check, its command and the last 20 lines of its output going to `cut.red`, on the route of *A run checks each cut with the cut's checker*. A repository that declares no line SHALL run none. `skills/mf-cut-change/SKILL.md` SHALL say that the conductor runs these commands and the cut runs none; `skills/mf-bootstrap/templates/AGENTS.md.tmpl` SHALL name the line; MF's own `AGENTS.md` SHALL declare none. The cut SHALL still run no gate.
+A repository MAY declare `**Cut checks:**` in its root `AGENTS.md`: a line of backticked commands. After `cut_check.py` passes, the station SHALL read the line from the primary checkout's `AGENTS.md`, never the cut's, and run each command, split into words and with no shell, in the cut's worktree under the sandbox runner. A command that exits non-zero, or cannot start, SHALL fail the cut check, its command and the last 20 lines of its output going to `cut.red`, on the route of *A run checks each cut with the cut's checker*. A file the checker or a declared command leaves in the cut's worktree SHALL fail the cut check too, `cut.red` naming the files, on the same route. A repository that declares no line SHALL run none. `skills/mf-cut-change/SKILL.md` SHALL say that the conductor runs these commands and the cut runs none; `skills/mf-bootstrap/templates/AGENTS.md.tmpl` SHALL name the line; MF's own `AGENTS.md` SHALL declare none. The cut SHALL still run no gate.
 
 #### Scenario: A declared command passes
 - **WHEN** `AGENTS.md` declares `**Cut checks:** `true`` and the checker passes
@@ -38,13 +38,17 @@ A repository MAY declare `**Cut checks:**` in its root `AGENTS.md`: a line of ba
 - **WHEN** a declared command exits 1 printing a line
 - **THEN** the cut check fails, `cut.red` holds the command and the line, and the route of a failed check runs
 
+#### Scenario: A declared command leaves a file
+- **WHEN** a declared command exits 0 and writes `junk.txt` in the cut's worktree
+- **THEN** the cut check fails, `cut.red` names `junk.txt`, and the route of a failed check runs
+
 #### Scenario: A repository declares none
 - **WHEN** root `AGENTS.md` holds no `**Cut checks:**`
 - **THEN** the station runs no command beyond the checker
 
 ### Requirement: A plan holds no phase a person does
 
-`cut_check.py`'s `I14` SHALL fail each `## Progress` line of `tasks.md` that holds `**HUMAN`, saying a person's step comes after the release; no other row SHALL exempt such a phase, and `verify_check.py` SHALL read its `Verify:` as any other's. `brief_check.py` SHALL exit 1, naming the line, when a line of the brief's `## Phases` holds `**HUMAN`. The `I14` row of `skills/mf-cut-change/SKILL.md` and `skills/mf-build/SKILL.md` SHALL state the refusal, and the ids of both tables SHALL stay equal and run unbroken. For a version cut before, `conduct.py` SHALL still halt it at a phase marked `**HUMAN` with no rescue, `plan_check.py` SHALL still skip such a phase's `Verify:`, and `skills/mf-build/SKILL.md` SHALL still halt on an unworked one with the person's checklist: one line per step, each command in an `sh` block, secrets by env-var name, the closing checks, and `Next: /mf-build`.
+`cut_check.py`'s `I14` SHALL fail each phase line of `tasks.md`, under `## Progress` or not, that holds `**HUMAN`, saying a person's step comes after the release; no other row SHALL exempt such a phase, and `verify_check.py` SHALL read its `Verify:` as any other's. `brief_check.py` SHALL exit 1, naming the line, when a line of the brief's `## Phases` holds `**HUMAN`. The `I14` row of `skills/mf-cut-change/SKILL.md` and `skills/mf-build/SKILL.md` SHALL state the refusal, and the ids of both tables SHALL stay equal and run unbroken. For a version cut before, `conduct.py` SHALL still halt it at a phase marked `**HUMAN` with no rescue, `plan_check.py` SHALL still skip such a phase's `Verify:`, and `skills/mf-build/SKILL.md` SHALL still halt on an unworked one with the person's checklist: one line per step, each command in an `sh` block, secrets by env-var name, the closing checks, and `Next: /mf-build`.
 
 #### Scenario: The cut refuses a person's phase
 - **WHEN** a `tasks.md` lists `- [ ] 2 — Tag the release **HUMAN`
