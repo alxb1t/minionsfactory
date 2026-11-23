@@ -6,7 +6,7 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 - [x] 1 — The rescue's amend · hard
 - [x] 2 — The gate under load · moderate
-- [ ] 3 — Codex's fallbacks · hard
+- [x] 3 — Codex's fallbacks · hard
 - [ ] 4 — Converge's ways back · hard
 - [ ] 5 — The supervisor at the cap · hard
 - [ ] 6 — The changelog rule, the wait and the records · moderate
@@ -33,15 +33,15 @@ Each phase gives a halt a route: the rescue's amend, the gate under load, Codex'
 
 ## 3 — Codex's fallbacks
 
-- [ ] 3.1 **HALT CHECK** `Run.checker` counts only the runs that ended on a usage limit.
+- [x] 3.1 **HALT CHECK** `Run.checker` counts only the runs that ended on a usage limit.
   Verify: `git grep -n -e "codex_runs == 2" -- skills/mf-ship/scripts/conduct.py` exits 0.
-- [ ] 3.2 In `Run.checker`, count a Codex run that exits non-zero, not killed, with `tokens_of(out)` None beside a usage limit; at two, run on `_shadow`'s models, `fallback` the string `codex failed` unless a run ended on a limit, a shadow checker stopping with ` · stopped by a codex failure`; type `Checked.fallback` as `bool | str` ([D4](design.md#d4)). In `converge.py`, type the protocol's `fallback` the same and make `_spent` write `fallback: codex failed` for a string.
+- [x] 3.2 In `Run.checker`, count a Codex run that exits non-zero, not killed, with `tokens_of(out)` None beside a usage limit; at two, run on `_shadow`'s models, `fallback` the string `codex failed` unless a run ended on a limit, a shadow checker stopping with ` · stopped by a codex failure`; type `Checked.fallback` as `bool | str` ([D4](design.md#d4)). In `converge.py`, type the protocol's `fallback` the same and make `_spent` write `fallback: codex failed` for a string.
   Verify: `git grep -n -F "fallback: codex failed" -- skills/mf-converge/scripts/converge.py` exits 0.
-- [ ] 3.3 Add `test_a_codex_checker_that_fails_twice_runs_on_claude` to `tests/test_conduct.py` (one failure stays on Codex, two run on Claude, a limit keeps its text) and `test_a_codex_failure_fallback_is_named_in_the_verdicts_line` to `tests/test_converge.py`.
+- [x] 3.3 Add `test_a_codex_checker_that_fails_twice_runs_on_claude` to `tests/test_conduct.py` (one failure stays on Codex, two run on Claude, a limit keeps its text) and `test_a_codex_failure_fallback_is_named_in_the_verdicts_line` to `tests/test_converge.py`.
   Verify: `uv run pytest tests/test_conduct.py tests/test_converge.py -k "codex_checker_that_fails_twice or codex_failure_fallback" -q` exits 0.
-- [ ] 3.4 Add `Run.codex_off` per [D5](design.md#d5): `probe` and `probe_checker` take a `solo` flag that `probe_for` sets when no `stations` entry names the executor; a failed checker probe then halts nothing, marks the change, and `probe_for` goes on to the next executor with no `refused` reason cached; it logs `codex — <id>: probe failed · its checkers run on Claude`, and `codex_ready` and `probe_for` read the mark before they probe. Add `test_a_failed_checker_probe_leaves_the_checkers_on_claude`; edit `test_the_codex_probe_runs_a_checker` where a checker-only version halts on `probe-codex-checker check fail`.
+- [x] 3.4 Add `Run.codex_off` per [D5](design.md#d5): `probe` and `probe_checker` take a `solo` flag that `probe_for` sets when no `stations` entry names the executor; a failed checker probe then halts nothing, marks the change, and `probe_for` goes on to the next executor with no `refused` reason cached; it logs `codex — <id>: probe failed · its checkers run on Claude`, and `codex_ready` and `probe_for` read the mark before they probe. Add `test_a_failed_checker_probe_leaves_the_checkers_on_claude`; edit `test_the_codex_probe_runs_a_checker` where a checker-only version halts on `probe-codex-checker check fail`.
   Verify: `uv run pytest tests/test_conduct.py -k "failed_checker_probe" -q` exits 0.
-- [ ] 3.5 In `docs/decisions.md`, D76: under **Rejected** change "the conductor telling a limit from a failure" to "the checker call counts failures, and the conductor tells none from a limit", and add that a failed checker probe leaves a version's checkers on Claude.
+- [x] 3.5 In `docs/decisions.md`, D76: under **Rejected** change "the conductor telling a limit from a failure" to "the checker call counts failures, and the conductor tells none from a limit", and add that a failed checker probe leaves a version's checkers on Claude.
   Verify: `git grep -n -F "counts failures" -- docs/decisions.md` exits 0.
 
 ## 4 — Converge's ways back

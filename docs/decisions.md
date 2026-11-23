@@ -1044,8 +1044,11 @@ comes from the rollout the log's `thread_id` names, else the `try again at` text
   or a share.
 - **Not installed:** a Codex not on `PATH` is a third cause: a checker a plan gives Codex runs on Claude on converge's
   model and effort, the run says so once, and a station on Codex still halts at its probe.
-- **Rejected:** a wait until any reset · dollar prices for Codex · the conductor telling a limit from a failure — `conduct.py`
-  falls back inside the run's checker call.
+- **A failure:** a Codex checker that exits non-zero twice before a completed turn runs on Claude too, its answer naming
+  `fallback: codex failed`; a failed checker probe halts nothing and leaves on Claude the checkers of a version whose
+  checkers alone are on Codex.
+- **Rejected:** a wait until any reset · dollar prices for Codex · the checker call counts failures, and the conductor tells
+  none from a limit — `conduct.py` falls back inside the run's checker call.
 
 ### D53 · A rescue amends the plan, never the code or a decision
 

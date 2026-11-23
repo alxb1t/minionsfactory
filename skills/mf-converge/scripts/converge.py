@@ -61,6 +61,7 @@ PLACEHOLDERS = (
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 FALLBACK = "fallback: codex usage limit"
+FAILED = "fallback: codex failed"
 NO_OPEN_CARD = "verdict is changes-requested with no open card"
 REWRITE = (
     "role: {role}\nchange: {change}\nround: {round}\n\n"
@@ -117,8 +118,11 @@ class Checked(Protocol):
         """Return the usage limit that stopped it, or ""."""
 
     @property
-    def fallback(self) -> bool:
-        """Return whether a Codex usage limit moved it to Claude."""
+    def fallback(self) -> bool | str:
+        """Return True for a Codex limit, a text for a Codex failure, else False.
+
+        Why: 0145-halts-alone design D4.
+        """
 
     @property
     def tokens(self) -> int | None:
@@ -630,6 +634,8 @@ def _spent(result: Checked) -> str:
         f"executor {executor} · model {model or 'default'}"
         f" · effort {effort or 'default'} · tokens {tokens}"
     )
+    if isinstance(result.fallback, str):
+        return f"{spent} · {FAILED}"
     return spent + (f" · {FALLBACK}" if result.fallback else "")
 
 

@@ -26,7 +26,7 @@ import traceback
 import types
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import mflib.debtfile
 import mflib.findings
@@ -7093,6 +7093,15 @@ def _ask(root: Path, table: str, change: str = "0001-todo") -> str:
     )
 
 
+class _Checked(Protocol):
+    """The fields of `conduct.py`'s `Checked` a test reads."""
+
+    code: int
+    models: tuple[str, str | None, str | None]
+    limit: str
+    fallback: bool | str
+
+
 @pytest.mark.slow
 def test_a_limited_checker_falls_back_to_claude(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
@@ -7268,6 +7277,100 @@ def test_a_limited_checker_falls_back_to_claude(
     fake_codex("unsandboxed", "")
     assert check() == fell
     assert [who for who, _ in run.halts] == ["0001-todo"]
+
+
+def test_a_codex_checker_that_fails_twice_runs_on_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setitem(
+        conduct["main"].__globals__, "_executor_missing", lambda _: False
+    )
+    root = _primary(tmp_path)
+    folder = root / ".minions" / "changes" / "0001-todo"
+    folder.mkdir(parents=True)
+    run = conduct["Run"](root, "claude")
+    run.claim = None
+    monkeypatch.setattr(run, "codex_ready", lambda change, deadline: True)
+    failed = {"type": "turn.failed", "error": {"message": "model_not_found"}}
+    limit = {
+        "type": "turn.failed",
+        "error": {"message": "You've hit your usage limit."},
+    }
+    turn = {"type": "turn.completed", "usage": {"input_tokens": 9, "output_tokens": 1}}
+    # Each Codex run's end: its exit, whether its deadline killed it, its event.
+    kinds = {
+        "fail": (1, False, failed),
+        "limit": (1, False, limit),
+        "done": (0, False, turn),
+        "spent": (1, False, turn),
+        "killed": (1, True, failed),
+        "quiet": (0, False, failed),
+    }
+    ends: list[str] = []
+    ran: list[str] = []
+
+    def worker(
+        who: str,
+        station: str,
+        cwd: Path,
+        prompt: str,
+        models: tuple[str, str | None, str | None],
+        **_: object,
+    ) -> tuple[int, bool, Path, list[str]]:
+        code, killed, event = kinds[ends.pop(0) if models[0] == "codex" else "done"]
+        ran.append(models[0])
+        out = tmp_path / f"{len(ran)}.log"
+        out.write_text(json.dumps(event) + "\n")
+        return code, killed, out, []
+
+    monkeypatch.setattr(run, "worker", worker)
+
+    def check(table: str, *runs: str) -> _Checked:
+        (folder / "models.toml").write_text(
+            '[converge]\nmodel = "claude-sonnet-5-5"\neffort = "medium"\n'
+            + (
+                'shadow = true\n[converge.conformance]\nexecutor = "claude"\n'
+                if table.startswith("shadow-")
+                else '[converge.conformance]\nexecutor = "codex"\n'
+            )
+        )
+        run.read_plan([conduct["Version"]("0001-todo", root)])
+        ends[:], ran[:] = runs, []
+        deadline = time.monotonic() + 600
+        return run.checker("0001-todo", f"c-{table}", table, root, "p", deadline)
+
+    # One failure stays on Codex: the second run's result names no fallback.
+    once = check("conformance", "fail", "done")
+    assert (once.code, once.models[0], once.fallback) == (0, "codex", False)
+    assert ran == ["codex", "codex"]
+    # Two failures before a completed turn run the checker on Claude, named failed.
+    twice = check("conformance", "fail", "fail")
+    assert twice.models == ("claude", "claude-sonnet-5-5", "medium")
+    assert (twice.code, twice.fallback) == (0, "codex failed")
+    assert ran == ["codex", "codex", "claude"]
+    # A run that ended on a limit keeps the limit's fallback.
+    assert check("conformance", "fail", "limit").fallback is True
+    assert ran == ["codex", "codex", "claude"]
+    # Twins, one per conjunct: an exit 0, a killed run and a completed turn are no
+    # failure, and the result is that run's, on Codex.
+    for end, code in (("quiet", 0), ("killed", 1), ("spent", 1)):
+        result = check("conformance", end)
+        assert (result.code, result.models[0], result.fallback) == (
+            code,
+            "codex",
+            False,
+        )
+        assert ran == ["codex"]
+    # A shadow on Codex falls back nowhere: two failures stop it, named failed.
+    codex = ("codex", None, None)
+    stopped = check("shadow-conformance", "fail", "fail")
+    assert stopped == conduct["Checked"](
+        1, False, codex, " · stopped by a codex failure", False, None
+    )
+    assert ran == ["codex", "codex"]
+    limited = check("shadow-conformance", "fail", "limit")
+    assert limited.limit == " · stopped by a usage limit"
 
 
 @pytest.mark.slow
@@ -14278,6 +14381,70 @@ def test_the_codex_probe_runs_a_checker(
 
 
 @pytest.mark.slow
+def test_a_failed_checker_probe_leaves_the_checkers_on_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    monkeypatch.setitem(conduct["main"].__globals__, "_unlinked", lambda _: None)
+    root = _primary(tmp_path)
+    # A run's claim folder, which `ship` makes.
+    (root / ".minions" / "runs" / "active").mkdir(parents=True)
+    tables = {
+        "0001-check": '[converge]\n[converge.conformance]\nexecutor = "codex"\n',
+        "0002-build": '[build]\nexecutor = "codex"\n[converge]\n',
+    }
+    trees = {}
+    for change, table in tables.items():
+        folder = root / ".minions" / "changes" / change
+        folder.mkdir(parents=True)
+        (folder / "models.toml").write_text(table)
+        trees[change] = _version(root, change, "- [ ] 1 — Todo\n")
+    fake_codex("checker-silent")
+    run = conduct["Run"](root, "claude")
+    run.read_plan([conduct["Version"](change, tree) for change, tree in trees.items()])
+    run.probed.add("claude")
+
+    def check() -> _Checked:
+        ask = _ask(root, "conformance", "0001-check")
+        deadline = time.monotonic() + 600
+        tree = trees["0001-check"]
+        return run.checker("0001-check", "c", "conformance", tree, ask, deadline)
+
+    # A checker-only version's failed checker probe halts nothing, keeps no refusal,
+    # and its checker runs on Claude, named failed.
+    result = check()
+    assert run.halts == [] and run.refused == {} and "codex" not in run.probed
+    assert run.codex_off == {"0001-check"}
+    assert (result.models[0], result.fallback) == ("claude", "codex failed")
+    assert len(_codex_argvs(tmp_path)) == 2
+    said = " · run · codex — 0001-check: probe failed · its checkers run on Claude\n"
+    assert said in run.log.path.read_text()
+    # The mark holds: no second probe, by the checker or by the version's own probe.
+    assert check().fallback == "codex failed"
+    run.probe_for("0001-check", ["codex"], [])
+    assert len(_codex_argvs(tmp_path)) == 2 and run.halts == []
+    # Twin: a version with a station on Codex halts on the same failure, unmarked.
+    run.probe_for("0002-build", ["codex"], ["codex"])
+    assert run.halts == [
+        (
+            "0002-build",
+            "probe-codex-checker check fail — the checker wrote no conformance.md",
+        )
+    ]
+    assert run.codex_off == {"0001-check"}
+    # A solo checker probe that exits non-zero logs a failed check, and halts nothing.
+    out = tmp_path / "failed.log"
+    out.write_text("")
+    monkeypatch.setattr(run, "worker", lambda *given: (1, False, out, []))
+    codex = ("codex", None, None)
+    station = "probe-codex-checker"
+    assert run.spawn("0001-check", station, root, "p", codex, halts=False) is None
+    assert len(run.halts) == 1
+    failed = f" · 0001-check · check — {station} · fail — {station} worker exit 1\n"
+    assert failed in run.log.path.read_text()
+
+
+@pytest.mark.slow
 def test_a_usage_limit_at_the_probe_is_no_refusal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_codex: Callable[..., Path]
 ) -> None:
@@ -14378,7 +14545,9 @@ def test_a_usage_limit_at_the_probe_is_no_refusal(
     run = conduct["Run"](root, "claude")
     passed = time.time() - 1
 
-    def limited(executor: str, who: str, deadline: float | None) -> None:
+    def limited(
+        executor: str, who: str, deadline: float | None, solo: bool = False
+    ) -> None:
         run.limited[executor] = passed
 
     run.probe = limited

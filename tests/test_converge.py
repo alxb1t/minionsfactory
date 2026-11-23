@@ -65,7 +65,7 @@ class Checked(NamedTuple):
     killed: bool
     models: tuple[str, str | None, str | None]
     limit: str
-    fallback: bool
+    fallback: bool | str
     tokens: int | None
 
 
@@ -918,6 +918,27 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     short = converge["read_findings"](narrow, "conformance", frozen)
     assert short.malformed is None
     assert "lacks test-cost" in short.unclean
+
+
+def test_a_codex_failure_fallback_is_named_in_the_verdicts_line(host: Host) -> None:
+    converge = _converge()
+    head = _git(host.tree, "rev-parse", "HEAD")
+    frozen = converge["Freeze"]("b" * 40, head, 1, 1)
+    folder = host.folder()
+    folder.mkdir(parents=True)
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    converge["open_run"](context)
+    (folder / "conformance.md").write_text(findings("conformance", head))
+    claude = ("claude", None, None)
+    failed = Checked(0, False, claude, "", "codex failed", None)
+
+    converge["read_verdicts"](context, frozen, {"conformance": failed})
+
+    assert events(host) == [
+        "round 1 · verdicts — conformance clean · open_blocking 0 · executor claude"
+        " · model default · effort default · tokens unavailable"
+        " · fallback: codex failed",
+    ]
 
 
 def test_a_bold_bullet_is_no_card(host: Host) -> None:

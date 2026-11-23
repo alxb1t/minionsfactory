@@ -70,6 +70,8 @@ LIMIT_WAIT = 900
 PROBE_ROOM = 120
 HEADROOM = 90
 WINDOWS = {"primary": "5-hour", "secondary": "weekly"}
+# A checker's fallback after Codex failures. Why: 0145-halts-alone design D4.
+CODEX_FAILED = "codex failed"
 INTEGRATE = Path(__file__).resolve().parents[2] / "mf-integrate/scripts/integrate.py"
 CONVERGE = Path(__file__).resolve().parents[2] / "mf-converge/scripts/converge.py"
 # The close's scripts: the gate and the plan check run by the conductor's Python, the
@@ -4290,15 +4292,15 @@ def preconditions(cwd: Path, executor: str) -> Path:
 class Checked:
     """What one converge checker did: its exit, the models it ran on, its tokens.
 
-    `limit` is the usage limit or the refusal that ended it, else "".
-    Why: 0108-converge-script design D4.
+    `limit` is the usage limit or the refusal that ended it, else ""; `fallback` is
+    True for a limit, `CODEX_FAILED` for a failure. Why: 0108 D4; 0145-halts-alone D4.
     """
 
     code: int
     killed: bool
     models: tuple[str, str | None, str | None]
     limit: str
-    fallback: bool
+    fallback: bool | str
     tokens: int | None
 
 
@@ -4353,6 +4355,9 @@ class Run:
         self.planned: set[str] = set()
         self.probed: set[str] = set()
         self.refused: dict[str, str] = {}
+        # The versions whose Codex checker probe failed: their checkers run on Claude.
+        # Why: 0145-halts-alone design D5.
+        self.codex_off: set[str] = set()
         self.limited: dict[str, float] = {}
         self.rescues: dict[str, list[str]] = {}
         self.answered: dict[str, str] = {}
@@ -4601,29 +4606,37 @@ class Run:
         brief: Path | None = None,
         limits: bool = False,
         deadline: float | None = None,
+        halts: bool = True,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
-        Why: 0100-worker-diet design D5;
-        0104-codex-limits design D2.
+        Without `halts`, a failure is logged as a failed check. Why: 0100 design D5;
+        0104-codex-limits design D2; 0145-halts-alone design D5.
         """
+
+        def stop(reason: str) -> None:
+            if halts:
+                self.halt(who, reason)
+            else:
+                self.log.event(who, "check", f"{station} · fail — {reason}")
+
         timeout = None if deadline is None else deadline - time.monotonic()
         code, killed, out, denied = self.worker(
             who, station, cwd, prompt, models, repo, brief, timeout
         )
         if killed:
             took = TIMEOUT if timeout is None else max(round(timeout), 0)
-            self.halt(who, f"{station} timed out after {took}s; its group was killed")
+            stop(f"{station} timed out after {took}s; its group was killed")
             return None
         # Why: 0100-worker-diet design D5.
         if missing := lacked(out):
             named = ", ".join(missing)
-            self.halt(who, f"{station} asked for a tool its station lacks: {named}")
+            stop(f"{station} asked for a tool its station lacks: {named}")
             return None
         if code != 0:
             if limits and self.limited_until(models[0]) is not None:
                 return None
-            self.halt(who, f"{station} worker exit {code}{usage_limit(out)}")
+            stop(f"{station} worker exit {code}{usage_limit(out)}")
             return None
         return denied
 
@@ -4659,15 +4672,20 @@ class Run:
         models = given(models)
         if time.monotonic() >= deadline:
             return Checked(1, False, models, "converge's time is spent", False, None)
-        fallback, codex_runs = False, 0
+        fallback: bool | str = False
+        codex_runs, limited = 0, False
         while True:
             if models[0] == "codex" and (
                 codex_runs == 2 or not self.codex_ready(change, deadline)
             ):
+                failed = (codex_runs == 2 and not limited) or change in self.codex_off
                 if shadow and not _executor_missing("codex"):
-                    stopped = " · stopped by a usage limit"
-                    return Checked(1, False, models, stopped, False, None)
-                models, fallback = given(_shadow(converge, models)), True
+                    cause = "a codex failure" if failed else "a usage limit"
+                    return Checked(
+                        1, False, models, f" · stopped by {cause}", False, None
+                    )
+                models = given(_shadow(converge, models))
+                fallback = CODEX_FAILED if failed else True
             code, killed, out, _ = self.worker(
                 change,
                 station,
@@ -4676,13 +4694,15 @@ class Run:
                 models,
                 timeout=deadline - time.monotonic(),
             )
-            if models[0] != "codex" or not usage_limit(out):
-                tokens = tokens_of(out)
+            tokens, limit = tokens_of(out), usage_limit(out)
+            # A Codex run that ended before a completed turn: a failure, as a limit is.
+            failure = code != 0 and not killed and tokens is None
+            if models[0] != "codex" or not (limit or failure):
                 if code == 0:
                     folder = mflib.layout.change_dir(self.primary, change)
                     _stamp(folder, f"{table}.md", models[1], tokens)
-                return Checked(code, killed, models, usage_limit(out), fallback, tokens)
-            codex_runs += 1
+                return Checked(code, killed, models, limit, fallback, tokens)
+            codex_runs, limited = codex_runs + 1, limited or bool(limit)
 
     def fix(
         self,
@@ -4749,10 +4769,10 @@ class Run:
     def codex_ready(self, change: str, deadline: float) -> bool:
         """Return whether Codex may run a checker now, waiting for a near reset.
 
-        Why: 0104-codex-limits design D3; 0117-codex-converge design D4.
+        Why: 0104-codex-limits design D3; 0117 design D4; 0145-halts-alone design D5.
         """
-        # Not installed: the third cause of a fallback.
-        if _executor_missing("codex"):
+        # Not installed, or its checker probe failed for the version: a fallback.
+        if _executor_missing("codex") or change in self.codex_off:
             return False
         held = _headroom(time.time())
         resets = [self.limited_until("codex"), held[0] if held else None]
@@ -4841,8 +4861,9 @@ class Run:
         reason: str | None,
         denied: list[str],
         shown: str = "",
+        halts: bool = True,
     ) -> bool:
-        """Log a station's check, `shown` after a pass; a failure halts.
+        """Log a station's check, `shown` after a pass; a failure halts, given `halts`.
 
         A failure names the denials before it.
         """
@@ -4850,6 +4871,8 @@ class Run:
         self.log.event(who, "check", f"{stage} · {result}")
         if reason is None:
             return True
+        if not halts:
+            return False
         named = f" · denied: {', '.join(denied)}" if denied else ""
         self.halt(who, f"{stage} check fail — {reason}{named}")
         return False
@@ -6385,19 +6408,24 @@ class Run:
     ) -> None:
         """Probe each executor the run has not, once; a refused one halts `change`.
 
-        A limited executor halts `change` only when among `stations`; a probe ends by
-        `deadline`, when given. Why: 0104-codex-limits design D2.
+        A limited executor, or a failed checker probe, halts `change` only when among
+        `stations`; a probe ends by `deadline`. Why: 0104 D2; 0145-halts-alone D5.
         """
         with self.probing:
             for executor in dict.fromkeys(executors):
                 if executor in self.probed or self.stopped(change):
                     continue
+                if executor == "codex" and change in self.codex_off:
+                    continue
                 if (refused := self.refused.get(executor)) is not None:
                     self.halt(change, refused)
                     continue
                 if self.limited_until(executor) is None:
-                    self.probe(executor, change, deadline)
-                    if executor in self.probed:
+                    solo = executor not in stations
+                    self.probe(executor, change, deadline, solo=solo)
+                    if executor in self.probed or (
+                        executor == "codex" and change in self.codex_off
+                    ):
                         continue
                 # A probe that failed and halted nothing met a limit `spawn` excused.
                 with self.guard:
@@ -6415,12 +6443,16 @@ class Run:
                     self.halt(change, self.limited_reason(executor))
 
     def probe(
-        self, executor: str, who: str = "run", deadline: float | None = None
+        self,
+        executor: str,
+        who: str = "run",
+        deadline: float | None = None,
+        solo: bool = False,
     ) -> None:
         """Prove a sandboxed worker edits, commits and gates a scratch repo; else halt.
 
-        Why: 0063-rejoin design D3; D51; 0096-codex-ready
-        design D9; 0100-worker-diet design D6.
+        A `solo` probe's failed checker probe halts nothing. Why: 0063 D3; D51;
+        0096-codex-ready D9; 0100-worker-diet D6; 0145-halts-alone D5.
         """
         station = "probe" if executor == self.executor else f"probe-{executor}"
         if _executor_missing(executor):
@@ -6480,7 +6512,7 @@ class Run:
                     denied,
                     shown,
                 )
-                and (not codex or self.probe_checker(executor, who, deadline))
+                and (not codex or self.probe_checker(executor, who, deadline, solo))
             ):
                 self.probed.add(executor)
         finally:
@@ -6488,12 +6520,16 @@ class Run:
             mark.unlink(missing_ok=True)
 
     def probe_checker(
-        self, executor: str, who: str, deadline: float | None = None
+        self,
+        executor: str,
+        who: str,
+        deadline: float | None = None,
+        solo: bool = False,
     ) -> bool:
         """Prove a checker writes a findings file to the contract; else halt `who`.
 
-        Its verdict is logged, never judged; it ends by `deadline`, when given. Why:
-        0096-codex-ready design D9.
+        Its verdict is logged, never judged; a `solo` failure marks `who` off Codex.
+        Why: 0096-codex-ready design D9; 0145-halts-alone design D5.
         """
         scratch = Path(tempfile.mkdtemp(prefix="mf-ship-checker-")).resolve()
         station = "probe" if executor == self.executor else f"probe-{executor}"
@@ -6512,6 +6548,7 @@ class Run:
                 repo,
                 limits=True,
                 deadline=deadline,
+                halts=not solo,
             )
             with self.guard:
                 out = self.outs[who, checker]
@@ -6522,9 +6559,16 @@ class Run:
                 text = (findings / "conformance.md").read_text(errors="replace")
                 verdict = _frontmatter(text, "verdict")
             shown = f" · verdict {verdict}"
-            return denied is not None and self.judge(
-                who, checker, reason, denied, shown
+            passed = denied is not None and self.judge(
+                who, checker, reason, denied, shown, halts=not solo
             )
+            # A limit is no failure: it falls back by `codex_ready`'s read.
+            if solo and not passed and self.limited_until(executor) is None:
+                with self.guard:
+                    self.codex_off.add(who)
+                said = f"{who}: probe failed · its checkers run on Claude"
+                self.log.event("run", "codex", said)
+            return passed
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
 
