@@ -80,6 +80,7 @@ GATE_RUN = CONVERGE.with_name("gate_run.py")
 PLAN_CHECK = CONVERGE.with_name("plan_check.py")
 # The cut's checker, run by the conductor's Python. Why: 0146-cut-catches design D1.
 CUT_CHECK = Path(__file__).resolve().parents[2] / "mf-cut-change/scripts/cut_check.py"
+CHECK_TAIL = 20
 METRICS = Path(__file__).resolve().parents[2] / "mf-build/scripts/metrics.py"
 CATALOGUE = "metrics/catalogue.toml"
 # The brief's checker, and the runner of its `--models`.
@@ -848,10 +849,26 @@ def _cut_checked(primary: Path, change: str, tree: Path, bump: str) -> str | Non
     except (OSError, Stop) as error:
         raise Stop(1, f"the cut check cannot run — {_first(str(error))}") from None
     if code == 0:
-        return None
+        return _declared_checks(primary, tree)
     if code != 1:
         raise Stop(1, f"the cut check cannot run — {_first(output)}")
     return output
+
+
+def _declared_checks(primary: Path, tree: Path) -> str | None:
+    """Return the first failed `Cut checks` command's report, or None.
+
+    A report holds the command, then its output's tail. Why: 0146-cut-catches design D6.
+    """
+    for command in _agents_values(primary, "Cut checks") or []:
+        try:
+            code, output = _boxed(primary, tree, shlex.split(command))
+        except (OSError, Stop, ValueError) as error:
+            return f"cut check: {command} cannot start — {_first(str(error))}"
+        if code != 0:
+            tail = "\n".join(output.splitlines()[-CHECK_TAIL:])
+            return f"cut check: {command} exited {code}\n{tail}\n"
+    return None
 
 
 def _direct(text: str | None) -> list[tuple[str, str]]:

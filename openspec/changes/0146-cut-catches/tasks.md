@@ -7,7 +7,7 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 - [x] 1 — The conductor checks the cut · hard
 - [x] 2 — The rows · moderate
 - [x] 3 — A person's phase refused · moderate
-- [ ] 4 — The declared cut checks · moderate
+- [x] 4 — The declared cut checks · moderate
 - [ ] 5 — The build's unplanned file · moderate
 - [ ] 6 — The records · moderate
 
@@ -70,17 +70,17 @@ Phases: the conductor checks the cut, the rows, a person's phase refused, the de
 
 ## 4 — The declared cut checks
 
-- [ ] 4.1 In `tests/test_conduct.py` add `test_cutdeclared_command_passes`, `test_cutdeclared_command_fails_the_cut_check` and `test_cutdeclared_none_runs_nothing` per [D6](design.md#d6).
+- [x] 4.1 In `tests/test_conduct.py` add `test_cutdeclared_command_passes`, `test_cutdeclared_command_fails_the_cut_check` and `test_cutdeclared_none_runs_nothing` per [D6](design.md#d6).
   Verify: `uv run pytest tests/test_conduct.py -q -k cutdeclared` exits `0`.
-- [ ] 4.2 In `skills/mf-ship/scripts/conduct.py` add `_declared_checks`, which reads `Cut checks` from the primary's AGENTS.md, and run each after the checker per [D6](design.md#d6).
+- [x] 4.2 In `skills/mf-ship/scripts/conduct.py` add `_declared_checks`, which reads `Cut checks` from the primary's AGENTS.md, and run each after the checker per [D6](design.md#d6).
   Verify: `git grep -q -F -e "Cut checks" -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 4.3 In `THREAT_MODEL.md` add `Cut checks:` to the entry points and the surfaces lines that name `Ship tools:`.
+- [x] 4.3 In `THREAT_MODEL.md` add `Cut checks:` to the entry points and the surfaces lines that name `Ship tools:`.
   Verify: `git grep -q -F -e "Cut checks" -- THREAT_MODEL.md` exits `0`.
-- [ ] 4.4 In `skills/mf-cut-change/SKILL.md` Step 8, say the conductor runs a repository's `**Cut checks:**` after the cut commit, and the cut runs none.
+- [x] 4.4 In `skills/mf-cut-change/SKILL.md` Step 8, say the conductor runs a repository's `**Cut checks:**` after the cut commit, and the cut runs none.
   Verify: `git grep -q -F -e "Cut checks" -- skills/mf-cut-change/SKILL.md` exits `0`.
-- [ ] 4.5 In `skills/mf-bootstrap/templates/AGENTS.md.tmpl` add a `**Cut checks:**` line reading `none`, with a note that backticked commands there run over a cut's worktree.
+- [x] 4.5 In `skills/mf-bootstrap/templates/AGENTS.md.tmpl` add a `**Cut checks:**` line reading `none`, with a note that backticked commands there run over a cut's worktree.
   Verify: `git grep -q -F -e "Cut checks" -- skills/mf-bootstrap/templates/AGENTS.md.tmpl` exits `0`.
-- [ ] 4.6 In `docs/decisions.md` edit the decision `The cut writes to the build's input contract`: the conductor runs the cut's checker and each `Cut checks` command; the cut still runs no gate.
+- [x] 4.6 In `docs/decisions.md` edit the decision `The cut writes to the build's input contract`: the conductor runs the cut's checker and each `Cut checks` command; the cut still runs no gate.
   Verify: `git grep -q -F -e "Cut checks" -- docs/decisions.md` exits `0`.
 
 ## 5 — The build's unplanned file

@@ -37,6 +37,10 @@ A test is placed by its cost: every gate run pays for it again.
 How a change lands is in [the contribution guide](CONTRIBUTING.md). The OpenSpec CLI is recorded, not pinned:
 `@fission-ai/openspec@<openspec-version>`, resolved on `PATH`.
 
+- **Cut checks:** none
+  The conductor runs each backticked command on that line over a cut's worktree, after the cut's own check. One that
+  exits non-zero sends its output back to the cutter.
+
 ## Layout — where things live here
 
 - **`openspec/`** — the living specs in `specs/`; the changes in `changes/`, the shipped ones in `changes/archive/`.

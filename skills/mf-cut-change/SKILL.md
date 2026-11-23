@@ -223,7 +223,8 @@ decides the mechanical rows `I2`, `I3`, `I4`, `I11`, `I12`, `I13`, `I14`, `I17`,
 | `cut_check: ready — <met> rows met, <judge> to judge` | the mechanical rows are met: hold this line |
 
 Exit 2, or `uv` missing → **halt**, naming it. A met row is settled: build no table of it, and hold the summary line and
-the judgment rows alone.
+the judgment rows alone. The conductor runs a repository's `**Cut checks:**` commands after the cut commit, and the cut
+runs none.
 
 - **Judge `I5`–`I10`, `I15`, `I16`, `P12` and `P13`'s paragraphs** — each `judge` line names what to read, `P12` and `P13`
   with candidates as `path:line`, which only you or the reviewer judge.

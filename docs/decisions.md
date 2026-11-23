@@ -115,7 +115,8 @@ places the brief's facts at `HEAD`, its helpers read the unplaced ones, and `cut
 mechanical rows ([D77](#d77--a-mechanical-step-is-a-script)). It runs each `Verify:`
 search's pattern at `HEAD` through `verify_check.py`, and a fresh worker's plan review asks whether each task can be
 built as written, a second review only after a fix that changes a decision or a task
-([D65](#d65--a-lighter-plan-review-and-build)); it runs no gate.**
+([D65](#d65--a-lighter-plan-review-and-build)); it runs no gate. The conductor runs the cut's checker and, after it, each
+`Cut checks` command of the primary's `AGENTS.md` over the cut's worktree.**
 
 - **Why:** a change the build cannot run is cheapest to catch at the cut. A check read and never run, or a plan
   read only by its writer, lets a plan the code cannot satisfy reach the build; a gate on the base plus a change

@@ -6837,6 +6837,109 @@ def test_cutcheck_never_resets_a_rejoin(tmp_path: Path, cut_check: Path) -> None
     assert _cut_red(root).read_text() == f"{_FAILING}\n"
 
 
+def _declared(command: str) -> str:
+    """Return an `AGENTS.md` that declares `command` as a cut check."""
+    return f"{_WORKTREES}- **Cut checks:** `{command}`\n"
+
+
+def _boxes(conduct: dict[str, Any]) -> list[tuple[Path, list[str]]]:
+    """Record each `(tree, argv)` the conductor boxes from now on; return the list."""
+    names = conduct["main"].__globals__
+    real = names["_boxed"]
+    seen: list[tuple[Path, list[str]]] = []
+
+    def boxed(primary: Path, tree: Path, argv_: list[str]) -> tuple[int, str]:
+        seen.append((tree, argv_))
+        return real(primary, tree, argv_)
+
+    names["_boxed"] = boxed
+    return seen
+
+
+def test_cutdeclared_command_passes(tmp_path: Path, cut_check: Path) -> None:
+    # Why: 0146-cut-catches design D6.
+    conduct = _conduct()
+    command = f"{sys.executable} -c pass"
+    root = _primary(tmp_path, _declared(command))
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief)
+    boxes = _boxes(conduct)
+    conductor, prompts, _ = _landing(conduct, root)
+
+    assert conductor.cutting("0001-a") is None
+
+    tree = (root.parent / "0001-a").resolve()
+    assert [t for t, _ in boxes] == [tree, tree]
+    assert [argv_[1] for _, argv_ in boxes] == [str(cut_check), "-c"]
+    assert boxes[1][1] == [sys.executable, "-c", "pass"]
+    assert len(prompts) == 1
+    assert not _cut_red(root).exists()
+    lines = _log(root)
+    assert any(line.endswith(" · 0001-a · check — cut-check · pass") for line in lines)
+
+
+def test_cutdeclared_command_fails_the_cut_check(
+    tmp_path: Path, cut_check: Path
+) -> None:
+    # Why: 0146-cut-catches design D6.
+    conduct = _conduct()
+    shown = "import sys; [print('line', i) for i in range(25)]; sys.exit(3)"
+    command = f'{sys.executable} -c "{shown}"'
+    root = _primary(tmp_path, _declared(command))
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief)
+    runs = _checks(cut_check, 0)
+    conductor, prompts, _ = _landing(conduct, root)
+
+    conductor.cut("0001-a", {})
+
+    # The checker passes each time; the command fails the cut check on D2's route.
+    assert len(runs.read_text().splitlines()) == 2
+    assert len(prompts) == 2
+    assert ".minions/changes/0001-a/cut.red" in prompts[1]
+    first = f"cut check: {command} exited 3"
+    tail = "".join(f"line {i}\n" for i in range(5, 25))
+    assert _cut_red(root).read_text() == f"{first}\n{tail}"
+    why = f"the cut check failed twice — {first}"
+    assert conduct["_cuts"](root)["0001-a"]["halt"] == why
+
+    # A command that cannot start fails the same check, never `cannot run`.
+    for number, broken in enumerate(
+        (f"{sys.executable} -c 'open", str(tmp_path / "no-such-program")), start=1
+    ):
+        folder = tmp_path / f"r{number}"
+        folder.mkdir()
+        other = _primary(folder, _declared(broken))
+        _queued(conduct, other, "0001-a", brief)
+        conductor, prompts, _ = _landing(conduct, other)
+        conductor.cut("0001-a", {})
+        halt = conduct["_cuts"](other)["0001-a"]["halt"]
+        assert halt.startswith(f"the cut check failed twice — cut check: {broken} ")
+        assert len(prompts) == 2
+
+
+def test_cutdeclared_none_runs_nothing(tmp_path: Path, cut_check: Path) -> None:
+    # Why: 0146-cut-catches design D6.
+    conduct = _conduct()
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    for number, agents in enumerate(
+        (_WORKTREES, f"{_WORKTREES}- **Cut checks:** none\n"), start=1
+    ):
+        folder = tmp_path / f"r{number}"
+        folder.mkdir()
+        root = _primary(folder, agents)
+        _queued(conduct, root, "0001-a", brief)
+        boxes = _boxes(conduct)
+        conductor, _, _ = _landing(conduct, root)
+
+        assert conductor.cutting("0001-a") is None
+
+        assert [argv_[1] for _, argv_ in boxes] == [str(cut_check)]
+
+
 def test_a_rejoin_clears_a_chain_of_cut_halts(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
