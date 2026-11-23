@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.119.1] - 2026-11-24
+
+Gate: local 8m9s · CI not read under mf-ship · 0.118.0: local 8m24s · CI not read under mf-ship
+
 - Archived lines of `0118-debt-paydown-3a`, `0119-debt-paydown-3b`, `0099-stacked-builds`, `0100-worker-diet`, `0104-codex-limits`, `0121-ui-prepare`, `0134-run-layout` and `0136-status-log` say what the code and the later decisions hold: no stale count, a link to the decision, the scratch npm config files, an id of any width and the slow run test. Only the lines the debt cards name change (0149-debt-paydown-4, phase 1).
 - The v0.117.0 line on `I14` says it reads each `**HUMAN` phase line of `tasks.md`, and `worker.md` and `verify.md` leave out a fix commit's files that stand on its cards, as the spec says. Row `V8` of `cut_check.py` takes each module of a directory operand as a keyword and reads `./tests/test_a.py` as `tests/test_a.py`, so a `-k` naming such a module no longer halts the cut (0149-debt-paydown-4, phase 2).
 - Cards `0120·R6`, `0122·S1`, `0134·R1`, `0146·R5`, `0147·R1` and `0147·S4` are shown paid: the line each names already holds what it asked for, so no file changes (0149-debt-paydown-4, phase 3).
