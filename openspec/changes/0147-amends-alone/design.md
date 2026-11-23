@@ -41,7 +41,7 @@ The changes that let the line close a plan's own faults without a person, each w
 
 ### D3
 
-**The fixer may edit the change's spec delta and the body of a `### D<n>` entry of `design.md`, in the commit of the fix, which carries a `Plan-text: <card ids>` trailer. `converge.py` reads each non-merge commit of a fix pass and halts `plan edit refused — <why>` outside this.**
+**The fixer may edit the change's spec delta and the body of a `### D<n>` entry of `design.md`, in the commit of the fix, which carries a `Plan-text: <card ids>` trailer. `converge.py` reads each commit of a fix pass, and of the commits a resumed run finds since its freeze, and halts `plan edit refused — <why>` outside this.**
 
 - **Held:** under `openspec/changes/<id>/` only `design.md` and `specs/` may change; the decisions table, a `### D<n>` heading and a `## ` heading stay; `tasks.md` and `proposal.md` are refused; no trailer on a delta or a decision body is refused; a trailer naming a security card of `critical` or `high` severity is refused and the card stays an amend card.
 - **Exempt:** a commit that touches nothing under the change's folder; drift prose of `design.md` outside its decisions section; a `Fix note` line. None needs the trailer, as today. A row of `## Tests` or `## Dependencies` stays the fixer's rule in `fix.md`, which `plan_text` does not read.

@@ -1086,10 +1086,12 @@ def plan_text(context: Context, before: str, after: str) -> None:
     """
     folder = f"openspec/changes/{context.change}/"
     span = f"{before}..{after}"
-    for sha in git(context.tree, "rev-list", "--reverse", "--no-merges", span).split():
-        listed = ("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", sha)
+    for sha in git(context.tree, "rev-list", "--reverse", span).split():
+        if len(git(context.tree, "rev-list", "--parents", "-1", sha).split()) > 2:
+            raise Halt(f"plan edit refused — {sha[:7]} is a merge in a fix pass")
+        listed = ("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-z")
         worded = []
-        for path in git(context.tree, *listed).splitlines():
+        for path in git(context.tree, *listed, sha).split("\0"):
             if path.startswith(f"{folder}specs/"):
                 worded.append(path)
             elif path == f"{folder}design.md":
@@ -1961,6 +1963,7 @@ def go_on(context: Context, run: mflib.statuslog.Run) -> int:
     if name == "fix":
         now = head(context)
         ids = sent[0].split(" · ")[0]
+        plan_text(context, frozen.head, now)
         later = (
             fix(context, frozen, ids)
             if now == frozen.head

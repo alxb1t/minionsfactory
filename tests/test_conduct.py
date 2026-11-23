@@ -13552,6 +13552,20 @@ def test_one_halt_is_answered_once(
     assert said == " · supervised converge-halted"
 
 
+def test_a_stuck_stage_halt_names_its_rescue_and_supervision(tmp_path: Path) -> None:
+    # `advance` reads the keys at the tree's head, so its halt line names the words.
+    # Why: 0147-amends-alone design D1.
+    run, version, tree = _converge_halted(_primary(tmp_path))
+    run.rescues["0001-todo"] = [f"converge-halted@{_short(tree)}"]
+    run.supervisions["0001-todo"] = [f"converge-halted@{_short(tree)}"]
+
+    assert run.advance(version, ()) is None
+
+    who, said = run.halts[0]
+    assert who == "0001-todo"
+    assert said.endswith(" · rescued converge-halted · supervised converge-halted")
+
+
 def test_the_caps_stand_across_heads(tmp_path: Path) -> None:
     # The caps count keys: a halt at a new head gets none once a version's rescues
     # or supervisions are spent. Why: 0147-amends-alone design D1.

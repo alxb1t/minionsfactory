@@ -214,7 +214,8 @@ The fixer MAY also edit the change's spec delta, the files under `openspec/chang
 `design.md`'s decisions section, to say what its own fix does. It SHALL do so in the commit of the fix, which SHALL carry a `Plan-text:`
 trailer naming the card ids the fix clears; it SHALL NOT change the decisions table, add or remove a decision, a `### D<n>` heading
 or a `## ` heading, and SHALL NOT clear so a card of the security category whose severity is `critical` or `high`. `converge.py` SHALL
-read each non-merge commit of a fix pass, after the pass and before the gate, and halt `plan edit refused — <why>` when a commit
+read each commit of a fix pass, after the pass and before the gate, and again over the commits a resumed run finds since its freeze,
+and halt `plan edit refused — <why>` when a commit is a merge, or
 changes a path under `openspec/changes/<id>/` other than `design.md` and `specs/`, changes a file under `specs/` or a line of a
 decision's body other than a fix note with no `Plan-text:` trailer, changes the decisions table or a heading, or names a card of that
 security class in its trailer. A commit that touches nothing under the change's folder, or only the prose of `design.md` outside its

@@ -2753,6 +2753,58 @@ def test_the_fix_pass_runs_the_plan_text_check(host: Host) -> None:
     assert _ran(host) == ["make", "gate_run.py", "gate_check.py", "plan_check.py"]
 
 
+def test_a_fix_commit_under_a_name_git_quotes_is_read(host: Host) -> None:
+    # Why: 0147-amends-alone design D3.
+    odd = f"{_FOLDER}/specs/é/spec.md"
+
+    said = _plan_text(host, {odd: "## ADDED\n"}, _NO_TRAILER)
+
+    assert said == (
+        f"plan edit refused — {_head(host)[:7]} edits {odd} with no Plan-text: trailer"
+    )
+    assert _plan_text(host, {f"{_FOLDER}/é.md": "x\n"}, _PLAN_TEXT) == (
+        f"plan edit refused — {_head(host)[:7]} edits {_FOLDER}/é.md"
+    )
+
+
+def test_a_merge_in_a_fix_pass_halts(host: Host) -> None:
+    # A merge's own edits show in no listed commit. Why: 0147-amends-alone design D3.
+    base = _head(host)
+    _git(host.tree, "checkout", "-q", "-b", "side")
+    _commit(host.tree, {"src/side.py": "S = 1\n"}, "fix(0001-a): side")
+    _git(host.tree, "checkout", "-q", "-")
+    converge = _converge()
+    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
+    _git(host.tree, "merge", "-q", "--no-ff", "--no-commit", "side")
+    tasks = host.tree / _FOLDER / "tasks.md"
+    tasks.parent.mkdir(parents=True, exist_ok=True)
+    tasks.write_text(f"{_TASKS}merged\n")
+    _git(host.tree, "add", str(tasks))
+    _git(host.tree, "commit", "-q", "-m", _PLAN_TEXT)
+
+    with pytest.raises(converge["Halt"]) as halt:
+        converge["plan_text"](context, base, _head(host))
+
+    assert str(halt.value) == (
+        f"plan edit refused — {_head(host)[:7]} is a merge in a fix pass"
+    )
+
+
+def test_a_killed_fixers_commit_is_read_on_the_resume(host: Host) -> None:
+    # The commit stays when the fixer is killed before `fix` reads it.
+    # Why: 0147-amends-alone design D3.
+    planted = _resumed(host, "fix, a commit since")
+    _commit(host.tree, {f"{_FOLDER}/tasks.md": f"{_TASKS}x\n"}, _PLAN_TEXT)
+
+    assert run(host) == 1
+
+    sha = _head(host)
+    assert events(host)[len(planted)] == (
+        f"round 1 · halt — plan edit refused — {sha[:7]} edits {_FOLDER}/tasks.md"
+        f" · head {sha}"
+    )
+
+
 def test_a_verify_round_reads_a_plan_text_edit(host: Host) -> None:
     _seeded(host)
     host.answers["converge-conformance-r1"] = answer(
