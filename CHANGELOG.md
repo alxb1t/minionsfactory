@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Row `V2` of `cut_check.py` stays silent on a `-k` expression with a negated word the test's name lacks, since the word may name a marker. Row `V6` compares the removed and added lines of the searched file's diff block by its `---` and `+++` header; a block with no header takes no part (0150-debt-paydown-5, phase 1).
+
 ## [0.119.1] - 2026-11-24
 
 Gate: local 8m9s · CI not read under mf-ship · 0.118.0: local 8m24s · CI not read under mf-ship

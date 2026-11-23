@@ -4,7 +4,7 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 
 ## Progress
 
-- [ ] 1 — The cut's rows · moderate
+- [x] 1 — The cut's rows · moderate
 - [ ] 2 — The conductor's small fixes · moderate
 - [ ] 3 — The drain · hard
 - [ ] 4 — Converge and the viewer · moderate
@@ -12,10 +12,10 @@ The phases run from the cut's rows to the texts. No task edits the debt file ([D
 
 ## 1 — The cut's rows
 
-- [ ] 1.1 Make row `V2` silent on a negated word the name lacks, in `skills/mf-cut-change/scripts/cut_check.py`, per [D14](design.md#d14).
+- [x] 1.1 Make row `V2` silent on a negated word the name lacks, in `skills/mf-cut-change/scripts/cut_check.py`, per [D14](design.md#d14).
   Mend the docstring example of `selects`. Add `test_v2_is_silent_on_a_negated_word_the_name_lacks` to `tests/test_cut_check.py`; edit `test_v2_halts_only_on_a_selected_test` and `test_a_k_expression_selects_by_pytests_rules`, which the rule turns red.
   Verify: `uv run pytest -q tests/test_cut_check.py -k "test_v2_is_silent_on_a_negated_word_the_name_lacks or test_v2_halts_only_on_a_selected_test or test_a_k_expression_selects_by_pytests_rules"` exits 0.
-- [ ] 1.2 Add `_file_diffs` to `skills/mf-cut-change/scripts/cut_check.py` and make row `V6` read it, not `_diffs`, which row `K7` still reads, per [D14](design.md#d14).
+- [x] 1.2 Add `_file_diffs` to `skills/mf-cut-change/scripts/cut_check.py` and make row `V6` read it, not `_diffs`, which row `K7` still reads, per [D14](design.md#d14).
   Add `test_v6_reads_the_searched_files_block_by_its_header` to `tests/test_cut_check.py`; give the diff blocks of `_later_task_diffs_a` a header pair naming `a.py`, which `test_each_mechanical_row_fails_by_name` and `test_a_needle_a_later_task_adds_back_passes_v6` run.
   Verify: `uv run pytest -q tests/test_cut_check.py -k "test_v6_reads_the_searched_files_block_by_its_header or test_each_mechanical_row_fails_by_name or test_a_needle_a_later_task_adds_back_passes_v6"` exits 0.
 
