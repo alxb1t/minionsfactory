@@ -2,14 +2,14 @@
 
 ### Requirement: A run checks each cut with the cut's checker
 
-After the cut commit, the station's `check` for a queued cut SHALL run `skills/mf-cut-change/scripts/cut_check.py <id> --bump <bump>` in the cut's worktree, under the sandbox runner, on the conductor's own Python, once `_check_cut` and the dependency check pass. Exit 0 SHALL pass the cut; exit 1 SHALL write its failing lines to `.minions/changes/<id>/cut.red`; exit 2, or a run that cannot start, SHALL halt the cut as `the cut check cannot run`. A first failure of a branch the call cut SHALL reset the worktree to the default branch, remove `cut.halt`, and start the cutter once more, its prompt naming `cut.red`; the checks SHALL then run again, and a second failure SHALL halt the cut, naming the first failing line. A branch the run found already holding the change and failing SHALL halt the cut at once, and nothing SHALL be reset. `skills/mf-cut-change/SKILL.md` SHALL have an unattended cut that finds `cut.red` read it with the brief.
+After the cut commit, the station's `check` for a queued cut SHALL run `skills/mf-cut-change/scripts/cut_check.py <id> --bump <bump>` in the cut's worktree, under the sandbox runner, on the conductor's own Python, once `_check_cut` and the dependency check pass. Exit 0 SHALL pass the cut; exit 1 with a `cut_check: halt — ` line in its output SHALL write its failing lines to `.minions/changes/<id>/cut.red`; exit 2, an exit 1 with no such line, or a run that cannot start, SHALL halt the cut as `the cut check cannot run`. A first failure of a branch the call cut SHALL reset the worktree to the default branch, remove `cut.halt`, and start the cutter once more, its prompt naming `cut.red`; the checks SHALL then run again, and a second failure SHALL halt the cut, naming the first failing line. A branch the run found already holding the change and failing SHALL halt the cut at once, and nothing SHALL be reset. `skills/mf-cut-change/SKILL.md` SHALL have an unattended cut that finds `cut.red` read it with the brief.
 
 #### Scenario: A cut whose checker passes
 - **WHEN** the cutter commits a change directory and `cut_check.py` exits 0
 - **THEN** the cut passes, and the version goes on as before
 
 #### Scenario: A cut that fails once
-- **WHEN** `cut_check.py` exits 1 on the first cut
+- **WHEN** `cut_check.py` exits 1 printing a `cut_check: halt — ` line on the first cut
 - **THEN** the lines go to `cut.red`, the worktree is reset to the default branch, and a second cutter starts with a prompt naming `cut.red`
 - **AND WHEN** the second cut passes the checks
 - **THEN** the cut passes
@@ -19,7 +19,7 @@ After the cut commit, the station's `check` for a queued cut SHALL run `skills/m
 - **THEN** the cut halts as `the cut check failed twice`, naming the first failing line, and no third cutter starts
 
 #### Scenario: A checker that cannot run
-- **WHEN** `cut_check.py` exits 2, or the sandbox cannot start it
+- **WHEN** `cut_check.py` exits 2, or exits 1 on a traceback with no `cut_check: halt — ` line, or the sandbox cannot start it
 - **THEN** the cut halts as `the cut check cannot run`, and starts no second cutter
 
 #### Scenario: A rejoin's branch fails
@@ -64,7 +64,7 @@ A repository MAY declare `**Cut checks:**` in its root `AGENTS.md`: a line of ba
 
 ### Requirement: The build edits a file no task names when its check needs it
 
-`skills/mf-build/SKILL.md` SHALL have a worker whose `make check` is red, with an output naming a file no task of the phase names, edit that file when the edit turns the check green, and list it in the commit body, one `Unplanned: <path>` line a file before the trailer block. `skills/mf-converge/references/worker.md` SHALL give conformance an `unplanned-file` pass: each file of the freeze's diff that no task names, save `CHANGELOG.md` and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase, SHALL stand on an `Unplanned:` line of a commit in range; a file so listed and needed by a red check SHALL be a `nit`, and one changed with no such line, or past what the check needed, SHALL be `blocking`. The `I6` and `I7` rows of both skills SHALL still ask a task to name its files, and SHALL say the build answers a file a task misses.
+`skills/mf-build/SKILL.md` SHALL have a worker whose `make check` is red, with an output naming a file no task of the phase names, edit that file when the edit turns the check green, and list it in the commit body, one `Unplanned: <path>` line a file before the trailer block. `skills/mf-converge/references/worker.md` SHALL give conformance an `unplanned-file` pass: each file of the freeze's diff that no task names, save `CHANGELOG.md` and the change's own `openspec/changes/<change-id>/` folder, which the build writes every phase, and save a file changed only by a commit the change's converge status log names as a fix's, whose files stand on its cards, SHALL stand on an `Unplanned:` line of a commit in range; a file so listed and needed by a red check SHALL be a `nit`, and one changed with no such line, or past what the check needed, SHALL be `blocking`. The `I6` and `I7` rows of both skills SHALL still ask a task to name its files, and SHALL say the build answers a file a task misses.
 
 #### Scenario: A red check needs an unnamed file
 - **WHEN** a phase's `make check` is red on a fixture no task names, and editing it turns the check green
@@ -73,6 +73,8 @@ A repository MAY declare `**Cut checks:**` in its root `AGENTS.md`: a line of ba
 #### Scenario: Conformance judges the unplanned file
 - **WHEN** the freeze's diff changes a file no task names, other than `CHANGELOG.md` and the change's own folder
 - **THEN** conformance opens a `nit` when an `Unplanned:` line lists it and a red check needed it, and a `blocking` card when no line lists it
+- **AND WHEN** the file is changed only by a commit the status log names as a fix's
+- **THEN** the pass leaves it out
 - **AND WHEN** the file is `CHANGELOG.md`, or under `openspec/changes/<change-id>/`
 - **THEN** the pass opens no card for it
 

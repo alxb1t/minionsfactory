@@ -21,12 +21,12 @@ The conductor reads a cut's commit subject, its tree and its models file, and ru
 | [D4](#d4) | `verify_check.py` spares a search's patterns from the range rule and reads an Oxford comma and an `e.g.` as the plan check does | cards `0143·S6` and `0143·S9` | a looser plan check |
 | [D5](#d5) | A phase marked for a person is refused by `I14` and by the brief check | halts that idled for a person; nothing may answer one | dropping `I14` · removing the conductor's reading |
 | [D6](#d6) | A repository declares `**Cut checks:**`; the conductor runs them after the checker | text the gate rejects reached isekai's build twice | the cut running them · reading the cut's own `AGENTS.md` |
-| [D7](#d7) | The build edits a file no task names when a red check needs it, and lists it; conformance judges such files, `CHANGELOG.md` and the change's own folder aside | the largest class of halts, and no pairs are declared anywhere | a cut row over declared pairs · a pass over every unnamed file |
+| [D7](#d7) | The build edits a file no task names when a red check needs it, and lists it; conformance judges such files of the build's commits, `CHANGELOG.md`, the change's own folder and a fix commit's files aside | the largest class of halts, and no pairs are declared anywhere | a cut row over declared pairs · a pass over every unnamed file |
 | [D8](#d8) | The records: new ids, the module map, one new decision | the living spec lists the row ids; the map is held by `tests/test_structure.py` | none |
 
 ### D1
 
-**After `_check_cut` and `_unapproved` pass, `Run.cutting` runs `cut_check.py <id> --bump <bump>` through `_boxed` in the cut's tree, on the conductor's own Python.** A clean exit passes. A failed check, exit 1, has its output as the failing lines. An exit above that, or a run that cannot start, halts the cut as `the cut check cannot run — <first line>`. The log gets `check — cut-check · pass` or `· fail — <first failing line>`. `_check_cut` stays as it is: the branch's tip is still the land commit.
+**After `_check_cut` and `_unapproved` pass, `Run.cutting` runs `cut_check.py <id> --bump <bump>` through `_boxed` in the cut's tree, on the conductor's own Python.** A clean exit passes. A failed check — exit 1 with a `cut_check: halt — ` line — has its output as the failing lines. An exit above that, an exit 1 with no such line, which is the checker crashed, or a run that cannot start, halts the cut as `the cut check cannot run — <first line>`. The log gets `check — cut-check · pass` or `· fail — <first failing line>`. `_check_cut` stays as it is: the branch's tip is still the land commit.
 
 - **Why:** at the base the conductor reads disk alone; the checker is a script the run can start (Q55).
 - **Rejected:** a row in `_check_cut`, which runs nothing · the cutter's own Step 8 alone.
@@ -76,9 +76,9 @@ The conductor reads a cut's commit subject, its tree and its models file, and ru
 
 ### D7
 
-**In `mf-build`'s check step, a red `make check` whose output names a file no task of the phase names, and whose edit turns it green, is edited, and the commit body lists the file on an `Unplanned: <path>` line before the trailer block.** Conformance gains an `unplanned-file` pass in `worker.md`: each file of the freeze's diff that no task names, save `CHANGELOG.md` and the change's own `openspec/changes/<change-id>/` folder, stands on an `Unplanned:` line of a commit in range. A file listed and needed by a red check is a `nit`; one changed with no line, or past what the check needed, is `blocking`. The `I6` and `I7` rows of both skills still ask tasks to name files; the build answers a miss.
+**In `mf-build`'s check step, a red `make check` whose output names a file no task of the phase names, and whose edit turns it green, is edited, and the commit body lists the file on an `Unplanned: <path>` line before the trailer block.** Conformance gains an `unplanned-file` pass in `worker.md`: each file of the freeze's diff that no task names, save `CHANGELOG.md` and the change's own `openspec/changes/<change-id>/` folder, and save a file changed only by a commit the status log names as a fix's, stands on an `Unplanned:` line of a commit in range. A file listed and needed by a red check is a `nit`; one changed with no line, or past what the check needed, is `blocking`. The `I6` and `I7` rows of both skills still ask tasks to name files; the build answers a miss.
 
-- **Why:** seven of the halts, the largest class; no pairs are declared anywhere, and the rule covers a fixture or a coverage test nobody named. The build writes `CHANGELOG.md` and ticks `tasks.md` every phase, and `I12` bars a task for either, so the pass leaves them out.
+- **Why:** seven of the halts, the largest class; no pairs are declared anywhere, and the rule covers a fixture or a coverage test nobody named. The build writes `CHANGELOG.md` and ticks `tasks.md` every phase, and `I12` bars a task for either, so the pass leaves them out. A fix commit answers cards, edits files no task names and carries no such line: an amend round reads it in its range, so the pass leaves its files out too (R10).
 - **Rejected:** a cut row over declared pairs · a pass over every unnamed file, which raises a blocker no build can clear.
 
 ### D8
