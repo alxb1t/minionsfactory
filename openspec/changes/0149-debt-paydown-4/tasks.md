@@ -6,7 +6,7 @@ Build the settled [design](design.md), one phase at a time; the checker row's te
 
 - [x] 1 — The archived texts · moderate
 - [x] 2 — The live texts and the row · moderate
-- [ ] 3 — The paid cards · moderate
+- [x] 3 — The paid cards · moderate
 
 ## 1 — The archived texts
 
@@ -38,15 +38,15 @@ Build the settled [design](design.md), one phase at a time; the checker row's te
 
 ## 3 — The paid cards
 
-- [ ] 3.1 **HALT CHECK** `0120·R6` is paid, per [D6](design.md#d6): the design in `openspec/changes/archive/0120-ui-state/design.md` says the worker, halt, state and liveness tests carry the `slow` marker.
+- [x] 3.1 **HALT CHECK** `0120·R6` is paid, per [D6](design.md#d6): the design in `openspec/changes/archive/0120-ui-state/design.md` says the worker, halt, state and liveness tests carry the `slow` marker.
   Verify: `git grep -c -F -e 'liveness tests carry' -- openspec/changes/archive/0120-ui-state/design.md` exits 0.
-- [ ] 3.2 **HALT CHECK** `0122·S1` is paid, per [D6](design.md#d6): the tick-read command in `skills/mf-build/SKILL.md` holds single backslashes before its brackets.
+- [x] 3.2 **HALT CHECK** `0122·S1` is paid, per [D6](design.md#d6): the tick-read command in `skills/mf-build/SKILL.md` holds single backslashes before its brackets.
   Verify: `git grep -c -F -e '- \[.\] <N>' -- skills/mf-build/SKILL.md` exits 0.
-- [ ] 3.3 **HALT CHECK** `0134·R1` is paid, per [D6](design.md#d6): `test_integrate_halts_on_each_old_entry_alone` in `tests/test_integrate.py` carries the `slow` marker.
+- [x] 3.3 **HALT CHECK** `0134·R1` is paid, per [D6](design.md#d6): `test_integrate_halts_on_each_old_entry_alone` in `tests/test_integrate.py` carries the `slow` marker.
   Verify: `uv run pytest -q tests/test_integrate.py -m "not slow" -k test_integrate_halts_on_each_old_entry_alone` exits `5`.
-- [ ] 3.4 **HALT CHECK** `0146·R5` is paid, per [D6](design.md#d6): `test_cutdeclared_command_fails_the_cut_check` in `tests/test_conduct.py` carries the `slow` marker.
+- [x] 3.4 **HALT CHECK** `0146·R5` is paid, per [D6](design.md#d6): `test_cutdeclared_command_fails_the_cut_check` in `tests/test_conduct.py` carries the `slow` marker.
   Verify: `uv run pytest -q tests/test_conduct.py -m "not slow" -k test_cutdeclared_command_fails_the_cut_check` exits `5`.
-- [ ] 3.5 **HALT CHECK** `0147·R1` is paid, per [D6](design.md#d6): `test_a_stuck_stage_halt_names_its_rescue_and_supervision` in `tests/test_conduct.py` asserts the halt line's rescue and supervision words.
+- [x] 3.5 **HALT CHECK** `0147·R1` is paid, per [D6](design.md#d6): `test_a_stuck_stage_halt_names_its_rescue_and_supervision` in `tests/test_conduct.py` asserts the halt line's rescue and supervision words.
   Verify: `git grep -c -F -e 'rescued converge-halted · supervised converge-halted' -- tests/test_conduct.py` exits 0.
-- [ ] 3.6 **HALT CHECK** `0147·S4` is paid, per [D6](design.md#d6): `plan_text` in `skills/mf-converge/scripts/converge.py` lists the paths with `-z`.
+- [x] 3.6 **HALT CHECK** `0147·S4` is paid, per [D6](design.md#d6): `plan_text` in `skills/mf-converge/scripts/converge.py` lists the paths with `-z`.
   Verify: `git grep -c -F -e '"--name-only", "-r", "-z"' -- skills/mf-converge/scripts/converge.py` exits 0.
