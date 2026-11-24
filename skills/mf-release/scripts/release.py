@@ -306,9 +306,6 @@ def _restore(git: Git, primary: Path, change: str) -> None:
     if paths and all(_derived(path, change) for path in paths):
         _save(git, mflib.layout.change_dir(primary, change))
         git.out("restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
-        left = git.out("ls-files", "--others", "--exclude-standard", "-z")
-        for path in (p for p in left.split("\0") if p and _derived(p, change)):
-            (git.cwd / path).unlink(missing_ok=True)
         archived = git.cwd / "openspec" / "changes" / "archive" / change
         shutil.rmtree(archived, ignore_errors=True)
         (git.cwd / "metrics" / "changes" / f"{change}.json").unlink(missing_ok=True)

@@ -305,6 +305,27 @@ def test_a_run_pre_saves_a_persons_edit_and_untracked_file_before_it_restores(
     assert "never committed" in patch
 
 
+def test_a_run_pre_that_cannot_save_restores_nothing(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo.put("README.md", "committed\n")
+    repo.settle()
+    repo.put("README.md", "edited by hand\n")
+    statefile = repo.ns.mflib.statefile
+
+    def refuse(*_: object, **__: object) -> None:
+        raise statefile.WriteFailed("create", OSError(13, "Permission denied"))
+
+    monkeypatch.setattr(statefile, "write", refuse)
+    code, lines = repo.pre("--run")
+    assert code == 2
+    assert lines[-1] == (
+        "release: cannot run — release.discarded.1.patch could not be written:"
+        " Permission denied"
+    )
+    assert (repo.root / "README.md").read_text() == "edited by hand\n"
+
+
 def test_a_hand_pre_keeps_the_clean_tree_halt(repo: Repo) -> None:
     _dead_release(repo)
     code, lines = repo.pre()
