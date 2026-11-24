@@ -5018,7 +5018,8 @@ the self-check. `cut_check.py` SHALL decide `I2`, `I3`, `I4`, `I11`, `I12`, `I13
 `A1` and `A2`, `P9` and `P13`'s three-line task, folding in `openspec validate --strict`, the gate-edit check, the search script
 and the corpus check of `plan_check.py`; it SHALL also decide the `Verify:` sequencing rows `V1` to `V8` — a needle an earlier
 task already adds, a `-k` that selects tests a later task adds or deletes, a `git grep` of a file not committed before its
-phase ends, a needle its task never names, a `pytest` command that names no test path, a needle a later task removes, a command
+phase ends, a needle its task never names, a `pytest` command that names no test path, a needle a later task removes from the
+searched file, in the fenced `diff` block whose header names that file, a command
 whose first word is no program on `PATH`, no path of the tree and no path a task names, and a `-k` that selects no test of the files it
 names at `HEAD` and none a task names — and the record's consistency rows `K1` to `K7` — the proposal's `## Impact` against
 the tasks' files, the design's `## Tests` against the tasks' test files, the decision index against the decision headings, each
@@ -5071,8 +5072,16 @@ and re-read only the facts it leaves unplaced.
 - **THEN** `cut_check.py` prints the failed row `V5` naming the sub-task and asking for the test files, and exits 1
 
 #### Scenario: A needle a later task removes
-- **WHEN** a sub-task's `Verify:` greps a needle in a file, and a later sub-task naming that file holds a fenced `diff` block with the needle in a removed line
+- **WHEN** a sub-task's `Verify:` greps a needle in a file, and a later sub-task holds a fenced `diff` block with a header, a `--- ` line and a `+++ ` line, naming that file, and the needle is in a removed line of that file's section and in no added line of it
 - **THEN** `cut_check.py` prints the failed row `V6` naming both sub-tasks, and exits 1
+
+#### Scenario: A needle removed from another file
+- **WHEN** a sub-task's `Verify:` greps a needle in one file, and a later sub-task's `diff` block removes the needle in a block whose header names another file
+- **THEN** `V6` does not halt
+
+#### Scenario: A block with no header
+- **WHEN** a later sub-task's fenced `diff` block names no file by a header, and holds the needle in a removed line
+- **THEN** the block takes no part, and `V6` does not halt
 
 #### Scenario: A first word that names nothing
 - **WHEN** a sub-task's `Verify:` runs `nosuchtool --check`, and no sub-task names a path `nosuchtool`
@@ -5497,7 +5506,7 @@ repo alone.
 
 ### Requirement: Row V2 evaluates a `-k` expression
 
-`cut_check.py`'s row `V2` SHALL evaluate each `-k` expression of a `pytest` `Verify:` against the name of each test a later sub-task adds, removes, merges or renames, an identifier being true when the name holds it, case apart, with `not`, `and`, `or` and parentheses read as pytest reads them. It SHALL halt only when the expression is true for such a name and an identifier outside every `not` holds in it, and leave an expression it cannot parse to the reviewer.
+`cut_check.py`'s row `V2` SHALL evaluate each `-k` expression of a `pytest` `Verify:` against the name of each test a later sub-task adds, removes, merges or renames, an identifier being true when the name holds it, case apart, with `not`, `and`, `or` and parentheses read as pytest reads them. It SHALL halt only when the expression is true for such a name and an identifier outside every `not` holds in it, and leave an expression it cannot parse to the reviewer. An identifier under a `not` that the name does not hold may name a marker or a parent's name, which pytest also matches: it SHALL make the row silent for that name. An identifier under a `not` that the name holds, and every identifier outside every `not`, SHALL be read as before.
 
 #### Scenario: A negated selection
 - **WHEN** a sub-task verifies with `pytest -k "not widget"` and a later sub-task adds `test_widget`
@@ -5511,9 +5520,19 @@ repo alone.
 - **WHEN** a sub-task verifies with `pytest -k "widget or gadget"` and a later sub-task adds `test_gadget`
 - **THEN** `V2` halts, naming both sub-tasks
 
+#### Scenario: A negated word the name does not hold
+- **WHEN** a sub-task verifies with `pytest -k "widget and not slow"` and a later sub-task adds `test_widget`
+- **THEN** `V2` does not halt, since `slow` may be a marker
+
 #### Scenario: A positive term beside a negated one
 - **WHEN** a sub-task verifies with `pytest -k "not widget and gadget"` and a later sub-task adds `test_gadget`
+- **THEN** `V2` does not halt, since `widget` may be a marker, and the name does not hold it
+
+#### Scenario: A negated word the name holds
+- **WHEN** a sub-task verifies with `pytest -k "a or not b"` and a later sub-task adds `test_a_b`
 - **THEN** `V2` halts, naming both sub-tasks
+- **AND WHEN** the expression is `widget and not widget_old` and the later test is `test_widget_old`
+- **THEN** `V2` does not halt, the expression being false for that name
 
 #### Scenario: An expression it cannot parse
 - **WHEN** a `-k` expression has an unclosed parenthesis

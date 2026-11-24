@@ -923,6 +923,8 @@ def start(
     folder.chmod(0o700)
     log = folder / "viewer.log"
     child = spawn([sys.executable, str(SELF), "serve"], log)
+    rival = _held(folder, "viewer.pid") or 0
+    rival_port = _held(folder, "viewer.port") or port
     _private(folder / "viewer.pid", f"{child.pid}\n")
     _private(folder / "viewer.port", f"{port}\n")
     try:
@@ -930,7 +932,11 @@ def start(
     except subprocess.TimeoutExpired:
         print(f"http://127.0.0.1:{port}/")
         return 0
-    _forget(folder)
+    if rival > 1 and rival != child.pid and serves(rival, ps):
+        _private(folder / "viewer.pid", f"{rival}\n")
+        _private(folder / "viewer.port", f"{rival_port}\n")
+    elif _held(folder, "viewer.pid") == child.pid:
+        _forget(folder)
     print(f"viewer: the server exited — see {log}")
     return 1
 

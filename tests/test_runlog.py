@@ -484,6 +484,65 @@ def test_case_e_a_group_that_survives_still_gets_the_stop_line(
     assert (runs / "20261101-100001.md").read_text().endswith(_STOP_LINE)
 
 
+def _hard_linked(log: Path, outside: Path) -> None:
+    """Replace `log` by a second name of `outside`, which a write refuses."""
+    outside.write_text("outside\n")
+    log.unlink()
+    os.link(outside, log)
+
+
+@pytest.mark.usefixtures("clock")
+def test_case_e_stop_run_names_a_log_it_cannot_write(
+    claimed: tuple[Path, subprocess.Popen[bytes]], tmp_path: Path
+) -> None:
+    root, conductor = claimed
+    runs = root / ".minions" / "runs"
+    _logs(runs, s1=[_START])
+    _hard_linked(runs / "20261101-100001.md", tmp_path / "outside.md")
+
+    with pytest.raises(conduct["Stop"]) as stopped:
+        conduct["stop_run"](root)
+
+    assert stopped.value.code == 2
+    text = str(stopped.value)
+    assert text.startswith("stop: cannot write .minions/runs/20261101-100001.md · ")
+    assert "one name" in text
+    assert conductor.wait(timeout=10) == -signal.SIGKILL
+    assert (tmp_path / "outside.md").read_text() == "outside\n"
+
+
+@pytest.mark.usefixtures("clock")
+def test_case_e_stop_run_names_a_log_it_cannot_write_after_a_failed_clear(
+    claimed: tuple[Path, subprocess.Popen[bytes]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = claimed
+    runs = root / ".minions" / "runs"
+    _logs(runs, s1=[_START])
+    (runs / "active" / "4242").write_text("S")
+    _hard_linked(runs / "20261101-100001.md", tmp_path / "outside.md")
+
+    def refuse(group: int, sig: int) -> None:
+        raise PermissionError(1, "not permitted")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "kill", lambda pid, sig: None)
+        patch.setattr(os, "killpg", refuse)
+        patch.setattr(platform, "process", lambda pid, field: "claude")
+        with pytest.raises(conduct["Stop"]) as stopped:
+            conduct["stop_run"](root)
+
+    assert stopped.value.code == 2
+    text = str(stopped.value)
+    assert text.startswith("stop: cannot write .minions/runs/20261101-100001.md · ")
+    assert text.endswith(
+        " · conduct: cannot clear the claim — worker group 4242 survives:"
+        " [Errno 1] not permitted"
+    )
+    assert (tmp_path / "outside.md").read_text() == "outside\n"
+
+
 def test_case_h_the_order_key_and_the_newest_by_stamp_then_suffix(
     tmp_path: Path,
 ) -> None:

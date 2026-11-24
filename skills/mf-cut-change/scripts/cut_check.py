@@ -646,10 +646,66 @@ def _diffs(tasks: str) -> dict[str, tuple[list[str], list[str]]]:
     return found
 
 
+def _header_file(old: str, new: str) -> str:
+    """Return the file a `---` and `+++` header pair names, or "" when it names none.
+
+    e.g. "--- a/x.py", "+++ b/x.py" → "x.py"; "--- /dev/null", "+++ /dev/null" → ""
+    """
+    old_path, new_path = (line[4:].split("\t")[0].strip() for line in (old, new))
+    path = new_path if new_path != "/dev/null" else old_path
+    return "" if path == "/dev/null" else re.sub(r"^[ab]/", "", path)
+
+
+def _file_diffs(tasks: str) -> dict[str, dict[str, tuple[list[str], list[str]]]]:
+    """Return the removed and added lines of each sub-task's `diff` blocks, by file.
+
+    A file is named by the header pair above a line; a line under none is dropped.
+    e.g. header pair of x.py, `-a`, `+b` under 1.1 → {"1.1": {"x.py": (["a"], ["b"])}}
+    """
+    found: dict[str, dict[str, tuple[list[str], list[str]]]] = {}
+    name, file, diff, fenced, header = "", "", False, False, False
+    lines = tasks.splitlines()
+    for at, line in enumerate(lines):
+        text = line.strip()
+        following = lines[at + 1].strip() if at + 1 < len(lines) else ""
+        if header:
+            header = False
+        elif text.startswith("```"):
+            fenced = not fenced
+            diff = fenced and text == "```diff"
+            file = ""
+        elif match := SUBTASK.match(line):
+            name = match[1].split()[0]
+            found[name] = {}
+        elif fenced:
+            if (
+                diff
+                and name
+                and text.startswith("--- ")
+                and following.startswith("+++ ")
+            ):
+                file, header = _header_file(text, following), True
+            elif diff and name and file and text[:1] in ("-", "+"):
+                section = found[name].setdefault(file, ([], []))
+                section[text[0] == "+"].append(text[1:])
+        elif line.startswith("## "):
+            name = ""
+    return found
+
+
+def _removes(needle: str, section: tuple[list[str], list[str]] | None) -> bool:
+    """Return whether a file's section removes the needle and adds it back nowhere."""
+    if section is None:
+        return False
+    return any(needle in line for line in section[0]) and not any(
+        needle in line for line in section[1]
+    )
+
+
 def row_v6(change: Change, plan: dict[str, Any]) -> str | None:
-    """Return each search whose needle a later sub-task naming its file removes."""
+    """Return each search whose needle a later sub-task removes from its file."""
     tasks = plan["subtasks"](change.tasks)
-    diffs = _diffs(change.tasks)
+    diffs = _file_diffs(change.tasks)
     found: list[str] = []
     for at, task in enumerate(tasks):
         for needles, files in _searches(task.text, plan):
@@ -658,9 +714,9 @@ def row_v6(change: Change, plan: dict[str, Any]) -> str | None:
                     (
                         other
                         for other in tasks[at + 1 :]
-                        if any(needle in line for line in diffs[other.name][0])
-                        and not any(needle in line for line in diffs[other.name][1])
-                        and any(f in other.text for f in files)
+                        if any(
+                            _removes(needle, diffs[other.name].get(f)) for f in files
+                        )
                     ),
                     None,
                 )
@@ -678,6 +734,7 @@ class _KExpression:
         self.name = name.lower()
         self.at = 0
         self.positive = False
+        self.unknown = False
 
     def accept(self, word: str) -> bool:
         """Return whether the next token is `word`, and step over it when it is."""
@@ -714,14 +771,15 @@ class _KExpression:
         self.at += 1
         held = word.lower() in self.name
         self.positive |= held and depth == 0
+        self.unknown |= not held and depth > 0
         return held
 
 
-def selects(expression: str, name: str) -> bool:
+def selects(expression: str, name: str, *, certain: bool = True) -> bool:
     """Return whether a `-k` expression picks the test `name` by a positive match.
 
-    The expression is true for the name and an identifier outside every `not` holds
-    in it; one that does not parse picks nothing. e.g. "not a and b", "test_b" → True
+    True needs an identifier outside every `not` in the name; `certain` adds that none
+    under a `not` is missing, V2's silence, which V8 turns off. e.g. "a or not b" → True
     """
     tokens = re.findall(r"[()]|[\w:+\-.\[\]\\/]+", expression)
     if "".join(tokens) != "".join(expression.split()):
@@ -731,7 +789,8 @@ def selects(expression: str, name: str) -> bool:
         value = parsed.either(0)
     except (ValueError, RecursionError):
         return False
-    return value and parsed.positive and parsed.at == len(tokens)
+    quiet = not certain or not parsed.unknown
+    return value and parsed.positive and quiet and parsed.at == len(tokens)
 
 
 def _selected(text: str, plan: dict[str, Any]) -> list[str]:
@@ -934,7 +993,8 @@ def row_v8(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
             found += [
                 f"{task.name}: `-k {expression}` selects no test of {', '.join(files)}"
                 for flag, expression in itertools.pairwise(words)
-                if flag == "-k" and not any(selects(expression, n) for n in names)
+                if flag == "-k"
+                and not any(selects(expression, n, certain=False) for n in names)
             ]
     return " · ".join(found) or None
 
