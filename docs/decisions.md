@@ -974,8 +974,8 @@ target.**
 ### D88 · The line closes the halts it can
 
 **A halt with a route the line can take alone is closed without a person. A converge halt a worker's exit or timeout caused,
-with no `verdicts` line, is run again once from round 1 by the run, and a new run or `rejoin` reads it as a rerun. A verdict
-whose scope misses the freeze sends its checker out once more, and a second miss halts as before. `conduct.py converge` by hand
+with no `verdicts` line, is run again once from round 1 by the run, and a new run or `rejoin` reads it as a rerun. Converge
+stamps each findings file's `head`, `round`, `files` and `commits` from its freeze, so no count a worker wrote halts it. `conduct.py converge` by hand
 reads the version's models file, its arguments over it. The changelog rule drops a stacked base's entries the default branch
 holds released, and halts on one it does not hold. `conduct.py wait --halt` ends, exit 1, at a version's `final` halt line, one
 no rescue or supervisor answers.**
@@ -983,7 +983,7 @@ no rescue or supervisor answers.**
 - **Why:** each cause was read from disk at `8ca85458` and answered by a rule, where a watcher on Opus had answered it by
   judgment. One command replaces the watching agent.
 - **Accepts:** a rerun starts converge from round 1, which spends a round the halted run had begun, with no verdict lost · a
-  rescoped checker spends one more worker a role · a hand converge's skip and models follow the file, so a stale file runs.
+  hand converge's skip and models follow the file, so a stale file runs.
 - **Rejected:** a retry of the halted round inside converge · a halt at the first missed scope · a flag for the models file ·
   a halt for every lacking changelog entry · a notification.
 

@@ -48,15 +48,11 @@ type: conformance | adversarial
 plan: <change-id>
 project: <repository name>
 branch: <branch name>
-head: <the commit this round judged>
 reviewed: <YYYY-MM-DD>
-round: <int, bumped by each verify round, never by a pickup check>
 open_blocking: <int>
 verdict: clean | changes-requested
 mode: parallel | sequential | by-rule | skipped
 workers: <int, the workers this role used; 0 by rule or skipped>
-files: <int, the files this round's scope resolved>
-commits: <int, the commits this round's scope resolved>
 passes: [<each conformance pass that ran: stale-claim, test-cost, unplanned-file, and coverage-trace or no-removed-test>]
 inconclusive: [<each document whose section you judged inconclusive; [] for none>]
 model: <the model, as the host reports it, or unknown; converge.py's checker call stamps the one it started>
@@ -66,9 +62,10 @@ packet: <the documents included; then `skipped:` and those skipped>
 ---
 ```
 
-**The fields converge reads.** `files` and `commits` are checked against [this round's freeze](#not-clean). `passes` names
-`no-removed-test` when the freeze removed no test. A file is **malformed** when it lacks a key above, holds one of the
-wrong type, or holds a card with no **Amend** line; a stub, `mode: skipped`, needs no `files`, `commits`, `passes` or
+**The fields converge reads.** Once your worker returns, converge stamps `head`, `round`, `files` and `commits` into
+the file: this round's freeze's head and counts, and the round it counts, which a pickup check leaves. Write none of
+them. `passes` names `no-removed-test` when the freeze removed no test. A file is **malformed** when it lacks a key above,
+holds one of the wrong type, or holds a card with no **Amend** line; a stub, `mode: skipped`, needs no `passes` or
 `inconclusive`.
 
 **The body is a list of cards**, one per finding, in the shape [`## The card`](#the-card) fixes. The fix and
@@ -116,10 +113,11 @@ declares a check satisfied satisfies nothing, and is itself reportable.
 
 ## Not clean
 
-`converge.py` reads each findings file against this round's freeze, and halts on one that is not clean.
+`converge.py` reads each findings file by its fields, and halts on one that is not clean: conformance's `passes` short.
+It sends a malformed file to one rewrite worker, then to the debt, and halts on no count.
 
 **This round's freeze** is the first freeze in round 1 and the fix's re-freeze after it, never round 1's once
-superseded: a verify round over a one-file fix that reports one file is converging. A station that resolved zero
+superseded: a verify round over a one-file fix is stamped one file, and converge judges its cards, not a count. A station that resolved zero
 files outside [Catch-up scope](#catch-up-scope)'s independently checked empty-resolution case writes
 `changes-requested` with one finding, *scope resolution failed*.
 
@@ -150,8 +148,8 @@ a failed command or a mismatch is a scope failure. Neither role may reopen inher
 **Empty resolutions:** zero changed files can earn clean only when the selection is non-empty, consists solely
 of supported merges, and each checker's independent `git show --remerge-diff` confirms every resolution diff is
 empty. Each Summary names those merge ids and parents, states that it checked each empty resolution, and reports
-zero changed files and the non-zero examined commit count. `converge.py` checks these against the freeze and
-runs the gate on HEAD. Conformance still reports its stale-claim, test-cost, unplanned-file and coverage-trace passes
+zero changed files and the non-zero examined commit count. `converge.py` runs the gate on HEAD and checks no
+count. Conformance still reports its stale-claim, test-cost, unplanned-file and coverage-trace passes
 (no changed paths, new tests or removed tests). All other zero-file scopes are not clean.
 
 ## The card

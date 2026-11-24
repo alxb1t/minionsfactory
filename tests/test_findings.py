@@ -469,6 +469,47 @@ def test_fix_stamp_writes_at_0600_and_leaves_a_link(tmp_path: Path) -> None:
     assert target.read_text() == path.read_text() == "---\nmodel: x\n---\n"
 
 
+def test_counted_sets_and_adds_the_keys() -> None:
+    text = "---\nhead: a\n files : 3\nverdict: clean\n---\nfiles: 9\n"
+    values = {"head": "b", "round": 2, "files": 4, "commits": 1}
+    assert findings.counted(text, values) == (
+        "---\nhead: b\nfiles: 4\nverdict: clean\nround: 2\ncommits: 1\n---\nfiles: 9\n"
+    )
+
+
+def test_counted_leaves_a_stub_a_by_rule_file_and_no_frontmatter() -> None:
+    values = {"head": "b", "files": 4}
+    for mode in ("skipped", "by-rule"):
+        assert findings.counted(f"---\nhead: a\nmode: {mode}\n---\n", values) is None
+    assert findings.counted("head: a\n", values) is None
+    # Any other mode is a worker's: it is stamped.
+    assert findings.counted("---\nmode: parallel\n---\n", {"files": 4}) == (
+        "---\nmode: parallel\nfiles: 4\n---\n"
+    )
+
+
+def test_count_follows_no_link(tmp_path: Path) -> None:
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    path = folder / "conformance.md"
+    path.write_text("---\nfiles: 3\nmodel: x\n---\n")
+    path.chmod(0o644)
+
+    findings.count(folder, "conformance.md", {"files": 4, "round": 2})
+
+    assert path.read_text() == "---\nfiles: 4\nmodel: x\nround: 2\n---\n"
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert sorted(item.name for item in folder.iterdir()) == ["conformance.md"]
+    target = tmp_path / "target.md"
+    target.write_text("---\nfiles: 3\n---\n")
+    (folder / "adversarial.md").symlink_to(target)
+    findings.count(folder, "adversarial.md", {"files": 4})
+    (tmp_path / "linked").symlink_to(folder)
+    path.write_text("---\nfiles: 3\n---\n")
+    findings.count(tmp_path / "linked", "conformance.md", {"files": 4})
+    assert target.read_text() == path.read_text() == "---\nfiles: 3\n---\n"
+
+
 def test_fix_stamp_keeps_the_file_when_its_write_fails(tmp_path: Path) -> None:
     path = tmp_path / "conformance.md"
     path.write_text("---\nmodel: x\n---\n")

@@ -315,10 +315,10 @@ CHECKER_PROBE = (
     " write .minions/changes/0001-probe/conformance.md to the worker reference's"
     " findings file contract. Edit nothing else."
 )
-# The findings file contract's frontmatter keys, as the worker reference lists them,
-# save `tokens`, which `conduct.py` stamps. Why: 0104-codex-limits design D5.
+# The frontmatter keys a worker writes, as the worker reference lists them: no converge
+# run stamps a probe's file. Why: 0104-codex-limits design D5; 0151-stamps design D3.
 FINDINGS_KEYS = (
-    *("type", "plan", "project", "branch", "head", "reviewed", "round"),
+    *("type", "plan", "project", "branch", "reviewed"),
     *("open_blocking", "verdict", "mode", "workers", "model", "executor", "packet"),
 )
 SCRATCH_IDENTITY = (
