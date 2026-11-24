@@ -104,7 +104,7 @@ A **release commit** is a `HEAD` whose subject is `chore(release): <tag>`, whose
 
 `pre` at a release commit with a clean tree prints `release: resume — <tag>` after the findings check at `HEAD~1`, so the conductor starts no worker, and leaves `release.pre` and `release.flag` as they are. Before `finish` tags a release commit it runs `gate_run.py` on its tree, a recorded green reused, so a commit no gate judged is gated.
 
-At a `HEAD` that is no release commit, under `--run`, a dirty tree whose changed and untracked paths are all in the derived set is restored: `git restore --source=HEAD --staged --worktree -- .`, the untracked paths of the set removed, `openspec/changes/archive/<change-id>` and the data file removed, and `release.flag` and `release.pre` removed. A dirty path outside the set halts the clean-tree check naming it.
+At a `HEAD` that is no release commit, under `--run`, a dirty tree whose changed and untracked paths are all in the derived set is first saved, untracked files included, as `release.discarded.<n>.patch` in the change's run folder, no earlier patch replaced, and then restored: `git restore --source=HEAD --staged --worktree -- .`, the untracked paths of the set removed, `openspec/changes/archive/<change-id>` and the data file removed, and `release.flag` and `release.pre` removed. A dirty path outside the set halts the clean-tree check naming it.
 
 `finish` at a release commit skips every step before the tag, tags a missing tag, clears the debt again (an id not found is reported) and reads the flag.
 

@@ -286,6 +286,25 @@ def test_pre_restore_removes_a_stale_flag_and_an_untracked_spec(repo: Repo) -> N
     assert repo.git("status", "--porcelain") == ""
 
 
+def test_a_run_pre_saves_a_persons_edit_and_untracked_file_before_it_restores(
+    repo: Repo,
+) -> None:
+    repo.put("README.md", "committed\n")
+    repo.settle()
+    repo.put("README.md", "edited by hand\n")
+    repo.put("NOTES.md", "never committed\n")
+    code, _ = repo.pre("--run")
+    assert code == 0
+    patch = (repo.run_folder / "release.discarded.1.patch").read_text()
+    assert "edited by hand" in patch
+    assert "never committed" in patch
+    assert not (repo.root / "NOTES.md").exists()
+    repo.put("NOTES.md", "again\n")
+    repo.pre("--run")
+    assert "again" in (repo.run_folder / "release.discarded.2.patch").read_text()
+    assert "never committed" in patch
+
+
 def test_a_hand_pre_keeps_the_clean_tree_halt(repo: Repo) -> None:
     _dead_release(repo)
     code, lines = repo.pre()
@@ -1619,8 +1638,11 @@ def test_a_tag_the_default_branch_holds_halts(repo: Repo) -> None:
     assert repo.pre(*FREE)[1][-1] == said
 
 
-def test_a_stranded_release_is_dropped(repo: Repo) -> None:
+@pytest.mark.parametrize("tagged", [True, False], ids=["tagged", "untagged"])
+def test_a_stranded_release_is_dropped(repo: Repo, tagged: bool) -> None:
     head = _cut_release(repo)
+    if not tagged:
+        repo.git("tag", "-d", "v0.2.0")
     (repo.run_folder / "release.flag").write_text("README.md states v0.1\n")
     _moved(repo)
     code, lines = repo.pre(*FREE)

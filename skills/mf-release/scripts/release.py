@@ -276,14 +276,35 @@ def _derived(path: str, change: str) -> bool:
     )
 
 
+def _save(git: Git, folder: Path) -> None:
+    """Save the tree's changes and untracked files as a patch, over no earlier one.
+
+    Why: 0152-release-script design D8; as the build's `build.discarded.patch`.
+    """
+    git.out("add", "-A", "--", ".")
+    patch = git.out("diff", "--cached", "--binary", "--no-renames", "HEAD")
+    folder.mkdir(parents=True, exist_ok=True)
+    taken = 1
+    while (kept := folder / f"release.discarded.{taken}.patch").exists():
+        taken += 1
+    try:
+        mflib.statefile.write(kept, patch)
+    except mflib.statefile.WriteFailed as failed:
+        raise cannot(
+            f"{kept.name} could not be written: {failed.error.strerror}"
+        ) from None
+    _ok(f"saved · {kept.name}")
+
+
 def _restore(git: Git, primary: Path, change: str) -> None:
     """Put a dead release's derived work back to `HEAD`, and remove its marks.
 
-    A dirty path outside the derived set leaves the tree as it is.
+    A dirty path outside the derived set leaves the tree as it is; `_save` keeps all.
     Why: 0152-release-script design D8.
     """
     paths = _dirty(git)
     if paths and all(_derived(path, change) for path in paths):
+        _save(git, mflib.layout.change_dir(primary, change))
         git.out("restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
         left = git.out("ls-files", "--others", "--exclude-standard", "-z")
         for path in (p for p in left.split("\0") if p and _derived(p, change)):

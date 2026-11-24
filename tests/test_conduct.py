@@ -10270,6 +10270,7 @@ def _halted_by(
     return _log(root)
 
 
+@pytest.mark.slow
 def test_a_script_halt_is_the_versions_halt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10283,6 +10284,7 @@ def test_a_script_halt_is_the_versions_halt(
     assert any(text.endswith(said) for text in lines), lines
 
 
+@pytest.mark.slow
 def test_a_script_that_cannot_run_halts_the_version(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10323,6 +10325,7 @@ def test_a_drop_line_reads_the_stage_again(
     assert _git(root, "rev-parse", "v0.1.0^{commit}") in _git(root, "rev-list", "main")
 
 
+@pytest.mark.slow
 def test_a_resume_starts_no_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -10352,6 +10355,7 @@ def test_a_resume_starts_no_worker(
     assert _git(root, "branch", "--no-merged", "main") == ""
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("guard", ["changed", "held"])
 def test_a_key_planted_by_the_release_worker_halts_before_finish(
     tmp_path: Path,
@@ -10410,6 +10414,14 @@ def test_a_droppable_tip_reads_release(
             " git tag -d v0.1.0, git reset --hard HEAD~1, then /mf-integrate 0001-todo,"
             " /mf-converge, /mf-release",
         )
+
+    # A release cut short before its tag reads the same, saying it is not tagged.
+    _git(tree, "tag", "-d", "v0.1.0")
+    assert read() == (
+        "release",
+        "v0.1.0 is not tagged; main moved: release.py pre drops it",
+    )
+    _git(tree, "tag", "v0.1.0")
 
     # Each bound `release.py pre` drops under, failed, reads `released` naming it.
     mark = root / ".minions" / "changes" / "0001-todo" / "release.pre"
@@ -12625,6 +12637,11 @@ def test_a_redirected_git_dir_reaches_nothing(
     root, origin = _shipped_once(tmp_path, conduct, monkeypatch)
     elsewhere = _elsewhere(tmp_path)
     reached = _spied(conduct, monkeypatch)
+    # A worker repoints `origin` after a release: `report` halts and reaches nothing.
+    _git(root, "remote", "set-url", "origin", str(elsewhere))
+    assert _main(conduct, root, "report", monkeypatch=monkeypatch) == 1
+    assert not any(str(elsewhere) in args for args in reached)
+    _git(root, "remote", "set-url", "origin", str(origin))
     # A worker redirects git to a repo of its own, which no kept URLs guard.
     aside = _aside(tmp_path, origin, elsewhere)
 
