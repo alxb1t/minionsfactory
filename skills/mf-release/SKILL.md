@@ -37,7 +37,8 @@ commit trailer, so a wrong one releases against another change's verdicts:
 
 **The tag** comes from the change's `bump:`, read from the leading frontmatter of its `proposal.md`: anything but
 `minor` or `patch` → **halt**. `uv run --script <this package>/scripts/next_tag.py <bump>` prints `<tag>`,
-`<this package>` resolved from this installed skill, e.g. `minor` after `v0.40.0` → `v0.41.0`. A failure or a missing
+`<this package>` resolved from this installed skill, e.g. `minor` after `v0.40.0` → `v0.41.0`; it takes the highest
+tag the default branch holds merged, so a local tag on no branch is no base. A failure or a missing
 `uv` → **halt**. `<version>` is `<tag>` with a trailing `.0` dropped: `v0.41.0` → `v0.41`, `v0.41.1` → itself.
 
 ## Parameter — merge

@@ -54,7 +54,7 @@ SUBTASK = re.compile(r"^  (\d+(?:\.\d+)+)(?: · uncommitted)?$", re.MULTILINE)
 REFERENCES = HERE.parent / "references"
 # The `## Prompt` placeholders. Why: design D2.
 PLACEHOLDERS = (
-    *("change", "role", "round", "base", "head", "range", "scope", "findings", "patch"),
+    *("change", "role", "round", "base", "range", "scope", "findings", "patch"),
     *("bundle", "debt_cards", "open", "ids", "models", "mode", "evidence"),
     "attribution",
 )
@@ -63,7 +63,6 @@ PLACEHOLDER = re.compile(r"\{(\w+)\}")
 FALLBACK = "fallback: codex usage limit"
 FAILED = "fallback: codex failed"
 NO_OPEN_CARD = "verdict is changes-requested with no open card"
-SCOPE_MISSED = "its scope resolved"
 REWRITE = (
     "role: {role}\nchange: {change}\nround: {round}\n\n"
     "Your findings file {findings} breaks the findings file contract of"
@@ -89,7 +88,7 @@ class Cannot(Exception):
 
 
 class Freeze(NamedTuple):
-    """A frozen range: its ends and the counts a checker's scope is held to."""
+    """A frozen range: its ends and the counts converge stamps into a findings file."""
 
     base: str
     head: str
@@ -553,11 +552,11 @@ def _text(path: Path) -> str | None:
         return None
 
 
-def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
-    """Return a findings file read by its fields against `freeze`; None when missing.
+def read_findings(path: Path, role: str) -> Verdict | None:
+    """Return a findings file read by its fields; None when missing.
 
-    Not clean: fewer files or commits than the freeze, or conformance's passes short.
-    Why: design D2; `references/worker.md`, *The fields converge reads*.
+    Not clean: conformance's passes short. Its counts are converge's own stamp.
+    Why: design D2; 0151-stamps design D4; `references/worker.md`.
     """
     name = path.name
     try:
@@ -595,14 +594,6 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
     )
     if stub:
         return verdict
-    files, commits = int(front["files"]), int(front["commits"])
-    if files < freeze.files or commits < freeze.commits:
-        resolved = f"{_plural(files, 'file')} and {_plural(commits, 'commit')}"
-        frozen = (
-            f"{_plural(freeze.files, 'file')} and {_plural(freeze.commits, 'commit')}"
-        )
-        why = f"{SCOPE_MISSED} {resolved} of the freeze's {frozen}"
-        return verdict._replace(unclean=f"{name} is not clean: {why}")
     if role == "conformance":
         passes = set(mflib.findings.listed(front["passes"]))
         lacking = [
@@ -614,24 +605,21 @@ def read_findings(path: Path, role: str, freeze: Freeze) -> Verdict | None:
             why = f"its passes field lacks {', '.join(lacking)}"
             return verdict._replace(unclean=f"{path.name} is not clean: {why}")
     if no_open:
-        # why: scope and passes are judged first, so an uninspected change is never
-        # rewritten clean; only a file that inspected all of it reaches this fault
+        # why: passes are judged first, so a conformance file whose passes ran short
+        # is never rewritten clean
         return Verdict(role, malformed=f"{name} is malformed: {NO_OPEN_CARD}")
     return verdict
 
 
 def read_verdicts(
-    context: Context, freeze: Freeze, checked: dict[str, Checked]
+    context: Context, checked: dict[str, Checked]
 ) -> dict[str, Verdict | None]:
     """Read each role's findings file; write one `verdicts` line per role `checked`.
 
     `checked` holds what `host.checker` returned for each role it ran; a stub, and a
     file missing or malformed, gets no line. Why: design D2, D3.
     """
-    read = {
-        role: read_findings(context.folder / f"{role}.md", role, freeze)
-        for role in ROLES
-    }
+    read = {role: read_findings(context.folder / f"{role}.md", role) for role in ROLES}
     lines = []
     for role, result in checked.items():
         verdict = read[role]
@@ -667,20 +655,14 @@ def held(
 ) -> dict[str, Verdict]:
     """Return each role's verdict; a malformed file gets one rewrite worker first.
 
-    A file missing halts; a scope missed goes out once more; an unblocked
-    `changes-requested` is written `clean`. Why: design D5; 0141 D11; 0145 D7.
+    A file missing halts; an unblocked `changes-requested` is written `clean`.
+    Why: design D5; 0141 D11.
     """
     kept: dict[str, Verdict] = {}
     for role in ROLES:
         verdict = read[role]
         if verdict is not None and verdict.malformed is not None:
             verdict = rewrite(context, role, frozen, verdict.malformed)
-        if (
-            verdict is not None
-            and verdict.unclean is not None
-            and SCOPE_MISSED in verdict.unclean
-        ):
-            verdict = rescoped(context, role, frozen, verdict.unclean)
         if verdict is None:
             raise Halt(f"{role}.md is missing: its checker left no findings file")
         if verdict.unclean is not None:
@@ -690,20 +672,6 @@ def held(
             verdict = verdict._replace(verdict="clean", open_blocking=0)
         kept[role] = verdict
     return kept
-
-
-def rescoped(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | None:
-    """Send `role`'s checker out once more on its station; return its file read again.
-
-    A file malformed then halts. Why: 0145-halts-alone design D7.
-    """
-    station, _ = context.stations.get(role, (f"converge-{role}-r{context.round}", None))
-    stamp(context, f"fan-out — rescope — {role}: {why}")
-    checked = dispatch(context, frozen, verify="-verify-" in station, roles=[role])
-    again = read_verdicts(context, frozen, checked)[role]
-    if again is not None and again.malformed is not None:
-        raise Halt(again.malformed)
-    return again
 
 
 def cleared(context: Context, role: str) -> None:
@@ -717,7 +685,7 @@ def verdicts(
     context: Context, frozen: Freeze, checked: dict[str, Checked]
 ) -> dict[str, Verdict]:
     """Read the verdicts under Step 5's table, halting on a file it refuses."""
-    return held(context, read_verdicts(context, frozen, checked), frozen)
+    return held(context, read_verdicts(context, checked), frozen)
 
 
 def rewrite(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | None:
@@ -739,7 +707,8 @@ def rewrite(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | 
     fault = failure(station, seconds, result.code, result.killed, result.limit)
     if fault and (result.killed or result.limit):
         raise Halt(fault)
-    again = read_findings(path, role, frozen)
+    counted(context, frozen, [role], pickup="-pickup-" in station)
+    again = read_findings(path, role)
     if again is not None and again.malformed is not None:
         if again.malformed.endswith(NO_OPEN_CARD):
             cleared(context, role)
@@ -868,7 +837,7 @@ def judge(
     Why: design D3.
     """
     stubs(context)
-    read = read_verdicts(context, frozen, dispatch(context, frozen))
+    read = read_verdicts(context, dispatch(context, frozen))
     if shadowed:
         shadow(context, frozen)
     return held(context, read, frozen)
@@ -876,8 +845,7 @@ def judge(
 
 def _files(context: Context) -> list[Verdict]:
     """Return the conformance and adversarial files that read, by their fields."""
-    unscoped = Freeze("", "", 0, 0)
-    read = (read_findings(context.folder / f"{r}.md", r, unscoped) for r in ROLES)
+    read = (read_findings(context.folder / f"{r}.md", r) for r in ROLES)
     return [verdict for verdict in read if verdict and verdict.malformed is None]
 
 
@@ -1287,6 +1255,7 @@ def check(context: Context, frozen: Freeze) -> dict[str, Verdict]:
     station = f"converge-verify-pickup-r{context.round}"
     told = verify_prompt(context, frozen, "pickup", roles)
     result = retried(context, {needed: (station, needed, told)}, "medium")[needed]
+    counted(context, frozen, roles, pickup=True)
     read = verdicts(context, frozen, {})
     files = " · ".join(
         f"{role} {verdict.verdict} · open_blocking {verdict.open_blocking}"
@@ -1421,13 +1390,13 @@ def spoiled(context: Context) -> list[str]:
 
     Why: design D5.
     """
-    number, unscoped = context.change.partition("-")[0], Freeze("", "", 0, 0)
+    number = context.change.partition("-")[0]
     found = []
     for role in dispatched(context):
         path = mflib.layout.findings_file(
             Path(context.host.primary), context.change, role
         )
-        read = read_findings(path, role, unscoped)
+        read = read_findings(path, role)
         if read is None or read.malformed is None:
             continue
         where = f".minions/changes/{context.change}/{role}.md"
@@ -2073,7 +2042,6 @@ def checker_prompt(
         round=context.round,
         range=f"{frozen.base}..{frozen.head}",
         scope=scope_of(context, frozen),
-        head=frozen.head,
         mode=mode,
         patch=folder / "diff.patch",
         bundle=folder / "bundle.md",
@@ -2097,7 +2065,6 @@ def verify_prompt(context: Context, frozen: Freeze, role: str, roles: list[str])
         range=f"{frozen.base}..{frozen.head}",
         patch=folder / "diff.patch",
         evidence=folder / "evidence.md",
-        head=frozen.head,
         open=" and ".join(str(folder / f"{each}.open.md") for each in roles),
         findings=" and ".join(str(folder / f"{each}.md") for each in roles),
     )
@@ -2133,8 +2100,8 @@ def dispatch(
 ) -> dict[str, Checked]:
     """Run a round's checkers, or its verify workers, through `host.checker`.
 
-    Writes `fan-out` first; returns each result by role. A verify worker runs at
-    medium. Each worker is retried once, as `retried` says. Why: design D4.
+    Writes `fan-out` first; returns each result by role, its file stamped. A verify
+    worker runs at medium; each is retried once, as `retried` says. Why: design D4.
     """
     roles = dispatched(context) if roles is None else roles
     mode = "parallel" if len(roles) > 1 else "sequential"
@@ -2152,23 +2119,60 @@ def dispatch(
         )
         for role in roles
     }
-    return retried(context, jobs, "medium" if verify else None)
+    checked = retried(context, jobs, "medium" if verify else None)
+    counted(context, frozen, roles)
+    return checked
+
+
+def counted(
+    context: Context, frozen: Freeze, roles: list[str], *, pickup: bool = False
+) -> None:
+    """Stamp each role's findings file with the freeze's head and counts, and the round.
+
+    A pickup check is no round: its files keep theirs. Why: 0151-stamps design D1, D2.
+    """
+    values: dict[str, object] = {"head": frozen.head}
+    values |= {} if pickup else {"round": context.round}
+    values |= {"files": frozen.files, "commits": frozen.commits}
+    for role in roles:
+        path = context.folder / f"{role}.md"
+        if not mflib.findings.count(context.folder, path.name, values) and (
+            os.path.lexists(path)
+        ):
+            raise Halt(f"{path.name} could not be stamped: the write failed")
+
+
+def _signature(path: Path) -> tuple[int, int, int] | None:
+    """Return a file's mtime, size and inode, or None with no file."""
+    try:
+        seen = path.lstat()
+    except OSError:
+        return None
+    return seen.st_mtime_ns, seen.st_size, seen.st_ino
 
 
 def _failed(
-    context: Context, job: tuple[str, str, str], result: Checked, seconds: float
+    context: Context,
+    job: tuple[str, str, str],
+    result: Checked,
+    seconds: float,
+    before: tuple[int, int, int] | None = None,
 ) -> str | None:
     """Return why a worker failed, in `Run.spawn`'s words, or that it left no file.
 
-    A timeout kill, or a usage limit, halts at once. Why: design D5.
+    A timeout kill, or a usage limit, halts at once. A file `before` still stands
+    untouched was not written. Why: design D5; 0151-stamps S1.
     """
     station, table, _ = job
     why = failure(station, seconds, result.code, result.killed, result.limit)
     if why and (result.killed or result.limit):
         raise Halt(why)
     unequipped(context, station)
-    if why is None and not os.path.lexists(context.folder / f"{table}.md"):
+    path = context.folder / f"{table}.md"
+    if why is None and not os.path.lexists(path):
         why = f"{table}.md is missing: its checker left no findings file"
+    elif why is None and before is not None and _signature(path) == before:
+        why = f"{table}.md is unchanged: its checker wrote no findings"
     return why
 
 
@@ -2183,11 +2187,15 @@ def retried(
     for station, table, _ in jobs.values():
         context.stations[table] = (station, effort)
     seconds = remaining(context)
+    before = {
+        key: _signature(context.folder / f"{table}.md")
+        for key, (_, table, _) in jobs.items()
+    }
     checked = run_checkers(context, jobs, effort)
     faults = {
         key: why
         for key, job in jobs.items()
-        if (why := _failed(context, job, checked[key], seconds))
+        if (why := _failed(context, job, checked[key], seconds, before[key]))
     }
     if not faults:
         return checked
@@ -2196,7 +2204,7 @@ def retried(
     seconds = remaining(context)
     checked.update(run_checkers(context, again, effort))
     for key, job in again.items():
-        if why := _failed(context, job, checked[key], seconds):
+        if why := _failed(context, job, checked[key], seconds, before[key]):
             raise Halt(why)
     return checked
 

@@ -39,7 +39,7 @@ def _assert_next(root: Path, minor: str, patch: str) -> None:
 def test_next_tag_follows_the_bump(tmp_path: Path) -> None:
     assert _next(tmp_path, "minor").returncode == 2
 
-    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "init", "-q", "-b", "main")
     _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "base")
     _assert_next(tmp_path, "v0.1.0", "v0.1.0")
 
@@ -55,3 +55,25 @@ def test_next_tag_follows_the_bump(tmp_path: Path) -> None:
     _assert_next(tmp_path, "v0.41.0", "v0.40.1")
 
     assert _next(tmp_path, "major").returncode == 2
+
+
+def test_a_stray_local_tag_is_no_base(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q", "-b", "main")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "base")
+    _git(tmp_path, "tag", "v0.9.0")
+    _git(tmp_path, "checkout", "-q", "--detach")
+    _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "orphan")
+    _git(tmp_path, "tag", "v0.10.0")
+    _git(tmp_path, "checkout", "-q", "main")
+    _assert_next(tmp_path, "v0.10.0", "v0.9.1")
+
+    _git(tmp_path, "branch", "-m", "main", "trunk")
+    assert _next(tmp_path, "patch").returncode == 2
+    _git(tmp_path, "update-ref", "refs/remotes/origin/trunk", "trunk")
+    _git(
+        tmp_path,
+        "symbolic-ref",
+        "refs/remotes/origin/HEAD",
+        "refs/remotes/origin/trunk",
+    )
+    _assert_next(tmp_path, "v0.10.0", "v0.9.1")

@@ -49,6 +49,11 @@ RITUAL = re.compile(
     r"|(?:tick|commit|tag|archive|release)\b)",
     re.IGNORECASE,
 )
+# A digit span stands as NUL, which no text holds: `exits <n>` typed out is no span.
+DIGITS_SPAN = "\x00"
+EXITS_WITHOUT_DIGITS = re.compile(
+    rf"\bexits\b(?!\s+{DIGITS_SPAN})|\b(?:exit|exited|returns?)\s+\d", re.IGNORECASE
+)
 HALT_CHECK = "**HALT CHECK**"
 OPERATORS = set("();<>|&")
 REGEX_META = set("^$.*+?()[]{}|")
@@ -106,6 +111,7 @@ ROWS = [
     "V6",
     "V7",
     "V8",
+    "V9",
     "K1",
     "K2",
     "K3",
@@ -999,6 +1005,25 @@ def row_v8(change: Change, plan: dict[str, Any], tree: set[str]) -> str | None:
     return " · ".join(found) or None
 
 
+def row_v9(change: Change, plan: dict[str, Any]) -> str | None:
+    """Return each sub-task whose `Verify:` has an `exits` no digit span follows.
+
+    A digit span stands as NUL, another as `<code>`; `exit 5` flags too, in any case.
+    e.g. "`a` exits `5`" → None; "`a` exits 5" → the sub-task
+    """
+    found: list[str] = []
+    for task in plan["subtasks"](change.tasks):
+        verify = plan["verify_of"](task.text)
+        if verify is None:
+            continue
+        shape = SPAN.sub(lambda m: DIGITS_SPAN if m[2].isdigit() else "<code>", verify)
+        if EXITS_WITHOUT_DIGITS.search(shape):
+            found.append(
+                f"{task.name}: `exits` is not followed by a code span of digits"
+            )
+    return " · ".join(found) or None
+
+
 def _record(
     heading: str,
     spans: list[str],
@@ -1249,6 +1274,7 @@ def check(
             ("V6", row_v6(change, plan)),
             ("V7", row_v7(change, plan, tree)),
             ("V8", row_v8(change, plan, tree)),
+            ("V9", row_v9(change, plan)),
             ("K1", row_k1(change, plan, tree)),
             ("K2", row_k2(change, plan)),
             ("K3", row_k3(change)),

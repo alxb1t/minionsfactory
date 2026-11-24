@@ -44,7 +44,8 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   checkers on Claude, for the run. Within converge, each checker, on either host, writes its findings file, which
   `converge.py` reads as evidence. `conduct.py` stamps a checker's findings file's `model:` and `tokens:`
   through `skills/mflib/findings.py`, which stages `<name>.tmp` at mode `0600` and renames it over the file, never
-  unlinking it first, and appends a Codex log's `mf.quota` line, following no link.
+  unlinking it first, and appends a Codex log's `mf.quota` line, following no link. `converge.py` also stamps `head`,
+  `round`, `files` and `commits` through the same staged write, so a count a worker wrote is never read: a write that fails halts the round naming the file.
 - **A stacked build runs on code no converge has judged**
   ([D72](docs/decisions.md#d72--a-dependent-builds-on-its-dependencys-built-head)): a dependent builds on its dependency's
   built head, and never converges or releases before that dependency's converge and release. A worker can write

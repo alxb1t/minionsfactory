@@ -25,7 +25,7 @@ You are the verify worker {role} of change {change}, round {round}: a fresh work
 working directory is the version's worktree. Load `references/verify.md` of the installed `mf-converge` skill alone,
 and follow it.
 
-- The fix diff, {range}: {patch}; write `head: {head}`.
+- The fix diff, {range}: {patch}.
 - Your open cards: {open}
 - Your findings file, or a pickup check's files: {findings}
 - The evidence a tool found: `evidence.md` at {evidence}.
@@ -42,9 +42,8 @@ A **pickup check** verifies a pickup's fix once no blocker is open: one worker f
 `<role>.open.md`, `diff.patch` — the pickup's own diff — both findings paths and the design's `## Tests` section. Judge
 each open card of both files as below, and run conformance's passes over the diff. A regression is a new card in the
 file whose role would find it — a broken spec, plan, doc or test rule in conformance's, any other in adversarial's — on
-that file's scale. In each file rewrite `head`, `reviewed`, `open_blocking`, `verdict`, `files`, `commits` and
-conformance's `passes`, and never `round`:
-a pickup check is no round. In both files also write your own `model`, `executor`, `mode: sequential` and
+that file's scale. In each file rewrite `reviewed`, `open_blocking`, `verdict` and conformance's `passes`. In both
+files also write your own `model`, `executor`, `mode: sequential` and
 `workers: 1`, since no worker of the other role judged that head. Edit both files by the rule below. A role the plan
 skipped gives you neither file: its findings file is a stub, `mode: skipped`, which you leave as it is.
 
@@ -72,8 +71,8 @@ skipped gives you neither file: its findings file is a stub, `mode: skipped`, wh
 - **Conformance also runs** its stale-claim, test-cost and coverage-trace passes over the fix diff, by
   [the passes table](worker.md#conformance-and-adversarial) and [the rules for tests](worker.md#rules-for-tests), so a
   fix's new test is judged like the build's. The unplanned-file pass leaves out a file changed only by a commit the status log names as a fix's, whose files stand on its cards: a fix's files stand on no task.
-- **Rewrite the frontmatter's** `head`, `round` — save in a pickup check, which leaves it — `reviewed`,
-  `open_blocking`, `verdict`, and `files`, `commits` and conformance's `passes` for the fix diff; append each transition to
+- **Rewrite the frontmatter's** `reviewed`, `open_blocking`, `verdict` and conformance's `passes` for the fix diff;
+  converge stamps the rest, per [the fields converge reads](worker.md#the-findings-file-contract). Append each transition to
   `## Resolution log` as one line naming its card, `- <YYYY-MM-DD> · <id> <from> → <to>`:
   `- 2026-11-08 · R1 fixed → verified`. Update the Summary's counts.
 

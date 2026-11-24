@@ -33,6 +33,21 @@ def next_tag(tags: list[str], bump: str) -> str:
     return f"v{major}.{minor}.{patch + 1}"
 
 
+def default_branch() -> str:
+    """Return the branch `origin/HEAD` names, else `main`.
+
+    e.g. "origin/trunk" → "trunk"
+    """
+    named = subprocess.run(
+        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=TIMEOUT_SECONDS,
+    )
+    return named.stdout.strip().removeprefix("origin/") or "main"
+
+
 def main(argv: list[str] | None = None) -> int:
     """Print the next tag; return the exit code."""
     parser = argparse.ArgumentParser(description="Print the next release's tag.")
@@ -40,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         listing = subprocess.run(
-            ["git", "tag", "--list", "v*"],
+            ["git", "tag", "--list", "v*", "--merged", default_branch()],
             capture_output=True,
             text=True,
             check=True,

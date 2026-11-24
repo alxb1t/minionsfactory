@@ -3,10 +3,9 @@
 Why: 0138-findings design D1.
 """
 
-import contextlib
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -329,16 +328,49 @@ def stamped(text: str, model: str | None, tokens: int | None) -> str | None:
     return f"---\n{''.join(kept)}---\n{text[found.end() :]}"
 
 
-def stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
-    """Set a findings file's `model:` and `tokens:`, following no link; else leave it.
+def _staged(folder: Path, name: str, edit: Callable[[str], str | None]) -> bool:
+    """Write `edit` of a findings file over it, following no link; else leave it.
 
     Staged as `<name>.tmp` at mode 0600 and renamed over it: 0138-findings design D12.
+    False when a read or the write failed; True when it wrote, or `edit` left it.
     """
-    with contextlib.suppress(OSError, statefile.WriteFailed):
+    try:
         fd = statefile.folder(folder.parent, folder.name)
         try:
             text = statefile.read(name, folder=fd)
-            if (done := stamped(text, model, tokens)) is not None:
+            if (done := edit(text)) is not None:
                 statefile.write(Path(name), done, folder=fd, mode=0o600)
         finally:
             os.close(fd)
+    except (OSError, statefile.WriteFailed):
+        return False
+    return True
+
+
+def stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
+    """Set a findings file's `model:` and `tokens:`, following no link, or leave it."""
+    _staged(folder, name, lambda text: stamped(text, model, tokens))
+
+
+def counted(text: str, values: Mapping[str, object]) -> str | None:
+    r"""Return the text with each key of `values` set in its leading block, or added.
+
+    None for no frontmatter, a stub or a by-rule file. Why: 0151-stamps design D3.
+    e.g. "---\nfiles: 3\n---\n", {"files": 4, "round": 2} → "files: 4", "round: 2"
+    """
+    found, keys = FRONT.match(text), front(text)[0]
+    if found is None or keys.get("mode") in ("skipped", "by-rule"):
+        return None
+    block = keyed(found[0], values).removesuffix("---\n")
+    added = "".join(
+        f"{key}: {value}\n" for key, value in values.items() if key not in keys
+    )
+    return f"{block}{added}---\n{text[found.end() :]}"
+
+
+def count(folder: Path, name: str, values: Mapping[str, object]) -> bool:
+    """Set a findings file's keys to `values`, following no link, or leave it.
+
+    False when the file could not be read or written, so the caller can halt.
+    """
+    return _staged(folder, name, lambda text: counted(text, values))

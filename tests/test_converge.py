@@ -806,13 +806,12 @@ def _card(
 def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     converge = _converge()
     head = _git(host.tree, "rev-parse", "HEAD")
-    frozen = converge["Freeze"]("b" * 40, head, 2, 3)
     folder = host.folder()
     folder.mkdir(parents=True)
 
     def read(role: str, **keys: object) -> Read:
         (folder / f"{role}.md").write_text(findings(role, head, **keys))
-        return converge["read_findings"](folder / f"{role}.md", role, frozen)
+        return converge["read_findings"](folder / f"{role}.md", role)
 
     clean = read("conformance", files=3, commits=2, inconclusive="[design.md]")
     assert (clean.verdict, clean.head, clean.round, clean.open_blocking) == (
@@ -836,8 +835,6 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     assert read("conformance", files=3, commits=2, passes=passes).unclean is None
 
     for keys, why in (
-        ({"files": 2, "commits": 2}, "scope resolved 2 files and 2 commits"),
-        ({"files": 3, "commits": 1}, "scope resolved 3 files and 1 commit"),
         ({"passes": "[stale-claim, no-removed-test]"}, "lacks test-cost"),
         ({"passes": "[stale-claim, test-cost]"}, "lacks coverage-trace"),
     ):
@@ -871,12 +868,12 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
         None,
         "clean",
     )
-    assert converge["read_findings"](folder / "gone.md", "conformance", frozen) is None
+    assert converge["read_findings"](folder / "gone.md", "conformance") is None
     (folder / "linked.md").symlink_to(folder / "conformance.md")
-    linked = converge["read_findings"](folder / "linked.md", "conformance", frozen)
+    linked = converge["read_findings"](folder / "linked.md", "conformance")
     assert linked.malformed == "linked.md is malformed: it is a link"
     os.mkfifo(folder / "piped.md")
-    piped = converge["read_findings"](folder / "piped.md", "conformance", frozen)
+    piped = converge["read_findings"](folder / "piped.md", "conformance")
     assert piped.malformed == "piped.md is malformed: it is not a file"
 
     frozen = converge["Freeze"]("b" * 40, head, 1, 1)
@@ -889,7 +886,7 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
         "adversarial": Checked(0, False, ("claude", None, None), "", True, None),
     }
 
-    read = converge["read_verdicts"](context, frozen, checked)
+    read = converge["read_verdicts"](context, checked)
 
     assert set(read) == {"conformance", "adversarial"}
     assert events(host) == [
@@ -904,117 +901,168 @@ def test_a_findings_file_is_read_by_its_fields(host: Host) -> None:
     with pytest.raises(halt, match=r"conformance\.md is missing: its checker left no"):
         converge["held"](context, read | {"conformance": None}, frozen)
     narrow = folder / "conformance.md"
-    narrow.write_text(findings("conformance", head, files=0, commits=0))
-    small = converge["read_findings"](narrow, "conformance", frozen)
-
-    # A first miss sends the checker out once more; test_a_scope_that_misses_once_is
-    # _sent_out_again holds it. A second miss halts.
-    def narrowed(now: str) -> None:
-        narrow.write_text(findings("conformance", now, files=0, commits=0))
-
-    host.answers["converge-conformance-r1"] = narrowed
-    with pytest.raises(halt, match="scope resolved 0 files"):
-        converge["held"](context, read | {"conformance": small}, frozen)
-    # A file with no open card is judged on its scope first, so it never reads clean.
-    narrow.write_text(
-        findings("conformance", head, files=0, commits=0, verdict="changes-requested")
-    )
-    unseen = converge["read_findings"](narrow, "conformance", frozen)
-    assert unseen.malformed is None
-    assert "scope resolved 0 files" in unseen.unclean
+    narrow.write_text(findings("conformance", head, passes="[stale-claim]"))
+    short = converge["read_findings"](narrow, "conformance")
+    with pytest.raises(halt, match="lacks test-cost"):
+        converge["held"](context, read | {"conformance": short}, frozen)
+    # A file with no open card is judged on its passes first, so it never reads clean.
     narrow.write_text(
         findings(
             "conformance", head, passes="[stale-claim]", verdict="changes-requested"
         )
     )
-    short = converge["read_findings"](narrow, "conformance", frozen)
+    short = converge["read_findings"](narrow, "conformance")
     assert short.malformed is None
     assert "lacks test-cost" in short.unclean
 
 
-def test_a_scope_that_misses_once_is_sent_out_again(host: Host) -> None:
-    converge = _converge()
-    sent: list[str] = []
+def _front_holds(host: Host, role: str, **keys: object) -> None:
+    """Assert `role`'s findings file holds each key in its frontmatter."""
+    front = mflib.findings.front((host.folder() / f"{role}.md").read_text())[0]
+    assert {key: front.get(key) for key in keys} == {
+        key: str(value) for key, value in keys.items()
+    }
 
-    def narrow_once(head: str) -> None:
-        scope = {"files": 0, "commits": 0} if not sent else _WIDE
-        sent.append(head)
-        host.write("conformance", findings("conformance", head, **scope))
 
-    host.answers["converge-conformance-r1"] = narrow_once
+def test_a_miscounted_file_is_stamped_clean(host: Host) -> None:
+    more = {f"src/b{n}.py": f"B = {n}\n" for n in range(3)}
+    _commit(host.tree, more, "feat(0001-a): more")
+
+    def miscounted(head: str) -> None:
+        host.write("conformance", findings("conformance", head, files=3, commits=1))
+
+    host.answers["converge-conformance-r1"] = miscounted
 
     assert run(host) == 0
 
-    head = _head(host)
-    stations = [station for station, *_ in host.checks]
-    assert stations.count("converge-conformance-r1") == 2
-    missed = (
-        "round 1 · fan-out — rescope — conformance: conformance.md is not clean:"
-        " its scope resolved 0 files and 0 commits of the freeze's 1 file and 1 commit"
-    )
-    lines = events(host)
-    at = lines.index(missed)
-    assert lines[at + 1].startswith("round 1 · fan-out — conformance dispatched · ")
-    assert f"..{head[:7]} · 1 worker" in lines[at + 1]
-    assert lines[at + 2] == _verdicts("conformance")
-    assert lines[-1].startswith("round 1 · done — ")
+    _front_holds(host, "conformance", head=_head(host), round=1, files=4, commits=2)
+    assert [station for station, *_ in host.checks] == [
+        "converge-conformance-r1",
+        "converge-adversarial-r1",
+    ]
+    assert events(host)[3] == _verdicts("conformance")
 
-    # A verify round sends its verify worker out once more, at its effort.
+
+def test_a_file_with_no_count_keys_is_stamped(host: Host) -> None:
+    def bare(head: str) -> None:
+        text = findings("adversarial", head, round=None, files=None, commits=None)
+        host.write("adversarial", text.replace(f"head: {head}\n", ""))
+
+    host.answers["converge-adversarial-r1"] = bare
+
+    assert run(host) == 0
+
+    _front_holds(host, "adversarial", head=_head(host), round=1, files=1, commits=1)
+    assert events(host)[4] == _verdicts("adversarial")
+
+
+def test_a_verify_round_is_stamped_with_the_fixs_head_and_the_round(
+    host: Host,
+) -> None:
+    first = _head(host)
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+
+    def stale(now: str) -> None:
+        verified = _card("R1 blocking", status="verified")
+        text = findings("conformance", first, files=0, commits=0, body=verified)
+        host.write("conformance", text)
+
+    host.answers["converge-verify-conformance-r2"] = stale
+
+    assert run(host) == 0
+
+    # The whole range is 2 commits and 2 files; the fix diff is 1 and 1.
+    _front_holds(host, "conformance", head=_head(host), round=2, files=1, commits=1)
+    assert events(host)[-1] == (
+        "round 2 · done — converged in 2 rounds · 0 cards to debt"
+    )
+
+
+def test_a_pickup_check_is_stamped_and_keeps_its_round(host: Host) -> None:
+    first = _head(host)
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R2 nit")
+    )
+
+    def stale(now: str) -> None:
+        # A round converge never counts: the stamp leaves it as written.
+        verified = _card("R2 nit", status="verified")
+        text = findings("conformance", first, round=7, files=0, body=verified)
+        host.write("conformance", text)
+        host.write("adversarial", findings("adversarial", first, round=7, commits=0))
+
+    host.answers["converge-verify-pickup-r1"] = stale
+
+    assert run(host) == 0
+
+    assert host.checks[-1][0] == "converge-verify-pickup-r1"
+    for role in ("conformance", "adversarial"):
+        _front_holds(host, role, head=_head(host), round=7, files=1, commits=1)
+
+
+def test_a_checker_that_writes_nothing_leaves_no_stamp_on_a_stale_file(
+    host: Host,
+) -> None:
+    host.write("adversarial", findings("adversarial", "a" * 40, round=1))
+    stale = (host.folder() / "adversarial.md").read_text()
+    host.answers["converge-adversarial-r1"] = lambda head: None
+
+    assert run(host) == 1
+
+    assert (host.folder() / "adversarial.md").read_text() == stale
+    assert events(host)[-1].startswith(
+        "round 1 · halt — adversarial.md is unchanged: its checker wrote no findings"
+    )
+    told = [station for station, *_ in host.checks]
+    assert told.count("converge-adversarial-r1") == 2
+
+
+def test_a_stamp_that_fails_halts_naming_the_file(host: Host) -> None:
+    def blocked(head: str) -> None:
+        host.write("conformance", findings("conformance", head, **_WIDE))
+        planted = host.folder() / "conformance.md.tmp"
+        planted.mkdir()
+        (planted / "held").write_text("x")
+
+    host.answers["converge-conformance-r1"] = blocked
+
+    assert run(host) == 1
+
+    assert events(host)[-1].startswith(
+        "round 1 · halt — conformance.md could not be stamped: the write failed"
+    )
+
+
+def test_a_stub_and_a_by_rule_file_are_not_stamped(host: Host) -> None:
+    converge = _converge()
     context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
     context.round = 2
-    context.stations["conformance"] = ("converge-verify-conformance-r2", "medium")
-    converge["open_run"](context)
-    frozen = converge["Freeze"]("b" * 40, head, 1, 1)
-    folder = host.folder()
-    (folder / "conformance.md").write_text(
-        findings("conformance", head, files=0, commits=0)
-    )
-    (folder / "conformance.open.md").write_text("")
-    read = {
-        role: converge["read_findings"](folder / f"{role}.md", role, frozen)
-        for role in ("conformance", "adversarial")
+    frozen = converge["Freeze"]("b" * 40, "c" * 40, 3, 5)
+    texts = {
+        "adversarial": mflib.findings.stub(
+            "adversarial", _CHANGE, "primary", _CHANGE, "a" * 40, "2026-11-09", 1
+        ),
+        "conformance": findings("conformance", "a" * 40, mode="by-rule", workers=0),
     }
+    for role, text in texts.items():
+        host.write(role, text)
 
-    kept = converge["held"](context, read, frozen)
+    converge["counted"](context, frozen, list(texts))
+    converge["counted"](context, frozen, list(texts), pickup=True)
 
-    assert kept["conformance"].unclean is None
-    assert host.checks[-1][:3] == (
-        "converge-verify-conformance-r2",
-        "conformance",
-        "medium",
-    )
-
-
-def test_a_scope_missed_twice_halts_on_a_file_gone_or_malformed(host: Host) -> None:
-    converge = _converge()
-    head = _git(host.tree, "rev-parse", "HEAD")
-    frozen = converge["Freeze"]("b" * 40, head, 1, 1)
-    context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
-    converge["open_run"](context)
-    path = host.folder() / "conformance.md"
-    path.write_text(findings("conformance", head, files=0, commits=0))
-    small = converge["read_findings"](path, "conformance", frozen)
-
-    def gone(now: str) -> None:
-        path.unlink(missing_ok=True)
-
-    def broken(now: str) -> None:
-        path.write_text(findings("conformance", now, files=None))
-
-    host.answers["converge-conformance-r1"] = gone
-    with pytest.raises(converge["Halt"], match=r"conformance\.md is missing"):
-        converge["rescoped"](context, "conformance", frozen, small.unclean)
-
-    path.write_text(findings("conformance", head, files=0, commits=0))
-    host.answers["converge-conformance-r1"] = broken
-    with pytest.raises(converge["Halt"], match=r"conformance\.md is malformed"):
-        converge["rescoped"](context, "conformance", frozen, small.unclean)
+    for role, text in texts.items():
+        assert (host.folder() / f"{role}.md").read_text() == text
+    # A worker's file beside them is stamped.
+    host.write("conformance", findings("conformance", "a" * 40))
+    converge["counted"](context, frozen, ["conformance"])
+    _front_holds(host, "conformance", head="c" * 40, round=2, files=5, commits=3)
 
 
 def test_a_codex_failure_fallback_is_named_in_the_verdicts_line(host: Host) -> None:
     converge = _converge()
     head = _git(host.tree, "rev-parse", "HEAD")
-    frozen = converge["Freeze"]("b" * 40, head, 1, 1)
     folder = host.folder()
     folder.mkdir(parents=True)
     context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)
@@ -1023,7 +1071,7 @@ def test_a_codex_failure_fallback_is_named_in_the_verdicts_line(host: Host) -> N
     claude = ("claude", None, None)
     failed = Checked(0, False, claude, "", "codex failed", None)
 
-    converge["read_verdicts"](context, frozen, {"conformance": failed})
+    converge["read_verdicts"](context, {"conformance": failed})
 
     assert events(host) == [
         "round 1 · verdicts — conformance clean · open_blocking 0 · executor claude"
@@ -1035,7 +1083,6 @@ def test_a_codex_failure_fallback_is_named_in_the_verdicts_line(host: Host) -> N
 def test_a_bold_bullet_is_no_card(host: Host) -> None:
     converge = _converge()
     head = _git(host.tree, "rev-parse", "HEAD")
-    frozen = converge["Freeze"]("b" * 40, head, 2, 3)
     folder = host.folder()
     folder.mkdir(parents=True)
     body = (
@@ -1046,7 +1093,7 @@ def test_a_bold_bullet_is_no_card(host: Host) -> None:
         findings("conformance", head, files=3, commits=2, body=body)
     )
 
-    read = converge["read_findings"](folder / "conformance.md", "conformance", frozen)
+    read = converge["read_findings"](folder / "conformance.md", "conformance")
 
     assert read.malformed is None
     assert [card.id for card in read.cards] == ["R1"]
@@ -1088,7 +1135,8 @@ def test_a_clean_round_converges_with_no_fix(host: Host) -> None:
     ]
     for _, role, _, text in host.checks:
         assert text.startswith(f"role: {role}\nchange: {_CHANGE}\nround: 1\n")
-        assert f"`head: {head}` and `mode: parallel`" in text
+        assert "`mode: parallel`" in text
+        assert "head" not in text
         assert str(host.folder() / f"{role}.md") in text
     assert [
         Path(argv[1]).name if argv[0] == sys.executable else argv[0]
@@ -2916,14 +2964,14 @@ def _twice(
 
 
 def test_a_malformed_file_gets_a_rewrite_then_a_debt_card(host: Host) -> None:
-    broken = answer(host, "conformance", files=None)
+    broken = answer(host, "conformance", inconclusive=None)
     host.answers["converge-conformance-r1"] = _twice(
         broken, answer(host, "conformance")
     )
 
     assert run(host) == 0
 
-    why = "conformance.md is malformed: files is missing"
+    why = "conformance.md is malformed: inconclusive is missing"
     written = events(host)
     assert written[3:] == [
         _verdicts("adversarial"),
@@ -2938,7 +2986,7 @@ def test_a_malformed_file_gets_a_rewrite_then_a_debt_card(host: Host) -> None:
     assert f": {why}.\n" in told
 
     host.answers["converge-conformance-r1"] = answer(
-        host, "conformance", _card("R1 blocking"), blocking=1, files=None
+        host, "conformance", _card("R1 blocking"), blocking=1, inconclusive=None
     )
 
     assert run(host) == 0
@@ -3205,9 +3253,7 @@ def test_a_change_folder_that_is_a_link_cannot_be_stamped(tmp_path: Path) -> Non
 
 def _pin_read(converge: dict[str, Any], path: Path, text: str) -> Read:
     path.write_text(text)
-    return converge["read_findings"](
-        path, path.stem, converge["Freeze"]("b" * 40, "h", 1, 1)
-    )
+    return converge["read_findings"](path, path.stem)
 
 
 def _pin_context(converge: dict[str, Any], host: Host, **workers: object) -> Logged:
@@ -3482,9 +3528,7 @@ def test_pin_link_converge_read_findings_refuses_a_link(tmp_path: Path) -> None:
     linked = tmp_path / "conformance.md"
     linked.symlink_to(target)
 
-    read = converge["read_findings"](
-        linked, "conformance", converge["Freeze"]("b" * 40, "h", 1, 1)
-    )
+    read = converge["read_findings"](linked, "conformance")
 
     assert read.malformed == "conformance.md is malformed: it is a link"
 
@@ -3494,10 +3538,12 @@ def test_pin_malformed_converge_reads_the_role_clean_at_head(host: Host) -> None
     context = _pin_context(converge, host)
     frozen = converge["Freeze"]("b" * 40, _head(host), 1, 1)
     host.answers["converge-conformance-r1"] = answer(
-        host, "conformance", _card("R1 blocking"), blocking=1, files=None
+        host, "conformance", _card("R1 blocking"), blocking=1, inconclusive=None
     )
 
-    read = converge["rewrite"](context, "conformance", frozen, "files is missing")
+    read = converge["rewrite"](
+        context, "conformance", frozen, "inconclusive is missing"
+    )
 
     assert read == converge["Verdict"]("conformance", "clean", _head(host), 1)
 

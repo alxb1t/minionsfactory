@@ -315,10 +315,10 @@ CHECKER_PROBE = (
     " write .minions/changes/0001-probe/conformance.md to the worker reference's"
     " findings file contract. Edit nothing else."
 )
-# The findings file contract's frontmatter keys, as the worker reference lists them,
-# save `tokens`, which `conduct.py` stamps. Why: 0104-codex-limits design D5.
+# The frontmatter keys a worker writes, as the worker reference lists them: no converge
+# run stamps a probe's file. Why: 0104-codex-limits design D5; 0151-stamps design D3.
 FINDINGS_KEYS = (
-    *("type", "plan", "project", "branch", "head", "reviewed", "round"),
+    *("type", "plan", "project", "branch", "reviewed"),
     *("open_blocking", "verdict", "mode", "workers", "model", "executor", "packet"),
 )
 SCRATCH_IDENTITY = (
@@ -5797,9 +5797,10 @@ class Run:
         return thread is not None and thread.is_alive() and change not in self.ended
 
     def in_flight(self, threads: dict[str, threading.Thread]) -> int:
-        """Return how many of `threads` are versions at a station.
+        """Return how many of `threads` are versions at a station, halted or not.
 
-        A queued cut's `after` ids are its entry's. Why: 0129-queue-cap design D2.
+        A queued cut's `after` ids are its entry's. Why: 0129-queue-cap design D2,
+        0151-stamps design D5.
         """
         default = default_branch(self.primary)
         cuts = _cuts(self.primary)
@@ -5807,7 +5808,7 @@ class Run:
         for change in threads:
             with self.built:
                 live = self.live(change, threads)
-            if not live or self.stopped(change):
+            if not live or self.stopped("run"):
                 continue
             after = (
                 cuts[change].get("after", [])
@@ -8866,7 +8867,10 @@ def close_command(cwd: Path, change: str) -> int:
 
 
 def status(cwd: Path) -> str:
-    """Return the claim, unpushed and tags lines, then `<change-id> · <stage>` each."""
+    """Return the claim, unpushed and tags lines, then `<change-id> · <stage>` each.
+
+    A halting stage's line adds ` — <reason>`: `_status_line`.
+    """
     primary = primary_of(cwd)
     claim = _claim(mflib.layout.claim_file(primary))
     lines = {
@@ -8899,12 +8903,16 @@ def status(cwd: Path) -> str:
 
 
 def _status_line(primary: Path, version: Version) -> str:
-    """Return `<change-id> · <stage>`, then the halt of a broken models file.
+    """Return `<change-id> · <stage>`, a halting stage's reason, a models file's halt.
 
-    e.g. "0001-todo · build — changes/0001-todo/models.toml: it is not UTF-8".
-    Why: 0142-models design D10.
+    A control character of the reason reads `?`. Why: 0142-models D10; 0151-stamps D8.
+    e.g. "0001-todo · released — v0.1.0 is not the commit its tag names".
     """
-    line = f"{version.change} · {stage_of(primary, version)[0]}"
+    stage, why = stage_of(primary, version)
+    line = f"{version.change} · {stage}"
+    if why and stage in HALTS:
+        # The reason holds worker-written text: no control byte reaches the terminal.
+        line += " — " + re.sub(r"[\x00-\x1f\x7f-\x9f]", "?", why)
     try:
         _models_data(mflib.layout.run_dir(primary), version.change)
     except Stop as stop:

@@ -517,7 +517,13 @@ def test_status_reads_each_stage_from_disk(
     assert stage() == "0001-todo · build"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship **HUMAN**\n")
     _commit(tree, {}, "a human phase")
-    assert stage().endswith(" · human")
+    assert stage() == "0001-todo · human — phase 2 — Ship **HUMAN**"
+    # A worker-written title reaches the terminal with its control bytes replaced.
+    tasks.write_text(
+        "## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship \x1b[2J**HUMAN**\x07\n"
+    )
+    _commit(tree, {}, "a hostile title")
+    assert stage() == "0001-todo · human — phase 2 — Ship ?[2J**HUMAN**?"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     _commit(tree, {}, "build")
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))
@@ -525,7 +531,9 @@ def test_status_reads_each_stage_from_disk(
     log = root / ".minions" / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("# t\n\n## Run 1 — d\n10:00:00 · round 3 · halt — cap reached\n")
-    assert stage().endswith(" · converge-halted")
+    assert stage() == (
+        "0001-todo · converge-halted — 10:00:00 · round 3 · halt — cap reached"
+    )
     log.write_text("# t\n\n## Run 2 — d\n10:00:00 · round 1 · done — ok\n")
     _findings(root, "0001-todo", _git(tree, "rev-parse", "HEAD"), verdict="blocking")
     assert stage().endswith(" · converge")
@@ -558,14 +566,16 @@ def test_status_reads_each_stage_from_disk(
     # A red gate an earlier committed merge left hides no open merge's note.
     older = _git(tree, "rev-parse", "HEAD~1")
     (marks / "integrate.red").write_text(f"gate red\n2026-11-05\nhead: {older}\n")
-    assert stage() == "0001-todo · integrating"
+    conflict = "0001-todo · integrating — semantic conflict: "
+    assert stage() == f"{conflict}.minions/changes/0001-todo/integrate.md"
     assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "integrate.red").write_text("gate red\n")
-    assert stage() == "0001-todo · integrating"
+    red_gate = "0001-todo · integrating — red gate: "
+    assert stage() == f"{red_gate}.minions/changes/0001-todo/integrate.red"
     assert stage_of(root, version)[1].startswith("red gate")
     _git(tree, "checkout", "--theirs", "moved.txt")
     _git(tree, "add", "moved.txt")
-    assert stage() == "0001-todo · integrating"
+    assert stage() == f"{red_gate}.minions/changes/0001-todo/integrate.red"
     (marks / "integrate.red").unlink()
     assert stage_of(root, version)[1].startswith("semantic conflict")
     (marks / "integrate.md").unlink()
@@ -579,7 +589,7 @@ def test_status_reads_each_stage_from_disk(
     head = _git(tree, "rev-parse", "HEAD")
     for named in (head, head[:7]):
         red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
-        assert stage() == "0001-todo · integrating"
+        assert stage() == f"{red_gate}.minions/changes/0001-todo/integrate.red"
         assert stage_of(root, version)[1].startswith("red gate")
     for named in (_git(tree, "rev-parse", "HEAD~1"), "0" * 40):
         red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
@@ -590,7 +600,7 @@ def test_status_reads_each_stage_from_disk(
 
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
     _git(tree, "tag", "v0.1.0")
-    assert stage().endswith(" · released")
+    assert stage().startswith("0001-todo · released — v0.1.0 is ")
 
 
 _NPM_ROWS = "## Dependencies\n\n| package | constraint | why |\n|---|---|---|\n{rows}\n"
@@ -10062,6 +10072,23 @@ def test_status_names_each_old_entry_alone(
     assert status(root).splitlines() == ["0001-todo · build"]
 
 
+def test_status_prints_a_tip_tagged_elsewhere_with_its_reason(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
+    status = conduct["status"]
+    assert status(root).splitlines() == ["0001-todo · build"]
+    _commit(tree, {"release.txt": "x\n"}, "chore(release): v0.1.0")
+    _git(tree, "tag", "v0.1.0", "HEAD~1")
+    assert status(root).splitlines() == [
+        "0001-todo · released — v0.1.0 is tagged on another commit:"
+        " a person reads this tip"
+    ]
+
+
 @pytest.mark.slow
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
@@ -10115,6 +10142,7 @@ def test_a_rerun_recovers_a_dead_release(
         " /mf-release 0002-marks merges it on their yes"
     )
     assert stage_of(root, find(root, "0002-marks")) == ("released", said)
+    assert stage() == f"0002-marks · released — {said}"
     calls.unlink()
     fake()
     run(1)
@@ -10157,7 +10185,11 @@ def test_a_release_cut_short_is_recovered(
     _version(root, "0003-more", "- [ ] 1 — More\n")
     run(1)
     _commit(root, {"moved.txt": "x\n"}, "main moves")
-    assert stage() == "0003-more · released"
+    assert stage() == (
+        "0003-more · released — v0.3.0 is tagged; main moved, so recover by hand:"
+        " git tag -d v0.3.0, git reset --hard HEAD~1, then"
+        " /mf-integrate 0003-more, /mf-converge, /mf-release"
+    )
     calls.unlink()
     fake()
     run(1)
@@ -10201,11 +10233,12 @@ def test_a_release_cut_short_is_recovered(
     fake("stops-release-tag")
     run(1)
     assert "v0.5.0" in _git(root, "tag", "-l").split()
-    assert last() == "0005-five · released"
-    assert stage_of(root, find(root, "0005-five"))[1] == (
+    stopped = (
         "v0.5.0 is tagged; the release stopped before its merge:"
         " /mf-release 0005-five merges it on a person's yes"
     )
+    assert last() == f"0005-five · released — {stopped}"
+    assert stage_of(root, find(root, "0005-five"))[1] == stopped
     calls.unlink()
     fake()
     run(1)
@@ -10213,19 +10246,19 @@ def test_a_release_cut_short_is_recovered(
 
     forged = _version(root, "0006-six", "- [ ] 1 — Six\n")
     _git(forged, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
-    assert last() == "0006-six · released"
-    assert stage_of(root, find(root, "0006-six"))[1] == (
-        "v0.1.0 is tagged on another commit: a person reads this tip"
-    )
+    elsewhere = "v0.1.0 is tagged on another commit: a person reads this tip"
+    assert last() == f"0006-six · released — {elsewhere}"
+    assert stage_of(root, find(root, "0006-six"))[1] == elsewhere
     subject = "chore(release): v9.0.0"
     _git(forged, "commit", "-q", "--amend", "--allow-empty", "-m", subject)
-    assert last() == "0006-six · released"
-    assert stage_of(root, find(root, "0006-six"))[1] == (
+    unfound = (
         "v9.0.0 is not tagged; no conformance findings file: a person reads this tip"
     )
+    assert last() == f"0006-six · released — {unfound}"
+    assert stage_of(root, find(root, "0006-six"))[1] == unfound
     _findings(root, "0006-six", _git(forged, "rev-parse", "HEAD~1"))
     _git(forged, "tag", "v9.0.0")
-    assert last() == "0006-six · released"
+    assert last().startswith("0006-six · released — v9.0.0 is tagged; ")
 
 
 @pytest.mark.slow
@@ -11357,18 +11390,27 @@ def test_cap_counts_only_versions_at_a_station(tmp_path: Path) -> None:
         "0005-after": _held(gate),
         "0006-cut": _held(gate),
     }
+    threads["0008-final"] = _held(gate)
     conductor = conduct["Run"](root, "claude")
     conductor.halts.append(("0004-halted", "a halt"))
+    conductor.halts.append(("0008-final", "a halt"))
+    conductor.ended.add("0008-final")
 
-    # Each conjunct of a version at a station has a case that only it fails.
-    conductor.cap = 1
-    assert conductor.in_flight(threads) == 1
-    assert not conductor.room(threads)
+    # Each conjunct of a version at a station has a case that only it fails;
+    # a live thread a halt names fails none.
     conductor.cap = 2
-    assert conductor.room(threads)
-    threads["0007-cut"] = _held(gate)
     assert conductor.in_flight(threads) == 2
     assert not conductor.room(threads)
+    conductor.cap = 3
+    assert conductor.room(threads)
+    threads["0007-cut"] = _held(gate)
+    assert conductor.in_flight(threads) == 3
+    assert not conductor.room(threads)
+
+    # A halt that names the run counts no thread.
+    conductor.halts.append(("run", "a halt"))
+    assert conductor.in_flight(threads) == 0
+    assert conductor.room(threads)
 
     # No cap reads nothing.
     def unread(threads: dict[str, threading.Thread]) -> int:
@@ -11421,6 +11463,60 @@ def test_cap_gates_the_poll_and_not_a_request(tmp_path: Path) -> None:
     assert "0005-c" not in conductor.waiting
     assert conductor.waiting["0004-b"] == "1 in flight, cap 1"
     full.set()
+
+
+def _queued_at_cap(conduct: dict[str, Any], root: Path) -> tuple[Any, list[str]]:
+    """Return a run capped at 1 with `0003-a` queued, and the cuts it takes."""
+    brief = root.parent / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0003-a", brief)
+    conductor = conduct["Run"](root, "claude")
+    conductor.cap = 1
+    conductor.seen = set()
+    taken: list[str] = []
+    conductor.take_cut = lambda change, entry, threads: taken.append(change) or True
+    return conductor, taken
+
+
+def test_a_halted_version_keeps_its_slot_while_its_thread_lives(
+    tmp_path: Path,
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    conductor, taken = _queued_at_cap(conduct, root)
+    rescue = threading.Event()
+    threads = {"0002-v": _held(rescue)}
+    conductor.halts.append(("0002-v", "a halt"))
+
+    # Its rescue runs in its thread: the cut waits.
+    assert not conductor.take_requests(threads)
+    assert taken == []
+    assert conduct["_cuts"](root)["0003-a"]["waits"] == "1 in flight, cap 1"
+
+    # The halt stands and the thread ends: the slot frees.
+    conductor.ended.add("0002-v")
+    rescue.set()
+    threads["0002-v"].join()
+    assert conductor.take_requests(threads)
+    assert taken == ["0003-a"]
+
+
+def test_a_revived_version_finds_no_second_in_flight(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    conductor, taken = _queued_at_cap(conduct, root)
+    release = threading.Event()
+    threads = {"0002-v": _held(release)}
+    conductor.halts.append(("0002-v", "a halt"))
+    assert not conductor.take_requests(threads)
+
+    # Its supervisor answers and the version goes on: the cut still waits.
+    conductor.halts = [held for held in conductor.halts if held[0] != "0002-v"]
+    assert not conductor.take_requests(threads)
+    assert taken == []
+    assert conductor.in_flight(threads) == 1
+    assert conductor.waiting == {"0003-a": "1 in flight, cap 1"}
+    release.set()
 
 
 @pytest.mark.slow

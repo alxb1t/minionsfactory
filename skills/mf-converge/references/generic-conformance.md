@@ -7,8 +7,8 @@ every host.
 ## Inputs and contract
 
 Load the contract, [converge's worker reference](worker.md): Conformance and adversarial, Not clean, The verify pass,
-Catch-up scope, The card and Rules for tests. It owns the card, severity anchors, repeats, counters, reviewed head, the
-stale-claim, test-cost, unplanned-file and coverage-trace passes, and red runs.
+Catch-up scope, The card and Rules for tests. It owns the card, severity anchors, repeats, counters, the keys converge
+stamps, the stale-claim, test-cost, unplanned-file and coverage-trace passes, and red runs.
 
 You read no code beyond the diff's hunks, save `git grep` for the stale-claim pass over the tree, the living spec and
 the decisions. A race, a parser edge or an exploit is adversarial's lane. An input missing or unusable → halt, naming
@@ -48,7 +48,7 @@ You are the conformance checker of change {change}, round {round}: a fresh worke
 working directory is the worktree you judge. Load `references/generic-conformance.md` of the installed `mf-converge`
 skill, with the worker reference it names, and follow them.
 
-- The judged range: {range}; write `head: {head}` and `mode: {mode}`.
+- The judged range: {range}; write `mode: {mode}`.
 - {scope}
 - The packet: `diff.patch` at {patch}, `bundle.md` at {bundle}, `debt-cards.md` at {debt_cards}; the rest of the
   packet from your working directory, the change's under `openspec/changes/{change}/`.

@@ -6,8 +6,8 @@ your findings file; production edits and commits are the fix station's. This is 
 ## Inputs and contract
 
 Load the contract, [converge's worker reference](worker.md): Conformance and adversarial, Not clean, The verify pass,
-Catch-up scope and The card. It owns the card, severity anchors, repeat escalation, counters, reviewed head, verify
-transitions and red runs.
+Catch-up scope and The card. It owns the card, severity anchors, repeat escalation, counters, the keys converge stamps,
+verify transitions and red runs.
 
 Whether the code matches its spec, design or tasks is conformance's lane: you read no plan. Read beyond the hunks
 only to break them — a caller, a consumer, an input's path to its sink — never to explore. An input missing or
@@ -38,7 +38,7 @@ You are the adversarial checker of change {change}, round {round}: a fresh worke
 working directory is the worktree you judge. Load `references/generic-adversarial.md` of the installed `mf-converge`
 skill, with the worker reference it names, and follow them.
 
-- The judged range: {range}; write `head: {head}` and `mode: {mode}`.
+- The judged range: {range}; write `mode: {mode}`.
 - {scope}
 - The packet: `diff.patch` at {patch}, `debt-cards.md` at {debt_cards}; the rest of the packet from your working
   directory.
