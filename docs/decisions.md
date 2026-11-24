@@ -912,14 +912,15 @@ versions a run keeps at a station; `conduct.py run` reads it once at its start. 
 its start and at each poll, in id order, only while fewer versions of its own repository are in flight than the cap; a
 cut that waits is not read, keeps the run alive, starts no next run at the close, and carries its reason, `<n> in flight,
 cap <N>`, in its queue entry, which `status`, `conduct.py cut` and the viewer show. A version is in flight while its thread
-runs, no halt names it and every `after` id it names is shipped, its cut included. A rejoin request naming a cut, the
+runs, its rescue and supervisor included, no halt names the run and every `after` id it names is shipped, its cut included;
+a final halt frees its slot. A rejoin request naming a cut, the
 take-back of a version and a version already cut at the run's start run past the cap. No file, no `[queue]` table and no
 key mean no cap; a file that cannot be read, or a value that is no whole number above 0, stops `conduct.py run` and
 `conduct.py cut` with exit 2, naming the file.**
 
 - **Why:** the person runs this repo's line and another repo's line on one laptop, each one version at a time, to save the
-  CPU; the cap is a fact of the machine, so it stands in the operator's folder, where no worker writes, and a halt at
-  night frees its slot for the queue behind it.
+  CPU; the cap is a fact of the machine, so it stands in the operator's folder, where no worker writes, and a final halt
+  at night frees its slot for the queue behind it.
 - **Rejected:** a switch in `AGENTS.md` or a parameter in `.minions/` ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)
   rejects both) · an environment variable · a count across the machine's lines, or a read of the CPU load · pausing a
   version in flight · a new meaning for `after:`.

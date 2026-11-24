@@ -5,7 +5,7 @@ Phases: converge stamps the counts, a halted version keeps its slot, and the cut
 ## Progress
 
 - [x] 1 — Converge stamps the counts · hard
-- [ ] 2 — The slot · hard
+- [x] 2 — The slot · hard
 - [ ] 3 — The cut's row, the tag and status · moderate
 
 ## 1 — Converge stamps the counts
@@ -49,13 +49,13 @@ Phases: converge stamps the counts, a halted version keeps its slot, and the cut
 
 ## 2 — The slot
 
-- [ ] 2.1 In `skills/mf-ship/scripts/conduct.py` change `if not live or self.stopped(change)` in `in_flight` to test `self.stopped("run")` alone per [D5](design.md#d5).
+- [x] 2.1 In `skills/mf-ship/scripts/conduct.py` change `if not live or self.stopped(change)` in `in_flight` to test `self.stopped("run")` alone per [D5](design.md#d5).
   Verify: `git grep -c -F -e 'not live or self.stopped(change)' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 2.2 In `tests/test_conduct.py` change `test_cap_counts_only_versions_at_a_station`: a live thread a halt names counts, an ended one and every thread under a run-wide halt do not.
+- [x] 2.2 In `tests/test_conduct.py` change `test_cap_counts_only_versions_at_a_station`: a live thread a halt names counts, an ended one and every thread under a run-wide halt do not.
   Verify: `uv run pytest tests/test_conduct.py -q -k cap_counts` exits `0`.
-- [ ] 2.3 Add `test_a_halted_version_keeps_its_slot_while_its_thread_lives` and `test_a_revived_version_finds_no_second_in_flight` to `tests/test_conduct.py`.
+- [x] 2.3 Add `test_a_halted_version_keeps_its_slot_while_its_thread_lives` and `test_a_revived_version_finds_no_second_in_flight` to `tests/test_conduct.py`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "keeps_its_slot or revived_version"` exits `0`.
-- [ ] 2.4 In `docs/decisions.md` reword the clause `runs, no halt names it` of D84: a version is in flight while its thread runs, its rescue and supervisor included; a final halt frees its slot.
+- [x] 2.4 In `docs/decisions.md` reword the clause `runs, no halt names it` of D84: a version is in flight while its thread runs, its rescue and supervisor included; a final halt frees its slot.
   Verify: `git grep -c -F -e "runs, no halt names it" -- docs/decisions.md` prints nothing.
 
 ## 3 — The cut's row, the tag and status

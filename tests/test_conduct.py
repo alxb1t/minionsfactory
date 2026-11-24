@@ -11357,18 +11357,27 @@ def test_cap_counts_only_versions_at_a_station(tmp_path: Path) -> None:
         "0005-after": _held(gate),
         "0006-cut": _held(gate),
     }
+    threads["0008-final"] = _held(gate)
     conductor = conduct["Run"](root, "claude")
     conductor.halts.append(("0004-halted", "a halt"))
+    conductor.halts.append(("0008-final", "a halt"))
+    conductor.ended.add("0008-final")
 
-    # Each conjunct of a version at a station has a case that only it fails.
-    conductor.cap = 1
-    assert conductor.in_flight(threads) == 1
-    assert not conductor.room(threads)
+    # Each conjunct of a version at a station has a case that only it fails;
+    # a live thread a halt names fails none.
     conductor.cap = 2
-    assert conductor.room(threads)
-    threads["0007-cut"] = _held(gate)
     assert conductor.in_flight(threads) == 2
     assert not conductor.room(threads)
+    conductor.cap = 3
+    assert conductor.room(threads)
+    threads["0007-cut"] = _held(gate)
+    assert conductor.in_flight(threads) == 3
+    assert not conductor.room(threads)
+
+    # A halt that names the run counts no thread.
+    conductor.halts.append(("run", "a halt"))
+    assert conductor.in_flight(threads) == 0
+    assert conductor.room(threads)
 
     # No cap reads nothing.
     def unread(threads: dict[str, threading.Thread]) -> int:
@@ -11421,6 +11430,60 @@ def test_cap_gates_the_poll_and_not_a_request(tmp_path: Path) -> None:
     assert "0005-c" not in conductor.waiting
     assert conductor.waiting["0004-b"] == "1 in flight, cap 1"
     full.set()
+
+
+def _queued_at_cap(conduct: dict[str, Any], root: Path) -> tuple[Any, list[str]]:
+    """Return a run capped at 1 with `0003-a` queued, and the cuts it takes."""
+    brief = root.parent / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0003-a", brief)
+    conductor = conduct["Run"](root, "claude")
+    conductor.cap = 1
+    conductor.seen = set()
+    taken: list[str] = []
+    conductor.take_cut = lambda change, entry, threads: taken.append(change) or True
+    return conductor, taken
+
+
+def test_a_halted_version_keeps_its_slot_while_its_thread_lives(
+    tmp_path: Path,
+) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    conductor, taken = _queued_at_cap(conduct, root)
+    rescue = threading.Event()
+    threads = {"0002-v": _held(rescue)}
+    conductor.halts.append(("0002-v", "a halt"))
+
+    # Its rescue runs in its thread: the cut waits.
+    assert not conductor.take_requests(threads)
+    assert taken == []
+    assert conduct["_cuts"](root)["0003-a"]["waits"] == "1 in flight, cap 1"
+
+    # The halt stands and the thread ends: the slot frees.
+    conductor.ended.add("0002-v")
+    rescue.set()
+    threads["0002-v"].join()
+    assert conductor.take_requests(threads)
+    assert taken == ["0003-a"]
+
+
+def test_a_revived_version_finds_no_second_in_flight(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    conductor, taken = _queued_at_cap(conduct, root)
+    release = threading.Event()
+    threads = {"0002-v": _held(release)}
+    conductor.halts.append(("0002-v", "a halt"))
+    assert not conductor.take_requests(threads)
+
+    # Its supervisor answers and the version goes on: the cut still waits.
+    conductor.halts = [held for held in conductor.halts if held[0] != "0002-v"]
+    assert not conductor.take_requests(threads)
+    assert taken == []
+    assert conductor.in_flight(threads) == 1
+    assert conductor.waiting == {"0003-a": "1 in flight, cap 1"}
+    release.set()
 
 
 @pytest.mark.slow

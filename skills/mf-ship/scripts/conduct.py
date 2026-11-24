@@ -5797,9 +5797,10 @@ class Run:
         return thread is not None and thread.is_alive() and change not in self.ended
 
     def in_flight(self, threads: dict[str, threading.Thread]) -> int:
-        """Return how many of `threads` are versions at a station.
+        """Return how many of `threads` are versions at a station, halted or not.
 
-        A queued cut's `after` ids are its entry's. Why: 0129-queue-cap design D2.
+        A queued cut's `after` ids are its entry's. Why: 0129-queue-cap design D2,
+        0151-stamps design D5.
         """
         default = default_branch(self.primary)
         cuts = _cuts(self.primary)
@@ -5807,7 +5808,7 @@ class Run:
         for change in threads:
             with self.built:
                 live = self.live(change, threads)
-            if not live or self.stopped(change):
+            if not live or self.stopped("run"):
                 continue
             after = (
                 cuts[change].get("after", [])

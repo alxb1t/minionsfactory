@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Converge stamps `head`, `round`, `files` and `commits` into each findings file once its checker, verify worker or pickup check returns; a pickup check keeps its `round`, and a stub or a by-rule file is left. A worker's wrong count halted 0144 and 0148, so the scope comparison and its rescope are gone, and no reference tells a worker to write the keys (0151-stamps, phase 1).
+- A halted version keeps its slot under the `[queue]` cap while its thread lives, its rescue and supervisor included; a final halt frees it, and a run-wide halt counts no version. A halt freed 0148's slot before its supervisor ran, so the cap was passed (0151-stamps, phase 2).
 
 ## [0.121.0] - 2026-11-24
 
