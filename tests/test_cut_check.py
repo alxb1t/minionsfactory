@@ -293,7 +293,7 @@ def _pytest_names_no_test_file(root: Path) -> None:
 
 def _later_task_diffs_a(root: Path, lines: str) -> None:
     old = "Edit `a.py` again.\n  Verify: `git tag` prints v1."
-    block = f"  ```diff\n{lines}  ```\n"
+    block = f"  ```diff\n  --- a/a.py\n  +++ b/a.py\n{lines}  ```\n"
     new = f"Drop a line of `a.py`.\n{block}  Verify: `git tag` prints v1."
     _edit(root, "tasks.md", old, new)
 
@@ -386,6 +386,32 @@ def test_a_needle_a_later_task_adds_back_passes_v6(
     code, lines = _run(root, monkeypatch, capsys)
     assert _halted(lines) == []
     assert code == 0
+
+
+def test_v6_reads_the_searched_files_block_by_its_header() -> None:
+    plan = cut_check._plan()
+    hit = "1.1: `x` is removed in 1.2"
+
+    def halts(block: str, prose: str = "Drop a line.") -> str | None:
+        indented = "".join(f"  {line}\n" for line in block.splitlines())
+        tasks = (
+            "- [ ] 1.1 Run.\n  Verify: `grep -n x a.py` prints a line.\n"
+            f"- [ ] 1.2 {prose}\n  ```diff\n{indented}  ```\n"
+            "  Verify: `make check` exits 0.\n"
+        )
+        return cut_check.row_v6(cut_check.Change("x", Path("x"), "", "", tasks), plan)
+
+    assert halts("--- a/a.py\n+++ b/a.py\n-x") == hit
+    assert halts("--- a/a.py\t2026\n+++ b/a.py\t2026\n-x") == hit
+    assert halts("--- a/a.py\n+++ /dev/null\n-x") == hit
+    assert halts("--- /dev/null\n+++ b/a.py\n+x") is None
+    assert halts("--- /dev/null\n+++ /dev/null\n-x") is None
+    assert halts("--- a/b.py\n+++ b/b.py\n-x") is None
+    assert halts("--- a/b.py\n+++ b/b.py\n-x", "Drop a line of `a.py`.") is None
+    assert halts("--- a/a.py\n+++ b/a.py\n-x\n+x") is None
+    assert halts("--- a/a.py\n+++ b/a.py\n-x\n--- a/b.py\n+++ b/b.py\n+x") == hit
+    assert halts("-x") is None
+    assert halts("--- a/a.py\n+++ b/a.py\n--- x") == hit
 
 
 def test_a_bump_that_differs_from_the_given_one_fails(
@@ -760,14 +786,31 @@ def test_v2_halts_only_on_a_selected_test() -> None:
     assert halts("widget", "test_widget") == (
         "1.1: `-k widget` selects a test that 1.2 changes"
     )
-    assert halts("not widget and gadget", "test_gadget") == (
-        "1.1: `-k not widget and gadget` selects a test that 1.2 changes"
-    )
+    assert halts("not widget and gadget", "test_gadget") is None
     assert halts("not widget and gadget", "test_widget") is None
     assert halts("not widget", "test_widget") is None
     assert halts("not widget", "test_gadget") is None
     assert halts("not (a or b)", "test_a") is None
     assert halts("a and", "test_a") is None
+
+
+def test_v2_is_silent_on_a_negated_word_the_name_lacks() -> None:
+    plan = cut_check._plan()
+
+    def halts(expression: str, later: str) -> str | None:
+        tasks = (
+            "- [ ] 1.1 Run.\n"
+            f"  Verify: `uv run pytest -q test_a.py -k '{expression}'` exits 0.\n"
+            f"- [ ] 1.2 Add `{later}` to the suite.\n"
+            "  Verify: `make check` exits 0.\n"
+        )
+        return cut_check.row_v2(cut_check.Change("x", Path("x"), "", "", tasks), plan)
+
+    assert halts("widget and not slow", "test_widget") is None
+    assert halts("widget and not widget_old", "test_widget_old") is None
+    assert halts("a or not b", "test_a_b") == (
+        "1.1: `-k a or not b` selects a test that 1.2 changes"
+    )
 
 
 def test_a_k_expression_selects_by_pytests_rules() -> None:
@@ -781,7 +824,7 @@ def test_a_k_expression_selects_by_pytests_rules() -> None:
     assert selects("a or b and c", "test_a")
     assert not selects("(a or b) and c", "test_a")
     assert selects("(a or (b and (c))) and d", "test_c_b_d")
-    assert selects("not widget and gadget", "test_gadget")
+    assert not selects("not widget and gadget", "test_gadget")
     assert not selects("not widget and gadget", "test_gadget_widget")
     assert not selects("not widget", "test_gadget")
     assert not selects("not (a and (b) and d)", "test_d")
@@ -1086,6 +1129,9 @@ def test_kexpr_naming_a_planned_test_holds(
     _task(root, "Edit `a.py` per [D1](design.md#d1).")
     _verified(root, "uv run pytest -q tests/test_new.py -k new")
     assert _halted_rows(root, monkeypatch, capsys) == []
+    # A negated word no name holds is no reason to halt: V8 reads `not slow` as pytest.
+    _verified(root, 'uv run pytest -q tests/test_new.py -k "new and not slow"')
+    assert _halted_rows(root, monkeypatch, capsys) == []
     # A planned class is a name, and a directory operand holds its test files' names.
     _verified(root, "uv run pytest -q tests/test_new.py -k TestFresh")
     assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
@@ -1097,6 +1143,26 @@ def test_kexpr_naming_a_planned_test_holds(
     _verified(root, "uv run pytest -q tests/unit -k spin")
     assert _halted_rows(root, monkeypatch, capsys) == []
     _verified(root, "uv run pytest -q tests/unit -k typo")
+    assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
+
+
+def test_kexpr_naming_a_module_of_a_directory_holds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _put(root, "tests/unit/test_gadget.py", "def test_spin(): ...\n")
+    _put(root, "tests/unit_extra/test_other.py", "def test_turn(): ...\n")
+    _put(root, "tests/test_a.py", "def test_spin(): ...\n")
+    _git(root, "add", ".")
+    _git(root, "commit", "-q", "-m", "tests")
+    _verified(root, "uv run pytest -q tests/unit -k test_gadget")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _verified(root, "uv run pytest -q ./tests/test_a.py -k spin")
+    assert _halted_rows(root, monkeypatch, capsys) == []
+    _verified(root, "uv run pytest -q tests/unit -k test_other")
     assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
 
 

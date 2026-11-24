@@ -221,6 +221,8 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     for name in conduct["TOKENS"]:
         monkeypatch.setenv(name, "secret")
     monkeypatch.setenv("VIRTUAL_ENV", "/somewhere/venv")
+    monkeypatch.setenv("UV_PYTHON", "/somewhere/python")
+    monkeypatch.setenv("PIP_INDEX_URL", "https://index.invalid/simple")
     monkeypatch.setenv("KEPT", "yes")
 
     code = conduct["sandboxed"](_python(_DUMP), cwd, trees)
@@ -232,6 +234,8 @@ def test_a_command_runs_under_sandbox_exec_with_a_scrubbed_environment(
     assert seen["stdin"] == ""
     assert not set(conduct["TOKENS"]) & set(env)
     assert "VIRTUAL_ENV" not in env
+    assert "UV_PYTHON" not in env
+    assert "PIP_INDEX_URL" not in env
     assert env["KEPT"] == "yes"
     assert env["UV_OFFLINE"] == "1"
     assert env["UV_CACHE_DIR"] == str(trees[0] / ".minions" / "uv-cache")
@@ -552,6 +556,65 @@ def test_a_child_that_outlives_its_parent_is_killed_after_the_grace(
 
     assert code == 124
     assert _gone(int(child.read_text()))
+
+
+_LEAVER = (
+    "import subprocess, sys, time;"
+    " child = subprocess.Popen(['sleep', '20'], start_new_session=True);"
+    " open(sys.argv[1], 'w').write(str(child.pid));"
+    " print('started', flush=True);"
+    " time.sleep(20)"
+)
+
+
+def test_a_child_that_leaves_the_group_holding_the_pipe_returns_after_the_deadline(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    # Why: 0150-debt-paydown-5 design D13.
+    trees = _trees(tmp_path)
+    child = tmp_path / "leaver.pid"
+    out = io.StringIO()
+    started = time.monotonic()
+    try:
+        code = _conduct()["sandboxed"](
+            [*_python(_LEAVER), str(child)], trees[0], trees, out, timeout=3, grace=0.2
+        )
+        took = time.monotonic() - started
+    finally:
+        with contextlib.suppress(OSError, ValueError):
+            os.kill(int(child.read_text()), signal.SIGKILL)
+
+    assert code == 124
+    assert took < 10
+    assert child.read_text().isdigit()
+    assert out.getvalue().splitlines() == [
+        "started",
+        "sandboxed: timed out — killed after 3 s",
+    ]
+
+
+_WHOLE = (
+    "import sys, time;"
+    " out = sys.stdout.buffer;"
+    " out.write(b'a\\n'); out.flush(); time.sleep(0.5);"
+    " out.write(('x' + 'é' * 70000 + '\\n').encode());"
+    " out.write(b'c\\r\\nb'); out.flush()"
+)
+
+
+def test_a_command_that_ends_in_time_is_read_whole(
+    tmp_path: Path, fake_sandbox_exec: Path
+) -> None:
+    # Why: 0150-debt-paydown-5 design D13.
+    trees = _trees(tmp_path)
+    out = io.StringIO()
+
+    code = _conduct()["sandboxed"](
+        _python(_WHOLE), trees[0], trees, out, timeout=30, grace=0.1
+    )
+
+    assert code == 0
+    assert out.getvalue() == "a\n" + "x" + "é" * 70000 + "\nc\nb"
 
 
 def _repo(tmp_path: Path) -> Path:

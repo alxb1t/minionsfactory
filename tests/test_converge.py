@@ -2691,8 +2691,36 @@ def test_a_fix_commit_editing_proposal_md_halts(host: Host) -> None:
         )
 
 
+def _found_r1(host: Host) -> None:
+    """Write a conformance file holding card R1 at the head."""
+    answer(host, "conformance", _card("R1 blocking"), blocking=1)(_head(host))
+
+
+def test_a_trailer_naming_no_card_of_the_findings_is_refused(host: Host) -> None:
+    _seeded(host)
+    _found_r1(host)
+    for at, trailer in enumerate(("none", "R9", "misnamed")):
+        message = _PLAN_TEXT.replace("Plan-text: R1", f"Plan-text: {trailer}")
+
+        said = _plan_text(host, {_DELTA: f"## ADDED\n\nWorded {at}.\n"}, message)
+
+        assert said == (
+            f"plan edit refused — {_head(host)[:7]} names no card of the findings"
+            " under Plan-text:"
+        )
+
+
+def test_a_trailer_with_prose_beside_a_card_id_passes(host: Host) -> None:
+    _seeded(host)
+    _found_r1(host)
+    message = _PLAN_TEXT.replace("Plan-text: R1", "Plan-text: R1, the delta words it")
+
+    assert _plan_text(host, {_DELTA: "## ADDED\n\nWorded.\n"}, message) is None
+
+
 def test_a_fix_commit_may_edit_the_delta_with_the_trailer(host: Host) -> None:
     _seeded(host)
+    _found_r1(host)
     edited = {_DELTA: "## ADDED\n\nWorded.\n", "src/a.py": "A = 2\n"}
 
     assert _plan_text(host, edited, _PLAN_TEXT) is None
@@ -2711,6 +2739,7 @@ def test_a_fix_commit_editing_the_delta_without_the_trailer_halts(host: Host) ->
 
 def test_a_fix_commit_editing_a_decisions_body_is_taken(host: Host) -> None:
     _seeded(host)
+    _found_r1(host)
     reworded: dict[str, str] = {
         _DESIGN_MD: _DECIDED.replace("It holds.", "It holds at the call.")
     }

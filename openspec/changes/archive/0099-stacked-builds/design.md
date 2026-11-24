@@ -135,7 +135,7 @@ def until(
 
 `ready` calls `until` in place of `threads[dependency].join()` (`C:4361-4363`), for a version not stacked alone, `ready`
 passing `still`, a callable that returns the unreleased dependencies at each poll, and `until` asking
-`self.stackable(version, still())`, per 0119-debt-paydown-3b design D9. At each wake it reads the thread
+`self.stackable(version, still())`, per [0119-debt-paydown-3b design D9](../0119-debt-paydown-3b/design.md#d9). At each wake it reads the thread
 from `threads` again: a dependency taken back runs in a new one. A built head the version may not stack on keeps it waiting
 for the thread's end, as today. The timeout bounds a notify that is lost.
 

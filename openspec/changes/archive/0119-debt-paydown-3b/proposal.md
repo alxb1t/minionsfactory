@@ -43,10 +43,10 @@ None. Each fix makes the code meet a requirement already in force; [D10](design.
 
 ## Impact
 
-`skills/mf-ship/scripts/conduct.py`, `skills/mf-converge/scripts/converge.py`, `tests/test_conduct.py` and `tests/test_converge.py`. No dependency, no skill prose, no spec.
+`skills/mf-ship/scripts/conduct.py`, `skills/mf-converge/scripts/converge.py`, `tests/test_conduct.py` and `tests/test_converge.py`, and the archived design lines [D17](design.md#d17) corrects, in `openspec/changes/archive/0099-stacked-builds/design.md`, `openspec/changes/archive/0100-worker-diet/design.md` and `openspec/changes/archive/0104-codex-limits/design.md`. No dependency, no skill prose, no spec.
 
 ## Not in this change
 
 - The design-sized cards: 0107·S1, 0114·S3, 0111·S1, 0112·S2, 0108·S1, 0109·S1, 0068·S3, 0060·S6, 0062·S1, 0089·S2, 0090·S1, 0104·S3, 0116·S2, 0065·R8, 0111·R3 — a conductor-hardening version.
-- Any file outside `conduct.py`, `converge.py` and their tests: `0118-debt-paydown-3a` holds them.
+- Any other file: `0118-debt-paydown-3a` holds them, save the archived design lines [D17](design.md#d17) corrects.
 - A threat-model line for `0090·S5`'s tighter bound: the model's sentence stays as it reads.

@@ -37,7 +37,8 @@ from this reference.
   **Amend** `yes`. A blocking one halts the round `amend needed` after your pass; a non-blocking one halts at the debt write.
 - **Say in the plan what your fix does**, where its words lag the code: the change's spec delta, the files under
   `openspec/changes/<change-id>/specs/`, and the body of a `### D<n>` entry of `design.md`. Edit them in the commit of
-  the fix, which carries a `Plan-text: <card ids>` trailer naming the cards it clears, in the trailer block. Never the
+  the fix, which carries a `Plan-text: <card ids>` trailer naming the cards it clears, in the trailer block. The
+  trailer names a card of the findings: `none` and a `misnamed` id are refused. Never the
   decisions table, a `### D<n>` or `## ` heading, or a decision added or removed. A security card of `critical` or
   `high` severity stays an amend card. `converge.py` halts the round `plan edit refused` on any other plan edit.
 - **A fixer adds no package**: a dependency is the plan's, and a Codex fixer has no network.

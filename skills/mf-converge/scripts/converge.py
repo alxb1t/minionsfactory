@@ -1102,8 +1102,8 @@ def _reworded(context: Context, sha: str, path: str) -> bool:
 def plan_text(context: Context, before: str, after: str) -> None:
     """Halt `plan edit refused` on a fix commit past the plan text a fixer may edit.
 
-    Under the change's folder, `design.md` and `specs/` alone; the delta and a body
-    under a `Plan-text:` trailer naming no security card. Why: 0147-amends-alone D3.
+    Only `design.md` and `specs/` may change, the delta and a body under a `Plan-text:`
+    trailer naming a card of the findings. Why: 0147-amends-alone D3.
     """
     folder = f"openspec/changes/{context.change}/"
     span = f"{before}..{after}"
@@ -1128,7 +1128,12 @@ def plan_text(context: Context, before: str, after: str) -> None:
                 f"plan edit refused — {sha[:7]} edits {', '.join(worded)}"
                 f" with no {PLAN_TEXT}: trailer"
             )
-        cards = (card for verdict in _files(context) for card in verdict.cards)
+        cards = [card for verdict in _files(context) for card in verdict.cards]
+        if not ids & {card.id for card in cards}:
+            raise Halt(
+                f"plan edit refused — {sha[:7]} names no card of the findings"
+                f" under {PLAN_TEXT}:"
+            )
         if severe := sorted(
             card.id for card in cards if card.id in ids and card.security
         ):

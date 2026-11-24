@@ -71,7 +71,7 @@ skipped gives you neither file: its findings file is a stub, `mode: skipped`, wh
   scale in [the findings file contract](worker.md#the-findings-file-contract).
 - **Conformance also runs** its stale-claim, test-cost and coverage-trace passes over the fix diff, by
   [the passes table](worker.md#conformance-and-adversarial) and [the rules for tests](worker.md#rules-for-tests), so a
-  fix's new test is judged like the build's. The unplanned-file pass leaves out a file changed only by a commit the status log names as a fix's: a fix's files stand on no task.
+  fix's new test is judged like the build's. The unplanned-file pass leaves out a file changed only by a commit the status log names as a fix's, whose files stand on its cards: a fix's files stand on no task.
 - **Rewrite the frontmatter's** `head`, `round` — save in a pickup check, which leaves it — `reviewed`,
   `open_blocking`, `verdict`, and `files`, `commits` and conformance's `passes` for the fix diff; append each transition to
   `## Resolution log` as one line naming its card, `- <YYYY-MM-DD> · <id> <from> → <to>`:
