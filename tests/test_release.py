@@ -1,6 +1,6 @@
-"""The release script's `pre`, `finish`, `findings` and git helper, over a scratch repo.
+"""The release script's subcommands and git helper, over a scratch repo.
 
-Why: 0152-release-script design D1…D10 and D14.
+Why: 0152-release-script design D1…D11 and D14.
 """
 
 import contextlib
@@ -1770,3 +1770,138 @@ def test_pre_halts_on_a_forged_release_commit(
     assert (code, lines[-1]) == (1, f"release: halt — {said}")
     assert repo.head == head
     assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+MERGED = f"release: ok — {CHANGE} merged into main"
+
+
+def _merge(repo: Repo, *flags: str) -> tuple[int, list[str]]:
+    return repo.main("merge", CHANGE, *flags)
+
+
+def _main_at(repo: Repo) -> str:
+    return repo.git("rev-parse", "main").strip()
+
+
+def _linked(repo: Repo, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put the primary on `main`, the branch in a linked worktree the test runs in."""
+    repo.git("switch", "-q", "main")
+    tree = repo.root.parent / "tree"
+    repo.git("worktree", "add", "-q", str(tree), CHANGE)
+    monkeypatch.chdir(tree)
+    return tree
+
+
+def test_merge_merges_with_its_trailer_and_the_trees_are_equal(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _cut_release(repo)
+    release = repo.head
+    _linked(repo, monkeypatch)
+    code, lines = _merge(repo, "--run")
+    assert (code, lines[-1]) == (0, MERGED)
+    assert f"release: ok — trees · main equals {CHANGE}" in lines
+    assert repo.git("rev-list", "--parents", "-n", "1", "main").split()[2] == release
+    assert repo.git("log", "-1", "--format=%s", "main").strip() == (
+        f"Merge branch '{CHANGE}'"
+    )
+    assert repo.git("log", "-1", "--format=%(trailers)", "main").strip() == (
+        f"Change: {CHANGE}"
+    )
+    tree = repo.git("rev-parse", f"{CHANGE}^{{tree}}")
+    assert repo.git("rev-parse", "main^{tree}") == tree
+    assert repo.git("branch", "--show-current").strip() == "main"
+
+
+def test_merge_halts_on_an_untagged_branch(repo: Repo) -> None:
+    before = _main_at(repo)
+    then = f" — run release.py finish {CHANGE}"
+    said = f"release: halt — merge: HEAD is no release commit{then}"
+    assert _merge(repo) == (1, [said])
+    _cut_release(repo)
+    repo.git("tag", "-d", "v0.2.0")
+    code, lines = _merge(repo)
+    assert (code, lines[-1]) == (
+        1,
+        f"release: halt — merge: v0.2.0 is not on HEAD{then}",
+    )
+    assert _main_at(repo) == before
+
+
+def test_merge_halts_when_the_default_branch_moved(repo: Repo) -> None:
+    _cut_release(repo)
+    _moved(repo)
+    before = _main_at(repo)
+    code, lines = _merge(repo)
+    assert (code, lines[-1]) == (
+        1,
+        f"release: halt — base: main moved past HEAD — run /mf-release {CHANGE} again:"
+        " its pre drops the release",
+    )
+    assert _main_at(repo) == before
+
+
+def test_merge_halts_on_a_dirty_primary(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _cut_release(repo)
+    _linked(repo, monkeypatch)
+    before = _main_at(repo)
+    repo.put("stray.txt", "x\n")
+    code, lines = _merge(repo)
+    assert (code, lines[-1]) == (1, "release: halt — primary: dirty — ?? stray.txt")
+    assert _main_at(repo) == before
+
+
+def test_merge_halts_on_a_primary_off_the_default_branch(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _cut_release(repo)
+    _linked(repo, monkeypatch)
+    repo.git("switch", "-q", "-c", "elsewhere")
+    before = _main_at(repo)
+    code, lines = _merge(repo)
+    assert (code, lines[-1]) == (1, "release: halt — primary: on elsewhere, not main")
+    assert _main_at(repo) == before
+
+
+def test_merge_halts_while_the_flag_stands(repo: Repo) -> None:
+    _cut_release(repo)
+    flag = repo.run_folder / "release.flag"
+    flag.write_text("README.md states v0.1\n")
+    before = _main_at(repo)
+    code, lines = _merge(repo)
+    assert (code, lines[-1]) == (
+        1,
+        f"release: halt — .minions/changes/{CHANGE}/release.flag stands"
+        " — read the prose it names, then merge",
+    )
+    assert _main_at(repo) == before
+    flag.unlink()
+    assert _merge(repo)[1][-1] == MERGED
+
+
+def test_merge_switches_a_primary_that_is_this_checkout(repo: Repo) -> None:
+    _cut_release(repo)
+    release = repo.head
+    code, lines = _merge(repo)
+    assert (code, lines[-1]) == (0, MERGED)
+    assert repo.git("branch", "--show-current").strip() == "main"
+    assert repo.git("rev-list", "--parents", "-n", "1", "main").split()[2] == release
+
+
+def test_merge_halts_when_the_merged_tree_differs(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _cut_release(repo)
+    real = repo.ns.Git.ok
+
+    def differs(git: object, *args: str) -> bool:
+        return args[0] != "diff" and real(git, *args)
+
+    monkeypatch.setattr(repo.ns.Git, "ok", differs)
+    code, lines = _merge(repo)
+    assert (code, lines[-1]) == (
+        1,
+        f"release: halt — merge: main's tree is not {CHANGE}'s",
+    )

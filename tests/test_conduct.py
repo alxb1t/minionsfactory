@@ -53,6 +53,7 @@ from old_layout import plant as plant_old
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "conduct.py"
 _WORKER = Path(__file__).with_name("fake_worker.py")
+_FAKE_RELEASE = Path(__file__).with_name("fake_release.py")
 _WORKTREES = (
     "- **Worktrees:** `../` — a version's worktree is `<this path>/<branch>`.\n"
 )
@@ -249,15 +250,17 @@ def _uv_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def cut_check(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point each loaded conductor's `CUT_CHECK` at a stub that exits 0; return it.
 
-    A test writes its own stub over it. Why: 0146-cut-catches design D2.
+    `RELEASE` points at `fake_release.py`. A test writes its own stub over either.
+    Why: 0146-cut-catches design D2; 0152-release-script design *Tests*.
     """
     stub = tmp_path / "cut-check-stub.py"
     stub.write_text("import sys\nsys.exit(0)\n")
 
     def loaded() -> dict[str, Any]:
         names = conduct_load.conduct()
-        names["main"].__globals__["CUT_CHECK"] = stub
-        names["CUT_CHECK"] = stub
+        for name, path in (("CUT_CHECK", stub), ("RELEASE", _FAKE_RELEASE)):
+            names["main"].__globals__[name] = path
+            names[name] = path
         return names
 
     monkeypatch.setattr(sys.modules[__name__], "_conduct", loaded)
@@ -2355,10 +2358,18 @@ def test_a_free_version_ships_past_a_blocked_chain(
     _version(hand, "0002-marks", "- [ ] 1 — Marks\n", after="0001-todo")
     _version(hand, "0003-self", "- [ ] 1 — Self\n", after="0003-self")
     _version(hand, "0004-free", "- [ ] 1 — Free\n")
+    # The conductor runs apart, bounded in time, its `RELEASE` the stand-in's.
+    started = (
+        "import sys; from pathlib import Path; import conduct_load;"
+        " names = conduct_load.conduct();"
+        f" names['main'].__globals__['RELEASE'] = Path({str(_FAKE_RELEASE)!r});"
+        " sys.exit(names['main'](['run', '--executor', 'claude']))"
+    )
     done = subprocess.run(
-        [sys.executable, str(_SCRIPT), "run", "--executor", "claude"],
+        [sys.executable, "-c", started],
         cwd=hand,
         capture_output=True,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
         timeout=60,
     )
     assert done.returncode == 1
@@ -9368,14 +9379,12 @@ def test_a_changed_git_config_halts_a_merge_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
-    changed = " · 0002-marks · halt — the local git config changed during the run:"
-    held = (
-        " · run · halt — conduct: halt — the repo's git config holds a key that could"
-        " name a program: mf.planted; move it to the global config or remove it"
-        " · cause run"
-    )
+    # The guard before `release.py finish` halts the release that planted the key.
+    # Why: 0152-release-script design D12.
+    changed = " · 0001-todo · halt — the local git config changed during the run:"
+    held = f"{changed} .git/config differs · cause other"
     for mode, said, remote in (
-        ("plant-config", f"{changed} .git/config differs · cause other", False),
+        ("plant-config", held, False),
         (
             "plant-attributes",
             f"{changed} .git/info/attributes differs · cause other",
@@ -9409,7 +9418,10 @@ def test_a_changed_git_config_halts_a_merge_in(
 
         assert "release 0001-todo" in _calls(calls)
         assert "converge-conformance-r1 0002-marks" not in _calls(calls)
-        assert any(line.endswith(said) for line in _log(root))
+        lines = _log(root)
+        assert any(line.endswith(said) for line in lines), lines
+        assert not any("release · script finish" in line for line in lines)
+        assert "0001-todo" in _git(root, "branch", "--no-merged", "main")
         assert not _git(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False)
         assert "chore(integrate)" not in _git(root, "log", "--format=%s", "0002-marks")
 
@@ -10089,6 +10101,363 @@ def test_status_prints_a_tip_tagged_elsewhere_with_its_reason(
     ]
 
 
+def _releasable(tmp_path: Path) -> tuple[Path, Path]:
+    """Return a primary and the worktree of `0001-todo`, whose stage is `release`."""
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    _findings(root, "0001-todo", head)
+    return root, tree
+
+
+def _release_commit(root: Path, tree: Path) -> None:
+    """Commit `0001-todo`'s release as `release.py finish` does, its mark written."""
+    marks = root / ".minions" / "changes" / "0001-todo"
+    head = _git(tree, "rev-parse", "HEAD")
+    (marks / "release.pre").write_text(
+        f"tag: v0.1.0\nversion: v0.1\ngate: 1\nhead: {head}\n"
+    )
+    (tree / "openspec" / "changes" / "archive").mkdir()
+    _git(tree, "mv", "openspec/changes/0001-todo", "openspec/changes/archive/0001-todo")
+    _git(tree, "commit", "-q", "-m", "chore(release): v0.1.0")
+
+
+def _release_calls(path: Path) -> list[str]:
+    """Return each `fake_release.py` run `FAKE_RELEASE_CALLS` logged, in order."""
+    return path.read_text().splitlines() if path.is_file() else []
+
+
+def test_the_release_script_runs_boxed_with_run_and_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, tree = _releasable(tmp_path)
+    module = conduct["main"].__globals__
+    boxed: list[tuple[Path, Path, list[str]]] = []
+
+    def box(
+        primary: Path, cwd: Path, argv_: list[str], *, cut: bool = False
+    ) -> tuple[int, str]:
+        boxed.append((primary, cwd, argv_))
+        return 0, "release: ok — old layout\nrelease: tag — v0.1.0\n"
+
+    monkeypatch.setitem(module, "_boxed", box)
+    run = conduct["Run"](root, "claude")
+
+    def origin() -> list[str]:
+        assert run.release_step("0001-todo", tree, "pre") == (
+            0,
+            "release: tag — v0.1.0",
+        )
+        primary, cwd, argv_ = boxed[-1]
+        assert (primary, cwd) == (root, tree)
+        script = [sys.executable, str(_FAKE_RELEASE)]
+        assert argv_[:5] == [*script, "pre", "0001-todo", "--run"]
+        return argv_[5:]
+
+    free, held = ["--origin", "free"], ["--origin", "held"]
+    assert origin() == free
+    bare = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(bare))
+    _git(root, "remote", "add", "origin", str(bare))
+    # An origin no run kept is read by no one: the script reads it, or halts.
+    assert origin() == []
+    conduct["_keep_origin"](root)
+    assert origin() == free
+    _git(root, "push", "-q", "origin", "main")
+    assert origin() == free
+    _git(tree, "tag", "v0.1.0")
+    _git(tree, "push", "-q", "origin", "v0.1.0")
+    assert origin() == held
+    _git(tree, "push", "-q", "origin", ":refs/tags/v0.1.0")
+    assert origin() == free
+    _git(tree, "push", "-q", "origin", "HEAD:main")
+    assert origin() == held
+    run.offline = True
+    assert origin() == []
+    run.offline = False
+    shutil.rmtree(bare)
+    assert origin() == []
+
+
+def test_a_script_run_is_logged_as_a_release_spawn_and_finish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, tree = _releasable(tmp_path)
+    halted = "release: ok — old layout\nrelease: halt — tree: dirty at x\n"
+    replies: list[tuple[int, str] | Exception] = [
+        (1, halted),
+        conduct["Stop"](2, "conduct: cannot run — no OS sandbox"),
+    ]
+
+    def box(
+        primary: Path, cwd: Path, argv_: list[str], *, cut: bool = False
+    ) -> tuple[int, str]:
+        reply = replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    monkeypatch.setitem(conduct["main"].__globals__, "_boxed", box)
+    run = conduct["Run"](root, "claude")
+    assert run.release_step("0001-todo", tree, "finish") == (
+        1,
+        "release: halt — tree: dirty at x",
+    )
+    assert run.release_step("0001-todo", tree, "merge") == (
+        2,
+        "release.py cannot start — conduct: cannot run — no OS sandbox",
+    )
+    lines = [
+        line.split(" · ", 1)[1]
+        for line in run.log.path.read_text().splitlines()
+        if line[:1].isdigit()
+    ]
+    assert lines == [
+        "0001-todo · spawn — release · script finish",
+        "0001-todo · finish — release · script finish · exit 1 · 0s",
+        "0001-todo · spawn — release · script merge",
+        "0001-todo · finish — release · script merge · exit 2 · 0s",
+    ]
+    assert runlog.release_died(layout.runs_dir(root), "0001-todo")
+
+
+def test_the_release_stand_in_makes_the_commit_tag_and_merge(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    fake()
+    root, tree = _releasable(tmp_path)
+
+    def step(name: str) -> str:
+        done = subprocess.run(
+            [sys.executable, str(_FAKE_RELEASE), name, "0001-todo", "--run"],
+            cwd=tree,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return done.stdout.strip()
+
+    assert step("pre") == "release: tag — v0.1.0"
+    mark = root / ".minions" / "changes" / "0001-todo" / "release.pre"
+    assert mark.read_text().startswith("tag: v0.1.0\n")
+    assert step("finish") == "release: ok — v0.1.0 committed and tagged"
+    assert _git(tree, "log", "-1", "--format=%s") == "chore(release): v0.1.0"
+    assert _git(tree, "rev-parse", "v0.1.0") == _git(tree, "rev-parse", "HEAD")
+    assert step("pre") == "release: resume — v0.1.0"
+    assert step("merge") == "release: ok — 0001-todo merged into main"
+    assert _git(root, "branch", "--no-merged", "main") == ""
+
+
+def _halted_by(
+    conduct: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    calls: Path,
+    body: str,
+) -> list[str]:
+    """Run a releasable version whose `release.py` runs `body`; return the run log."""
+    root, _ = _releasable(tmp_path)
+    script = tmp_path / "release-stub.py"
+    script.write_text(body)
+    conduct["main"].__globals__["RELEASE"] = script
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _calls(calls) == ["probe"]
+    return _log(root)
+
+
+def test_a_script_halt_is_the_versions_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    body = 'print("release: halt — tree: dirty at x")\nraise SystemExit(1)\n'
+    lines = _halted_by(conduct, tmp_path, monkeypatch, fake(), body)
+    said = (
+        " · 0001-todo · halt — release check fail — release: halt — tree: dirty at x"
+        " · cause release"
+    )
+    assert any(text.endswith(said) for text in lines), lines
+
+
+def test_a_script_that_cannot_run_halts_the_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    body = (
+        'print("release: cannot run — git rev-parse failed: x")\nraise SystemExit(2)\n'
+    )
+    lines = _halted_by(conduct, tmp_path, monkeypatch, fake(), body)
+    said = (
+        " · 0001-todo · halt — release check fail — release cannot run — release:"
+        " cannot run — git rev-parse failed: x · cause release"
+    )
+    assert any(text.endswith(said) for text in lines), lines
+    assert any(" · finish — release · script pre · exit 2 · " in text for text in lines)
+
+
+@pytest.mark.slow
+def test_a_drop_line_reads_the_stage_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    released = tmp_path / "release-calls.txt"
+    monkeypatch.setenv("FAKE_RELEASE_CALLS", str(released))
+    root, tree = _releasable(tmp_path)
+    _release_commit(root, tree)
+    _git(tree, "tag", "v0.1.0")
+    stranded = _git(tree, "rev-parse", "HEAD")
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    assert _run_claude(conduct, root, monkeypatch) == 0, _log(root)
+    assert _calls(calls)[:2] == ["probe", "integrate 0001-todo"]
+    assert _calls(calls)[-1] == "release 0001-todo"
+    script = "0001-todo run=True origin=free"
+    assert _release_calls(released) == [
+        f"{step} {script}" for step in ("pre", "pre", "finish", "merge")
+    ]
+    assert stranded not in _git(root, "rev-list", "main").split()
+    assert _git(root, "rev-parse", "v0.1.0^{commit}") in _git(root, "rev-list", "main")
+
+
+def test_a_resume_starts_no_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    calls = fake()
+    released = tmp_path / "release-calls.txt"
+    monkeypatch.setenv("FAKE_RELEASE_CALLS", str(released))
+    root, tree = _releasable(tmp_path)
+    _release_commit(root, tree)
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    (runs / "20261101-100000.md").write_text(
+        "10:00:00 · 0001-todo · spawn — release · script finish\n"
+    )
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+    assert stage_of(root, find(root, "0001-todo")) == (
+        "release",
+        "v0.1.0 is not tagged; the merge is left",
+    )
+    assert _run_claude(conduct, root, monkeypatch) == 0, _log(root)
+    assert _calls(calls) == ["probe"]
+    script = "0001-todo run=True origin=free"
+    assert _release_calls(released) == [
+        f"{step} {script}" for step in ("pre", "finish", "merge")
+    ]
+    assert _git(root, "tag", "-l") == "v0.1.0"
+    assert _git(root, "branch", "--no-merged", "main") == ""
+
+
+@pytest.mark.parametrize("guard", ["changed", "held"])
+def test_a_key_planted_by_the_release_worker_halts_before_finish(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+    guard: str,
+) -> None:
+    conduct = _conduct()
+    calls = fake("plant-held")
+    released = tmp_path / "release-calls.txt"
+    monkeypatch.setenv("FAKE_RELEASE_CALLS", str(released))
+    root, _ = _releasable(tmp_path)
+    said = "the local git config changed during the run: .git/config differs"
+    if guard == "held":
+        # Twin: with the change unseen, the planted key itself halts.
+        monkeypatch.setitem(
+            conduct["main"].__globals__, "_config_changed", lambda *_: None
+        )
+        said = (
+            "conduct: halt — the repo's git config holds a key that could name a"
+            " program: mf.planted; move it to the global config or remove it"
+        )
+    assert _run_claude(conduct, root, monkeypatch) == 1
+    assert _calls(calls) == ["probe", "release 0001-todo"]
+    assert _release_calls(released) == ["pre 0001-todo run=True origin=free"]
+    lines = _log(root)
+    assert any(f" · 0001-todo · halt — {said} · cause " in text for text in lines), (
+        lines
+    )
+    assert _git(root, "tag", "-l") == ""
+
+
+def test_a_droppable_tip_reads_release(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, tree = _releasable(tmp_path)
+    _release_commit(root, tree)
+    _git(tree, "tag", "v0.1.0")
+    _commit(root, {"moved.txt": "x\n"}, "main moves")
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+
+    def read() -> tuple[str, str]:
+        return stage_of(root, find(root, "0001-todo"))
+
+    assert read() == (
+        "release",
+        "v0.1.0 is tagged; main moved: release.py pre drops it",
+    )
+
+    def kept(why: str) -> tuple[str, str]:
+        return (
+            "released",
+            f"v0.1.0 is tagged; main moved and {why}, so recover by hand:"
+            " git tag -d v0.1.0, git reset --hard HEAD~1, then /mf-integrate 0001-todo,"
+            " /mf-converge, /mf-release",
+        )
+
+    # Each bound `release.py pre` drops under, failed, reads `released` naming it.
+    mark = root / ".minions" / "changes" / "0001-todo" / "release.pre"
+    text = mark.read_text()
+    mark.unlink()
+    assert read() == kept(".minions/changes/0001-todo/release.pre is missing")
+    mark.write_text(text)
+    bare = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(bare))
+    _git(root, "remote", "add", "origin", str(bare))
+    assert read() == kept("origin cannot be read")
+    conduct["_keep_origin"](root)
+    assert read()[0] == "release"
+    _git(root, "push", "-q", "origin", "v0.1.0")
+    assert read() == kept("origin holds it")
+    _git(root, "remote", "remove", "origin")
+    _git(root, "merge", "-q", "--no-ff", "-m", "merge", "0001-todo")
+    _commit(root, {"after.txt": "x\n"}, "main moves again")
+    assert read() == kept("HEAD is on main")
+
+
+def test_a_flagged_tip_reads_released(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root, tree = _releasable(tmp_path)
+    _release_commit(root, tree)
+    _git(tree, "tag", "v0.1.0")
+    runs = layout.runs_dir(root)
+    runs.mkdir(parents=True)
+    (runs / "20261101-100000.md").write_text(
+        "10:00:00 · 0001-todo · finish — release · script finish · exit 1 · 1s\n"
+    )
+    stage_of, find = conduct["stage_of"], conduct["find_version"]
+
+    def read() -> tuple[str, str]:
+        return stage_of(root, find(root, "0001-todo"))
+
+    assert read() == ("release", "v0.1.0 is tagged; the merge is left")
+    (root / ".minions" / "changes" / "0001-todo" / "release.flag").write_text("x\n")
+    assert read() == (
+        "released",
+        "v0.1.0 is tagged; .minions/changes/0001-todo/release.flag stands: a person"
+        " reads the prose it names, then /mf-release 0001-todo merges it",
+    )
+
+
 @pytest.mark.slow
 def test_a_rerun_recovers_a_dead_release(
     tmp_path: Path,
@@ -10112,16 +10481,32 @@ def test_a_rerun_recovers_a_dead_release(
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
         return capsys.readouterr().out.strip()
 
+    # `release.py finish` dies after its archive move: `pre` restores, the worker folds.
+    # Why: 0152-release-script design D8.
     run(1)
     assert _git(tree, "status", "--porcelain")
     assert _git(root, "tag", "-l") == ""
+    assert any(
+        line.endswith(
+            " · 0001-todo · halt — release check fail — release cannot run — no output"
+            " · cause release"
+        )
+        for line in _log(root)
+    )
     assert stage() == "0001-todo · release"
     calls.unlink()
     fake()
     run(0)
     assert _calls(calls) == ["probe", "release 0001-todo"]
     assert _git(root, "tag", "-l") == "v0.1.0"
+    assert _git(root, "show", "--name-only", "--format=", "v0.1.0").split() == [
+        "openspec/changes/archive/0001-todo/design.md",
+        "openspec/changes/archive/0001-todo/proposal.md",
+        "openspec/changes/archive/0001-todo/tasks.md",
+        "openspec/specs/0001-todo/spec.md",
+    ]
 
+    # It dies after its tag: a re-run resumes, starts no worker, and merges.
     _version(root, "0002-marks", "- [ ] 1 — Marks\n")
     calls.unlink()
     fake("dies-release-tag")
@@ -10154,7 +10539,7 @@ def test_a_rerun_recovers_a_dead_release(
     assert _git(root, "branch", "--no-merged", "main").endswith(" 0002-marks")
     held.unlink()
     run(0)
-    assert _calls(calls) == ["probe", "release 0002-marks"]
+    assert _calls(calls) == ["probe"]
     assert _git(root, "tag", "-l").split() == ["v0.1.0", "v0.2.0"]
     assert _git(root, "branch", "--no-merged", "main") == ""
 
@@ -10175,45 +10560,39 @@ def test_a_release_cut_short_is_recovered(
     stage_of, find = conduct["stage_of"], conduct["find_version"]
 
     def run(code: int) -> None:
-        assert _run_claude(conduct, root, monkeypatch) == code
+        assert _run_claude(conduct, root, monkeypatch) == code, _log(root)
 
     def stage() -> str:
         capsys.readouterr()
         assert _main(conduct, root, "status", monkeypatch=monkeypatch) == 0
         return capsys.readouterr().out.strip()
 
-    _version(root, "0003-more", "- [ ] 1 — More\n")
+    # A release stranded when `main` moved: `pre` drops its tag and its commit, and the
+    # version goes back to integrate. Why: 0152-release-script design D10.
+    more = _version(root, "0003-more", "- [ ] 1 — More\n")
     run(1)
+    stranded = _git(more, "rev-parse", "HEAD")
     _commit(root, {"moved.txt": "x\n"}, "main moves")
-    assert stage() == (
-        "0003-more · released — v0.3.0 is tagged; main moved, so recover by hand:"
-        " git tag -d v0.3.0, git reset --hard HEAD~1, then"
-        " /mf-integrate 0003-more, /mf-converge, /mf-release"
+    assert stage() == "0003-more · release"
+    assert stage_of(root, find(root, "0003-more"))[1] == (
+        "v0.3.0 is tagged; main moved: release.py pre drops it"
     )
     calls.unlink()
     fake()
-    run(1)
-    assert _calls(calls) == []
-    assert any(
-        line.endswith(
-            " · 0003-more · halt — released — v0.3.0 is tagged; main moved, so recover"
-            " by hand: git tag -d v0.3.0, git reset --hard HEAD~1, then"
-            " /mf-integrate 0003-more, /mf-converge, /mf-release · cause release"
-        )
-        for line in _log(root)
-    )
-    _git(root, "tag", "-d", "v0.3.0")
-    assert stage_of(root, find(root, "0003-more")) == (
-        "released",
-        "v0.3.0 is not tagged; main moved, so recover by hand: git reset --hard HEAD~1,"
-        " then /mf-integrate 0003-more, /mf-converge, /mf-release",
-    )
-    _git(root, "tag", "v0.3.0", "0003-more")
+    run(0)
+    assert _calls(calls)[:2] == ["probe", "integrate 0003-more"]
+    assert _calls(calls)[-1] == "release 0003-more"
+    reached = _git(root, "rev-list", "main").split()
+    assert stranded not in reached
+    assert _git(root, "rev-parse", "v0.3.0^{commit}") in reached
+    assert "0003-more" not in _git(root, "branch", "--no-merged", "main")
 
     def last() -> str:
         return stage().splitlines()[-1]
 
+    # It dies after its commit: a re-run resumes, tags with no worker, and merges.
     _version(root, "0004-four", "- [ ] 1 — Four\n")
+    calls.unlink()
     fake("dies-release-commit")
     run(1)
     assert "v0.4.0" not in _git(root, "tag", "-l").split()
@@ -10223,8 +10602,8 @@ def test_a_release_cut_short_is_recovered(
     )
     calls.unlink()
     fake()
-    run(1)
-    assert "release 0004-four" in _calls(calls)
+    run(0)
+    assert "release 0004-four" not in _calls(calls)
     assert "v0.4.0" in _git(root, "tag", "-l").split()
     assert "0004-four" not in _git(root, "branch", "--no-merged", "main")
 
@@ -12130,9 +12509,8 @@ def test_no_worker_pushes(
     lines = [line.split(" · ", 1)[1] for line in _log(root)]
     # Twin: a home folder that takes the file logs no `unkept`.
     assert not any(line.startswith("run · unkept") for line in lines)
-    finish = next(
-        i for i, line in enumerate(lines) if line.startswith("0001-todo · finish — rel")
-    )
+    merged = "0001-todo · finish — release · script merge · exit 0 · "
+    finish = next(i for i, line in enumerate(lines) if line.startswith(merged))
     assert lines[finish + 1 :] == [
         "run · push — main",
         "run · push — v0.1.0",
@@ -12198,12 +12576,19 @@ def test_a_worker_repointing_origin_reaches_nothing(
     assert _run_claude(conduct, root, monkeypatch) == 1
 
     assert _git(elsewhere, "for-each-ref") == ""
-    said = " · run · halt — the local git config changed during the run: .git/config"
-    assert any(line.endswith(f"{said} differs · cause run") for line in _log(root))
+    # The guard before `release.py finish` halts the release whose worker repointed it.
+    said = (
+        " · 0001-todo · halt — the local git config changed during the run: .git/config"
+    )
+    lines = _log(root)
+    assert any(line.endswith(f"{said} differs · cause other") for line in lines), lines
+    assert not any("release · script finish" in line for line in lines)
     # An `ls-remote` leaves no ref there: the URL itself is what would leave.
     assert not any(str(elsewhere) in args for args in reached)
+    # With no release merged, `report` has no origin to read: it reaches nothing either.
     for command in _PUSH_COMMANDS:
-        assert _main(conduct, root, *command, monkeypatch=monkeypatch) == 1
+        code = 0 if command == ("report",) else 1
+        assert _main(conduct, root, *command, monkeypatch=monkeypatch) == code, command
     assert not any(str(elsewhere) in args for args in reached)
 
     # A re-run is no first read: the URLs a run kept stand until a person acts.

@@ -2,9 +2,9 @@
 # requires-python = ">=3.12"
 # dependencies = []
 # ///
-"""Check a release before the worker's fold, and cut it after, by fixed rules.
+"""Check a release before the worker's fold, then cut and merge it, by fixed rules.
 
-    release.py pre|finish <change-id> [--run] [--origin held|free] | findings <file>
+    release.py pre|finish|merge <change-id> [--run] [--origin held|free] | findings <f>
 Why: 0152-release-script design D1, D2 and D3.
 """
 
@@ -940,16 +940,60 @@ def finish(cwd: Path, change: str, run: bool, given: str | None = None) -> str:
     return f"release: ok — {tag} committed and tagged"
 
 
+def merge(cwd: Path, change: str, run: bool, _given: str | None = None) -> str:
+    """Merge the tagged release commit into the default branch, in the primary.
+
+    Why: 0152-release-script design D11.
+    """
+    git, primary = _opened(cwd, change, run)
+    keys = _released(git, primary, change)
+    if keys is None:
+        raise halt(f"merge: HEAD is no release commit — run release.py finish {change}")
+    tag = keys["tag"]
+    if _tag_commit(git, tag) != git.out("rev-parse", "HEAD").strip():
+        raise halt(f"merge: {tag} is not on HEAD — run release.py finish {change}")
+    _ok(f"tag · {tag} is on HEAD")
+    flag = mflib.layout.change_dir(primary, change) / FLAG
+    if os.path.lexists(flag):
+        raise halt(
+            f"{flag.relative_to(primary)} stands — read the prose it names, then merge"
+        )
+    _ok("flag · none")
+    default = default_branch(git)
+    if not git.ok("merge-base", "--is-ancestor", default, "HEAD"):
+        raise halt(
+            f"base: {default} moved past HEAD — run /mf-release {change} again:"
+            " its pre drops the release"
+        )
+    _ok(f"base · {default} is an ancestor of HEAD")
+    branch = git.out("branch", "--show-current").strip()
+    there = Git(primary, run)
+    if dirty := there.out("status", "--porcelain"):
+        raise halt(f"primary: dirty — {dirty.splitlines()[0].strip()}")
+    _ok("primary · clean")
+    if primary == git.cwd:
+        there.out("switch", "-q", default)
+    elif (on := there.out("branch", "--show-current").strip()) != default:
+        raise halt(f"primary: on {on or 'no branch'}, not {default}")
+    message = ("-m", f"Merge branch '{branch}'", "-m", f"Change: {change}")
+    there.out("merge", "-q", "--no-ff", *message, branch)
+    if not there.ok("diff", "--quiet", branch, default):
+        raise halt(f"merge: {default}'s tree is not {branch}'s")
+    _ok(f"trees · {default} equals {branch}")
+    return f"release: ok — {branch} merged into {default}"
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run one subcommand; return 0 for ok, 1 for a halt, 2 for a script that cannot."""
     parser = argparse.ArgumentParser(
         description="Check and cut a release by fixed rules."
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    steps = {"pre": pre, "finish": finish}
+    steps = {"pre": pre, "finish": finish, "merge": merge}
     helps = {
         "pre": "check the preconditions, print the tag",
         "finish": "archive, cut the changelog, gate, commit and tag",
+        "merge": "merge the tagged release into the default branch",
     }
     for name, said in helps.items():
         step = commands.add_parser(name, help=said)

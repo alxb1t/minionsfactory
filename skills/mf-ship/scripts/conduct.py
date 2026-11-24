@@ -83,6 +83,9 @@ GATE_RUN = CONVERGE.with_name("gate_run.py")
 PLAN_CHECK = CONVERGE.with_name("plan_check.py")
 # The cut's checker, run by the conductor's Python. Why: 0146-cut-catches design D1.
 CUT_CHECK = Path(__file__).resolve().parents[2] / "mf-cut-change/scripts/cut_check.py"
+# The release's fixed steps, run by the conductor's Python: it needs no package.
+# Why: 0152-release-script design D1, D12.
+RELEASE = Path(__file__).resolve().parents[2] / "mf-release/scripts/release.py"
 CHECK_TAIL = 20
 # A cut's checker or declared command is bounded in time and in the output it keeps.
 # Why: 0146-cut-catches design D1, D6.
@@ -130,7 +133,7 @@ WAIT_SECONDS = 60
 FINAL = "final — "
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
-RELEASE = re.compile(r"chore\(release\): (\S+)")
+RELEASE_SUBJECT = re.compile(r"chore\(release\): (\S+)")
 # The viewer borrows both from the loaded conductor. Why: 0140-run-log design D2.
 EVENT = mflib.runlog.EVENT
 last_log = mflib.runlog.newest
@@ -629,7 +632,7 @@ def _worktrees(primary: Path) -> dict[str, Path]:
 def _tag_of(primary: Path, change: str) -> str | None:
     """Return the tag the branch's tip names, or None before a release."""
     # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
-    found = RELEASE.fullmatch(_subject(primary, f"refs/heads/{change}"))
+    found = RELEASE_SUBJECT.fullmatch(_subject(primary, f"refs/heads/{change}"))
     return found[1] if found else None
 
 
@@ -1562,6 +1565,21 @@ def _note(tree: Path, change: str, moved: list[str]) -> str:
     return "\n".join(sections)
 
 
+def _undroppable(primary: Path, tree: Path, change: str, default: str) -> str | None:
+    """Return why `release.py pre` may not drop a stranded tip, or None when it may.
+
+    Why: 0152-release-script design D10.
+    """
+    if not (mflib.layout.change_dir(primary, change) / "release.pre").is_file():
+        return f".minions/changes/{change}/release.pre is missing"
+    if _ancestor(tree, "HEAD", default):
+        return f"HEAD is on {default}"
+    held = _origin_holds(primary, tree, change)
+    if held is None:
+        return "origin cannot be read"
+    return "origin holds it" if held else None
+
+
 def _release_tip(
     primary: Path,
     tree: Path,
@@ -1569,9 +1587,13 @@ def _release_tip(
     tag: str,
     skips: frozenset[str] | None = None,
 ) -> tuple[str, str]:
-    """Return the stage of a tip that says it is released; only a death re-enters."""
+    """Return the stage of a tip that says it is released; a death or a drop re-enters.
+
+    Why: 0152-release-script design D10.
+    """
     runs = mflib.layout.run_dir(primary)
-    if (mflib.layout.change_dir(primary, change) / "release.held").is_file():
+    marks = mflib.layout.change_dir(primary, change)
+    if (marks / "release.held").is_file():
         return "released", (
             f"{tag}: .minions/changes/{change}/release.held holds a person's no:"
             f" /mf-release {change} merges it on their yes"
@@ -1582,10 +1604,18 @@ def _release_tip(
     stated = "is not tagged" if own is None else "is tagged"
     default = default_branch(primary)
     if not _ancestor(tree, default, "HEAD"):
-        undo = "" if own is None else f"git tag -d {tag}, "
+        if why := _undroppable(primary, tree, change, default):
+            undo = "" if own is None else f"git tag -d {tag}, "
+            return "released", (
+                f"{tag} {stated}; {default} moved and {why}, so recover by hand:"
+                f" {undo}git reset --hard HEAD~1, then /mf-integrate {change},"
+                " /mf-converge, /mf-release"
+            )
+        return "release", f"{tag} {stated}; {default} moved: release.py pre drops it"
+    if os.path.lexists(marks / "release.flag"):
         return "released", (
-            f"{tag} {stated}; {default} moved, so recover by hand: {undo}git reset"
-            f" --hard HEAD~1, then /mf-integrate {change}, /mf-converge, /mf-release"
+            f"{tag} {stated}; .minions/changes/{change}/release.flag stands:"
+            f" a person reads the prose it names, then /mf-release {change} merges it"
         )
     if why := _unjudged(runs, tree, change, "HEAD~1", skips):
         return "released", f"{tag} {stated}; {why}: a person reads this tip"
@@ -2219,6 +2249,43 @@ def _on_default(primary: Path, merge: str | None) -> bool | None:
     if not tips or _outside(primary, "cat-file", "-e", tips[0]).returncode != 0:
         return False
     return _history_ancestor(primary, merge, tips[0])
+
+
+def _origin_holds(primary: Path, tree: Path, change: str) -> bool | None:
+    """Return whether origin holds a tag the release may take, or `HEAD` on its default.
+
+    No `origin` holds nothing; one this may not or cannot read is None.
+    Why: 0152-release-script design D3, D9, D10.
+    """
+    if not _has_origin(primary):
+        return False
+    url = _read_url(primary, first_read=False)
+    if url is None:
+        return None
+    default = default_branch(primary)
+    merged = set(_git(tree, "tag", "--list", "v*", "--merged", default).split())
+    tags = {
+        tag for tag in _git(tree, "tag", "--list", "v*").split() if TAG.fullmatch(tag)
+    }
+    tags -= merged
+    if (named := _tag_of(primary, change)) is not None:
+        tags.add(named)
+    refs = [f"refs/heads/{default}"]
+    for tag in sorted(tags):
+        refs += [f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"]
+    done = _remote(primary, "ls-remote", "--", url, *refs)
+    if done.returncode != 0:
+        return None
+    tip = None
+    for line in done.stdout.splitlines():
+        sha, _, ref = line.partition("\t")
+        if ref == f"refs/heads/{default}":
+            tip = sha
+        elif ref.removeprefix("refs/tags/").removesuffix("^{}") in tags:
+            return True
+    if tip is None or _outside(primary, "cat-file", "-e", tip).returncode != 0:
+        return False
+    return _history_ancestor(primary, _git(tree, "rev-parse", "HEAD").strip(), tip)
 
 
 def _history(primary: Path, *args: str) -> str:
@@ -5065,6 +5132,57 @@ class Run:
         self.halt(who, f"{stage} check fail — {reason}{named}")
         return False
 
+    def release_step(self, change: str, cwd: Path, step: str) -> tuple[int, str]:
+        """Run one `release.py` step boxed, with `--run` and `--origin`, and log it.
+
+        Return its exit and its last line. Why: 0152-release-script design D3, D12.
+        """
+        held = None if self.offline else _origin_holds(self.primary, cwd, change)
+        origin = () if held is None else ("--origin", "held" if held else "free")
+        argv_ = [sys.executable, str(RELEASE), step, change, "--run", *origin]
+        self.log.event(change, "spawn", f"release · script {step}")
+        started = time.monotonic()
+        try:
+            code, output = _boxed(self.primary, cwd, argv_)
+        except (OSError, Stop) as error:
+            code, output = 2, f"release.py cannot start — {_first(str(error))}"
+        seconds = round(time.monotonic() - started)
+        detail = f"release · script {step} · exit {code} · {seconds}s"
+        self.log.event(change, "finish", detail)
+        return code, _last(output)
+
+    def released_by(
+        self, change: str, cwd: Path, step: str, denied: list[str]
+    ) -> str | None:
+        """Return a `release.py` step's line; a step that stops halts, as None.
+
+        Exit 1 fails the release check with its line; another, `release cannot run`.
+        Why: 0152-release-script design D12.
+        """
+        code, line = self.release_step(change, cwd, step)
+        if code == 0:
+            return line
+        self.judge(
+            change,
+            "release",
+            line if code == 1 else f"release cannot run — {line}",
+            denied,
+        )
+        return None
+
+    def finish_release(self, change: str, cwd: Path, denied: list[str]) -> bool:
+        """Halt on a key the worker planted, then run `finish` and `merge`.
+
+        Return whether both ran to exit 0. Why: 0152-release-script design D12.
+        """
+        if changed := _config_changed(self.primary, self.git_state):
+            raise changed
+        _refuse_config_commands(cwd)
+        return all(
+            self.released_by(change, cwd, step, denied) is not None
+            for step in ("finish", "merge")
+        )
+
     def said(self, change: str) -> Callable[[str], None]:
         """Return a printer that logs each `<event> — <detail>` line as that event.
 
@@ -5656,9 +5774,18 @@ class Run:
                 amended = phase == "close" and _amended_since_simplify(
                     self.primary, change, cwd
                 )
+                # The release's fixed steps are a script's, around a worker that folds.
+                # Why: 0152-release-script design D12.
+                said = ""
+                if stage == "release":
+                    said = self.released_by(change, cwd, "pre", []) or ""
+                    if not said:
+                        return None
+                    if said.startswith("release: drop — "):
+                        continue
                 if stage == "converge":
                     denied = self.conducted(change, cwd, workers, grant)
-                elif amended:
+                elif amended or said.startswith("release: resume — "):
                     denied = []
                 else:
                     denied = self.spawn(
@@ -5668,6 +5795,8 @@ class Run:
                 if numbered:
                     self.trim_notes(change, str(phase), notes)
                 if denied is None:
+                    return None
+                if stage == "release" and not self.finish_release(change, cwd, denied):
                     return None
                 if stage == "release" and not self.push_left(PUSH_RETRIES):
                     return None
@@ -6002,6 +6131,10 @@ class Run:
             version.tree,
         )
         if tree is None or _ancestor(self.primary, default, change):
+            return
+        # A release tip is `release.py pre`'s to drop, never merged into.
+        # Why: 0152-release-script design D10.
+        if _tag_of(self.primary, change) is not None:
             return
         # A gate merge would give the merge back two merge-bases.
         # Why: 0099-stacked-builds design D3.
