@@ -1662,7 +1662,7 @@ SHALL take `bump=minor|patch`, write `bump:` into `proposal.md`'s frontmatter, a
 
 `skills/mf-release/SKILL.md` SHALL read `bump:` from the change's `proposal.md`, halting on anything but `minor` or
 `patch`, and SHALL take `<tag>` from `skills/mf-release/scripts/next_tag.py`, which SHALL print the next tag after the
-highest `vX.Y.Z` tag, or `v0.1.0` when there is none. It SHALL write `version:` into the proposal it archives, before
+highest `vX.Y.Z` tag the default branch holds merged, a local tag on no branch read as none, or `v0.1.0` when there is none. It SHALL write `version:` into the proposal it archives, before
 it collects metrics. `conduct.py` SHALL read a released version's tag from the branch tip's `chore(release): <tag>`,
 SHALL pass the release check only when that tag's commit is the tip and, with an `origin`, origin's tag is on that
 tip, and SHALL hold no number before it.
@@ -1678,6 +1678,10 @@ tip, and SHALL hold no number before it.
 #### Scenario: A repository with no version tag
 - **WHEN** no tag has the form `vX.Y.Z`
 - **THEN** `next_tag.py` prints `v0.1.0`
+
+#### Scenario: A stray local tag
+- **WHEN** the default branch holds `v0.9.0`, a local `v0.10.0` is on no branch, and the proposal says `bump: patch`
+- **THEN** `next_tag.py` prints `v0.9.1`
 
 #### Scenario: A draft page before the release
 - **WHEN** the build draws its metrics page and `proposal.md` holds no `version:`
@@ -5165,9 +5169,10 @@ pickup, a granted round, a catch-up round with its by-rule write, the resume fro
 No converge worker that conducts SHALL start: the workers are the checkers, the fixer and the verify workers, each a fresh agent
 process the run starts through its own worker and checker calls, with a prompt the script fills from the `## Prompt` section of the
 role's reference. The script SHALL run the gate, `gate_check.py`, `plan_check.py` and each `Verify:` and **Still true?** command
-under `conduct.py`'s sandbox runner, never bare. It SHALL read a findings file's frontmatter keys `files`, `commits`, `passes` and
-`inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them, or with a card
-whose id is outside `R<n>` and `S<n>`, or whose verdict is `changes-requested` with no open card, SHALL be malformed. A card is
+under `conduct.py`'s sandbox runner, never bare. It SHALL stamp each findings file's `head`, `round`, `files` and `commits` after its
+checker returns, as *Converge stamps a findings file's counts* says, and SHALL read a findings file's frontmatter keys `passes` and
+`inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them or with no
+frontmatter, or with a card whose id is outside `R<n>` and `S<n>`, or whose verdict is `changes-requested` with no open card, SHALL be malformed. A card is
 open until its status is `verified` or `accepted`; a role whose verdict is `changes-requested` while no open card blocks SHALL
 count as clean, its file's verdict written `clean` and its open cards left to the pickup and the debt. `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py`
 and `skip_stub.py` SHALL read a findings file's cards and frontmatter through `skills/mflib/findings.py`, a card's title a line that
@@ -5849,8 +5854,9 @@ A run SHALL read `in_flight` under `[queue]` in `ship.toml`, found under `$XDG_C
 before. A file that cannot be read, or a value that is no whole number above 0, SHALL stop `conduct.py run` and `conduct.py cut`
 with exit 2, naming the file. With a cap, the run SHALL take a queued cut, at its start and at each poll, in id order, only
 while fewer versions are in flight than the cap, and SHALL count the versions of its own repository alone. A version SHALL be in
-flight while its thread runs, no halt names it and every `after` id it names is shipped, its cut included; a halted version, and
-a version or cut waiting on its `after`, SHALL not be. A rejoin request naming a cut, the take-back of a version by a rejoin or a
+flight while its thread runs, its rescue and supervisor included, whether a halt names it or not, and every `after` id it names is
+shipped, its cut included; a version whose halt is final, its thread done, a version or cut waiting on its `after`, and every
+version once a halt names the run, SHALL not be. A rejoin request naming a cut, the take-back of a version by a rejoin or a
 grant, and a version already cut at the run's start SHALL run whatever the cap.
 
 A cut that waits SHALL not count as read: the run SHALL take it at the first poll after a slot frees, SHALL stay alive while it
@@ -5872,8 +5878,20 @@ the run SHALL log one `wait` line when a cut starts to wait. `status` SHALL prin
 - **THEN** the run takes the lower id, logs one `wait` line for the other, and takes it only after the first's release
 
 #### Scenario: A halted version does not hold the queue
-- **WHEN** `in_flight` is 1 and the one version in flight halts
+- **WHEN** `in_flight` is 1 and the one version in flight halts, and its thread has ended on a halt that stands
 - **THEN** the run takes the next queued cut at its next poll, the halted version still open
+
+#### Scenario: A halted version keeps its slot while its thread lives
+- **WHEN** `in_flight` is 1 and the one version in flight halts, and its rescue or supervisor runs in its thread
+- **THEN** a queued cut waits, its entry holding `1 in flight, cap 1`
+
+#### Scenario: A supervisor revives a version
+- **WHEN** a halted version's supervisor answers and the version goes on, and a cut waited
+- **THEN** the cut is still waiting, and no second version was in flight
+
+#### Scenario: A run-wide halt
+- **WHEN** a halt names the run
+- **THEN** no version counts as in flight, as before
 
 #### Scenario: A version waiting on its after does not hold the queue
 - **WHEN** `in_flight` is 1 and the one version at a station names an `after` id that is not shipped
@@ -6455,18 +6473,6 @@ A converge halt that a worker's exit or timeout caused — the reason names `wor
 - **WHEN** converge halts on a worker's exit in a run whose status log holds a `verdicts` line
 - **THEN** the stage stays `converge-halted`
 
-### Requirement: A verdict that misses the freeze's scope is sent out once more
-
-A findings file whose `files` or `commits` is under the freeze's SHALL send that checker out once more, on the same station and prompt, before it halts: converge SHALL stamp `fan-out — rescope — <role>: <why>` and read the file again. A second miss SHALL halt `<file> is not clean: its scope resolved <counts> of the freeze's <counts>`, as before.
-
-#### Scenario: A scope that misses once
-- **WHEN** a checker's findings file resolves 9 files of the freeze's 10, and its second run resolves all 10
-- **THEN** converge stamps `fan-out — rescope`, reads the second file, and goes on
-
-#### Scenario: A scope that misses twice
-- **WHEN** the second file resolves 9 files of 10 too
-- **THEN** converge halts, naming the scope
-
 ### Requirement: A converge by hand reads the models file
 
 `conduct.py converge <change-id>` SHALL read the version's models file for each checker's and the fixer's models, and for a checker's skip, as a run reads it, and SHALL let each `<role>=<model>/<effort>` and `<checker>=skip` argument replace the file's value for that role. With no models file, or none for a role, it SHALL take the executor's default as before.
@@ -6705,3 +6711,55 @@ The conductor SHALL log `check — gate · start` before each gate it starts, th
 #### Scenario: An older log
 - **WHEN** a build's spawn line names no phase
 - **THEN** its row's phase is `null`
+
+### Requirement: Converge stamps a findings file's counts
+
+After a checker, a verify worker or a pickup check returns, and before converge reads its findings file, converge SHALL set the file's `head`, `files` and `commits` to its round's freeze's head and counts, and its `round` to the round converge counts, through `skills/mflib/findings.py` and the staged write of `skills/mflib/statefile.py` at mode `0600`. A pickup check SHALL leave `round`. Converge SHALL leave a file whose `mode` is `skipped` or `by-rule`, and a file with no frontmatter, which stays malformed. A worker's reference SHALL NOT tell it to write `head`, `round`, `files` or `commits`; `verdict`, `open_blocking`, `inconclusive`, `passes` and the cards SHALL stay the worker's. Converge SHALL compare no count of a findings file with its freeze's, and SHALL send no checker out again for its scope.
+
+#### Scenario: A count the worker got wrong
+- **WHEN** a verify round's freeze holds 4 files and the worker wrote `files: 3`
+- **THEN** converge sets `files: 4` and reads the file clean
+
+#### Scenario: A key the worker left out
+- **WHEN** a worker wrote no `files` and no `commits` key
+- **THEN** converge adds both from the freeze, and reads the file clean
+
+#### Scenario: A verify round
+- **WHEN** a verify worker returns after a fix
+- **THEN** its file's `head` is the fix's head, its `files` and `commits` are the fix diff's, and its `round` is the round converge counts
+
+#### Scenario: A pickup check keeps its round
+- **WHEN** a pickup check returns on round 2
+- **THEN** each file it judged carries the fix's `head`, `files` and `commits`, and the `round` it held before
+
+#### Scenario: A stub and a by-rule file
+- **WHEN** a role is skipped, or a catch-up round writes `mode: by-rule`
+- **THEN** converge stamps neither file
+
+### Requirement: Row V9 reads the token after exits
+
+The cut's check, `cut_check.py`, SHALL halt in its row `V9` each sub-task whose `Verify:` holds the word `exits` outside a code span with anything but a code span of whole digits right after it, a `**HALT CHECK**` sub-task included, naming the sub-task. It SHALL read no `exits` outside a `Verify:` line.
+
+#### Scenario: An unquoted exit
+- **WHEN** a sub-task's `Verify:` reads `` `make gate` exits 5 ``
+- **THEN** `cut_check.py` prints the failed row `V9` naming the sub-task, and exits 1
+
+#### Scenario: A quoted exit
+- **WHEN** a sub-task's `Verify:` reads `` `make gate` exits `5` ``
+- **THEN** the row holds
+
+#### Scenario: The word in a task's prose
+- **WHEN** a sub-task's text before its `Verify:` holds the word `exits` and no code span after it
+- **THEN** the row holds
+
+### Requirement: Status prints a halting stage's reason
+
+`conduct.py status` SHALL print `<change-id> · <stage> — <reason>` for a version whose stage is `integrating`, `released`, `human` or `converge-halted` and carries a reason, and `<change-id> · <stage>` for any other stage.
+
+#### Scenario: A release tip tagged on another commit
+- **WHEN** a version's tip is not the commit its tag names
+- **THEN** `status` prints `<change-id> · released — ` and the reason that names the tag
+
+#### Scenario: A stage that is no halt
+- **WHEN** a version is at `build`
+- **THEN** `status` prints `<change-id> · build` and no reason
