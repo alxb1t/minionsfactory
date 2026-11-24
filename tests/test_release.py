@@ -1,6 +1,6 @@
 """The release script's `pre`, `finish`, `findings` and git helper, over a scratch repo.
 
-Why: 0152-release-script design D1, D2, D4…D7 and D14.
+Why: 0152-release-script design D1…D10 and D14.
 """
 
 import contextlib
@@ -1353,3 +1353,420 @@ def test_finish_stops_on_the_flag(repo: Repo) -> None:
         " — read the prose it names, then merge",
     )
     assert repo.git("rev-parse", "v0.2.0^{commit}").strip() == repo.head
+
+
+OWN = "release: ok — tag · v0.2.0 is own, on no branch"
+FREE = ("--origin", "free")
+
+
+def _tagged_on(repo: Repo) -> str:
+    """Return the commit the release's tag is on."""
+    return repo.git("rev-parse", "v0.2.0^{commit}").strip()
+
+
+def _orphan(repo: Repo) -> str:
+    """Tag the release on a commit no branch holds; return that commit."""
+    sha = repo.git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "dead").strip()
+    repo.git("tag", "-a", "v0.2.0", "-m", "v0.2.0", sha)
+    return sha
+
+
+def _origin(repo: Repo) -> None:
+    """Give the repo a bare `origin` it can read."""
+    bare = repo.root.parent / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+    repo.git("remote", "add", "origin", str(bare))
+
+
+def _cut_release(repo: Repo) -> str:
+    """Run `pre` and `finish` to the tagged release commit; return its parent."""
+    repo.ready()
+    head = repo.head
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE), lines
+    return head
+
+
+@pytest.mark.parametrize("held", ["tag", "tracking", "neither"])
+def test_a_hand_run_reads_origin_itself(repo: Repo, held: str) -> None:
+    _origin(repo)
+    sha = _orphan(repo)
+    if held == "tag":
+        repo.git("push", "-q", "origin", "v0.2.0")
+    if held == "tracking":
+        repo.git("update-ref", "refs/remotes/origin/main", sha)
+    code, lines = repo.pre()
+    if held == "neither":
+        assert (code, lines[-1]) == (0, "release: tag — v0.2.0")
+        assert OWN in lines
+    else:
+        assert (code, lines[-1]) == (1, "release: halt — tag: v0.2.0 is on origin")
+
+
+@pytest.mark.parametrize("case", ["unreadable", "a-run-gives-none"])
+def test_an_unreadable_origin_cannot_run(repo: Repo, case: str) -> None:
+    _orphan(repo)
+    if case == "unreadable":
+        repo.git("remote", "add", "origin", str(repo.root.parent / "no-such.git"))
+        code, lines = repo.pre()
+        assert code == 2
+        assert lines[-1].startswith("release: cannot run — origin cannot be read: ")
+    else:
+        code, lines = repo.pre("--run")
+        assert (code, lines[-1]) == (
+            2,
+            "release: cannot run — a run gives --origin held or free",
+        )
+    assert not (repo.run_folder / "release.pre").exists()
+
+
+def test_no_origin_is_free(repo: Repo) -> None:
+    _orphan(repo)
+    code, lines = repo.pre()
+    assert (code, lines[-1]) == (0, "release: tag — v0.2.0")
+    assert OWN in lines
+
+
+class Died(Exception):
+    """A release killed mid-step."""
+
+
+_STEPS = (
+    "_workers",
+    "_archive",
+    "_changelog",
+    "_package",
+    "_metrics",
+    "_gate",
+    "_committed",
+    "_tag_at",
+    "_debt",
+)
+
+
+def _conducted(repo: Repo) -> tuple[int, list[str]]:
+    """Run `pre`, the worker's fold and `finish` under a run, as the conductor does."""
+    code, lines = repo.pre("--run", *FREE)
+    assert code == 0, lines
+    if lines[-1].startswith("release: tag — "):
+        repo.put("openspec/specs/todo/spec.md", "# todo\n")
+    return repo.finish("--run", *FREE)
+
+
+@pytest.mark.parametrize("step", _STEPS)
+def test_a_second_finish_after_a_death_at_each_step_ends_the_same(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch, step: str
+) -> None:
+    repo.put("package.json", _npm(PACKAGE))
+    _paying(repo, "debt: [0000·R1]\n")
+    start = repo.head
+    assert _conducted(repo)[1][-1] == DONE
+    whole = repo.git("rev-parse", "HEAD^{tree}").strip()
+    paid = (repo.root / ".minions" / "debt.md").read_text()
+    repo.git("tag", "-d", "v0.2.0")
+    repo.git("reset", "-q", "--hard", start)
+    (repo.root / ".minions" / "debt.md").write_text(DEBT)
+    (repo.run_folder / "release.pre").unlink()
+    real = getattr(repo.ns, step)
+
+    def dies(*args: object, **kwargs: object) -> object:
+        done = real(*args, **kwargs)
+        if step != "_gate" or kwargs.get("fresh"):
+            raise Died(step)
+        return done
+
+    monkeypatch.setattr(repo.ns, step, dies)
+    with pytest.raises(Died):
+        _conducted(repo)
+    monkeypatch.setattr(repo.ns, step, real)
+    assert _conducted(repo)[1][-1] == DONE
+    assert repo.git("rev-parse", "HEAD^{tree}").strip() == whole
+    assert repo.git("rev-list", "--count", f"{start}..HEAD").strip() == "1"
+    assert _tagged_on(repo) == repo.head
+    assert (repo.root / ".minions" / "debt.md").read_text() == paid
+    assert repo.git("status", "--porcelain") == ""
+
+
+def test_finish_at_a_release_commit_tags_a_missing_tag(repo: Repo) -> None:
+    _cut_release(repo)
+    repo.git("tag", "-d", "v0.2.0")
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — resume · v0.2.0: every step before the tag is done" in lines
+    assert "release: ok — tag · v0.2.0" in lines
+    assert _tagged_on(repo) == repo.head
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — tag · v0.2.0 is on HEAD" in lines
+
+
+def test_finish_at_a_release_commit_runs_the_gate_before_tagging(repo: Repo) -> None:
+    _cut_release(repo)
+    repo.git("tag", "-d", "v0.2.0")
+    said = repo.fakes / "gate-argv.json"
+    repo.fake(
+        "GATE_RUN",
+        f"import json, sys\nopen({str(said)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+        + RED,
+    )
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (1, "release: halt — gate: red — exit 2 · 3s")
+    assert json.loads(said.read_text()) == []
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+def test_finish_at_a_release_commit_halts_on_a_dirty_tree(repo: Repo) -> None:
+    _cut_release(repo)
+    repo.git("tag", "-d", "v0.2.0")
+    repo.put("stray.md", "x\n")
+    code, lines = repo.finish("--run", *FREE)
+    assert (code, lines[-1]) == (1, "release: halt — tree: dirty at stray.md")
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+def _forged(repo: Repo, path: str, subject: str = "chore(release): v0.2.0") -> None:
+    """Commit `path` under a release subject, on top of `HEAD`."""
+    repo.put(path, "x = 1\n")
+    repo.commit(subject)
+
+
+def test_a_release_commit_with_a_code_path_halts(repo: Repo) -> None:
+    repo.ready()
+    repo.put("README.md", "# readme\n")
+    _forged(repo, "src/code.py")
+    code, lines = repo.finish()
+    said = "release: halt — release commit: src/code.py is no path a release writes"
+    assert (code, lines[-1]) == (1, said)
+    assert repo.pre()[1][-1] == said
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+def test_a_release_commit_whose_parent_is_not_the_marks_head_halts(
+    repo: Repo,
+) -> None:
+    repo.ready()
+    head = repo.head
+    repo.put("notes.md", "x\n")
+    repo.commit("notes")
+    _forged(repo, "README.md")
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (
+        1,
+        f"release: halt — release commit: its parent is not release.pre's {head[:8]}",
+    )
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+def test_a_release_commit_without_the_mark_halts(repo: Repo) -> None:
+    _cut_release(repo)
+    repo.git("tag", "-d", "v0.2.0")
+    (repo.run_folder / "release.pre").unlink()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (
+        1,
+        "release: halt — HEAD is chore(release): v0.2.0, and release.pre is missing",
+    )
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+def test_pre_passes_an_own_tag(repo: Repo) -> None:
+    _orphan(repo)
+    code, lines = repo.pre(*FREE)
+    assert (code, lines[-1]) == (0, "release: tag — v0.2.0")
+    assert OWN in lines
+
+
+@pytest.mark.parametrize("at", ["the-cut", "a-resume"])
+def test_a_tag_on_an_orphan_commit_is_moved(repo: Repo, at: str) -> None:
+    if at == "the-cut":
+        sha = _orphan(repo)
+        assert repo.pre(*FREE)[0] == 0
+    else:
+        _cut_release(repo)
+        repo.git("tag", "-d", "v0.2.0")
+        sha = _orphan(repo)
+    code, lines = repo.finish(*FREE)
+    assert (code, lines[-1]) == (0, DONE)
+    assert OWN in lines
+    assert f"release: ok — tag · v0.2.0 · moved from {sha[:8]}" in lines
+    assert _tagged_on(repo) == repo.head
+    assert repo.git("cat-file", "-t", "v0.2.0").strip() == "tag"
+
+
+def test_a_tag_origin_holds_halts(repo: Repo) -> None:
+    head = repo.head
+    sha = _orphan(repo)
+    said = "release: halt — tag: v0.2.0 is on origin"
+    code, lines = repo.pre("--origin", "held")
+    assert (code, lines[-1]) == (1, said)
+    assert not (repo.run_folder / "release.pre").exists()
+    assert repo.pre(*FREE)[0] == 0
+    code, lines = repo.finish("--origin", "held")
+    assert (code, lines[-1]) == (1, said)
+    assert repo.head == head
+    assert _tagged_on(repo) == sha
+
+
+def test_a_tag_the_default_branch_holds_halts(repo: Repo) -> None:
+    head = repo.head
+    repo.ready()
+    repo.git("tag", "-a", "v0.2.0", "-m", "v0.2.0", "main")
+    said = "release: halt — tag: v0.2.0 is on main"
+    code, lines = repo.finish(*FREE)
+    assert (code, lines[-1]) == (1, said)
+    assert repo.head == head
+    repo.fake("NEXT_TAG", 'print("v0.2.0")\n')
+    assert repo.pre(*FREE)[1][-1] == said
+
+
+def test_a_stranded_release_is_dropped(repo: Repo) -> None:
+    head = _cut_release(repo)
+    (repo.run_folder / "release.flag").write_text("README.md states v0.1\n")
+    _moved(repo)
+    code, lines = repo.pre(*FREE)
+    assert (code, lines[-1]) == (0, "release: drop — v0.2.0 and its commit")
+    assert "release: ok — base · main moved past HEAD" in lines
+    assert repo.head == head
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+    assert not (repo.run_folder / "release.pre").exists()
+    assert not (repo.run_folder / "release.flag").exists()
+    assert repo.git("status", "--porcelain") == ""
+    assert repo.pre()[1][-1] == (
+        "release: halt — base: main is not an ancestor of HEAD"
+        f" — run /mf-integrate {CHANGE}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("bound", "said"),
+    [
+        ("tag-elsewhere", "drop: v0.2.0 is not on HEAD — nothing is dropped"),
+        ("dirty", "tree: dirty at stray.md"),
+    ],
+    ids=["tag-elsewhere", "dirty"],
+)
+def test_a_stranded_release_past_a_failed_bound_halts(
+    repo: Repo, bound: str, said: str
+) -> None:
+    _cut_release(repo)
+    _moved(repo)
+    if bound == "tag-elsewhere":
+        repo.git("tag", "-d", "v0.2.0")
+        _orphan(repo)
+    else:
+        repo.put("stray.md", "x\n")
+    head = repo.head
+    code, lines = repo.pre(*FREE)
+    assert (code, lines[-1]) == (1, f"release: halt — {said}")
+    assert repo.head == head
+    assert (repo.run_folder / "release.pre").exists()
+
+
+def test_a_release_the_default_branch_holds_is_not_dropped(repo: Repo) -> None:
+    _cut_release(repo)
+    head = repo.head
+    repo.git("switch", "-q", "main")
+    repo.git("merge", "-q", "--no-ff", "-m", f"Merge branch '{CHANGE}'", CHANGE)
+    repo.git("switch", "-q", CHANGE)
+    code, lines = repo.pre(*FREE)
+    assert (code, lines[-1]) == (
+        1,
+        "release: halt — drop: HEAD is on main — nothing is dropped",
+    )
+    assert repo.head == head
+    assert _tagged_on(repo) == head
+
+
+@pytest.mark.parametrize("origin", ["given", "read"])
+def test_a_release_origin_holds_is_not_dropped(repo: Repo, origin: str) -> None:
+    _cut_release(repo)
+    head = repo.head
+    _moved(repo)
+    flags: tuple[str, ...] = ("--origin", "held")
+    if origin == "read":
+        _origin(repo)
+        repo.git("push", "-q", "origin", "v0.2.0")
+        flags = ()
+    code, lines = repo.pre(*flags)
+    assert (code, lines[-1]) == (
+        1,
+        "release: halt — drop: origin holds v0.2.0 or HEAD — nothing is dropped",
+    )
+    assert repo.head == head
+    assert _tagged_on(repo) == head
+
+
+def test_pre_reads_a_release_commit_as_a_resume(repo: Repo) -> None:
+    head = _cut_release(repo)
+    mark = (repo.run_folder / "release.pre").read_text()
+    (repo.run_folder / "release.flag").write_text("README.md states v0.1\n")
+    repo.fake("GATE_RUN", RED)
+    code, lines = repo.pre("--run", *FREE)
+    assert (code, lines) == (
+        0,
+        [
+            "release: ok — old layout",
+            "release: ok — release commit · HEAD is chore(release): v0.2.0",
+            "release: ok — tree · clean",
+            "release: ok — conformance: clean",
+            "release: ok — adversarial: clean",
+            "release: ok — converge: ran",
+            f"release: ok — head · {head[:8]}",
+            "release: resume — v0.2.0",
+        ],
+    )
+    assert (repo.run_folder / "release.pre").read_text() == mark
+    assert (repo.run_folder / "release.flag").exists()
+
+
+def test_pre_at_a_release_commit_restores_nothing(repo: Repo) -> None:
+    _cut_release(repo)
+    repo.put("openspec/specs/todo/spec.md", "# todo\n")
+    code, lines = repo.pre("--run", *FREE)
+    assert (code, lines[-1]) == (
+        1,
+        "release: halt — tree: dirty at openspec/specs/todo/spec.md",
+    )
+    assert (repo.root / "openspec" / "specs" / "todo" / "spec.md").exists()
+    assert (repo.run_folder / "release.pre").exists()
+
+
+def _forge_code(repo: Repo) -> str:
+    _forged(repo, "src/code.py")
+    return "release commit: src/code.py is no path a release writes"
+
+
+def _forge_parent(repo: Repo) -> str:
+    head = repo.head
+    repo.put("notes.md", "x\n")
+    repo.commit("notes")
+    _forged(repo, "README.md")
+    return f"release commit: its parent is not release.pre's {head[:8]}"
+
+
+def _forge_no_mark(repo: Repo) -> str:
+    (repo.run_folder / "release.pre").unlink()
+    _forged(repo, "README.md")
+    return "HEAD is chore(release): v0.2.0, and release.pre is missing"
+
+
+def _forge_tag(repo: Repo) -> str:
+    _forged(repo, "README.md", "chore(release): v0.3.0")
+    return "release commit: HEAD says v0.3.0, release.pre says v0.2.0"
+
+
+@pytest.mark.parametrize(
+    "forge",
+    [_forge_code, _forge_parent, _forge_no_mark, _forge_tag],
+    ids=["code-path", "another-parent", "no-mark", "another-tag"],
+)
+def test_pre_halts_on_a_forged_release_commit(
+    repo: Repo, forge: Callable[[Repo], str]
+) -> None:
+    repo.ready()
+    said = forge(repo)
+    head = repo.head
+    code, lines = repo.pre("--run", *FREE)
+    assert (code, lines[-1]) == (1, f"release: halt — {said}")
+    assert repo.head == head
+    assert repo.git("tag", "--list", "v0.2.0") == ""

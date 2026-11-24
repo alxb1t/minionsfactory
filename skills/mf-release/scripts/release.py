@@ -4,8 +4,8 @@
 # ///
 """Check a release before the worker's fold, and cut it after, by fixed rules.
 
-    release.py pre|finish <change-id> [--run] | findings <file>
-Why: 0152-release-script design D1 and D2.
+    release.py pre|finish <change-id> [--run] [--origin held|free] | findings <file>
+Why: 0152-release-script design D1, D2 and D3.
 """
 
 import argparse
@@ -30,6 +30,7 @@ TIMEOUT_SECONDS = 60
 GATE_SECONDS = 3700
 CHANGE_ID = re.compile(r"\d+-[a-z0-9]+(?:-[a-z0-9]+)*")
 TAG = re.compile(r"v\d+\.\d+\.\d+")
+RELEASE_SUBJECT = re.compile(r"chore\(release\): (v\d+\.\d+\.\d+)")
 GATE_TIME = re.compile(r"^gate: (?:green|reused) — .*? · (\d+)s", re.MULTILINE)
 UNRELEASED = re.compile(r"^## \[Unreleased\][ \t]*\n(.*?)(?=^## |\Z)", re.M | re.S)
 GATE_RUN = (
@@ -189,6 +190,65 @@ def default_branch(git: Git) -> str:
     return named.stdout.strip().removeprefix("origin/") or "main"
 
 
+@dataclass(frozen=True)
+class Origin:
+    """Whether `origin` holds the release's tag or commit: given, else read by hand."""
+
+    git: Git
+    default: str
+    given: str | None
+
+    def holds(self, tag: str, commit: str) -> bool:
+        """Return whether `origin` holds `tag`, or `commit` on its default branch.
+
+        No `origin` holds nothing; one that cannot be read stops.
+        Why: 0152-release-script design D3.
+        """
+        if self.given is not None:
+            return self.given == "held"
+        if self.git.run:
+            raise cannot("a run gives --origin held or free")
+        if not self.git.ok("remote", "get-url", "origin"):
+            return False
+        listed = self.git.result("ls-remote", "--tags", "origin", f"refs/tags/{tag}")
+        if listed.returncode != 0:
+            raise cannot(f"origin cannot be read: {_last(listed)}")
+        tracking = f"refs/remotes/origin/{self.default}"
+        return bool(listed.stdout.strip()) or (
+            self.git.ok("rev-parse", "-q", "--verify", tracking)
+            and self.git.ok("merge-base", "--is-ancestor", commit, tracking)
+        )
+
+
+def _tag_commit(git: Git, tag: str) -> str | None:
+    """Return the commit a tag is on, None when the tag does not exist."""
+    done = git.result("rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def _own(git: Git, tag: str, at: str, origin: Origin) -> None:
+    """Halt unless the tag on `at` is this release's own: on no branch, not on origin.
+
+    Why: 0152-release-script design D9.
+    """
+    if git.ok("merge-base", "--is-ancestor", at, origin.default):
+        raise halt(f"tag: {tag} is on {origin.default}")
+    if git.out("for-each-ref", "--contains", at, "refs/heads/").strip():
+        raise halt(f"tag: {tag} already exists")
+    if origin.holds(tag, at):
+        raise halt(f"tag: {tag} is on origin")
+    _ok(f"tag · {tag} is own, on no branch")
+
+
+def _tag_at(git: Git, tag: str, at: str | None) -> None:
+    """Make the tag on `HEAD`, moving this release's own tag from its orphan commit."""
+    if at == git.out("rev-parse", "HEAD").strip():
+        _ok(f"tag · {tag} is on HEAD")
+        return
+    git.out("tag", "-a", *(["-f"] if at else []), tag, "-m", tag)
+    _ok(f"tag · {tag}" + (f" · moved from {at[:8]}" if at else ""))
+
+
 def _primary(git: Git) -> Path:
     """Return the primary checkout, from any worktree."""
     common = git.out("rev-parse", "--path-format=absolute", "--git-common-dir")
@@ -327,8 +387,8 @@ def _proposal(git: Git, change: str) -> dict[str, str]:
         raise cannot(f"proposal.md cannot be read: {error.strerror}") from None
 
 
-def _tag(git: Git, keys: dict[str, str]) -> str:
-    """Return the tag the release takes from its `bump:`; one that stands halts."""
+def _tag(git: Git, keys: dict[str, str], origin: Origin) -> str:
+    """Return the tag the release takes from its `bump:`; one not its own halts."""
     bump = keys.get("bump", "")
     if bump not in ("minor", "patch"):
         raise halt(f"proposal.md: bump is {bump or 'missing'}, not minor or patch")
@@ -337,9 +397,10 @@ def _tag(git: Git, keys: dict[str, str]) -> str:
     if done.returncode != 0 or not TAG.fullmatch(tag):
         raise cannot(f"next_tag.py: {_last(done)}")
     _ok(f"bump · {bump}")
-    if git.out("tag", "--list", tag).strip():
-        raise halt(f"tag: {tag} already exists")
-    _ok(f"tag · {tag} is free")
+    if (at := _tag_commit(git, tag)) is None:
+        _ok(f"tag · {tag} is free")
+    else:
+        _own(git, tag, at, origin)
     return tag
 
 
@@ -389,15 +450,97 @@ def _opened(cwd: Path, change: str, run: bool) -> tuple[Git, Path]:
     return git, _primary(git)
 
 
-def pre(cwd: Path, change: str, run: bool) -> str:
+def _read_mark(primary: Path, change: str, missing: str) -> dict[str, str]:
+    """Return `release.pre`'s keys; a missing mark halts with `missing`."""
+    path = mflib.layout.change_dir(primary, change) / MARK
+    try:
+        text = mflib.statefile.read(path)
+    except FileNotFoundError:
+        raise halt(missing) from None
+    except OSError as error:
+        raise cannot(f"{MARK} cannot be read: {error.strerror}") from None
+    pairs = (line.partition(":") for line in text.splitlines())
+    keys = {key.strip(): value.strip() for key, colon, value in pairs if colon}
+    for key in ("tag", "version", "gate", "head"):
+        if not keys.get(key):
+            raise cannot(f"{MARK} has no {key}:")
+    if not TAG.fullmatch(keys["tag"]) or not keys["gate"].isdigit():
+        raise cannot(f"{MARK} holds no tag or gate seconds")
+    return keys
+
+
+def _released(git: Git, primary: Path, change: str) -> dict[str, str] | None:
+    """Return `release.pre`'s keys when `HEAD` is the release commit, else None.
+
+    A release subject with no mark, another tag, another parent, or a path
+    outside the derived set halts. Why: 0152-release-script design D8.
+    """
+    subject = git.out("log", "-1", "--format=%s", "HEAD").strip()
+    if (said := RELEASE_SUBJECT.fullmatch(subject)) is None:
+        return None
+    keys = _read_mark(primary, change, f"HEAD is {subject}, and {MARK} is missing")
+    if said[1] != keys["tag"]:
+        raise halt(f"release commit: HEAD says {said[1]}, {MARK} says {keys['tag']}")
+    parents = git.out("rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
+    if parents != [keys["head"]]:
+        raise halt(f"release commit: its parent is not {MARK}'s {keys['head'][:8]}")
+    changed = git.out(
+        "diff-tree", "-r", "--no-renames", "--name-only", "-z", "HEAD~1", "HEAD"
+    )
+    for path in (path for path in changed.split("\0") if path):
+        if not _derived(path, change):
+            raise halt(f"release commit: {path} is no path a release writes")
+    _ok(f"release commit · HEAD is {subject}")
+    return keys
+
+
+def _again(
+    git: Git, primary: Path, change: str, keys: dict[str, str], origin: Origin
+) -> str:
+    """Return the line for `HEAD` at the release commit: drop it, or resume.
+
+    Dropped when the default branch moved past and no one else holds it.
+    Why: 0152-release-script design D8 and D10.
+    """
+    tag, default = keys["tag"], origin.default
+    if git.ok("merge-base", "--is-ancestor", default, "HEAD"):
+        if dirty := _dirty(git):
+            raise halt(f"tree: dirty at {dirty[0]}")
+        _ok("tree · clean")
+        _converge(primary, change, keys["head"])
+        return f"release: resume — {tag}"
+    _ok(f"base · {default} moved past HEAD")
+    head = git.out("rev-parse", "HEAD").strip()
+    if git.ok("merge-base", "--is-ancestor", head, default):
+        raise halt(f"drop: HEAD is on {default} — nothing is dropped")
+    if (at := _tag_commit(git, tag)) not in (None, head):
+        raise halt(f"drop: {tag} is not on HEAD — nothing is dropped")
+    if origin.holds(tag, head):
+        raise halt(f"drop: origin holds {tag} or HEAD — nothing is dropped")
+    if dirty := _dirty(git):
+        raise halt(f"tree: dirty at {dirty[0]}")
+    if at:
+        git.out("tag", "-d", tag)
+    git.out("reset", "-q", "--hard", "HEAD~1")
+    folder = mflib.layout.change_dir(primary, change)
+    for name in (FLAG, MARK):
+        (folder / name).unlink(missing_ok=True)
+    return f"release: drop — {tag} and its commit"
+
+
+def pre(cwd: Path, change: str, run: bool, given: str | None = None) -> str:
     """Check every precondition, write the mark, and return the line for the tag.
 
-    Why: 0152-release-script design D2 and D4.
+    At a release commit, return the line to resume or drop it.
+    Why: 0152-release-script design D2, D4, D8 and D10.
     """
     git, primary = _opened(cwd, change, run)
     if old := mflib.layout.old_layout(primary, change):
         raise halt(f"{old} is the old layout: /mf-ship moves it")
     _ok("old layout")
+    origin = Origin(git, default_branch(git), given)
+    if keys := _released(git, primary, change):
+        return _again(git, primary, change, keys, origin)
     if run:
         _restore(git, primary, change)
     if dirty := _dirty(git):
@@ -407,8 +550,8 @@ def pre(cwd: Path, change: str, run: bool) -> str:
     head = git.out("rev-parse", "HEAD").strip()
     _converge(primary, change, head)
     keys = _proposal(git, change)
-    tag = _tag(git, keys)
-    default = default_branch(git)
+    tag = _tag(git, keys, origin)
+    default = origin.default
     _entries(git)
     _planned(git, change, default)
     _shipped(git, change, keys, default)
@@ -428,20 +571,9 @@ def _mark(primary: Path, change: str, head: str) -> dict[str, str]:
 
     Why: 0152-release-script design D4.
     """
-    path = mflib.layout.change_dir(primary, change) / MARK
-    try:
-        text = mflib.statefile.read(path)
-    except FileNotFoundError:
-        raise halt(f"{MARK} is missing — run release.py pre {change}") from None
-    except OSError as error:
-        raise cannot(f"{MARK} cannot be read: {error.strerror}") from None
-    pairs = (line.partition(":") for line in text.splitlines())
-    keys = {key.strip(): value.strip() for key, colon, value in pairs if colon}
-    for key in ("tag", "version", "gate", "head"):
-        if not keys.get(key):
-            raise cannot(f"{MARK} has no {key}:")
-    if not TAG.fullmatch(keys["tag"]) or not keys["gate"].isdigit():
-        raise cannot(f"{MARK} holds no tag or gate seconds")
+    keys = _read_mark(
+        primary, change, f"{MARK} is missing — run release.py pre {change}"
+    )
     if keys["head"] != head:
         raise halt(
             f"{MARK}: head {keys['head'][:8]} is not HEAD {head[:8]}"
@@ -746,29 +878,59 @@ def _debt(primary: Path, keys: dict[str, str]) -> None:
         _ok(f"debt: {ident} " + ("cleared" if ident in paid else "not found"))
 
 
-def finish(cwd: Path, change: str, run: bool) -> str:
-    """Archive, cut the changelog, bump, gate, commit once and tag; clear the debt.
+def _resumed(git: Git, tag: str, origin: Origin) -> None:
+    """Gate the release commit's tree, then tag it.
 
-    Why: 0152-release-script design D4, D5, D6 and D7.
+    Why: 0152-release-script design D8 and D9.
     """
-    git, primary = _opened(cwd, change, run)
-    keys = _mark(primary, change, git.out("rev-parse", "HEAD").strip())
+    _ok(f"resume · {tag}: every step before the tag is done")
+    if dirty := _dirty(git):
+        raise halt(f"tree: dirty at {dirty[0]}")
+    _gate(git)
+    at = _tag_commit(git, tag)
+    if at not in (None, git.out("rev-parse", "HEAD").strip()):
+        _own(git, tag, at, origin)
+    _tag_at(git, tag, at)
+
+
+def _cut(
+    git: Git, primary: Path, change: str, keys: dict[str, str], origin: Origin
+) -> None:
+    """Archive, cut the changelog, bump, gate, commit once and tag.
+
+    Why: 0152-release-script design D5, D6, D7 and D9.
+    """
     tag, version, gate = keys["tag"], keys["version"], keys["gate"]
+    if (at := _tag_commit(git, tag)) is not None:
+        _own(git, tag, at, origin)
     workers = _workers(git)
-    default = default_branch(git)
     archived = _archive(git, change, version)
-    _changelog(git, tag, int(gate), _ci(git, default, run))
+    _changelog(git, tag, int(gate), _ci(git, origin.default, git.run))
     number = tag.removeprefix("v")
     bumped = _pyproject(git, number) + _package(git, number)
     _ok("version file · " + ", ".join(bumped) if bumped else "version file: none")
-    data = _metrics(git, change, default, version, gate)
+    data = _metrics(git, change, origin.default, version, gate)
     moved = f"openspec/changes/{change}/"
     kept = [path for path in workers if not path.startswith(moved)]
     paths = [*dict.fromkeys([*kept, archived, "CHANGELOG.md", *bumped, *data])]
     _committed(git, paths, change, tag, _skips(primary, change))
-    git.out("tag", "-a", tag, "-m", tag)
-    _ok(f"tag · {tag}")
-    proposal = git.cwd / archived / "proposal.md"
+    _tag_at(git, tag, at)
+
+
+def finish(cwd: Path, change: str, run: bool, given: str | None = None) -> str:
+    """Archive, cut the changelog, bump, gate, commit once and tag; clear the debt.
+
+    At a release commit, resume at the tag. Why: 0152-release-script design D4…D9.
+    """
+    git, primary = _opened(cwd, change, run)
+    origin = Origin(git, default_branch(git), given)
+    if keys := _released(git, primary, change):
+        _resumed(git, keys["tag"], origin)
+    else:
+        keys = _mark(primary, change, git.out("rev-parse", "HEAD").strip())
+        _cut(git, primary, change, keys, origin)
+    tag = keys["tag"]
+    proposal = git.cwd / "openspec" / "changes" / "archive" / change / "proposal.md"
     _debt(primary, mflib.findings.front(_text(proposal))[0])
     flag = mflib.layout.change_dir(primary, change) / FLAG
     if os.path.lexists(flag):
@@ -795,6 +957,11 @@ def main(argv: list[str] | None = None) -> int:
         step.add_argument(
             "--run", action="store_true", help="a run of mf-ship: restore, unsigned git"
         )
+        step.add_argument(
+            "--origin",
+            choices=("held", "free"),
+            help="whether origin holds the release's tag or commit; by hand, read",
+        )
     commands.add_parser(
         "findings", help="print a findings file's verdict"
     ).add_argument("file", type=Path)
@@ -803,7 +970,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "findings":
             print(findings(args.file))
         else:
-            print(steps[args.command](Path.cwd(), args.change, args.run))
+            print(steps[args.command](Path.cwd(), args.change, args.run, args.origin))
     except Stop as stop:
         print(stop)
         return stop.code

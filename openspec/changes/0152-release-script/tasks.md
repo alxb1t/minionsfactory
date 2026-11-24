@@ -6,7 +6,7 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 
 - [x] 1 — release.py pre · moderate
 - [x] 2 — release.py finish · hard
-- [ ] 3 — a release run again · hard
+- [x] 3 — a release run again · hard
 - [ ] 4 — release.py merge and the conductor · hard
 - [ ] 5 — the skill and the record · moderate
 
@@ -58,19 +58,19 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 
 ## 3 — a release run again
 
-- [ ] 3.1 **HALT CHECK** The premise of [D8](design.md#d8): `finish` exists to resume.
+- [x] 3.1 **HALT CHECK** The premise of [D8](design.md#d8): `finish` exists to resume.
   Verify: `git grep -q -F -e 'def finish' -- skills/mf-release/scripts/release.py` exits `0`.
-- [ ] 3.2 Add `--origin held` and `--origin free` to `pre` and `finish`; without it the script reads `git ls-remote --tags origin <tag>` and `refs/remotes/origin/<default>` itself, and no `origin` is `free`; an `origin` it cannot read exits 2 ([D3](design.md#d3)). Tests: `test_a_hand_run_reads_origin_itself`, `test_an_unreadable_origin_cannot_run`, `test_no_origin_is_free`.
+- [x] 3.2 Add `--origin held` and `--origin free` to `pre` and `finish`; without it the script reads `git ls-remote --tags origin <tag>` and `refs/remotes/origin/<default>` itself, and no `origin` is `free`; an `origin` it cannot read exits 2 ([D3](design.md#d3)). Tests: `test_a_hand_run_reads_origin_itself`, `test_an_unreadable_origin_cannot_run`, `test_no_origin_is_free`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_a_hand_run_reads_origin_itself or test_an_unreadable_origin_cannot_run or test_no_origin_is_free"` exits `0`.
-- [ ] 3.3 Make `finish` resume from git per [D8](design.md#d8): at a release commit it skips every step before the tag, runs `gate_run.py` on the tree, tags a missing tag, clears the debt again and reads the flag; a commit without `release.pre`, one whose parent is not the mark's `head:` and one with a path outside the derived set halt naming it, through the function `pre` shares. Tests: `test_a_second_finish_after_a_death_at_each_step_ends_the_same`, `test_finish_at_a_release_commit_tags_a_missing_tag`, `test_finish_at_a_release_commit_runs_the_gate_before_tagging`, `test_a_release_commit_with_a_code_path_halts`, `test_a_release_commit_whose_parent_is_not_the_marks_head_halts`, `test_a_release_commit_without_the_mark_halts`.
+- [x] 3.3 Make `finish` resume from git per [D8](design.md#d8): at a release commit it skips every step before the tag, runs `gate_run.py` on the tree, tags a missing tag, clears the debt again and reads the flag; a commit without `release.pre`, one whose parent is not the mark's `head:` and one with a path outside the derived set halt naming it, through the function `pre` shares. Tests: `test_a_second_finish_after_a_death_at_each_step_ends_the_same`, `test_finish_at_a_release_commit_tags_a_missing_tag`, `test_finish_at_a_release_commit_runs_the_gate_before_tagging`, `test_a_release_commit_with_a_code_path_halts`, `test_a_release_commit_whose_parent_is_not_the_marks_head_halts`, `test_a_release_commit_without_the_mark_halts`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_a_second_finish_after_a_death_at_each_step_ends_the_same or test_finish_at_a_release_commit_tags_a_missing_tag or test_finish_at_a_release_commit_runs_the_gate_before_tagging or test_a_release_commit_with_a_code_path_halts or test_a_release_commit_whose_parent_is_not_the_marks_head_halts or test_a_release_commit_without_the_mark_halts"` exits `0`.
-- [ ] 3.4 Under the bound of [D9](design.md#d9) make `pre` pass a tag of this release that is own, and `finish` move it to the release commit; a tag the default branch holds and a tag `origin` holds each halt naming which. Tests: `test_pre_passes_an_own_tag`, `test_a_tag_on_an_orphan_commit_is_moved`, `test_a_tag_origin_holds_halts`, `test_a_tag_the_default_branch_holds_halts`.
+- [x] 3.4 Under the bound of [D9](design.md#d9) make `pre` pass a tag of this release that is own, and `finish` move it to the release commit; a tag the default branch holds and a tag `origin` holds each halt naming which. Tests: `test_pre_passes_an_own_tag`, `test_a_tag_on_an_orphan_commit_is_moved`, `test_a_tag_origin_holds_halts`, `test_a_tag_the_default_branch_holds_halts`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_pre_passes_an_own_tag or test_a_tag_on_an_orphan_commit_is_moved or test_a_tag_origin_holds_halts or test_a_tag_the_default_branch_holds_halts"` exits `0`.
-- [ ] 3.5 Make `pre` undo a stranded release under the bound of [D10](design.md#d10), before its restore and in the order of [D2](design.md#d2), printing `release: drop — <tag> and its commit` and exiting 0. Tests: `test_a_stranded_release_is_dropped`, `test_a_release_the_default_branch_holds_is_not_dropped`, `test_a_release_origin_holds_is_not_dropped`.
+- [x] 3.5 Make `pre` undo a stranded release under the bound of [D10](design.md#d10), before its restore and in the order of [D2](design.md#d2), printing `release: drop — <tag> and its commit` and exiting 0. Tests: `test_a_stranded_release_is_dropped`, `test_a_release_the_default_branch_holds_is_not_dropped`, `test_a_release_origin_holds_is_not_dropped`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_a_stranded_release_is_dropped or test_a_release_the_default_branch_holds_is_not_dropped or test_a_release_origin_holds_is_not_dropped"` exits `0`.
-- [ ] 3.6 Make `pre` at a release commit with a clean tree print `release: resume — <tag>` after the shared validity check and the findings check at `HEAD~1`, and none of the fold's checks, before its restore ([D8](design.md#d8)). Tests: `test_pre_reads_a_release_commit_as_a_resume`, `test_pre_halts_on_a_forged_release_commit`.
+- [x] 3.6 Make `pre` at a release commit with a clean tree print `release: resume — <tag>` after the shared validity check and the findings check at `HEAD~1`, and none of the fold's checks, before its restore ([D8](design.md#d8)). Tests: `test_pre_reads_a_release_commit_as_a_resume`, `test_pre_halts_on_a_forged_release_commit`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_pre_reads_a_release_commit_as_a_resume or test_pre_halts_on_a_forged_release_commit"` exits `0`.
-- [ ] 3.7 Update the row of `release.py` in `docs/modules.md` to the base names its string constants now end in and its imports load.
+- [x] 3.7 Update the row of `release.py` in `docs/modules.md` to the base names its string constants now end in and its imports load.
   Verify: `uv run pytest tests/test_structure.py -q` exits `0`.
 
 ## 4 — release.py merge and the conductor
