@@ -4,7 +4,7 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 
 ## Progress
 
-- [ ] 1 — release.py pre · moderate
+- [x] 1 — release.py pre · moderate
 - [ ] 2 — release.py finish · hard
 - [ ] 3 — a release run again · hard
 - [ ] 4 — release.py merge and the conductor · hard
@@ -12,21 +12,21 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 
 ## 1 — release.py pre
 
-- [ ] 1.1 **HALT CHECK** The premise of [D1](design.md#d1): the tag `release.py` prints comes from the tags merged into the default branch.
+- [x] 1.1 **HALT CHECK** The premise of [D1](design.md#d1): the tag `release.py` prints comes from the tags merged into the default branch.
   Verify: `git grep -q -F -e '--merged' -- skills/mf-release/scripts/next_tag.py` exits `0`.
-- [ ] 1.2 Add the corpus case `release-findings` to `scripts/corpus.toml`: `each` the `conformance.md` and `adversarial.md` of every change, `argv` `release.py findings {input}`, per [D14](design.md#d14).
+- [x] 1.2 Add the corpus case `release-findings` to `scripts/corpus.toml`: `each` the `conformance.md` and `adversarial.md` of every change, `argv` `release.py findings {input}`, per [D14](design.md#d14).
   Verify: `grep -n -F -e 'release-findings' scripts/corpus.toml` prints the case's name line.
-- [ ] 1.3 Create `skills/mf-release/scripts/release.py` with its `uv` header, `Stop`, a `main(argv)` that parses the subcommands the phases add, a git helper that adds the options of [D7](design.md#d7) under `--run`, and `findings <file>` per [D2](design.md#d2) and [D14](design.md#d14). Create `tests/test_release.py` with a `repo` fixture (a temporary git repository on `main` holding a version branch, a change folder and a `CHANGELOG.md`) and the tests `test_findings_prints_a_files_verdict`, `test_main_exits_0_1_and_2_by_line` and `test_the_git_helper_adds_the_run_options`.
+- [x] 1.3 Create `skills/mf-release/scripts/release.py` with its `uv` header, `Stop`, a `main(argv)` that parses the subcommands the phases add, a git helper that adds the options of [D7](design.md#d7) under `--run`, and `findings <file>` per [D2](design.md#d2) and [D14](design.md#d14). Create `tests/test_release.py` with a `repo` fixture (a temporary git repository on `main` holding a version branch, a change folder and a `CHANGELOG.md`) and the tests `test_findings_prints_a_files_verdict`, `test_main_exits_0_1_and_2_by_line` and `test_the_git_helper_adds_the_run_options`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_findings_prints_a_files_verdict or test_main_exits_0_1_and_2_by_line or test_the_git_helper_adds_the_run_options"` exits `0`.
-- [ ] 1.4 Add `pre` to `release.py` with its first checks, one line each, in the order of [D2](design.md#d2): the old layout, then under `--run` the restore of [D8](design.md#d8) (a dirty tree whose paths are all in the derived set goes back to `HEAD`, a stale `release.flag` and `release.pre` removed), then the tree clean. Tests: `test_pre_halts_on_an_old_layout`, `test_pre_restores_a_dead_releases_derived_work`, `test_pre_restore_removes_a_stale_flag_and_an_untracked_spec`, `test_a_hand_pre_keeps_the_clean_tree_halt`.
+- [x] 1.4 Add `pre` to `release.py` with its first checks, one line each, in the order of [D2](design.md#d2): the old layout, then under `--run` the restore of [D8](design.md#d8) (a dirty tree whose paths are all in the derived set goes back to `HEAD`, a stale `release.flag` and `release.pre` removed), then the tree clean. Tests: `test_pre_halts_on_an_old_layout`, `test_pre_restores_a_dead_releases_derived_work`, `test_pre_restore_removes_a_stale_flag_and_an_untracked_spec`, `test_a_hand_pre_keeps_the_clean_tree_halt`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_pre_halts_on_an_old_layout or test_pre_restores_a_dead_releases_derived_work or test_pre_restore_removes_a_stale_flag_and_an_untracked_spec or test_a_hand_pre_keeps_the_clean_tree_halt"` exits `0`.
-- [ ] 1.5 Add to `pre` the checks that read the run directory, one line each: the gate green through `gate_run.py` with its seconds, conformance and adversarial clean, converge ran or skipped, `HEAD` equal to each findings file's `head:`. Tests: `test_pre_halts_on_each_failed_precondition_of_the_findings`, `test_pre_reads_a_skipped_converge`.
+- [x] 1.5 Add to `pre` the checks that read the run directory, one line each: the gate green through `gate_run.py` with its seconds, conformance and adversarial clean, converge ran or skipped, `HEAD` equal to each findings file's `head:`. Tests: `test_pre_halts_on_each_failed_precondition_of_the_findings`, `test_pre_reads_a_skipped_converge`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_pre_halts_on_each_failed_precondition_of_the_findings or test_pre_reads_a_skipped_converge"` exits `0`.
-- [ ] 1.6 Add the tag to `pre`: read `bump:` from `proposal.md` (any value but `minor` and `patch` halts), run `next_tag.py`, halt on a tag that already exists, write `release.pre` with `tag:`, `version:`, `gate:` and `head:` ([D4](design.md#d4)), print `release: tag — <tag>`. Tests: `test_pre_prints_the_tag_and_writes_the_mark`, `test_pre_halts_on_a_bad_bump`, `test_pre_halts_on_an_existing_tag`.
+- [x] 1.6 Add the tag to `pre`: read `bump:` from `proposal.md` (any value but `minor` and `patch` halts), run `next_tag.py`, halt on a tag that already exists, write `release.pre` with `tag:`, `version:`, `gate:` and `head:` ([D4](design.md#d4)), print `release: tag — <tag>`. Tests: `test_pre_prints_the_tag_and_writes_the_mark`, `test_pre_halts_on_a_bad_bump`, `test_pre_halts_on_an_existing_tag`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_pre_prints_the_tag_and_writes_the_mark or test_pre_halts_on_a_bad_bump or test_pre_halts_on_an_existing_tag"` exits `0`.
-- [ ] 1.7 Add the remaining checks to `pre`, one line each: `## [Unreleased]` holding entries, `gate_check.py --change --base` exiting 0, the default branch an ancestor of `HEAD` (halt naming `/mf-integrate`), each `after:` id archived at `HEAD`. Test: `test_pre_halts_on_each_failed_precondition_of_the_tree`.
+- [x] 1.7 Add the remaining checks to `pre`, one line each: `## [Unreleased]` holding entries, `gate_check.py --change --base` exiting 0, the default branch an ancestor of `HEAD` (halt naming `/mf-integrate`), each `after:` id archived at `HEAD`. Test: `test_pre_halts_on_each_failed_precondition_of_the_tree`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_pre_halts_on_each_failed_precondition_of_the_tree"` exits `0`.
-- [ ] 1.8 Add the row of `release.py` to `docs/modules.md`: layer `station`, the base names its string constants end in and its imports load, in order.
+- [x] 1.8 Add the row of `release.py` to `docs/modules.md`: layer `station`, the base names its string constants end in and its imports load, in order.
   Verify: `uv run pytest tests/test_structure.py -q` exits `0`.
 
 ## 2 — release.py finish

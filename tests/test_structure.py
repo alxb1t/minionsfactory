@@ -25,6 +25,8 @@ LOADS_OUTSIDE: frozenset[tuple[str, str]] = frozenset(
         ("cut_context.py", "brief_check.py"),
         ("cut_context.py", "bundle.py"),
         ("facts.py", "brief_check.py"),
+        ("release.py", "gate_check.py"),
+        ("release.py", "gate_run.py"),
         ("review_metrics.py", "conduct.py"),
         ("review_metrics.py", "metrics.py"),
         ("review_metrics.py", "overlap.py"),

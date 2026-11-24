@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `release.py pre` checks the release's preconditions in one script and prints the tag, restoring a dead release's derived work under `--run`; `release.py findings` prints a findings file's verdict, and `make corpus` reads it over every findings file. A release halted on hand-steps a script can check (0152-release-script, phase 1).
+
 ## [0.122.0] - 2026-11-24
 
 Gate: local 7m59s · CI not read under mf-ship · 0.121.0: local 7m49s · CI not read under mf-ship
