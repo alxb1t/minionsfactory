@@ -675,12 +675,12 @@ def _latest_runs(text: str) -> list[tuple[int, str, str]]:
         return []
 
 
-def _ci(git: Git, default: str, run: bool) -> str:
+def _ci(git: Git, default: str) -> str:
     """Return the `Gate:` line's CI part: the longest latest successful run, or none.
 
     e.g. "CI 0m12s (CI at d5162e4)". Why: 0152-release-script design D7.
     """
-    if run:
+    if git.run:
         return "CI not read under mf-ship"
     if not git.ok("remote", "get-url", "origin"):
         return "CI none"
@@ -905,7 +905,7 @@ def _cut(
         _own(git, tag, at, origin)
     workers = _workers(git)
     archived = _archive(git, change, version)
-    _changelog(git, tag, int(gate), _ci(git, origin.default, git.run))
+    _changelog(git, tag, int(gate), _ci(git, origin.default))
     number = tag.removeprefix("v")
     bumped = _pyproject(git, number) + _package(git, number)
     _ok("version file · " + ", ".join(bumped) if bumped else "version file: none")
