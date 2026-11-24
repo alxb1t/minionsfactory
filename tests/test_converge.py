@@ -148,6 +148,11 @@ class Host:
         self.lacking: dict[str, list[str]] = {}
         # False is no OS sandbox; an exception is a runner that breaks.
         self.sandbox: bool | Exception = True
+        # The run-log lines converge writes through `logged`: change, event, detail.
+        self.logs: list[tuple[str, str, str]] = []
+
+    def logged(self, change: str, event: str, detail: str) -> None:
+        self.logs.append((change, event, detail))
 
     def folder(self) -> Path:
         return self.primary / ".minions" / "changes" / _CHANGE
@@ -1287,6 +1292,47 @@ def test_a_red_gate_after_a_fix_gets_one_more_pass_then_the_cap(host: Host) -> N
         "round 1 · halt — cap reached — the tree is dirty: stray.txt after one more"
         f" fix pass · head {_head(host)}"
     )
+
+
+def test_converge_logs_each_gate_with_its_seconds(host: Host) -> None:
+    # Why: 0148-run-fields design D4.
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+    host.exits["gate_run.py"] = [0, 2, 0]
+
+    assert run(host) == 0
+
+    assert {(change, event) for change, event, _ in host.logs} == {(_CHANGE, "check")}
+    shown = [re.sub(r"\d+s$", "Ns", detail) for *_, detail in host.logs]
+    assert shown[:3] == [
+        "gate · pass · Ns",
+        "gate · fail — red · Ns",
+        "gate · pass · Ns",
+    ]
+    assert set(shown) == {"gate · pass · Ns", "gate · fail — red · Ns"}
+    assert len(shown) == _ran(host).count("gate_run.py")
+
+    host.logs.clear()
+    host.exits["gate_run.py"] = 2
+
+    assert run(host) == 1
+
+    (_, _, detail), *rest = host.logs
+    assert re.fullmatch(r"gate · fail — red · \d+s", detail)
+    assert rest == []
+
+
+def test_a_reused_gate_record_is_logged_as_a_pass(host: Host) -> None:
+    # Why: 0148-run-fields design D4.
+    host.printed["gate_run.py"] = "gate: green — the record of this tree is reused\n"
+
+    assert run(host) == 0
+
+    details = [detail for *_, detail in host.logs]
+    assert details
+    assert all(re.fullmatch(r"gate · pass · \d+s", detail) for detail in details)
+    assert not any("start" in detail for detail in details)
 
 
 def test_the_cap_halts_with_the_open_blockers(host: Host) -> None:

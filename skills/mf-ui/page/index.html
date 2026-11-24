@@ -140,12 +140,15 @@ function renderVersion(parent, version, now) {
   (version.workers || []).forEach(function (worker) {
     add(block, "div", "row", parts([
       worker.station,
+      worker.phase,
       worker.model,
       worker.effort,
       worker.executor,
       elapsed(worker.started, now),
     ]));
   });
+  if (version.gate_running) add(block, "div", "row l-active", "gate running");
+  if (version.cause) add(block, "div", "row s-halted", "cause " + version.cause);
   if (version.liveness) {
     var level = version.liveness.level;
     add(block, "div", "row l-" + level, parts([

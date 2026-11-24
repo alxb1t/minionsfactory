@@ -164,6 +164,8 @@ MODERATE = "build.moderate"
 # The close's spawn builds on this table, else `MODERATE`, else `[build]`.
 # Why: 0144-gate-outside design D1.
 CLOSE = "build.close"
+# The repair build's phase word on its spawn line. Why: 0148-run-fields design D1.
+REPAIR_PHASE = "repair"
 # The rescue, supervisor, converge's workers and the moderate and close builds are
 # no stage: planned with the stations'. Why: 0067-rescue D3, D5; 0089-supervisor D2;
 # 0094-lighter-converge D1; 0102-build-per-phase D5; 0144-gate-outside D1.
@@ -4571,7 +4573,15 @@ class Run:
             self.halts.append((who, reason))
             if who != "run":
                 self.seen_halts[who] = seen
-        self.log.event(who, "halt", reason)
+        cause = mflib.runlog.cause_suffix(cause_of(who, reason))
+        self.log.event(who, "halt", f"{reason}{cause}")
+
+    def logged(self, change: str, event: str, detail: str) -> None:
+        """Write one run-log line for `change`.
+
+        Why: 0148-run-fields design D4.
+        """
+        self.log.event(change, event, detail)
 
     def on_disk(self, change: str) -> tuple[str, str, str] | None:
         """Return a version's stage, why and `HEAD` on disk; None when a read raises."""
@@ -4781,11 +4791,12 @@ class Run:
         limits: bool = False,
         deadline: float | None = None,
         halts: bool = True,
+        phase: str | None = None,
     ) -> list[str] | None:
         """Run one worker and log it and its denials; `repo` defaults to the run's.
 
-        Without `halts`, a failure is logged as a failed check. Why: 0100 design D5;
-        0104-codex-limits design D2; 0145-halts-alone design D5.
+        Without `halts`, a failure is logged as a failed check; a `phase` follows the
+        station on the spawn line. Why: 0100 D5; 0104-codex-limits D2; 0145 D5; 0148 D1.
         """
 
         def stop(reason: str) -> None:
@@ -4796,7 +4807,7 @@ class Run:
 
         timeout = None if deadline is None else deadline - time.monotonic()
         code, killed, out, denied = self.worker(
-            who, station, cwd, prompt, models, repo, brief, timeout
+            who, station, cwd, prompt, models, repo, brief, timeout, phase
         )
         if killed:
             took = TIMEOUT if timeout is None else max(round(timeout), 0)
@@ -4971,10 +4982,11 @@ class Run:
         repo: Repo | None = None,
         brief: Path | None = None,
         timeout: float | None = None,
+        phase: str | None = None,
     ) -> tuple[int, bool, Path, list[str]]:
         """Run one worker and log it and its denials; halt nothing.
 
-        A `timeout` replaces `TIMEOUT`; `work` is called as before without one.
+        A `timeout` replaces `TIMEOUT`; a `phase` is the spawn line's second field.
 
         Return its exit, whether `TIMEOUT` killed it, its log and its denials.
         """
@@ -4987,9 +4999,9 @@ class Run:
             command = argv(*given, station=station)
         other = f" · executor {executor}" if executor != self.executor else ""
         shown = f" · effort {effort}" if effort else ""
-        self.log.event(
-            who, "spawn", f"{station} · model {model or 'default'}{shown}{other}"
-        )
+        named = f" · {phase}" if phase else ""
+        spawned = f"{station}{named} · model {model or 'default'}{shown}{other}"
+        self.log.event(who, "spawn", f"{spawned}{_load_tail()}")
         if who == "run":
             out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
         else:
@@ -5018,7 +5030,9 @@ class Run:
         finally:
             _temp_gone(command)
         seconds = round(time.monotonic() - started)
-        self.log.event(who, "finish", f"{station} · exit {code} · {seconds}s")
+        self.log.event(
+            who, "finish", f"{station} · exit {code} · {seconds}s{_load_tail()}"
+        )
         if executor == "codex":
             _quota(out, before)
             if code != 0 and usage_limit(out):
@@ -5082,8 +5096,11 @@ class Run:
         if first:
             runs = mflib.layout.run_dir(self.primary)
             _remove_in(runs, mflib.layout.CHANGES, change, name="build.halt")
-            prompt = PROMPTS["build"].format(change=change, phase="repair")
-            if self.spawn(change, "build", tree, prompt, models) is None:
+            prompt = PROMPTS["build"].format(change=change, phase=REPAIR_PHASE)
+            spawned = self.spawn(
+                change, "build", tree, prompt, models, phase=REPAIR_PHASE
+            )
+            if spawned is None:
                 return False, None
             evidence = _run_gate(self.primary, change, tree, say)
         if evidence is None:
@@ -5470,7 +5487,7 @@ class Run:
         It is logged as a spawn and a finish, so the run log keeps its pairs.
         Why: 0108-converge-script design D1, D8.
         """
-        self.log.event(change, "spawn", "converge · script")
+        self.log.event(change, "spawn", f"converge · script{_load_tail()}")
         started = time.monotonic()
         code = self.converge(
             self,
@@ -5481,7 +5498,9 @@ class Run:
             deadline=started + TIMEOUT,
         )
         seconds = round(time.monotonic() - started)
-        self.log.event(change, "finish", f"converge · exit {code} · {seconds}s")
+        self.log.event(
+            change, "finish", f"converge · exit {code} · {seconds}s{_load_tail()}"
+        )
         return []
 
     def stage(self, version: Version) -> tuple[str, str]:
@@ -5588,6 +5607,7 @@ class Run:
                     phase = unticked[0] if unticked else "close"
                     rating = _rating(unticked[1]) if unticked else rating
                 numbered = phase not in (None, "close")
+                label = f"phase {phase}" if numbered else phase
                 # A link at the notes halts here, before the spawn.
                 notes = _note_lines(self.primary, change) if numbered else 0
                 prompt = PROMPTS.get(stage, "").format(
@@ -5641,7 +5661,9 @@ class Run:
                 elif amended:
                     denied = []
                 else:
-                    denied = self.spawn(version.change, stage, cwd, prompt, models)
+                    denied = self.spawn(
+                        version.change, stage, cwd, prompt, models, phase=label
+                    )
                 # A phase that failed after its notes still has them cut.
                 if numbered:
                     self.trim_notes(change, str(phase), notes)
@@ -6139,7 +6161,10 @@ class Run:
             reasons = [reason for who, reason in self.halts if who == change]
         if reasons:
             action = self._needs(change)
-            self.log.event(change, "halt", f"{FINAL}needs {action} · {reasons[0]}")
+            cause = mflib.runlog.cause_suffix(cause_of(change, reasons[0]))
+            self.log.event(
+                change, "halt", f"{FINAL}needs {action} · {reasons[0]}{cause}"
+            )
 
     def cut(self, change: str, threads: dict[str, threading.Thread]) -> None:
         """Cut a queued brief in its own worktree, check it on disk, then take it.
@@ -7291,7 +7316,11 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         # why: a conductor failure is logged as the run's halt, never a traceback.
         except Exception as error:  # noqa: BLE001
             try:
-                conductor.log.event("run", "halt", f"conduct.py failed: {error}")
+                conductor.log.event(
+                    "run",
+                    "halt",
+                    f"conduct.py failed: {error}{mflib.runlog.cause_suffix('run')}",
+                )
             except OSError as unwritten:
                 raise _unwritable(conductor.log.path, unwritten) from None
             code = 1
@@ -8531,6 +8560,73 @@ def _first(output: str) -> str:
     return lines[0] if lines else "no output"
 
 
+_STATUS_HALTS = "converge check fail — the status log halts:"
+# The rows of design D3 that anchor on a reason's start, in its order.
+_ANCHORED = tuple(
+    (cause, re.compile(pattern))
+    for cause, pattern in (
+        ("cut", r"cut-halted"),
+        (
+            "gate-red",
+            r"\S+ check fail — gate(:| red after the repair)|integrating — red gate"
+            r"|integrate check fail — integrate halted — red gate",
+        ),
+        ("plan-text", r"\S+ check fail — plan check"),
+        ("release", r"release check fail|released —|git push origin"),
+        ("merge", r"integrate check fail|integrating —"),
+        ("human", r"human —"),
+        ("limit", r"probe.*limited until"),
+        ("probe", r"probe|.*cannot write the probe mark"),
+        ("check-red", r"\S+ check fail"),
+        ("run", r"conduct\.py failed"),
+    )
+)
+# The rows of design D3 that hold words, in its order.
+_HELD = tuple(
+    (cause, re.compile(pattern))
+    for cause, pattern in (
+        ("limit", r"usage limit|limited until"),
+        (
+            "worker",
+            r"worker exit|timed out after|asked for a tool|left no findings file",
+        ),
+        ("amend", r"amend needed"),
+        ("cap", r"cap reached|^re-plan"),
+        ("plan-text", r"verify: halt"),
+        ("gate-red", r"the gate is red"),
+    )
+)
+
+
+def _held_cause(text: str) -> str | None:
+    """Return the cause of the first `_HELD` row that holds in `text`, or None."""
+    return next((cause for cause, row in _HELD if row.search(text)), None)
+
+
+def cause_of(who: str, reason: str) -> str:
+    """Return a halt's cause word: the first row of design D3 that holds, else `other`.
+
+    e.g. "build", "build check fail — plan check: x" → "plan-text"
+    """
+    if reason.startswith(_STATUS_HALTS):
+        return _held_cause(reason.removeprefix(_STATUS_HALTS)) or "other"
+    for cause, row in _ANCHORED:
+        if row.match(reason):
+            return cause
+    return "run" if who == "run" else _held_cause(reason) or "other"
+
+
+def _load_tail() -> str:
+    """Return ` · load <n>` from the 1-minute load, or `""` when it cannot be read.
+
+    e.g. 3.14 → " · load 3.1". Why: 0148-run-fields design D2.
+    """
+    try:
+        return f" · load {os.getloadavg()[0]:.1f}"
+    except OSError:
+        return ""
+
+
 def _load_wait(say: Callable[[str], None]) -> bool:
     """Wait while the 1-minute load is at or over the cores; return True when it fell.
 
@@ -8558,12 +8654,14 @@ def _run_gate(
     Red keeps the output in `gate.red`, green removes it; red under load runs again.
     Why: 0144-gate-outside D3, 0145-halts-alone D3.
     """
+    say("check — gate · start")
     start = time.monotonic()
     code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
     seconds = round(time.monotonic() - start)
     if code != 0:
         say(f"check — gate · fail — red · {seconds}s")
         if _load_wait(say):
+            say("check — gate · start")
             start = time.monotonic()
             code, output = _boxed(primary, tree, [sys.executable, str(GATE_RUN)])
             seconds = round(time.monotonic() - start)

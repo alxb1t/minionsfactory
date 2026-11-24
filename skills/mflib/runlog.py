@@ -24,6 +24,11 @@ EVENTS = (
     *("limited", "sync", "codex"),
     "converge skipped",
 )
+# Why: 0148-run-fields design D3.
+CAUSES = (
+    *("plan-text", "gate-red", "check-red", "worker", "limit", "probe", "merge"),
+    *("cut", "amend", "cap", "human", "release", "run", "other"),
+)
 _STAMPED = re.compile(r"\d{8}-\d{6}(-\d+)?")
 # The most bytes `wait` reads of a log at one poll. Why: 0140-run-log design D7.
 BOUND = 262_144
@@ -53,6 +58,16 @@ def line(who: str, event: str, detail: str) -> str:
     """
     folded = " ".join(detail.split())
     return f"{time.strftime('%H:%M:%S')} · {who} · {event} — {folded}"
+
+
+def cause_suffix(cause: str) -> str:
+    """Return a halt line's cause field; a word off `CAUSES` raises `ValueError`.
+
+    e.g. "gate-red" → " · cause gate-red"
+    """
+    if cause not in CAUSES:
+        raise ValueError(f"not a cause: {cause}")
+    return f" · cause {cause}"
 
 
 def parse(text: str) -> Event | None:

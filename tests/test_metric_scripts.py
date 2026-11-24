@@ -580,6 +580,52 @@ def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     assert done.stderr == "no MF_METRICS_CHANGE, _BASE and _HEAD\n"
 
 
+def _with_fields(text: str) -> str:
+    """Return a run log with a build's phase, the load and a halt's cause added."""
+    lines = []
+    for each in text.splitlines():
+        line = each.replace("spawn — build · ", "spawn — build · phase 1 · ")
+        load = " · load 1.5" if " · spawn — " in line or " · finish — " in line else ""
+        halt = " · halt — " in line and " · run · " not in line
+        lines.append(f"{line}{load}{' · cause other' if halt else ''}")
+    return "\n".join(lines) + "\n"
+
+
+def test_run_reads_a_log_with_the_new_fields(tmp_path: Path) -> None:
+    roots = {name: tmp_path / name for name in ("plain", "fielded")}
+    envs = {}
+    for name, root in roots.items():
+        root.mkdir()
+        envs[name] = _run_fixture(root)
+    logs = {"20261101-230000": _RUN_A, "20261102-090000": _RUN_B}
+    _write(
+        roots["fielded"],
+        {f".minions/runs/{stamp}.md": _with_fields(t) for stamp, t in logs.items()},
+    )
+    fielded = (roots["fielded"] / ".minions/runs/20261101-230000.md").read_text()
+    for field in ("spawn — build · phase 1 · model m", " · load 1.5", " · cause other"):
+        assert field in fielded
+
+    read = {name: _reader(roots[name], envs[name]) for name in roots}
+    # The metrics that read a run log's spawn, finish and halt lines.
+    for metric in (
+        "build-minutes",
+        "converge-minutes",
+        "catch-up-minutes",
+        "integrate-minutes",
+        "halts-build",
+        "halts-converge",
+        "halts-integrate",
+        "wait-minutes",
+    ):
+        assert read["fielded"](metric) == read["plain"](metric)
+    # A reading that moved would be a gap on both; these are the run's own numbers.
+    assert read["fielded"]("build-minutes") == 30.0
+    assert read["fielded"]("halts-converge") == 2
+    assert read["fielded"]("halts-integrate") == 1
+    assert read["fielded"]("wait-minutes") == 516.5
+
+
 def test_run_metrics_halt_on_an_old_layout(tmp_path: Path) -> None:
     env = _run_fixture(tmp_path)
     run = _load("run")
@@ -946,6 +992,14 @@ def test_run_metrics_read_cost_and_review_yield(tmp_path: Path) -> None:
     scripted_run = run.Version(tmp_path, "0007-s", "a", "b")
     assert scripted_run.role_tokens("conformance") == 100
     assert scripted_run.role_tokens("adversarial") == 70
+    # Twin: the same log with the load on its lines reads the same, the script's
+    # spawn included (0148-run-fields S1).
+    _write(tmp_path, {".minions/runs/20261103-100000.md": _with_fields(scripted)})
+    assert "converge · script · load 1.5" in _with_fields(scripted)
+    assert read("cost-usd-converge", "0007-s") == 2.5
+    assert read("tokens-converge", "0007-s") == 200
+    fielded_run = run.Version(tmp_path, "0007-s", "a", "b")
+    assert fielded_run.role_tokens("conformance") == 100
 
 
 def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> None:

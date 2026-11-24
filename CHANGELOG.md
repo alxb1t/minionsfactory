@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.121.0] - 2026-11-24
+
+Gate: local 7m49s · CI not read under mf-ship · 0.120.0: local 7m20s · CI not read under mf-ship
+
+- A build worker's spawn line names its phase right after the station: `build · phase 3 · model …`, `build · close · …`, `build · repair · …`. Every measurement of a run read the phase from a worker's first prompt; no other station's line changes (0148-run-fields, phase 1).
+- Every worker spawn and finish line, and the converge script's pair, ends with the 1-minute load: ` · load 0.4`. The load was in no log, and reds and slow tests follow it; a load the machine cannot read leaves the field out (0148-run-fields, phase 2).
+- Every halt line ends with a cause from a fixed list: ` · cause gate-red`, `plan-text`, `worker`, `limit` and the rest of `CAUSES`. `cause_of` classes a reason by its start first, so a worker's text quoted after `check fail` wins no cause. A cause was free text, classed by hand in each measurement; the closing line and the stop line carry none (0148-run-fields, phase 3).
+- The run log says `check — gate · start` before each gate the conductor runs, and converge writes `check — gate · pass · 41s` or `fail — red` for each gate it runs, through a new `Host.logged`. The viewer showed nothing while a gate ran, and converge's gates left only an exit in a command log (0148-run-fields, phase 4).
+- The viewer shows a worker's phase, `gate running` while a version's last line is a gate start under a live claim, and a halt's cause. Review metrics books each build log's cost under its phase, matched to its spawn line by the stamp and ordinal of the log's name: `phases` in `review-metrics.json` and a build cost table per repo. A person read an active gate as idle, and the phase came from a worker's first prompt (0148-run-fields, phase 5).
+- D90 records the run log's phase, load, cause and gate lines, with its accepted costs, and `skills/mf-review-metrics/SKILL.md` names the `phases` data key beside `stations`. The fields were in code and specs with no decision to cite (0148-run-fields, phase 6).
+
 ## [0.120.0] - 2026-11-24
 
 Gate: local 7m20s · CI not read under mf-ship · 0.119.1: local 8m9s · CI not read under mf-ship

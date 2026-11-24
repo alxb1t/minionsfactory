@@ -77,6 +77,9 @@ VERDICT = re.compile(
 )
 SPENT = re.compile(r"(executor|model|effort|tokens) (\S+)")
 SPAWNED = re.compile(r"(model|effort|executor) (\S+)")
+PHASE = re.compile(r"^\S+ · (phase \d+|close|repair)(?: · |$)")
+CAUSE = re.compile(r" · cause ([a-z-]+)$")
+GATE_START = "gate · start"
 LIMIT = re.compile(r"limited until (\d{4}-\d\d-\d\d \d\d:\d\d)$")
 TIMESTAMP = re.compile(r'"timestamp"\s*:\s*"([^"]+)"')
 
@@ -280,10 +283,15 @@ class Reader:
         return [self._worker(event) for event in unfinished]
 
     def _worker(self, spawn: Event) -> dict[str, Any]:
-        """Return a spawn as a worker: station, model, effort, executor, start."""
+        """Return a spawn as a worker: station, phase, model, effort, executor, start.
+
+        e.g. `build · phase 3 · model m` → station `build`, phase `phase 3`
+        """
         parts = dict(SPAWNED.findall(spawn.detail))
+        phase = PHASE.match(spawn.detail)
         return {
             "station": spawn.detail.split(" · ")[0],
+            "phase": phase[1] if phase else None,
             "model": parts.get("model"),
             "effort": parts.get("effort"),
             "executor": parts.get("executor"),
@@ -401,6 +409,31 @@ class Reader:
         ]
         return bool(mine) and mine[-1].who == change and mine[-1].name == "halt"
 
+    def gate_running(self, change: str) -> bool:
+        """Return whether the version's last line in the newest log starts a gate.
+
+        True only under a live claim; a pass or fail line after it, or a stale claim,
+        ends it. Why: 0148-run-fields design D5.
+        """
+        mine = [event for event in self.newest() if event.who == change]
+        if not mine:
+            return False
+        last = mine[-1]
+        return (
+            last.name == "check"
+            and last.detail == GATE_START
+            and self.claim() == "live"
+        )
+
+    def cause(self, change: str) -> str | None:
+        """Return the cause word of the version's last halt line while it stands.
+
+        e.g. `halt — build check fail — … · cause check-red` → `check-red`
+        """
+        halts = [e for e in self.newest() if e.who == change and e.name == "halt"]
+        found = CAUSE.search(halts[-1].detail) if halts else None
+        return found[1] if found and self.halted_in_log(change) else None
+
     @staticmethod
     def _rejoins(event: Event, change: str) -> bool:
         """Return whether a line is the run taking the version back, not refusing it.
@@ -456,6 +489,8 @@ class Reader:
             "phases": self.phases(version),
             "converge": self.converge_of(version.change),
             "workers": workers,
+            "gate_running": self.gate_running(version.change),
+            "cause": self.cause(version.change),
             "liveness": self.liveness(version, workers),
             "notes": self.notes(version.change),
         }
@@ -471,6 +506,8 @@ class Reader:
             "phases": [],
             "converge": None,
             "workers": [],
+            "gate_running": False,
+            "cause": None,
             "liveness": None,
             "notes": [],
         }

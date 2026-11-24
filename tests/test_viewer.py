@@ -226,8 +226,9 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
     _version(root, "0001-a", "- [ ] 1 — One\n")
     _version(root, "0002-b", "- [ ] 1 — One\n")
     lines = [
-        "10:00:00 · 0001-a · spawn — build · model claude-sonnet-5-5 · effort high",
-        "10:05:00 · 0001-a · finish — build · exit 0 · 300s",
+        "10:00:00 · 0001-a · spawn — build · phase 1 · model claude-sonnet-5-5"
+        " · effort high · load 0.5",
+        "10:05:00 · 0001-a · finish — build · exit 0 · 300s · load 0.5",
         "10:05:01 · 0001-a · spawn — converge.conformance · model gpt-6.1-sol"
         " · effort medium · executor codex",
         "10:05:02 · 0001-a · spawn — converge.adversarial · model claude-opus-5-5",
@@ -246,6 +247,7 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
     assert shown["0001-a"]["workers"] == [
         {
             "station": "converge.conformance",
+            "phase": None,
             "model": "gpt-6.1-sol",
             "effort": "medium",
             "executor": "codex",
@@ -253,6 +255,7 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
         },
         {
             "station": "converge.adversarial",
+            "phase": None,
             "model": "claude-opus-5-5",
             "effort": None,
             "executor": None,
@@ -260,6 +263,7 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
         },
         {
             "station": "fix",
+            "phase": None,
             "model": "m",
             "effort": None,
             "executor": None,
@@ -267,6 +271,7 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
         },
         {
             "station": "fix2",
+            "phase": None,
             "model": "m",
             "effort": None,
             "executor": None,
@@ -274,8 +279,8 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
         },
     ]
     assert shown["0002-b"]["workers"] == [
-        {"station": "converge", "model": None, "effort": None, "executor": None}
-        | {"started": at(10, 6, 1).timestamp()}
+        {"station": "converge", "phase": None, "model": None, "effort": None}
+        | {"executor": None, "started": at(10, 6, 1).timestamp()}
     ]
     assert _tree(root)["run"]["last"] == lines[-1]
     assert shown["0001-a"]["state"] == "idle"
@@ -301,6 +306,93 @@ def test_workers_are_the_unfinished_spawns(tmp_path: Path) -> None:
         "late": at(0, 0, 6).timestamp() + 86400,
     }
     assert _tree(root)["run"]["last"].startswith("00:00:07 · 0002-b · check")
+
+
+def test_a_worker_shows_its_phase(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    _run_log(
+        root,
+        [
+            "10:00:00 · 0001-a · spawn — build · phase 3 · model m · load 0.5",
+            "10:00:01 · 0001-a · spawn — build · close · model m",
+            "10:00:02 · 0001-a · spawn — build · repair",
+            "10:00:03 · 0001-a · spawn — rescue · model m · load 0.5",
+            "10:00:04 · 0001-a · spawn — build · phase 3x · model m",
+            "10:00:05 · 0001-a · spawn — build · model close",
+        ],
+    )
+    workers = _by_id(_tree(root))["0001-a"]["workers"]
+    assert [(w["station"], w["phase"]) for w in workers] == [
+        ("build", "phase 3"),
+        ("build", "close"),
+        ("build", "repair"),
+        ("rescue", None),
+        ("build", None),
+        ("build", None),
+    ]
+
+
+@pytest.mark.slow
+def test_a_running_gate_is_the_versions_last_line(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    _version(root, "0002-b", "- [ ] 1 — One\n")
+    _live(root)
+    start = "10:00:00 · 0001-a · check — gate · start"
+    sibling = "10:00:01 · 0002-b · spawn — build · phase 1 · model m"
+
+    def running(lines: list[str]) -> dict[str, bool]:
+        _run_log(root, lines)
+        return {k: v["gate_running"] for k, v in _by_id(_tree(root)).items()}
+
+    assert running([start]) == {"0001-a": True, "0002-b": False}
+    # A line of another version after the start is no line of this one.
+    assert running([start, sibling]) == {"0001-a": True, "0002-b": False}
+    # A pass or fail after the start, or any other line of the version, ends it.
+    for after in ("check — gate · pass · 40s", "check — gate · fail — red · 40s"):
+        assert not running([start, f"10:00:02 · 0001-a · {after}"])["0001-a"]
+    assert not running([start, "10:00:02 · 0001-a · spawn — build · model m"])["0001-a"]
+    assert not running(["10:00:00 · 0001-a · check — gate · pass · 4s"])["0001-a"]
+    assert not running(["10:00:00 · 0001-a · check — gate · started"])["0001-a"]
+
+
+def test_a_stale_claim_shows_no_running_gate(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    _run_log(root, ["10:00:00 · 0001-a · check — gate · start"])
+    assert not _by_id(_tree(root))["0001-a"]["gate_running"]
+    _write(root / ".minions/runs/active/pid", "garbage")
+    shown = _tree(root)
+    assert shown["run"]["claim"] == "stale"
+    assert not _by_id(shown)["0001-a"]["gate_running"]
+    _live(root)
+    assert _by_id(_tree(root))["0001-a"]["gate_running"]
+
+
+@pytest.mark.slow
+def test_a_halt_shows_its_cause(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    _version(root, "0002-b", "- [ ] 1 — One\n")
+    halt = "10:00:00 · 0001-a · halt — build check fail — plan check · cause plan-text"
+
+    def causes(lines: list[str]) -> dict[str, str | None]:
+        _run_log(root, lines)
+        return {k: v["cause"] for k, v in _by_id(_tree(root)).items()}
+
+    assert causes([halt]) == {"0001-a": "plan-text", "0002-b": None}
+    # The last halt line of the version names the cause.
+    later = "10:00:01 · 0001-a · halt — rescue diagnosed · cause other"
+    assert causes([halt, later])["0001-a"] == "other"
+    # A halt line with no cause, an older log's, shows none.
+    assert causes(["10:00:00 · 0001-a · halt — build worker exit 1"])["0001-a"] is None
+    # A version that spawned again after its halt is not halted: no cause stands.
+    again = "10:00:02 · 0001-a · spawn — build · phase 1 · model m"
+    assert causes([halt, again])["0001-a"] is None
+    # A cause in a worker's text, not at the line's end, is no cause.
+    quoted = "10:00:00 · 0001-a · halt — worker said · cause gate-red and more"
+    assert causes([quoted])["0001-a"] is None
 
 
 @pytest.mark.slow

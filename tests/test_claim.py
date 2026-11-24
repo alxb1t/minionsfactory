@@ -50,6 +50,15 @@ def ps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return registry
 
 
+@pytest.fixture(autouse=True)
+def _steady_load(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read a load of 2.5, so a spawn or finish line's load is known.
+
+    Why: 0148-run-fields design D6.
+    """
+    monkeypatch.setattr(os, "getloadavg", lambda: (2.5, 0.0, 0.0))
+
+
 def _known(registry: Path, pid: int, start: str, comm: str = "python3") -> None:
     """Make the fake `ps` answer `start` and `comm` for `pid`."""
     (registry / f"{pid}.lstart").write_text(start)
@@ -733,12 +742,14 @@ def test_case_m_the_spawn_finish_denied_and_limited_lines(
     lines = log.path.read_text().splitlines()[2:]
     assert lines == [
         "10:20:30 · 0001-a · spawn — build · model opus · effort high"
-        " · executor claude",
+        " · executor claude · load 2.5",
         lines[1],
         "10:20:30 · 0001-a · denied — build · Bash(rm x)",
         "10:20:30 · run · limited — codex limited until a reset it did not name",
     ]
-    assert re.fullmatch(r"10:20:30 · 0001-a · finish — build · exit 3 · \d+s", lines[1])
+    assert re.fullmatch(
+        r"10:20:30 · 0001-a · finish — build · exit 3 · \d+s · load 2\.5", lines[1]
+    )
 
 
 def test_module_take_makes_the_claim_once(tmp_path: Path) -> None:
