@@ -381,12 +381,12 @@ one `Gate:` line of the gate's times, and tags. Then it asks once; on yes — or
 gave by starting `mf-ship` — it merges into the default branch with `--no-ff` and pushes the default branch and the
 tag, save where the machine's `ship.toml` sets `tags = false`; under `merge=yes`, `conduct.py` pushes. It never forces,
 never pushes the version branch, never edits feature code. Fold and archive land in one commit. Under a run the release
-commit, its tag and the merge are a worker's, made in its sandbox, and unsigned; the conductor's own merges are
-signed where the machine signs.**
+commit, its tag and the merge are `release.py`'s, run by the conductor, and unsigned; the worker only folds. The
+conductor's own merges are signed where the machine signs.**
 
 - **Why:** the yes is the person's act; the commands typed after it added nothing. A fold without its archive
-  leaves the spec tree and the change disagreeing. A worker's sandbox cannot reach the machine's signer, so a worker's
-  git signs nothing.
+  leaves the spec tree and the change disagreeing. The run's sandbox cannot reach the machine's signer, so the
+  script's git signs nothing.
 - **Rejected:** `openspec archive` for the fold: the release does the same fold inside a gate-verified commit · a
   separate merge skill: one more invocation · a merge nobody said yes to: `merge=yes` comes only from a run the
   person started.
@@ -691,8 +691,8 @@ proposal.md `version: vX.Y`    =  CHANGELOG `## [X.Y.0]`  =  tag `vX.Y.0`  =  th
 proposal.md `version: vX.Y.Z`  =  CHANGELOG `## [X.Y.Z]`  =  tag `vX.Y.Z`  =  the version file
 ```
 
-The cut declares `bump: minor` or `bump: patch`; `next_tag.py` computes the tag, and the release writes `version:` into
-the proposal it archives.
+The cut declares `bump: minor` or `bump: patch`; `release.py pre` computes the tag through `next_tag.py`, and
+`release.py finish` writes `version:` into the proposal it archives.
 
 - **Why:** one source of version truth leaves nothing to reconcile.
 
@@ -712,7 +712,8 @@ Example: `0011-cut-and-gate`, on the branch `0011-cut-and-gate`.
 ### D21 · Every commit names its change
 
 **A commit ends with `Change: <change-id>`, in the trailer block, contiguous with `Co-Authored-By:`. The
-bootstrap commit, made before any change exists, is the one without it. A worker's commit under a run holds no
+bootstrap commit, made before any change exists, is the one without it. A commit a script makes, the release
+commit and the release merge of `release.py`, carries `Change:` alone. A worker's commit under a run holds no
 `Claude-Session:` line: the run starts each Claude worker with `attribution.sessionUrl` false.**
 
 ```
@@ -1241,7 +1242,7 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 **Everything about one change lives in `.minions/changes/<change-id>/`: `conformance.md`, `adversarial.md`,
 `status_log.md`, `diff.patch`, `bundle.md`, `debt-cards.md`, `models.toml`, the cutter's `cut.halt` and `cut-notes.md`,
 `integrate.{md,red,resolved,settled}`,
-`build.{done,halt,closing,simplified,discarded.patch}`, `gate.red`, `plan-check.txt`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `gate-check/` and
+`build.{done,halt,closing,simplified,discarded.patch}`, `gate.red`, `plan-check.txt`, `build-notes.md`, `stacked-on`, `rescue.md`, `release.held`, `release.flag`, `release.pre`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through `change_dir` of `skills/mflib/layout.py`;
 `status_log.md` is written and parsed by `skills/mflib/statuslog.py`, found through `change_dir`;
 `models.toml` is written and parsed by `skills/mflib/modelsfile.py`, found through `models_file` of

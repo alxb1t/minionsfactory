@@ -274,9 +274,8 @@ Carded in `.minions/debt.md`, accepted until paid down: `0034·R9`. D47 accepts 
   moved to a forged release merge passes unless the person compares it with `origin` or its release.
 - A Codex worker's untrusted trees rest on Codex's `-c` and trust code: the drill re-proves them after a Codex upgrade.
 - A worker can forge a gate record in `.minions/gate/`, so a later station reuses a green no gate ran; the release's
-  post-fold gate runs fresh, so a red tree never reaches a tag. No test holds `mf-release` Step 4's `--fresh`
-  ([D42](docs/decisions.md#d42--skill-prose-is-held-by-review-not-by-phrase-scans) retires phrase scans), so review
-  holds it on any edit to that step.
+  post-fold gate runs fresh, so a red tree never reaches a tag. `release.py finish` runs it with `--fresh`, and
+  `test_finish_halts_on_a_red_gate` and `test_finish_commits_once_and_tags` of `tests/test_release.py` hold it.
 - A station run by hand leaves no live mark, so an install or a run's end can move the `mf-*` links under it
   ([D55](docs/decisions.md#d55--one-pinned-mf-release-per-machine)).
 - A `make install-skills TAG=<tag>` exports from the checkout, so a tag a worker moved or an object it rewrote in the

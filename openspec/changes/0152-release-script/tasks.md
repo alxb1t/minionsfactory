@@ -8,7 +8,7 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 - [x] 2 — release.py finish · hard
 - [x] 3 — a release run again · hard
 - [x] 4 — release.py merge and the conductor · hard
-- [ ] 5 — the skill and the record · moderate
+- [x] 5 — the skill and the record · moderate
 
 ## 1 — release.py pre
 
@@ -92,13 +92,13 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 
 ## 5 — the skill and the record
 
-- [ ] 5.1 In `skills/mf-release/SKILL.md` replace Step 1's preconditions and *A resumed release* with `scripts/release.py pre`, naming its lines, its `resume` and `drop` and its `--run`.
+- [x] 5.1 In `skills/mf-release/SKILL.md` replace Step 1's preconditions and *A resumed release* with `scripts/release.py pre`, naming its lines, its `resume` and `drop` and its `--run`.
   Verify: `git grep -c -F -e 'scripts/release.py' -- skills/mf-release/SKILL.md` prints a count.
-- [ ] 5.2 In `skills/mf-release/SKILL.md` keep Step 2's fold, the preamble and the prose that states the version, add that a flag is written to `.minions/changes/<change-id>/release.flag`, and say that under `merge=yes` the worker stops there.
+- [x] 5.2 In `skills/mf-release/SKILL.md` keep Step 2's fold, the preamble and the prose that states the version, add that a flag is written to `.minions/changes/<change-id>/release.flag`, and say that under `merge=yes` the worker stops there.
   Verify: `git grep -c -F -e 'release.flag' -- skills/mf-release/SKILL.md` prints a count.
-- [ ] 5.3 In `skills/mf-release/SKILL.md` replace Steps 3 and 4 with `release.py finish` and Step 5's merge with `release.py merge`, keeping the ask, the attended push and the worktree's removal; no `git tag -a` stays.
+- [x] 5.3 In `skills/mf-release/SKILL.md` replace Steps 3 and 4 with `release.py finish` and Step 5's merge with `release.py merge`, keeping the ask, the attended push and the worktree's removal; no `git tag -a` stays.
   Verify: `git grep -c -F -e 'git tag -a' -- skills/mf-release/SKILL.md` prints nothing.
-- [ ] 5.4 In `tests/test_skills.py` replace the `mf-release` rows of `_METRICS_SCRIPTS` that name the scripts `release.py` now runs with the row `("mf-release", "scripts/release.py")`, and edit the expected lists of the tests that print those rows.
+- [x] 5.4 In `tests/test_skills.py` replace the `mf-release` rows of `_METRICS_SCRIPTS` that name the scripts `release.py` now runs with the row `("mf-release", "scripts/release.py")`, and edit the expected lists of the tests that print those rows.
   Verify: `uv run pytest tests/test_skills.py -q` exits `0`.
-- [ ] 5.5 In `docs/decisions.md` reword D17 so the commit, the tag and the merge are `release.py`'s under a run, unsigned, D19 so `release.py pre` computes the tag, and D21 so a commit a script makes carries `Change:` alone, and add `release.flag` and `release.pre` to the marks of D57.
+- [x] 5.5 In `docs/decisions.md` reword D17 so the commit, the tag and the merge are `release.py`'s under a run, unsigned, D19 so `release.py pre` computes the tag, and D21 so a commit a script makes carries `Change:` alone, and add `release.flag` and `release.pre` to the marks of D57.
   Verify: `git grep -n -F -e 'release.flag' -- docs/decisions.md` prints the line of D57.

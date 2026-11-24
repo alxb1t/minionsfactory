@@ -498,13 +498,10 @@ def test_resource_scan_reports_missing_empty_and_escaping_targets(
 # 0108-converge-script design D10.
 _METRICS_SCRIPTS = [
     ("mf-build", "scripts/metrics.py"),
-    ("mf-release", "../mf-build/scripts/metrics.py"),
-    ("mf-release", "scripts/next_tag.py"),
+    ("mf-release", "scripts/release.py"),
     ("mf-converge", "scripts/converge.py"),
-    ("mf-release", "../mf-converge/scripts/gate_check.py"),
     ("mf-build", "../mf-converge/scripts/gate_run.py"),
     ("mf-integrate", "../mf-converge/scripts/gate_run.py"),
-    ("mf-release", "../mf-converge/scripts/gate_run.py"),
     ("mf-integrate", "scripts/integrate.py"),
     ("mf-ship", "scripts/conduct.py"),
     ("mf-cut-change", "scripts/verify_check.py"),
@@ -555,7 +552,6 @@ def test_the_stations_run_the_bundled_metrics_script() -> None:
 _GATE_RUN_UNNAMED = [
     "skills/mf-build/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
     "skills/mf-integrate/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
-    "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_run.py: not named",
 ]
 
 
@@ -565,17 +561,13 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
         {
             "mf-build": "Run `<this package>/scripts/metrics.py collect`.\n",
             "mf-converge": "Run `<this package>/scripts/converge.py`.\n",
-            "mf-release": "Run `../mf-build/scripts/metrics.py collect` and "
-            "`../mf-converge/scripts/gate_check.py`.\n",
+            "mf-release": "Run `scripts/release.py pre`.\n",
         },
     )
     assert _metrics_script_problems(tmp_path) == [
         "skills/mf-build/SKILL.md: scripts/metrics.py: missing file",
-        "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: missing file",
-        "skills/mf-release/SKILL.md: scripts/next_tag.py: not named",
+        "skills/mf-release/SKILL.md: scripts/release.py: missing file",
         "skills/mf-converge/SKILL.md: scripts/converge.py: missing file",
-        "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: "
-        "missing file",
         *_GATE_RUN_UNNAMED,
         "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
         "skills/mf-ship/SKILL.md: scripts/conduct.py: not named",
@@ -594,10 +586,8 @@ def test_the_metrics_script_scan_reports_a_missing_script(tmp_path: Path) -> Non
     (tmp_path / "skills" / "mf-release" / "SKILL.md").write_text("No metrics.\n")
     assert _metrics_script_problems(tmp_path) == [
         "skills/mf-build/SKILL.md: scripts/metrics.py: empty file",
-        "skills/mf-release/SKILL.md: ../mf-build/scripts/metrics.py: not named",
-        "skills/mf-release/SKILL.md: scripts/next_tag.py: not named",
+        "skills/mf-release/SKILL.md: scripts/release.py: not named",
         "skills/mf-converge/SKILL.md: scripts/converge.py: missing file",
-        "skills/mf-release/SKILL.md: ../mf-converge/scripts/gate_check.py: not named",
         *_GATE_RUN_UNNAMED,
         "skills/mf-integrate/SKILL.md: scripts/integrate.py: not named",
         "skills/mf-ship/SKILL.md: scripts/conduct.py: not named",
