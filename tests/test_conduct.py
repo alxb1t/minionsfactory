@@ -518,6 +518,12 @@ def test_status_reads_each_stage_from_disk(
     tasks.write_text("## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship **HUMAN**\n")
     _commit(tree, {}, "a human phase")
     assert stage() == "0001-todo · human — phase 2 — Ship **HUMAN**"
+    # A worker-written title reaches the terminal with its control bytes replaced.
+    tasks.write_text(
+        "## Progress\n\n- [x] 1 — One\n- [ ] 2 — Ship \x1b[2J**HUMAN**\x07\n"
+    )
+    _commit(tree, {}, "a hostile title")
+    assert stage() == "0001-todo · human — phase 2 — Ship ?[2J**HUMAN**?"
     tasks.write_text("## Progress\n\n- [x] 1 — One\n")
     _commit(tree, {}, "build")
     _done(root, "0001-todo", _git(tree, "rev-parse", "HEAD"))

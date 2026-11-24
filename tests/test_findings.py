@@ -510,6 +510,23 @@ def test_count_follows_no_link(tmp_path: Path) -> None:
     assert target.read_text() == path.read_text() == "---\nfiles: 3\n---\n"
 
 
+def test_count_reports_a_write_that_failed(tmp_path: Path) -> None:
+    path = tmp_path / "conformance.md"
+    path.write_text("---\nfiles: 3\n---\n")
+
+    assert findings.count(tmp_path, "conformance.md", {"files": 4}) is True
+    assert findings.count(tmp_path, "gone.md", {"files": 4}) is False
+    (tmp_path / "conformance.md.tmp").mkdir()
+    (tmp_path / "conformance.md.tmp" / "held").write_text("x")
+    path.write_text("---\nfiles: 3\n---\n")
+
+    assert findings.count(tmp_path, "conformance.md", {"files": 4}) is False
+    assert path.read_text() == "---\nfiles: 3\n---\n"
+    # A stub is left on purpose, which is no failure.
+    path.write_text("---\nmode: skipped\n---\n")
+    assert findings.count(tmp_path, "conformance.md", {"files": 4}) is True
+
+
 def test_fix_stamp_keeps_the_file_when_its_write_fails(tmp_path: Path) -> None:
     path = tmp_path / "conformance.md"
     path.write_text("---\nmodel: x\n---\n")

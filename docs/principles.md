@@ -68,7 +68,8 @@ checker's stub is a clean the plan wrote, not a recomputation, and the release n
 
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
   rules rebuild to its exact tree decided nothing a reader could judge.
-- **Held by:** `converge.py`'s `read_verdicts` and `by_rule`; `mf-release` precondition 4, which states a skip and halts
+- **Held by:** the checker's own *scope resolution failed* card, which converge's stamp counts no file against, and
+  `converge.py`'s `by_rule`; `mf-release` precondition 4, which states a skip and halts
   on a lone patch or findings file; the *Never* lists of `mf-converge` and `mf-release`;
   `tests/test_integrate.py::test_replay_refuses_a_judged_merge`.
 - **Known breaks:** a checkout that lost `.minions/` reads as converge skipped

@@ -1209,6 +1209,9 @@ def test_v9_halts_an_unquoted_exit(
     assert why in lines
     for text in ("exits five", "exits `x`", "exits", "exits `5` then exits 6"):
         assert _v9(f"- [ ] 1.1 A.\n  Verify: `a` {text}.\n"), text
+    # The near spellings and the sentinel typed out are no span of digits.
+    for text in ("exit 5", "exited 5", "Exits 5", "returns 5", "exits <n>"):
+        assert _v9(f"- [ ] 1.1 A.\n  Verify: `a` {text}.\n"), text
 
 
 def test_v9_holds_a_quoted_exit_and_the_word_in_prose() -> None:
@@ -1218,6 +1221,9 @@ def test_v9_holds_a_quoted_exit_and_the_word_in_prose() -> None:
     assert _v9("- [ ] 1.1 A, as one that exits 5.\n  Verify: `a` prints `1`.\n") is None
     assert _v9("- [ ] 1.1 A.\n  Verify: `a exits 5` prints `1`.\n") is None
     assert _v9("- [ ] 1.1 A, which exits 5.\n") is None
+    assert (
+        _v9("- [ ] 1.1 A.\n  Verify: `a` prints `1`, the exit code is `0`.\n") is None
+    )
 
 
 def test_v9_reads_a_halt_check_task() -> None:

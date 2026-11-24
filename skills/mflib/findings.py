@@ -3,7 +3,6 @@
 Why: 0138-findings design D1.
 """
 
-import contextlib
 import os
 import re
 from collections.abc import Callable, Mapping
@@ -329,12 +328,13 @@ def stamped(text: str, model: str | None, tokens: int | None) -> str | None:
     return f"---\n{''.join(kept)}---\n{text[found.end() :]}"
 
 
-def _staged(folder: Path, name: str, edit: Callable[[str], str | None]) -> None:
+def _staged(folder: Path, name: str, edit: Callable[[str], str | None]) -> bool:
     """Write `edit` of a findings file over it, following no link; else leave it.
 
     Staged as `<name>.tmp` at mode 0600 and renamed over it: 0138-findings design D12.
+    False when a read or the write failed; True when it wrote, or `edit` left it.
     """
-    with contextlib.suppress(OSError, statefile.WriteFailed):
+    try:
         fd = statefile.folder(folder.parent, folder.name)
         try:
             text = statefile.read(name, folder=fd)
@@ -342,6 +342,9 @@ def _staged(folder: Path, name: str, edit: Callable[[str], str | None]) -> None:
                 statefile.write(Path(name), done, folder=fd, mode=0o600)
         finally:
             os.close(fd)
+    except (OSError, statefile.WriteFailed):
+        return False
+    return True
 
 
 def stamp(folder: Path, name: str, model: str | None, tokens: int | None) -> None:
@@ -365,6 +368,9 @@ def counted(text: str, values: Mapping[str, object]) -> str | None:
     return f"{block}{added}---\n{text[found.end() :]}"
 
 
-def count(folder: Path, name: str, values: Mapping[str, object]) -> None:
-    """Set a findings file's keys to `values`, following no link, or leave it."""
-    _staged(folder, name, lambda text: counted(text, values))
+def count(folder: Path, name: str, values: Mapping[str, object]) -> bool:
+    """Set a findings file's keys to `values`, following no link, or leave it.
+
+    False when the file could not be read or written, so the caller can halt.
+    """
+    return _staged(folder, name, lambda text: counted(text, values))

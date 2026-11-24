@@ -8867,7 +8867,10 @@ def close_command(cwd: Path, change: str) -> int:
 
 
 def status(cwd: Path) -> str:
-    """Return the claim, unpushed and tags lines, then `<change-id> · <stage>` each."""
+    """Return the claim, unpushed and tags lines, then `<change-id> · <stage>` each.
+
+    A halting stage's line adds ` — <reason>`: `_status_line`.
+    """
     primary = primary_of(cwd)
     claim = _claim(mflib.layout.claim_file(primary))
     lines = {
@@ -8902,13 +8905,14 @@ def status(cwd: Path) -> str:
 def _status_line(primary: Path, version: Version) -> str:
     """Return `<change-id> · <stage>`, a halting stage's reason, a models file's halt.
 
+    A control character of the reason reads `?`. Why: 0142-models D10; 0151-stamps D8.
     e.g. "0001-todo · released — v0.1.0 is not the commit its tag names".
-    Why: 0142-models design D10; 0151-stamps design D8.
     """
     stage, why = stage_of(primary, version)
     line = f"{version.change} · {stage}"
     if why and stage in HALTS:
-        line += f" — {why}"
+        # The reason holds worker-written text: no control byte reaches the terminal.
+        line += " — " + re.sub(r"[\x00-\x1f\x7f-\x9f]", "?", why)
     try:
         _models_data(mflib.layout.run_dir(primary), version.change)
     except Stop as stop:

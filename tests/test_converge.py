@@ -1002,6 +1002,39 @@ def test_a_pickup_check_is_stamped_and_keeps_its_round(host: Host) -> None:
         _front_holds(host, role, head=_head(host), round=7, files=1, commits=1)
 
 
+def test_a_checker_that_writes_nothing_leaves_no_stamp_on_a_stale_file(
+    host: Host,
+) -> None:
+    host.write("adversarial", findings("adversarial", "a" * 40, round=1))
+    stale = (host.folder() / "adversarial.md").read_text()
+    host.answers["converge-adversarial-r1"] = lambda head: None
+
+    assert run(host) == 1
+
+    assert (host.folder() / "adversarial.md").read_text() == stale
+    assert events(host)[-1].startswith(
+        "round 1 · halt — adversarial.md is unchanged: its checker wrote no findings"
+    )
+    told = [station for station, *_ in host.checks]
+    assert told.count("converge-adversarial-r1") == 2
+
+
+def test_a_stamp_that_fails_halts_naming_the_file(host: Host) -> None:
+    def blocked(head: str) -> None:
+        host.write("conformance", findings("conformance", head, **_WIDE))
+        planted = host.folder() / "conformance.md.tmp"
+        planted.mkdir()
+        (planted / "held").write_text("x")
+
+    host.answers["converge-conformance-r1"] = blocked
+
+    assert run(host) == 1
+
+    assert events(host)[-1].startswith(
+        "round 1 · halt — conformance.md could not be stamped: the write failed"
+    )
+
+
 def test_a_stub_and_a_by_rule_file_are_not_stamped(host: Host) -> None:
     converge = _converge()
     context = converge["Context"](host, _CHANGE, host.tree, _WORKERS, 1e12)

@@ -2135,23 +2135,44 @@ def counted(
     values |= {} if pickup else {"round": context.round}
     values |= {"files": frozen.files, "commits": frozen.commits}
     for role in roles:
-        mflib.findings.count(context.folder, f"{role}.md", values)
+        path = context.folder / f"{role}.md"
+        if not mflib.findings.count(context.folder, path.name, values) and (
+            os.path.lexists(path)
+        ):
+            raise Halt(f"{path.name} could not be stamped: the write failed")
+
+
+def _signature(path: Path) -> tuple[int, int, int] | None:
+    """Return a file's mtime, size and inode, or None with no file."""
+    try:
+        seen = path.lstat()
+    except OSError:
+        return None
+    return seen.st_mtime_ns, seen.st_size, seen.st_ino
 
 
 def _failed(
-    context: Context, job: tuple[str, str, str], result: Checked, seconds: float
+    context: Context,
+    job: tuple[str, str, str],
+    result: Checked,
+    seconds: float,
+    before: tuple[int, int, int] | None = None,
 ) -> str | None:
     """Return why a worker failed, in `Run.spawn`'s words, or that it left no file.
 
-    A timeout kill, or a usage limit, halts at once. Why: design D5.
+    A timeout kill, or a usage limit, halts at once. A file `before` still stands
+    untouched was not written. Why: design D5; 0151-stamps S1.
     """
     station, table, _ = job
     why = failure(station, seconds, result.code, result.killed, result.limit)
     if why and (result.killed or result.limit):
         raise Halt(why)
     unequipped(context, station)
-    if why is None and not os.path.lexists(context.folder / f"{table}.md"):
+    path = context.folder / f"{table}.md"
+    if why is None and not os.path.lexists(path):
         why = f"{table}.md is missing: its checker left no findings file"
+    elif why is None and before is not None and _signature(path) == before:
+        why = f"{table}.md is unchanged: its checker wrote no findings"
     return why
 
 
@@ -2166,11 +2187,15 @@ def retried(
     for station, table, _ in jobs.values():
         context.stations[table] = (station, effort)
     seconds = remaining(context)
+    before = {
+        key: _signature(context.folder / f"{table}.md")
+        for key, (_, table, _) in jobs.items()
+    }
     checked = run_checkers(context, jobs, effort)
     faults = {
         key: why
         for key, job in jobs.items()
-        if (why := _failed(context, job, checked[key], seconds))
+        if (why := _failed(context, job, checked[key], seconds, before[key]))
     }
     if not faults:
         return checked
@@ -2179,7 +2204,7 @@ def retried(
     seconds = remaining(context)
     checked.update(run_checkers(context, again, effort))
     for key, job in again.items():
-        if why := _failed(context, job, checked[key], seconds):
+        if why := _failed(context, job, checked[key], seconds, before[key]):
             raise Halt(why)
     return checked
 
