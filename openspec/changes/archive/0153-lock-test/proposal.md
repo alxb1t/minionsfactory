@@ -1,5 +1,6 @@
 ---
 bump: patch
+version: v0.123.1
 ---
 
 # The lock test names its interpreter
