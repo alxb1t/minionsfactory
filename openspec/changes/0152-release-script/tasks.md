@@ -5,7 +5,7 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 ## Progress
 
 - [x] 1 — release.py pre · moderate
-- [ ] 2 — release.py finish · hard
+- [x] 2 — release.py finish · hard
 - [ ] 3 — a release run again · hard
 - [ ] 4 — release.py merge and the conductor · hard
 - [ ] 5 — the skill and the record · moderate
@@ -31,29 +31,29 @@ The phases build `release.py`: `pre`, `finish`, a release run again, `merge` wit
 
 ## 2 — release.py finish
 
-- [ ] 2.1 Add `finish` to `release.py`: it reads `release.pre` (missing, or its `head:` stale, halts) and takes the worker's paths, those under `openspec/specs/` and the Markdown files; any other path halts naming it ([D5](design.md#d5)). Tests: `test_finish_takes_the_workers_paths`, `test_finish_halts_on_a_python_file`, `test_finish_halts_without_the_mark`.
+- [x] 2.1 Add `finish` to `release.py`: it reads `release.pre` (missing, or its `head:` stale, halts) and takes the worker's paths, those under `openspec/specs/` and the Markdown files; any other path halts naming it ([D5](design.md#d5)). Tests: `test_finish_takes_the_workers_paths`, `test_finish_halts_on_a_python_file`, `test_finish_halts_without_the_mark`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_takes_the_workers_paths or test_finish_halts_on_a_python_file or test_finish_halts_without_the_mark"` exits `0`.
-- [ ] 2.2 In `finish`, write `version: <version>` below `bump:` in `proposal.md`, then move `openspec/changes/<change-id>/` to `openspec/changes/archive/<change-id>/` with `git mv`. Test: `test_finish_archives_the_change_and_writes_its_version`.
+- [x] 2.2 In `finish`, write `version: <version>` below `bump:` in `proposal.md`, then move `openspec/changes/<change-id>/` to `openspec/changes/archive/<change-id>/` with `git mv`. Test: `test_finish_archives_the_change_and_writes_its_version`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_archives_the_change_and_writes_its_version"` exits `0`.
-- [ ] 2.3 In `finish`, rename `## [Unreleased]` in `CHANGELOG.md` to `## [<tag without v>] - <today>` and seed an empty `## [Unreleased]` above it. Test: `test_finish_cuts_the_changelog_heading`.
+- [x] 2.3 In `finish`, rename `## [Unreleased]` in `CHANGELOG.md` to `## [<tag without v>] - <today>` and seed an empty `## [Unreleased]` above it. Test: `test_finish_cuts_the_changelog_heading`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_cuts_the_changelog_heading"` exits `0`.
-- [ ] 2.4 In `finish`, write the `Gate:` line under the renamed heading in the form of [D7](design.md#d7): the mark's gate time, the CI time, the previous version's times. Tests: `test_finish_writes_the_gate_line`, `test_finish_writes_ci_none_when_gh_fails`, `test_finish_writes_ci_not_read_under_a_run`, `test_finish_copies_the_previous_gate_line`.
+- [x] 2.4 In `finish`, write the `Gate:` line under the renamed heading in the form of [D7](design.md#d7): the mark's gate time, the CI time, the previous version's times. Tests: `test_finish_writes_the_gate_line`, `test_finish_writes_ci_none_when_gh_fails`, `test_finish_writes_ci_not_read_under_a_run`, `test_finish_copies_the_previous_gate_line`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_writes_the_gate_line or test_finish_writes_ci_none_when_gh_fails or test_finish_writes_ci_not_read_under_a_run or test_finish_copies_the_previous_gate_line"` exits `0`.
-- [ ] 2.5 In `finish`, bump `pyproject.toml`'s `version` to the tag without `v` and run `uv lock --offline`, per [D6](design.md#d6); the test project holds no dependency, so the lock resolves offline, and a failing `uv lock` halts naming its last line. Tests: `test_finish_bumps_the_version_file_and_its_lock`, `test_finish_halts_when_uv_lock_fails`.
+- [x] 2.5 In `finish`, bump `pyproject.toml`'s `version` to the tag without `v` and run `uv lock --offline`, per [D6](design.md#d6); the test project holds no dependency, so the lock resolves offline, and a failing `uv lock` halts naming its last line. Tests: `test_finish_bumps_the_version_file_and_its_lock`, `test_finish_halts_when_uv_lock_fails`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_bumps_the_version_file_and_its_lock or test_finish_halts_when_uv_lock_fails"` exits `0`.
-- [ ] 2.6 In `finish`, bump `package.json` and `package-lock.json` by the edit of [D6](design.md#d6), halt on a lock of the shapes [D6](design.md#d6) names, and record `version file: none` in a repository with neither file. Tests: `test_finish_bumps_package_json_and_its_lock`, `test_finish_records_none_for_no_version_file`, `test_finish_halts_on_a_lock_of_another_shape`.
+- [x] 2.6 In `finish`, bump `package.json` and `package-lock.json` by the edit of [D6](design.md#d6), halt on a lock of the shapes [D6](design.md#d6) names, and record `version file: none` in a repository with neither file. Tests: `test_finish_bumps_package_json_and_its_lock`, `test_finish_records_none_for_no_version_file`, `test_finish_halts_on_a_lock_of_another_shape`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_bumps_package_json_and_its_lock or test_finish_records_none_for_no_version_file or test_finish_halts_on_a_lock_of_another_shape"` exits `0`.
-- [ ] 2.7 In `finish`, collect the metrics with `metrics.py collect --change --base --out metrics/changes/<change-id>.json --value gate-seconds=<the mark's gate> --model unidentified`; no `metrics/catalogue.toml` records `metrics: none — no catalogue`; a data file whose `version` is not the release's halts. Tests: `test_finish_collects_the_metrics`, `test_finish_records_none_for_no_catalogue`, `test_finish_halts_on_a_stale_metrics_version`.
+- [x] 2.7 In `finish`, collect the metrics with `metrics.py collect --change --base --out metrics/changes/<change-id>.json --value gate-seconds=<the mark's gate> --model unidentified`; no `metrics/catalogue.toml` records `metrics: none — no catalogue`; a data file whose `version` is not the release's halts. Tests: `test_finish_collects_the_metrics`, `test_finish_records_none_for_no_catalogue`, `test_finish_halts_on_a_stale_metrics_version`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_collects_the_metrics or test_finish_records_none_for_no_catalogue or test_finish_halts_on_a_stale_metrics_version"` exits `0`.
-- [ ] 2.8 In `finish`, stage the worker's paths and its own writes by name, run `gate_run.py --fresh`, then halt naming any unstaged change and any untracked file ([D7](design.md#d7)); a red gate halts with nothing committed. Tests: `test_finish_halts_on_a_red_gate`, `test_finish_halts_on_an_unstaged_change_after_the_gate`.
+- [x] 2.8 In `finish`, stage the worker's paths and its own writes by name, run `gate_run.py --fresh`, then halt naming any unstaged change and any untracked file ([D7](design.md#d7)); a red gate halts with nothing committed. Tests: `test_finish_halts_on_a_red_gate`, `test_finish_halts_on_an_unstaged_change_after_the_gate`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_halts_on_a_red_gate or test_finish_halts_on_an_unstaged_change_after_the_gate"` exits `0`.
-- [ ] 2.9 In `finish`, make the one commit `chore(release): <tag>` with the skip lines in its body and `Change: <change-id>` alone as trailer, check `git status --porcelain` prints nothing, then make the annotated local tag; under `--run` every git call carries the options of [D7](design.md#d7). Tests: `test_finish_commits_once_and_tags`, `test_finish_states_a_skipped_converge_in_the_body`, `test_finish_under_run_signs_nothing_and_runs_no_hook`.
+- [x] 2.9 In `finish`, make the one commit `chore(release): <tag>` with the skip lines in its body and `Change: <change-id>` alone as trailer, check `git status --porcelain` prints nothing, then make the annotated local tag; under `--run` every git call carries the options of [D7](design.md#d7). Tests: `test_finish_commits_once_and_tags`, `test_finish_states_a_skipped_converge_in_the_body`, `test_finish_under_run_signs_nothing_and_runs_no_hook`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_commits_once_and_tags or test_finish_states_a_skipped_converge_in_the_body or test_finish_under_run_signs_nothing_and_runs_no_hook"` exits `0`.
-- [ ] 2.10 In `finish`, clear the paid cards named by `debt:` (else `backlog:`) in the archived proposal through `mflib.debtfile`'s `lock`, `clear` and `write`; an id not found is reported, neither key records `debt: none`, an old `.minions/backlog.md` halts naming it. Tests: `test_finish_clears_the_paid_cards`, `test_finish_reports_an_unknown_card`, `test_finish_records_debt_none`, `test_finish_halts_on_an_old_backlog_file`.
+- [x] 2.10 In `finish`, clear the paid cards named by `debt:` (else `backlog:`) in the archived proposal through `mflib.debtfile`'s `lock`, `clear` and `write`; an id not found is reported, neither key records `debt: none`, an old `.minions/backlog.md` halts naming it. Tests: `test_finish_clears_the_paid_cards`, `test_finish_reports_an_unknown_card`, `test_finish_records_debt_none`, `test_finish_halts_on_an_old_backlog_file`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_clears_the_paid_cards or test_finish_reports_an_unknown_card or test_finish_records_debt_none or test_finish_halts_on_an_old_backlog_file"` exits `0`.
-- [ ] 2.11 In `finish`, halt after the tag and the debt while `release.flag` stands, naming the file ([D4](design.md#d4)). Test: `test_finish_stops_on_the_flag`.
+- [x] 2.11 In `finish`, halt after the tag and the debt while `release.flag` stands, naming the file ([D4](design.md#d4)). Test: `test_finish_stops_on_the_flag`.
   Verify: `uv run pytest tests/test_release.py -q -k "test_finish_stops_on_the_flag"` exits `0`.
-- [ ] 2.12 Update the row of `release.py` in `docs/modules.md` to the base names its string constants now end in and its imports load.
+- [x] 2.12 Update the row of `release.py` in `docs/modules.md` to the base names its string constants now end in and its imports load.
   Verify: `uv run pytest tests/test_structure.py -q` exits `0`.
 
 ## 3 — a release run again

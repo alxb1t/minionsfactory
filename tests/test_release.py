@@ -1,15 +1,17 @@
-"""The release script's `pre`, `findings` and git helper, over a temporary repository.
+"""The release script's `pre`, `finish`, `findings` and git helper, over a scratch repo.
 
-Why: 0152-release-script design D1, D2 and D14.
+Why: 0152-release-script design D1, D2, D4…D7 and D14.
 """
 
 import contextlib
 import importlib.util
 import io
+import json
 import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from types import ModuleType
 
@@ -89,7 +91,10 @@ class Repo:
     def fake(self, constant: str, body: str) -> None:
         path = self.fakes / f"{constant}.py"
         path.write_text(body)
-        setattr(self.ns, constant, path)
+        self.swap(constant, path)
+
+    def swap(self, constant: str, value: object) -> None:
+        setattr(self.ns, constant, value)
 
     def main(self, *argv: str) -> tuple[int, list[str]]:
         out = io.StringIO()
@@ -99,6 +104,14 @@ class Repo:
 
     def pre(self, *flags: str) -> tuple[int, list[str]]:
         return self.main("pre", CHANGE, *flags)
+
+    def ready(self) -> None:
+        """Run `pre` to its tag, so `finish` finds the mark."""
+        code, lines = self.pre()
+        assert code == 0, lines
+
+    def finish(self, *flags: str) -> tuple[int, list[str]]:
+        return self.main("finish", CHANGE, *flags)
 
 
 @pytest.fixture
@@ -117,6 +130,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Repo:
     made.fake("GATE_RUN", GREEN)
     made.fake("GATE_CHECK", PLANNED)
     made.git("init", "-q", "-b", "main")
+    made.git("config", "user.name", "mf")
+    made.git("config", "user.email", "mf@example.invalid")
     made.put(".gitignore", ".minions/\n")
     made.put("CHANGELOG.md", CHANGELOG.format(entries=""))
     made.commit("base")
@@ -591,3 +606,750 @@ def test_pre_cannot_run_when_the_mark_cannot_be_written(
 def test_pre_cannot_run_on_a_name_that_is_no_change_id(repo: Repo) -> None:
     code, lines = repo.main("pre", "../escape")
     assert (code, lines) == (2, ["release: cannot run — ../escape is no change id"])
+
+
+ARCHIVE = f"openspec/changes/archive/{CHANGE}"
+DONE = "release: ok — v0.2.0 committed and tagged"
+
+
+def _shown(repo: Repo) -> list[str]:
+    """Return the paths the release commit holds."""
+    return repo.git("show", "--name-only", "--format=", "HEAD").split()
+
+
+def _untouched(repo: Repo, head: str) -> None:
+    """Assert no commit and no tag was made."""
+    assert repo.head == head
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+def test_finish_takes_the_workers_paths(repo: Repo) -> None:
+    repo.ready()
+    repo.put("openspec/specs/todo/spec.md", "# todo\n")
+    repo.put("README.md", "# readme\n")
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — paths · README.md, openspec/specs/todo/spec.md" in lines
+    assert {"README.md", "openspec/specs/todo/spec.md"} <= set(_shown(repo))
+    assert repo.git("status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize(
+    ("change", "said"),
+    [
+        (
+            lambda r: r.put("src/code.py", "x = 1\n"),
+            "paths: src/code.py is no spec and no Markdown file",
+        ),
+        (
+            lambda r: r.git("mv", "CHANGELOG.md", "NEWS.md"),
+            "paths: CHANGELOG.md → NEWS.md is a rename",
+        ),
+    ],
+    ids=["python-file", "rename"],
+)
+def test_finish_halts_on_a_python_file(
+    repo: Repo, change: Callable[[Repo], object], said: str
+) -> None:
+    repo.ready()
+    head = repo.head
+    change(repo)
+    code, lines = repo.finish()
+    assert (code, lines) == (1, [f"release: halt — {said}"])
+    _untouched(repo, head)
+    assert (repo.root / FOLDER / "proposal.md").is_file()
+
+
+def _another_head(repo: Repo) -> None:
+    repo.ready()
+    repo.put("notes.md", "x\n")
+    repo.settle()
+
+
+def _mark_text(repo: Repo, text: str) -> None:
+    repo.ready()
+    (repo.run_folder / "release.pre").write_text(text)
+
+
+def _linked_mark(repo: Repo) -> None:
+    repo.ready()
+    (repo.run_folder / "release.pre").unlink()
+    (repo.run_folder / "release.pre").symlink_to(repo.root / "CHANGELOG.md")
+
+
+_MARKS = {
+    "missing": (
+        lambda r: None,
+        1,
+        f"release: halt — release.pre is missing — run release.py pre {CHANGE}",
+    ),
+    "another-head": (
+        _another_head,
+        1,
+        "release: halt — release.pre: head {old} is not HEAD {new}"
+        f" — run release.py pre {CHANGE}",
+    ),
+    "no-gate": (
+        lambda r: _mark_text(r, "tag: v0.2.0\nversion: v0.2\nhead: x\n"),
+        2,
+        "release: cannot run — release.pre has no gate:",
+    ),
+    "bad-tag": (
+        lambda r: _mark_text(r, "tag: 2\nversion: v0.2\ngate: 41\nhead: x\n"),
+        2,
+        "release: cannot run — release.pre holds no tag or gate seconds",
+    ),
+    "link": (_linked_mark, 2, "release: cannot run — release.pre cannot be read: "),
+}
+
+
+@pytest.mark.parametrize("name", _MARKS)
+def test_finish_halts_without_the_mark(repo: Repo, name: str) -> None:
+    change, want, said = _MARKS[name]
+    change(repo)
+    head = repo.head
+    code, lines = repo.finish()
+    said = said.format(
+        old=repo.git("rev-parse", "--short=8", "HEAD~1").strip(), new=head[:8]
+    )
+    assert code == want
+    assert lines[-1].startswith(said)
+    _untouched(repo, head)
+
+
+def test_finish_archives_the_change_and_writes_its_version(repo: Repo) -> None:
+    repo.ready()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert f"release: ok — archive · {ARCHIVE} · version: v0.2" in lines
+    assert not (repo.root / FOLDER).exists()
+    proposal = (repo.root / ARCHIVE / "proposal.md").read_text()
+    assert proposal == "---\nbump: minor\nversion: v0.2\n---\n\n# todo\n"
+    tracked = repo.git("ls-files", "openspec/changes").split()
+    assert tracked == [f"{ARCHIVE}/proposal.md", f"{ARCHIVE}/tasks.md"]
+
+
+@pytest.mark.parametrize(
+    ("path", "text", "said"),
+    [
+        (
+            f"{FOLDER}/proposal.md",
+            "---\nversion: x\n---\n",
+            "proposal.md: no bump: line to write version: below",
+        ),
+        ("CHANGELOG.md", "# Changelog\n", "CHANGELOG.md: no ## [Unreleased] heading"),
+    ],
+    ids=["no-bump", "no-unreleased"],
+)
+def test_finish_halts_on_a_file_the_worker_broke(
+    repo: Repo, path: str, text: str, said: str
+) -> None:
+    repo.ready()
+    head = repo.head
+    repo.put(path, text)
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (1, f"release: halt — {said}")
+    _untouched(repo, head)
+
+
+def test_finish_cannot_run_on_a_linked_changelog(repo: Repo) -> None:
+    repo.ready()
+    (repo.root / "CHANGELOG.md").unlink()
+    (repo.root / "CHANGELOG.md").symlink_to(repo.root / ".gitignore")
+    code, lines = repo.finish()
+    assert code == 2
+    assert lines[-1].startswith("release: cannot run — CHANGELOG.md cannot be read: ")
+
+
+def test_finish_cannot_run_when_a_file_cannot_be_written(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo.ready()
+    statefile = repo.ns.mflib.statefile
+
+    def refuse(*_: object, **__: object) -> None:
+        raise statefile.WriteFailed("create", OSError(13, "Permission denied"))
+
+    monkeypatch.setattr(statefile, "write", refuse)
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (
+        2,
+        "release: cannot run — proposal.md could not be written: Permission denied",
+    )
+
+
+def _today() -> str:
+    return date.today().isoformat()
+
+
+def test_finish_cuts_the_changelog_heading(repo: Repo) -> None:
+    repo.ready()
+    code, _ = repo.finish()
+    assert code == 0
+    assert (repo.root / "CHANGELOG.md").read_text() == (
+        "# Changelog\n\n## [Unreleased]\n\n"
+        f"## [0.2.0] - {_today()}\n\n"
+        "Gate: local 0m41s · CI none · 0.1.0: none\n\n"
+        "- a phase's entry\n\n"
+        "## [0.1.0] - 2026-01-01\n\n- first\n"
+    )
+    assert "CHANGELOG.md" in _shown(repo)
+
+
+def _gate_line(repo: Repo) -> str:
+    text = (repo.root / "CHANGELOG.md").read_text()
+    return next(line for line in text.splitlines() if line.startswith("Gate: "))
+
+
+def _gh(repo: Repo, body: str) -> None:
+    """Give the repo an `origin` and a fake `gh` that runs `body`."""
+    repo.git("remote", "add", "origin", str(repo.root.parent / "origin.git"))
+    path = repo.fakes / "gh.py"
+    path.write_text(body)
+    repo.swap("GH", (sys.executable, str(path)))
+
+
+_RUNS = [
+    ("CI", "d5162e4aaaa", "2026-11-24T10:00:00Z", "2026-11-24T10:00:12Z"),
+    ("Lint", "0123456789", "2026-11-24T10:00:00Z", "2026-11-24T10:01:05Z"),
+    ("CI", "0ldersha000", "2026-11-23T10:00:00Z", "2026-11-23T10:09:00Z"),
+]
+
+
+def test_finish_writes_the_gate_line(repo: Repo) -> None:
+    runs = [
+        dict(
+            zip(("workflowName", "headSha", "startedAt", "updatedAt"), run, strict=True)
+        )
+        for run in _RUNS
+    ]
+    said = repo.fakes / "gh-argv.json"
+    _gh(
+        repo,
+        "import json, sys\n"
+        f"open({str(said)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+        f"print({json.dumps(runs)!r})\n",
+    )
+    repo.ready()
+    assert repo.finish()[0] == 0
+    assert (
+        _gate_line(repo)
+        == "Gate: local 0m41s · CI 1m5s (Lint at 0123456) · 0.1.0: none"
+    )
+    argv = json.loads(said.read_text())
+    assert argv[:6] == ["run", "list", "--branch", "main", "--status", "success"]
+    assert argv[6:] == [
+        "--limit",
+        "50",
+        "--json",
+        "workflowName,headSha,startedAt,updatedAt",
+    ]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        None,
+        "raise SystemExit(1)\n",
+        "print('not json')\n",
+        "print('[]')\n",
+        'print(\'[{"workflowName": "CI"}]\')\n',
+        "missing",
+    ],
+    ids=["no-origin", "gh-fails", "junk", "no-run", "a-run-with-no-times", "no-gh"],
+)
+def test_finish_writes_ci_none_when_gh_fails(repo: Repo, body: str | None) -> None:
+    if body is not None:
+        _gh(repo, body)
+    if body == "missing":
+        repo.swap("GH", (str(repo.fakes / "no-such-gh"),))
+    repo.ready()
+    assert repo.finish()[0] == 0
+    assert _gate_line(repo) == "Gate: local 0m41s · CI none · 0.1.0: none"
+
+
+def test_finish_writes_ci_not_read_under_a_run(repo: Repo) -> None:
+    _gh(repo, "raise SystemExit('gh must not run under a run')\n")
+    repo.ready()
+    assert repo.finish("--run")[0] == 0
+    assert _gate_line(repo) == (
+        "Gate: local 0m41s · CI not read under mf-ship · 0.1.0: none"
+    )
+
+
+@pytest.mark.parametrize(
+    ("previous", "line"),
+    [
+        (
+            "## [0.1.0] - 2026-01-01\n\n"
+            "Gate: local 7m49s · CI none · 0.0.9: local 1m0s · CI none\n\n- first\n",
+            "Gate: local 0m41s · CI none · 0.1.0: local 7m49s · CI none",
+        ),
+        ("", "Gate: local 0m41s · CI none"),
+    ],
+    ids=["copied", "first-release"],
+)
+def test_finish_copies_the_previous_gate_line(
+    repo: Repo, previous: str, line: str
+) -> None:
+    repo.put(
+        "CHANGELOG.md", f"# Changelog\n\n## [Unreleased]\n\n- an entry\n\n{previous}"
+    )
+    repo.settle()
+    repo.ready()
+    assert repo.finish()[0] == 0
+    assert _gate_line(repo) == line
+
+
+PYPROJECT = (
+    '[tool.other]\nversion = "keep"\n\n'
+    '[project]\nname = "todo"\nversion = "0.1.0"\nrequires-python = ">=3.12"\n'
+    "dependencies = []\n"
+)
+
+
+def test_finish_bumps_the_version_file_and_its_lock(repo: Repo) -> None:
+    repo.put("pyproject.toml", PYPROJECT)
+    subprocess.run(["uv", "lock", "--offline"], cwd=repo.root, check=True)
+    repo.settle()
+    repo.ready()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — version file · pyproject.toml, uv.lock" in lines
+    assert (repo.root / "pyproject.toml").read_text() == PYPROJECT.replace(
+        'version = "0.1.0"', 'version = "0.2.0"'
+    )
+    assert 'name = "todo"\nversion = "0.2.0"' in (repo.root / "uv.lock").read_text()
+    assert {"pyproject.toml", "uv.lock"} <= set(_shown(repo))
+
+
+def test_finish_bumps_a_version_file_with_no_lock(repo: Repo) -> None:
+    repo.put("pyproject.toml", PYPROJECT)
+    repo.settle()
+    repo.ready()
+    code, lines = repo.finish()
+    assert code == 0
+    assert "release: ok — version file · pyproject.toml" in lines
+    assert not (repo.root / "uv.lock").exists()
+
+
+def test_finish_halts_when_uv_lock_fails(repo: Repo) -> None:
+    repo.put("pyproject.toml", PYPROJECT)
+    repo.put("uv.lock", "version = 1\n")
+    repo.settle()
+    repo.ready()
+    head = repo.head
+    path = repo.fakes / "uv.py"
+    path.write_text("print('error: no lock offline')\nraise SystemExit(2)\n")
+    repo.swap("UV", (sys.executable, str(path)))
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (1, "release: halt — uv lock: error: no lock offline")
+    _untouched(repo, head)
+
+
+PACKAGE = {"name": "todo", "version": "0.1.0", "private": True}
+LOCK = {
+    "name": "todo",
+    "version": "0.1.0",
+    "lockfileVersion": 3,
+    "requires": True,
+    "packages": {"": {"name": "todo", "version": "0.1.0"}},
+}
+
+
+def _npm(data: object) -> str:
+    return json.dumps(data, indent=2) + "\n"
+
+
+@pytest.mark.parametrize("locked", [True, False], ids=["with-lock", "no-lock"])
+def test_finish_bumps_package_json_and_its_lock(repo: Repo, locked: bool) -> None:
+    repo.put("package.json", _npm(PACKAGE))
+    if locked:
+        repo.put("package-lock.json", _npm(LOCK))
+    repo.settle()
+    repo.ready()
+    code, lines = repo.finish()
+    assert code == 0
+    assert (repo.root / "package.json").read_text() == _npm(
+        PACKAGE | {"version": "0.2.0"}
+    )
+    if locked:
+        assert "release: ok — version file · package.json, package-lock.json" in lines
+        bumped = LOCK | {"version": "0.2.0"}
+        bumped["packages"] = {"": {"name": "todo", "version": "0.2.0"}}
+        assert (repo.root / "package-lock.json").read_text() == _npm(bumped)
+        assert {"package.json", "package-lock.json"} <= set(_shown(repo))
+    else:
+        assert "release: ok — version file · package.json" in lines
+
+
+@pytest.mark.parametrize(
+    "pyproject",
+    [None, "[tool.ruff]\nline-length = 88\n", '[project]\nname = "todo"\n'],
+    ids=["no-file", "no-project", "no-version"],
+)
+def test_finish_records_none_for_no_version_file(
+    repo: Repo, pyproject: str | None
+) -> None:
+    if pyproject is not None:
+        repo.put("pyproject.toml", pyproject)
+        repo.settle()
+    repo.ready()
+    code, lines = repo.finish()
+    assert code == 0
+    assert "release: ok — version file: none" in lines
+    assert (repo.root / "pyproject.toml").exists() == (pyproject is not None)
+
+
+@pytest.mark.parametrize(
+    ("package", "lock", "named"),
+    [
+        (_npm(PACKAGE), _npm(LOCK | {"lockfileVersion": "3"}), "package-lock.json"),
+        (_npm(PACKAGE), _npm(LOCK | {"lockfileVersion": True}), "package-lock.json"),
+        (
+            _npm(PACKAGE),
+            _npm({k: v for k, v in LOCK.items() if k != "version"}),
+            "package-lock.json",
+        ),
+        (_npm(PACKAGE), _npm(LOCK | {"packages": {}}), "package-lock.json"),
+        (_npm(PACKAGE), "not json\n", "package-lock.json"),
+        ("[]\n", _npm(LOCK), "package.json"),
+    ],
+    ids=["text-level", "bool-level", "no-version", "no-root", "junk", "package-list"],
+)
+def test_finish_halts_on_a_lock_of_another_shape(
+    repo: Repo, package: str, lock: str, named: str
+) -> None:
+    repo.put("package.json", package)
+    repo.put("package-lock.json", lock)
+    repo.settle()
+    repo.ready()
+    head = repo.head
+    code, lines = repo.finish()
+    assert code == 1
+    assert lines[-1].startswith(f"release: halt — {named}: ")
+    _untouched(repo, head)
+
+
+CATALOGUE = (
+    '[[metric]]\nid = "gate-seconds"\ntitle = "Gate time"\ngroup = "proof"\n'
+    'unit = "seconds"\nbetter = "lower"\nnoise = 5\nsource = "station"\n'
+)
+DATA = f"metrics/changes/{CHANGE}.json"
+
+
+def test_finish_collects_the_metrics(repo: Repo) -> None:
+    repo.put("metrics/catalogue.toml", CATALOGUE)
+    repo.settle()
+    repo.ready()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert f"release: ok — metrics · {DATA}" in lines
+    data = json.loads((repo.root / DATA).read_text())
+    assert data["version"] == "v0.2"
+    assert data["model"] == "unidentified"
+    assert data["values"]["gate-seconds"] == {"value": 41}
+    assert DATA in _shown(repo)
+
+
+def test_finish_records_none_for_no_catalogue(repo: Repo) -> None:
+    repo.ready()
+    code, lines = repo.finish()
+    assert code == 0
+    assert "release: ok — metrics: none — no catalogue" in lines
+    assert not (repo.root / "metrics").exists()
+
+
+_WRITES = (
+    "import sys\n"
+    "out = sys.argv[sys.argv.index('--out') + 1]\n"
+    "__import__('pathlib').Path(out).parent.mkdir(parents=True, exist_ok=True)\n"
+    "open(out, 'w').write({!r})\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("body", "want", "said"),
+    [
+        (
+            _WRITES.format('{"version": "unreleased"}'),
+            1,
+            f"release: halt — metrics: {DATA} says version unreleased, not v0.2",
+        ),
+        ("print('boom')\nraise SystemExit(2)\n", 1, "release: halt — metrics: boom"),
+        (
+            _WRITES.format("[]"),
+            2,
+            f"release: cannot run — {DATA} holds no JSON object",
+        ),
+    ],
+    ids=["stale-version", "collect-fails", "junk"],
+)
+def test_finish_halts_on_a_stale_metrics_version(
+    repo: Repo, body: str, want: int, said: str
+) -> None:
+    repo.put("metrics/catalogue.toml", CATALOGUE)
+    repo.settle()
+    repo.ready()
+    head = repo.head
+    repo.fake("METRICS", body)
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (want, said)
+    _untouched(repo, head)
+
+
+def test_finish_halts_on_a_red_gate(repo: Repo) -> None:
+    repo.ready()
+    head = repo.head
+    repo.fake("GATE_RUN", RED)
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (
+        1,
+        "release: halt — gate: red — exit 2 · 3s — nothing is committed",
+    )
+    _untouched(repo, head)
+
+
+@pytest.mark.parametrize(
+    ("touch", "said"),
+    [
+        (
+            "open('CHANGELOG.md', 'a').write('x\\n')\n",
+            "tree: CHANGELOG.md changed after staging — nothing is committed",
+        ),
+        (
+            "open('stray.txt', 'w').write('x\\n')\n",
+            "tree: stray.txt is untracked — nothing is committed",
+        ),
+    ],
+    ids=["unstaged", "untracked"],
+)
+def test_finish_halts_on_an_unstaged_change_after_the_gate(
+    repo: Repo, touch: str, said: str
+) -> None:
+    repo.ready()
+    head = repo.head
+    repo.fake("GATE_RUN", touch + GREEN)
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (1, f"release: halt — {said}")
+    _untouched(repo, head)
+
+
+def _hook(repo: Repo, name: str, body: str) -> None:
+    hook = repo.root / ".git" / "hooks" / name
+    hook.write_text(f"#!/bin/sh\n{body}")
+    hook.chmod(0o755)
+
+
+def _host_config_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drop a host's own git keys, which may turn hooks and signing off already."""
+    monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
+
+
+def test_finish_halts_on_a_tree_dirty_after_the_commit(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _host_config_off(monkeypatch)
+    repo.ready()
+    _hook(repo, "post-commit", "echo x > stray.txt\n")
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (
+        1,
+        "release: halt — tree: dirty after the commit — ?? stray.txt",
+    )
+    assert repo.git("tag", "--list", "v0.2.0") == ""
+
+
+def test_finish_commits_once_and_tags(repo: Repo) -> None:
+    repo.ready()
+    head = repo.head
+    repo.fake(
+        "GATE_RUN",
+        "import sys\nif '--fresh' not in sys.argv:\n    raise SystemExit(2)\n" + GREEN,
+    )
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — gate · 41s" in lines
+    assert repo.git("rev-list", "--count", f"{head}..HEAD").strip() == "1"
+    message = repo.git("log", "-1", "--format=%B").strip()
+    assert message == f"chore(release): v0.2.0\n\nChange: {CHANGE}"
+    assert repo.git("cat-file", "-t", "v0.2.0").strip() == "tag"
+    assert repo.git("rev-parse", "v0.2.0^{commit}").strip() == repo.head
+    assert repo.git("status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize(
+    ("change", "body"),
+    [
+        (lambda r: _models(r, ""), "converge: skipped — no findings files"),
+        (
+            lambda r: _models(r, "[converge]\nskip = true\n"),
+            "converge: skipped — by plan",
+        ),
+        (
+            lambda r: r.judge(
+                "adversarial", _findings_text("adversarial", r.head, mode="skipped")
+            ),
+            "adversarial: skipped",
+        ),
+    ],
+    ids=["no-findings", "by-plan", "a-skipped-checker"],
+)
+def test_finish_states_a_skipped_converge_in_the_body(
+    repo: Repo, change: Callable[[Repo], object], body: str
+) -> None:
+    change(repo)
+    repo.ready()
+    assert repo.finish()[0] == 0
+    message = repo.git("log", "-1", "--format=%B").strip()
+    assert message == f"chore(release): v0.2.0\n\n{body}\n\nChange: {CHANGE}"
+
+
+def _signing(repo: Repo, key: str) -> None:
+    repo.git("config", key, "true")
+    repo.git("config", "gpg.program", str(repo.fakes / "no-such-gpg"))
+
+
+_GUARDS: dict[str, tuple[Callable[[Repo], None], str]] = {
+    "hook": (lambda r: _hook(r, "pre-commit", "exit 1\n"), "git commit"),
+    "commit-sign": (lambda r: _signing(r, "commit.gpgsign"), "git commit"),
+    "tag-sign": (lambda r: _signing(r, "tag.gpgsign"), "git tag"),
+}
+
+
+@pytest.mark.parametrize("run", [True, False], ids=["run", "by-hand"])
+@pytest.mark.parametrize("guard", _GUARDS)
+def test_finish_under_run_signs_nothing_and_runs_no_hook(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch, guard: str, run: bool
+) -> None:
+    _host_config_off(monkeypatch)
+    repo.ready()
+    setup, failing = _GUARDS[guard]
+    setup(repo)
+    code, lines = repo.finish(*(["--run"] if run else []))
+    if run:
+        assert (code, lines[-1]) == (0, DONE)
+        assert "BEGIN PGP" not in repo.git("cat-file", "-p", "v0.2.0")
+    else:
+        assert code == 2
+        assert lines[-1].startswith(f"release: cannot run — {failing} failed")
+
+
+DEBT = (
+    "# Debt\n\n## 0000-old\n\n- **0000·R1 — paid**\n  - **Status:** open\n\n"
+    "## 0000-other\n\n- **0000·R2 — kept**\n  - **Status:** open\n"
+)
+
+
+def _paying(repo: Repo, front: str, debt: str | None = DEBT) -> None:
+    """Name the cards the change pays in its proposal, and write the debt."""
+    repo.put(f"{FOLDER}/proposal.md", f"---\nbump: minor\n{front}---\n\n# todo\n")
+    repo.settle()
+    if debt is not None:
+        (repo.root / ".minions" / "debt.md").write_text(debt)
+
+
+@pytest.mark.parametrize("key", ["debt", "backlog"])
+def test_finish_clears_the_paid_cards(repo: Repo, key: str) -> None:
+    _paying(repo, f"{key}: [0000·R1, 0000·R1]\n")
+    repo.ready()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — debt: 0000·R1 cleared" in lines
+    assert (repo.root / ".minions" / "debt.md").read_text() == (
+        "# Debt\n\n## 0000-other\n\n- **0000·R2 — kept**\n  - **Status:** open\n"
+    )
+    assert not (repo.root / ".minions" / "debt.lock").exists()
+
+
+def test_finish_reports_an_unknown_card(repo: Repo) -> None:
+    _paying(repo, "debt: [0000·R9]\n")
+    repo.ready()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — debt: 0000·R9 not found" in lines
+    assert (repo.root / ".minions" / "debt.md").read_text() == DEBT
+
+
+@pytest.mark.parametrize("front", ["after: []\n", "debt: []\n"], ids=["none", "empty"])
+def test_finish_records_debt_none(repo: Repo, front: str) -> None:
+    _paying(repo, front)
+    repo.ready()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (0, DONE)
+    assert "release: ok — debt: none" in lines
+
+
+def test_finish_halts_on_an_old_backlog_file(repo: Repo) -> None:
+    _paying(repo, "debt: [0000·R1]\n", None)
+    (repo.root / ".minions" / "backlog.md").write_text(DEBT)
+    repo.ready()
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (
+        1,
+        "release: halt — .minions/backlog.md is the old debt file: /mf-ship moves it",
+    )
+    assert repo.git("cat-file", "-t", "v0.2.0").strip() == "tag"
+
+
+def _held(repo: Repo) -> None:
+    (repo.root / ".minions" / "debt.lock").mkdir()
+    repo.swap("DEBT_WAIT", 0)
+
+
+def _linked_debt(repo: Repo) -> None:
+    (repo.root / ".minions" / "debt.md").unlink()
+    (repo.root / ".minions" / "debt.md").symlink_to(repo.root / "CHANGELOG.md")
+
+
+@pytest.mark.parametrize(
+    ("change", "want", "said"),
+    [
+        (_held, 1, "release: halt — .minions/debt.lock held for 0 minutes"),
+        (
+            _linked_debt,
+            1,
+            "release: halt — .minions/debt.md cannot be read: it is a link",
+        ),
+        (
+            "write",
+            2,
+            "release: cannot run — .minions/debt.md could not be written:"
+            " Permission denied",
+        ),
+    ],
+    ids=["held", "link", "write-fails"],
+)
+def test_finish_halts_when_the_debt_cannot_be_cleared(
+    repo: Repo,
+    monkeypatch: pytest.MonkeyPatch,
+    change: Callable[[Repo], None] | str,
+    want: int,
+    said: str,
+) -> None:
+    _paying(repo, "debt: [0000·R1]\n")
+    repo.ready()
+    if isinstance(change, str):
+        debtfile = repo.ns.mflib.debtfile
+        failed = repo.ns.mflib.statefile.WriteFailed
+
+        def refuse(*_: object, **__: object) -> None:
+            raise failed("create", OSError(13, "Permission denied"))
+
+        monkeypatch.setattr(debtfile, "write", refuse)
+    else:
+        change(repo)
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (want, said)
+
+
+def test_finish_stops_on_the_flag(repo: Repo) -> None:
+    repo.ready()
+    (repo.run_folder / "release.flag").write_text("README.md states v0.1\n")
+    code, lines = repo.finish()
+    assert (code, lines[-1]) == (
+        1,
+        f"release: halt — .minions/changes/{CHANGE}/release.flag stands"
+        " — read the prose it names, then merge",
+    )
+    assert repo.git("rev-parse", "v0.2.0^{commit}").strip() == repo.head

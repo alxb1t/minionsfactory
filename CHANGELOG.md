@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `release.py pre` checks the release's preconditions in one script and prints the tag, restoring a dead release's derived work under `--run`; `release.py findings` prints a findings file's verdict, and `make corpus` reads it over every findings file. A release halted on hand-steps a script can check (0152-release-script, phase 1).
+- `release.py finish` cuts the release after the worker's fold: it takes only spec and Markdown paths, archives the change, cuts the changelog with its `Gate:` line, bumps `pyproject.toml` with `uv.lock` or `package.json` with `package-lock.json`, collects the metrics, gates fresh, commits once, tags, clears the paid cards and stops on `release.flag`. A forgotten lock file and a hand-staged commit were halts a worker made (0152-release-script, phase 2).
 
 ## [0.122.0] - 2026-11-24
 
