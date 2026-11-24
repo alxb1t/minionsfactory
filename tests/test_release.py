@@ -948,8 +948,13 @@ PYPROJECT = (
 )
 
 
-def test_finish_bumps_the_version_file_and_its_lock(repo: Repo) -> None:
+def test_finish_bumps_the_version_file_and_its_lock(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repo.put("pyproject.toml", PYPROJECT)
+    # Why: 0153-lock-test design D1 — a moved home finds no managed Python.
+    monkeypatch.setenv("UV_PYTHON_PREFERENCE", "only-managed")
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
     subprocess.run(["uv", "lock", "--offline"], cwd=repo.root, check=True)
     repo.settle()
     repo.ready()

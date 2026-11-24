@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.123.1] - 2026-11-24
+
+Gate: local 8m47s · CI not read under mf-ship · 0.123.0: local 9m7s · CI not read under mf-ship
+
+- The release lock test sets `UV_PYTHON_PREFERENCE` and `UV_PYTHON` before its `uv lock`, so it finds the suite's Python under the suite's moved home. CI's Linux `gate` job failed on it where a host with a Python on `PATH` passed (0153-lock-test, phase 1).
+
 ## [0.123.0] - 2026-11-24
 
 Gate: local 9m7s · CI not read under mf-ship · 0.122.0: local 7m59s · CI not read under mf-ship
