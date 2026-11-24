@@ -1063,6 +1063,38 @@ def test_module_release_died_reads_the_last_release_line(tmp_path: Path) -> None
     assert not runlog.release_died(tmp_path / "none", "0001-a")
 
 
+def _script(step: str, code: int | None = None) -> str:
+    """Return a `release.py` run's spawn line, or its finish line with `code`."""
+    if code is None:
+        return f"10:00:01 · 0001-a · spawn — release · script {step}"
+    return f"10:00:02 · 0001-a · finish — release · script {step} · exit {code} · 1s"
+
+
+def test_release_died_reads_the_scripts_lines(tmp_path: Path) -> None:
+    cases = {
+        "merged": ([_SPAWN, _EXIT_0, _script("merge"), _script("merge", 0)], False),
+        "merge running": ([_script("finish", 0), _script("merge")], True),
+        "merge halted": ([_script("merge"), _script("merge", 1)], True),
+        "finish exit 0": ([_script("finish"), _script("finish", 0)], True),
+        "pre then a worker that exits 0": ([_script("pre", 0), _SPAWN, _EXIT_0], True),
+        "a worker's spawn after a merge": ([_script("merge", 0), _SPAWN], False),
+        "another change's merge": (
+            [_script("pre", 0), _script("merge", 0).replace("0001-a", "0002-b")],
+            True,
+        ),
+    }
+    for name, (lines, died) in cases.items():
+        folder = tmp_path / name.replace(" ", "-").replace("'", "")
+        assert _died(_logs(folder, s1=lines)) is died, name
+    # The newest log's script line decides over an older log's merge.
+    assert _died(
+        _logs(tmp_path / "logs", s1=[_script("merge", 0)], s2=[_script("pre")])
+    )
+    assert not _died(
+        _logs(tmp_path / "older", s1=[_script("pre", 1)], s2=[_script("merge", 0)])
+    )
+
+
 def test_module_rescuing_reads_the_newest_log(tmp_path: Path) -> None:
     rescue = "10:00:01 · 0001-a · spawn — rescue · model default"
     done = "10:00:02 · 0001-a · finish — rescue · exit 0"

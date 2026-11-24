@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.123.0] - 2026-11-24
+
+Gate: local 9m7s · CI not read under mf-ship · 0.122.0: local 7m59s · CI not read under mf-ship
+
+- `release.py pre` checks the release's preconditions in one script and prints the tag, restoring a dead release's derived work under `--run`; `release.py findings` prints a findings file's verdict, and `make corpus` reads it over every findings file. A release halted on hand-steps a script can check (0152-release-script, phase 1).
+- `release.py finish` cuts the release after the worker's fold: it takes only spec and Markdown paths, archives the change, cuts the changelog with its `Gate:` line, bumps `pyproject.toml` with `uv.lock` or `package.json` with `package-lock.json`, collects the metrics, gates fresh, commits once, tags, clears the paid cards and stops on `release.flag`. A forgotten lock file and a hand-staged commit were halts a worker made (0152-release-script, phase 2).
+- A release run again resumes from git: `pre` at a release commit prints `release: resume — <tag>`, or drops a commit the default branch moved past with `release: drop — <tag> and its commit`; `finish` gates the commit and tags it, moving this release's own tag off an orphan commit. `--origin held|free` says what `origin` holds; by hand the script reads it. A stranded release waited hours for a person's `git tag -d` and `git reset --hard` (0152-release-script, phase 3).
+- `release.py merge` merges the tagged release commit into the default branch with `--no-ff`, `Change:` alone as trailer, and checks the trees are equal. The conductor's release stage runs `pre`, the worker's fold, a check of the repo's git config, `finish` and `merge`, each step boxed and logged as `release · script <step>`; a script's halt is the version's. A stranded release reads `release`, so `pre` drops it; a tip whose `release.flag` stands reads `released`. The worker no longer commits, tags or merges (0152-release-script, phase 4).
+- `mf-release` names `release.py pre`, `finish` and `merge` where it named their steps, keeps the fold, the preamble, the version prose, the ask and the attended push, and writes a preamble flag to `release.flag`; D17, D19, D21 and D57 say the script commits, tags and merges. The skill's hand-steps were the halts a worker made (0152-release-script, phase 5).
+
 ## [0.122.0] - 2026-11-24
 
 Gate: local 7m59s · CI not read under mf-ship · 0.121.0: local 7m49s · CI not read under mf-ship

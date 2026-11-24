@@ -48,7 +48,7 @@ start, read-only except for their own findings file.**
 
 - **Why:** a reader who remembers the build reads what was meant, not what was written; a diff that moves under
   the check has no verdict.
-- **Held by:** `converge.py`'s `freeze` and `dispatch`; `mf-release` precondition 7, which ships only the judged head.
+- **Held by:** `converge.py`'s `freeze` and `dispatch`; `release.py pre`'s head check, which ships only the judged head.
 
 ### `fixed` is a claim; only the checker writes `verified`
 
@@ -69,7 +69,7 @@ checker's stub is a clean the plan wrote, not a recomputation, and the release n
 - **Why:** a station that never ran, and one that looked at nothing, both look exactly like a pass. A merge the
   rules rebuild to its exact tree decided nothing a reader could judge.
 - **Held by:** the checker's own *scope resolution failed* card, which converge's stamp counts no file against, and
-  `converge.py`'s `by_rule`; `mf-release` precondition 4, which states a skip and halts
+  `converge.py`'s `by_rule`; `release.py pre`'s converge check, which states a skip and halts
   on a lone patch or findings file; the *Never* lists of `mf-converge` and `mf-release`;
   `tests/test_integrate.py::test_replay_refuses_a_judged_merge`.
 - **Known breaks:** a checkout that lost `.minions/` reads as converge skipped
@@ -99,7 +99,7 @@ integrate and release gate through `gate_run.py`: a recorded run of this exact t
 - **Why:** "it passed" is a claim about the gate, not the gate. A record is keyed by the tree and the dry run, so it
   holds what a run of that tree said, and the fresh run keeps a forged one from a tag.
 - **Held by:** `mf-build` Step 1, `mf-integrate` and `mf-release`, each printing `make -n gate`
-  before its first gate run, and `converge.py`'s `preconditions`, which halts on an empty dry run; `mf-release` precondition 1 and Step 4.3's `--fresh`;
+  before its first gate run, and `converge.py`'s `preconditions`, which halts on an empty dry run; `release.py pre`'s gate check and `finish`'s `--fresh` gate;
   `tests/test_gate_run.py::test_reuse_is_refused_on_a_dirty_tree` and
   `tests/test_gate_run.py::test_fresh_runs_whatever_stands_and_records`.
 
@@ -114,7 +114,7 @@ consolidation, not weakening.**
 - **Why:** an agent told to make the gate green can do it by removing the check.
 - **Held by:** `mf-build` Step 2 and its stop-conditions; converge's fix reference and `mf-converge`'s *Never* list;
   conformance reads the diff for it; `I16`, `T5` and conformance's coverage-trace pass, for consolidation;
-  `converge.py`'s `preconditions` and `mf-release` precondition 8, through `skills/mf-converge/scripts/gate_check.py`, for the
+  `converge.py`'s `preconditions` and `release.py pre`'s gate check, through `skills/mf-converge/scripts/gate_check.py`, for the
   recipe.
 
 ## State and the boundary

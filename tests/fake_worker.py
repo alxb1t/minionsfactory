@@ -868,35 +868,10 @@ def _fake(prompt: str) -> None:
         folder = _folder(primary, str(change)) if settled else None
         _integrate(primary.parent / str(change), message, modes, folder)
     elif station == "release":
-        branch = _git(here, "branch", "--show-current")
-        tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
-        subject = _git(here, "log", "-1", "--format=%s")
-        if subject.startswith("chore(release): "):
-            named = subject.removeprefix("chore(release): ")
-            if not _git(here, "tag", "-l", named):
-                _git(here, "tag", named)
-        else:
-            _git(here, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
-            (here / "openspec" / "changes" / "archive").mkdir(exist_ok=True)
-            _git(
-                here,
-                "mv",
-                f"openspec/changes/{change}",
-                f"openspec/changes/archive/{change}",
-            )
-            if "dies-release-fold" in modes:
-                sys.exit(1)
-            _git(here, "commit", "-q", "-m", f"chore(release): {tag}")
-            if "dies-release-commit" in modes:
-                sys.exit(1)
-            _git(here, "tag", tag)
-            if "dies-release-tag" in modes:
-                sys.exit(1)
-            if "stops-release-tag" in modes:
-                return
-        _git(
-            primary, "merge", "-q", "--no-ff", "-m", f"Merge branch '{branch}'", branch
-        )
+        # The worker folds alone; `fake_release.py` commits, tags and merges.
+        spec = here / "openspec" / "specs" / str(change) / "spec.md"
+        spec.parent.mkdir(parents=True, exist_ok=True)
+        spec.write_text(f"# {change}\n")
         if "plant-config" in modes:
             _git(primary, "config", "pull.rebase", "true")
         if "plant-held" in modes:

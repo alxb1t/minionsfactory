@@ -264,7 +264,7 @@ watch crossed is no halt: the page is the person's, who decides before converge.
 **Why inside the build:** simplify runs **before** the conformance and adversarial stations `mf-converge` fans out, so
 conformance reads a diff that includes its edits and no station verifies its own. Run after convergence, it would land
 unreviewed edits after the final station had spoken. So simplify writes **no findings file**, and `mf-release`
-names it excluded (its precondition 4).
+names it excluded, in Step 1's reading of the converge state.
 
 ## Step 3b — Repair a red gate
 

@@ -122,18 +122,24 @@ def events(log: Path) -> list[Event]:
 
 
 def release_died(runs: Path, change: str) -> bool:
-    """Return whether the change's newest release worker ended any way but exit 0.
+    """Return whether the change's newest release ended any way but its merge.
 
-    A person's no ran no worker, and a release that stopped on purpose exits 0.
+    The newest `release · script` line decides, else the newest release worker's.
+    Why: 0152-release-script design D12.
     """
+    worker: bool | None = None
     for log in sorted(_logs(runs), key=order, reverse=True):
         for event in reversed(events(log)):
-            if event.who == change and event.detail.startswith("release · "):
-                if event.name == "spawn":
-                    return True
-                if event.name == "finish":
-                    return not event.detail.startswith("release · exit 0 · ")
-    return False
+            if event.who != change or event.name not in ("spawn", "finish"):
+                continue
+            if event.detail.startswith("release · script "):
+                merged = event.detail.startswith("release · script merge · exit 0 · ")
+                return not merged
+            if worker is None and event.detail.startswith("release · "):
+                worker = event.name == "spawn" or not event.detail.startswith(
+                    "release · exit 0 · "
+                )
+    return bool(worker)
 
 
 def rescuing(runs: Path, change: str) -> bool:

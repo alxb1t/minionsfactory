@@ -511,18 +511,17 @@ which it commits. An edit after the commit SHALL be a further commit on the bran
 
 ### Requirement: The release merges and pushes on the person's yes
 
-`skills/mf-release/SKILL.md` SHALL halt before it folds, archives, commits or tags when the default branch is not an
+`skills/mf-release/SKILL.md` SHALL have the release run `release.py pre`, which SHALL halt before anything is folded, archived, committed or tagged when the default branch is not an
 ancestor of `HEAD`, naming the merge-in: `/mf-integrate`, then converge's catch-up round when converge ran, then the release
 again. The default branch SHALL be the one `git symbolic-ref --short
-refs/remotes/origin/HEAD` names after `origin/`, or `main`. It SHALL, after the tag, ask the person once whether to
+refs/remotes/origin/HEAD` names after `origin/`, or `main`. It SHALL, after `release.py finish` has tagged, ask the person once whether to
 merge and push. Given `merge=yes`, it SHALL NOT ask: `merge=yes` is the yes, given once by the person who started
-`mf-ship`; and it SHALL halt before the merge when Step 2 flagged a hand-edit. When the release runs in a linked
+`mf-ship`; and `release.py merge` SHALL halt before the merge while `release.flag` stands. When the release runs in a linked
 worktree other than the primary, that one ask SHALL name the
-worktree and the ignored paths it holds, listed by name without reading file contents. On yes it SHALL halt when the
-default branch is not an ancestor of the branch, naming the person's
-recovery — the tag deleted and the release commit reset, by the person — then merge with `--no-ff` in the worktree
-that holds the default branch, halting when that worktree's tree is not clean, check that the merged tree equals the
-branch's, and push the default branch and the tag to `origin`, except under `merge=yes`, where `conduct.py` pushes. After the merge it SHALL remove the worktree the ask
+worktree and the ignored paths it holds, listed by name without reading file contents. On yes `release.py merge` SHALL halt when the
+default branch is not an ancestor of the branch, naming `/mf-release` to run again, whose `pre` drops a release it may drop, then merge with `--no-ff` in the worktree
+that holds the default branch, halting when that worktree's tree is not clean, with the message `Merge branch '<branch>'` and `Change: <change-id>` alone as its trailer, check that the merged tree equals the
+branch's, and the skill SHALL push the default branch and the tag to `origin`, except under `merge=yes`, where `conduct.py` pushes. After the merge it SHALL remove the worktree the ask
 named, without `--force`, keeping its branch, except under `merge=yes`, where `conduct.py` removes it. A listing that fails SHALL be named in the ask, and the worktree
 retained. A worktree that refuses removal is reported, not forced. Its close-out SHALL name the worktree removed,
 kept or refused. It SHALL never force a push, never push
@@ -531,8 +530,8 @@ the commands and stop.
 
 #### Scenario: The release names the merge and its guards
 - **WHEN** the tag is made and the person answers yes to `Merge <branch> into <default-branch> and push?`
-- **THEN** `mf-release` halts if the default branch is not an ancestor of the branch, merges with `--no-ff`,
-  checks the merged tree equals the branch's, and pushes the default branch and the tag without `--force`
+- **THEN** `release.py merge` halts if the default branch is not an ancestor of the branch, merges with `--no-ff`, and
+  checks the merged tree equals the branch's, and the skill pushes the default branch and the tag without `--force`
 
 #### Scenario: The person says anything else, or there is no origin
 - **WHEN** the answer is not yes
@@ -542,7 +541,7 @@ the commands and stop.
 
 #### Scenario: The base moved before the release
 - **WHEN** the default branch has a commit the version branch lacks when the release starts
-- **THEN** it halts before the fold, the commit and the tag, naming `/mf-integrate`, the catch-up round and the release
+- **THEN** `release.py pre` halts before the fold, the commit and the tag, naming `/mf-integrate`, the catch-up round and the release
   again
 
 #### Scenario: A release run in a linked worktree
@@ -558,10 +557,10 @@ the commands and stop.
 - **THEN** the ask names the failure, and the release retains the worktree
 
 #### Scenario: The conductor gives the yes
-- **WHEN** the release is run with `merge=yes` and Step 2 flagged nothing
-- **THEN** it asks nothing, merges as on a yes, and `conduct.py` pushes and removes the worktree
-- **AND WHEN** Step 2 flagged a hand-edit
-- **THEN** it halts after the tag and before the merge, naming the flagged prose
+- **WHEN** the release is run with `merge=yes` and no `release.flag` stands
+- **THEN** it asks nothing, `release.py merge` merges as on a yes, and `conduct.py` pushes and removes the worktree
+- **AND WHEN** `release.flag` stands
+- **THEN** `release.py merge` halts before the merge, naming the file
 
 #### Scenario: A release under mf-ship leaves its worktree to the conductor
 - **WHEN** a release under `merge=yes` merges
@@ -1660,9 +1659,9 @@ SHALL take `bump=minor|patch`, write `bump:` into `proposal.md`'s frontmatter, a
 
 ### Requirement: The release assigns the version
 
-`skills/mf-release/SKILL.md` SHALL read `bump:` from the change's `proposal.md`, halting on anything but `minor` or
-`patch`, and SHALL take `<tag>` from `skills/mf-release/scripts/next_tag.py`, which SHALL print the next tag after the
-highest `vX.Y.Z` tag the default branch holds merged, a local tag on no branch read as none, or `v0.1.0` when there is none. It SHALL write `version:` into the proposal it archives, before
+`skills/mf-release/SKILL.md` SHALL have `release.py pre` read `bump:` from the change's `proposal.md`, halting on anything but `minor` or
+`patch`, and print `<tag>` from `skills/mf-release/scripts/next_tag.py`, which SHALL print the next tag after the
+highest `vX.Y.Z` tag the default branch holds merged, a local tag on no branch read as none, or `v0.1.0` when there is none. `release.py finish` SHALL write `version:` into the proposal it archives, before
 it collects metrics. `conduct.py` SHALL read a released version's tag from the branch tip's `chore(release): <tag>`,
 SHALL pass the release check only when that tag's commit is the tip and, with an `origin`, origin's tag is on that
 tip, and SHALL hold no number before it.
@@ -1845,11 +1844,8 @@ naming `HEAD` SHALL be stage `build`, its closing steps left, and SHALL fail the
 SHALL then run its simplify step again, restoring first, saved to a patch under `.minions/changes/<change-id>/`, a dirty
 tree whose paths are all in the change's range while its `.minions/changes/<change-id>/build.closing` mark names `HEAD`, halting and
 restoring nothing on a path outside it, a dirty tree with no such mark, or a patch an earlier save left; `conduct.py close` SHALL then run the gate, the metrics and the plan check again, and SHALL write `build.done`, naming `HEAD` and
-simplify's outcome, only once they are done. Under `merge=yes`, `skills/mf-release/SKILL.md` SHALL restore a tree dirty with only its own fold and a staged
-archive move to `HEAD`, then start over; a hand release SHALL keep its clean-tree halt. It SHALL re-enter at its merge after reading its preamble against the archived delta, halting on a flag under `merge=yes` and naming it beside the ask by hand,
-tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
-default branch has not moved. `conduct.py` SHALL read that stage as `release` only when the run logs show the release
-worker died and the person left no `.minions/changes/<change-id>/release.held` mark, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
+simplify's outcome, only once they are done. Under `merge=yes`, `release.py pre` SHALL restore, at a `HEAD` that is no release commit, a tree dirty, or holding untracked files, with only a dead release's derived work — the worker's paths, a staged archive move, the changelog cut, the version file and its lock, and the metrics data file — to `HEAD`, removing the archive, the data file and a stale `release.flag`, then the release SHALL start over; a hand release SHALL keep its clean-tree halt. `release.py finish` SHALL re-enter where a dead release stopped, tagging `HEAD` first when the tag is missing, when `HEAD` is its release commit, converge was clean at `HEAD~1` and the
+default branch has not moved, and `release.py merge` SHALL then go on, halting while `release.flag` stands. `release.py pre` SHALL pass an existing tag of this release only when it is on a commit that is on no branch and not on `origin`, and `release.py finish` SHALL then move it to the release commit; either SHALL halt on a tag `origin` or the default branch holds. `release.py finish` SHALL run the gate on a release commit before it tags it, a recorded green of that tree reused, and `release.py pre` SHALL halt on a release commit that lacks `release.pre`. `release.py pre` SHALL drop a release commit the default branch moved past, its tag and its commit, when neither is on `origin` nor reachable from the default branch, and halt naming what holds it otherwise. `conduct.py` SHALL read that stage as `release` only when the run logs show the release died, its worker or a `release.py` run, and the person left no `.minions/changes/<change-id>/release.held` mark and no `release.flag` stands, or while the script may drop the tip, and as `released` for any other release tip. It SHALL read `tasks.md` from `HEAD`. It SHALL, at the start of
 a run, push the default branch and each merged tag `origin` lacks, only when every first-parent commit past `origin`'s default
 branch, as `origin` lists it, is a merge of a tagged release holding that release's tree, whose release commit's parent is a
 head the release ledger holds that is not yet on `origin`, and every such tag is on such a release commit, and SHALL else halt, naming the commit or the
@@ -1868,21 +1864,35 @@ time SHALL read the same in any zone or locale. A pid `ps` cannot read that stil
 `/mf-ship stop` SHALL exit 2, naming it, and signal nothing, and a run that cannot read its own start time SHALL stop.
 
 #### Scenario: A release dies before its commit
-- **WHEN** a release worker dies with its fold staged and the change's folder moved
-- **THEN** a re-run reads the stage as `release`, restores the tree, and releases with one tag
+- **WHEN** a release dies with its fold staged and the change's folder moved
+- **THEN** a re-run reads the stage as `release`, `pre` restores the tree, and the release goes on with one tag
 
 #### Scenario: A release dies after its commit
-- **WHEN** a release worker dies between its commit and its tag, and the default branch has not moved
-- **THEN** a re-run reads the stage as `release`, tags `HEAD`, merges and pushes
+- **WHEN** a release dies between its commit and its tag, and the default branch has not moved
+- **THEN** a re-run reads the stage as `release`, `finish` tags `HEAD`, and `merge` merges, and the conductor pushes
 
 #### Scenario: A release dies after its tag
-- **WHEN** a release worker dies after its commit and tag, and the default branch has not moved
-- **THEN** a re-run merges and pushes
-- **AND WHEN** the default branch has moved
-- **THEN** the stage is `released`, a halt naming the person's recovery
+- **WHEN** a release dies after its commit and tag, and the default branch has not moved
+- **THEN** a re-run merges, and the conductor pushes
+
+#### Scenario: A stranded release is dropped
+- **WHEN** a release dies after its commit and tag, the default branch has moved, and neither the commit nor the tag is on `origin` or reachable from the default branch
+- **THEN** `pre` deletes the tag and drops the commit, and the stage reads `integrate`
+- **AND WHEN** `origin` or the default branch holds the tag or the commit
+- **THEN** `pre` halts naming it, and drops nothing
+
+#### Scenario: A worker dies mid-fold
+- **WHEN** a release worker dies with an edited spec file, a new untracked spec file and a `release.flag` left
+- **THEN** a re-run's `pre` under `--run` restores the tree, removes the untracked file and the flag, and the worker folds again
+
+#### Scenario: A tag on an orphan commit
+- **WHEN** a tag of this release is on a commit that is on no branch and not on `origin`
+- **THEN** `pre` passes it and `finish` moves it to the release commit
+- **AND WHEN** `origin` holds the tag
+- **THEN** the script halts naming it, and moves nothing
 
 #### Scenario: A release stopped on purpose stays stopped
-- **WHEN** a release tip's worker exited 0 before its merge, or a person ran the release and said no
+- **WHEN** a release tip's script exited 0 before its merge, or a person ran the release and said no
 - **THEN** the stage is `released`, a halt naming `/mf-release`, and a re-run merges nothing
 
 #### Scenario: A tip forges a release
@@ -1894,8 +1904,8 @@ time SHALL read the same in any zone or locale. A pid `ps` cannot read that stil
 - **THEN** the clean-tree precondition halts, and nothing is restored
 
 #### Scenario: A person takes a flagged release
-- **WHEN** a person runs `mf-release` on a release tip whose preamble is flagged
-- **THEN** it reads the flag, does not halt on it, and names it beside the ask before the merge
+- **WHEN** a person runs `mf-release` on a release tip whose `release.flag` stands
+- **THEN** `finish` and `merge` halt naming the file, and merge once the person has read the prose and removed it
 
 #### Scenario: A release dies before its push
 - **WHEN** the default branch is ahead of `origin` with a run's release, and no version is open
@@ -1954,7 +1964,7 @@ time SHALL read the same in any zone or locale. A pid `ps` cannot read that stil
 - **THEN** a run halts naming the tag, and pushes nothing
 
 #### Scenario: A flagged release dies
-- **WHEN** a release flags its preamble, commits and dies
+- **WHEN** a release's `release.flag` stands, and its script dies after the commit and the tag
 - **THEN** a re-run halts on the flag before its merge
 
 #### Scenario: A build dies in simplify
@@ -6763,3 +6773,35 @@ The cut's check, `cut_check.py`, SHALL halt in its row `V9` each sub-task whose 
 #### Scenario: A stage that is no halt
 - **WHEN** a version is at `build`
 - **THEN** `status` prints `<change-id> · build` and no reason
+
+### Requirement: The release's fixed steps are a script's
+
+`skills/mf-release/scripts/release.py` SHALL run each fixed step of a release, as the subcommands `pre`, `finish` and `merge`, each printing `release: ok — <what>` and exiting 0, or `release: halt — <why>` and exiting 1, or `release: cannot run — <why>` and exiting 2. `pre` SHALL check the release's preconditions, print the tag `next_tag.py` gives and write `.minions/changes/<change-id>/release.pre`. `finish` SHALL take the paths the worker left, archive the change, cut the changelog with its `Gate:` line, bump the version file with its lock, collect the metrics, run the gate fresh, make one commit, tag it and clear the paid cards. `merge` SHALL merge the branch into the default branch. The release worker SHALL fold the spec delta, read the capability preamble and correct prose that states the version, and SHALL NOT commit, tag or merge. `skills/mf-release/SKILL.md` SHALL run the same subcommands by hand, and a requirement that names the skill for one of these steps SHALL be held by the script. `finish` SHALL commit only a path under `openspec/specs/` or a Markdown file the worker changed, besides its own writes, and SHALL halt naming any other changed path. It SHALL halt before the commit while any change is unstaged after the fresh gate, and SHALL tag only once `git status --porcelain` prints nothing. The release commit SHALL carry `Change:` alone as its trailer. A `HEAD` SHALL count as the release commit only when its parent is the `head:` of `release.pre` and every path it changed is one the worker or `finish` writes, and `merge` SHALL halt unless `HEAD` is the release commit with its tag on it. Under `--run` the script's git SHALL sign nothing and run no hook. `release.flag`, a file of the change's `.minions/changes/<change-id>/` folder the worker writes when the preamble needs a hand-edit, SHALL stop `finish` and `merge` before the merge, the commit and the tag standing.
+
+#### Scenario: A repository with a version file and its lock
+- **WHEN** a repository holds `pyproject.toml` and `uv.lock` and the release's tag is `v0.5.0`
+- **THEN** the release commit holds `pyproject.toml` at `0.5.0` and the `uv.lock` that `uv lock` writes
+
+#### Scenario: A repository with no version file
+- **WHEN** the repository holds none of `pyproject.toml` and `package.json`
+- **THEN** `finish` records `version file: none` and bumps nothing
+
+#### Scenario: The gate leaves a change unstaged
+- **WHEN** the fresh gate leaves a tracked file changed that `finish` did not stage
+- **THEN** `finish` halts naming it, with nothing committed and nothing tagged
+
+#### Scenario: The worker edits code
+- **WHEN** the worker's tree holds a changed Python file
+- **THEN** `finish` halts naming that path, with nothing committed
+
+#### Scenario: A flagged preamble
+- **WHEN** `release.flag` stands after the worker
+- **THEN** `finish` commits and tags, then halts naming the file, and `merge` merges nothing until a person removes it
+
+#### Scenario: A worker makes a release commit
+- **WHEN** the worker commits `chore(release): <tag>` with a Python file in it
+- **THEN** `pre` and `finish` halt naming that path, and nothing is tagged or merged
+
+#### Scenario: A script exits 1 under a run
+- **WHEN** `release.py pre`, `finish` or `merge` exits 1 under `conduct.py`
+- **THEN** the version halts with that line as its reason
