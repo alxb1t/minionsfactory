@@ -8900,12 +8900,15 @@ def status(cwd: Path) -> str:
 
 
 def _status_line(primary: Path, version: Version) -> str:
-    """Return `<change-id> · <stage>`, then the halt of a broken models file.
+    """Return `<change-id> · <stage>`, a halting stage's reason, a models file's halt.
 
-    e.g. "0001-todo · build — changes/0001-todo/models.toml: it is not UTF-8".
-    Why: 0142-models design D10.
+    e.g. "0001-todo · released — v0.1.0 is not the commit its tag names".
+    Why: 0142-models design D10; 0151-stamps design D8.
     """
-    line = f"{version.change} · {stage_of(primary, version)[0]}"
+    stage, why = stage_of(primary, version)
+    line = f"{version.change} · {stage}"
+    if why and stage in HALTS:
+        line += f" — {why}"
     try:
         _models_data(mflib.layout.run_dir(primary), version.change)
     except Stop as stop:

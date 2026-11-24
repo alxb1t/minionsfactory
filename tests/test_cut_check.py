@@ -267,7 +267,7 @@ def _check_before_its_task(root: Path) -> None:
 
 def _selects_a_later_test(root: Path) -> None:
     old = "Verify: `grep -n x a.py` prints a line."
-    new = "Verify: `uv run pytest -q test_widget.py -k widget` exits 0."
+    new = "Verify: `uv run pytest -q test_widget.py -k widget` exits `0`."
     _edit(root, "tasks.md", old, new)
     _edit(root, "tasks.md", "Edit `a.py` again.", "Add `test_widget` to the suite.")
 
@@ -287,7 +287,7 @@ def _pytest_names_no_test_file(root: Path) -> None:
         root,
         "tasks.md",
         old,
-        "Verify: `uv run pytest -q --junitxml out/r.xml -k widget` exits 0.",
+        "Verify: `uv run pytest -q --junitxml out/r.xml -k widget` exits `0`.",
     )
 
 
@@ -1185,6 +1185,49 @@ def test_kexpr_naming_nothing_is_refused(
         assert _halted_rows(root, monkeypatch, capsys) == ["V8"], expression
     _verified(root, "uv run pytest -q -k spin")
     assert _halted_rows(root, monkeypatch, capsys) == ["V5"]
+
+
+def _v9(tasks: str) -> str | None:
+    change = cut_check.Change("x", Path("x"), "", "", tasks)
+    return cut_check.row_v9(change, cut_check._plan())
+
+
+def test_v9_halts_an_unquoted_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path)
+    _tools(tmp_path, monkeypatch)
+    _edit(
+        root, "tasks.md", "`grep -n x a.py` prints a line.", "`grep -n x a.py` exits 5."
+    )
+    code, lines = _run(root, monkeypatch, capsys)
+    assert _halted(lines) == ["V9"]
+    assert code == 1
+    why = "cut_check: halt — V9 — 1.1: `exits` is not followed by a code span of digits"
+    assert why in lines
+    for text in ("exits five", "exits `x`", "exits", "exits `5` then exits 6"):
+        assert _v9(f"- [ ] 1.1 A.\n  Verify: `a` {text}.\n"), text
+
+
+def test_v9_holds_a_quoted_exit_and_the_word_in_prose() -> None:
+    assert _v9("- [ ] 1.1 A.\n  Verify: `a` exits `5`.\n") is None
+    assert _v9("- [ ] 1.1 A.\n  Verify: `a` exits `0` and prints `1`.\n") is None
+    assert _v9("- [ ] 1.1 A.\n  Verify: `a` exits\n  `5`.\n") is None
+    assert _v9("- [ ] 1.1 A, as one that exits 5.\n  Verify: `a` prints `1`.\n") is None
+    assert _v9("- [ ] 1.1 A.\n  Verify: `a exits 5` prints `1`.\n") is None
+    assert _v9("- [ ] 1.1 A, which exits 5.\n") is None
+
+
+def test_v9_reads_a_halt_check_task() -> None:
+    task = "- [ ] 1.1 **HALT CHECK** A.\n  Verify: `a` exits 5.\n"
+    assert _v9(task) == "1.1: `exits` is not followed by a code span of digits"
+    both = task + "- [ ] 1.2 B.\n  Verify: `b` exits 6.\n"
+    assert _v9(both) == (
+        "1.1: `exits` is not followed by a code span of digits"
+        " · 1.2: `exits` is not followed by a code span of digits"
+    )
 
 
 def test_an_unreadable_head_exits_2(

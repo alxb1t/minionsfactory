@@ -6,7 +6,7 @@ Phases: converge stamps the counts, a halted version keeps its slot, and the cut
 
 - [x] 1 — Converge stamps the counts · hard
 - [x] 2 — The slot · hard
-- [ ] 3 — The cut's row, the tag and status · moderate
+- [x] 3 — The cut's row, the tag and status · moderate
 
 ## 1 — Converge stamps the counts
 
@@ -60,19 +60,19 @@ Phases: converge stamps the counts, a halted version keeps its slot, and the cut
 
 ## 3 — The cut's row, the tag and status
 
-- [ ] 3.1 Add `def row_v9` to `skills/mf-cut-change/scripts/cut_check.py` per [D6](design.md#d6), and `V9` to `ROWS` and to the rows `check` runs.
+- [x] 3.1 Add `def row_v9` to `skills/mf-cut-change/scripts/cut_check.py` per [D6](design.md#d6), and `V9` to `ROWS` and to the rows `check` runs.
   Verify: `git grep -n -F -e "def row_v9" -- skills/mf-cut-change/scripts/cut_check.py` exits `0`.
-- [ ] 3.2 Add `test_v9_halts_an_unquoted_exit`, `test_v9_holds_a_quoted_exit_and_the_word_in_prose` and `test_v9_reads_a_halt_check_task` to `tests/test_cut_check.py`.
+- [x] 3.2 Add `test_v9_halts_an_unquoted_exit`, `test_v9_holds_a_quoted_exit_and_the_word_in_prose` and `test_v9_reads_a_halt_check_task` to `tests/test_cut_check.py`.
   Verify: `uv run pytest tests/test_cut_check.py -q -k v9` exits `0`.
-- [ ] 3.3 In `skills/mf-cut-change/SKILL.md` add `V9` once to the rows `cut_check.py` decides and once to the sentence on what a `Verify:` row settles.
+- [x] 3.3 In `skills/mf-cut-change/SKILL.md` add `V9` once to the rows `cut_check.py` decides and once to the sentence on what a `Verify:` row settles.
   Verify: `grep -c -F -e "V9" skills/mf-cut-change/SKILL.md` prints `2`.
-- [ ] 3.4 In `skills/mf-release/scripts/next_tag.py` list `git tag --list` with `--merged` the default branch per [D7](design.md#d7).
+- [x] 3.4 In `skills/mf-release/scripts/next_tag.py` list `git tag --list` with `--merged` the default branch per [D7](design.md#d7).
   Verify: `git grep -n -F -e "--merged" -- skills/mf-release/scripts/next_tag.py` exits `0`.
-- [ ] 3.5 In `tests/test_next_tag.py` start each repository with `git init -b main`, and add `test_a_stray_local_tag_is_no_base`: `v0.9.0` on `main`, `v0.10.0` on a commit no branch holds, a patch is `v0.9.1`.
+- [x] 3.5 In `tests/test_next_tag.py` start each repository with `git init -b main`, and add `test_a_stray_local_tag_is_no_base`: `v0.9.0` on `main`, `v0.10.0` on a commit no branch holds, a patch is `v0.9.1`.
   Verify: `uv run pytest tests/test_next_tag.py -q` exits `0`.
-- [ ] 3.6 In `skills/mf-release/SKILL.md` say `next_tag.py` takes the highest tag the default branch holds merged.
+- [x] 3.6 In `skills/mf-release/SKILL.md` say `next_tag.py` takes the highest tag the default branch holds merged.
   Verify: `git grep -n -F -e "holds merged" -- skills/mf-release/SKILL.md` exits `0`.
-- [ ] 3.7 In `_status_line` of `skills/mf-ship/scripts/conduct.py` append the reason `stage_of` returns, per [D8](design.md#d8), under `and stage in HALTS:`.
+- [x] 3.7 In `_status_line` of `skills/mf-ship/scripts/conduct.py` append the reason `stage_of` returns, per [D8](design.md#d8), under `and stage in HALTS:`.
   Verify: `git grep -n -F -e "and stage in HALTS:" -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 3.8 In `tests/test_conduct.py` update `test_status_reads_each_stage_from_disk`, `test_a_rerun_recovers_a_dead_release` and `test_a_release_cut_short_is_recovered` to the reason, and add `test_status_prints_a_tip_tagged_elsewhere_with_its_reason`.
+- [x] 3.8 In `tests/test_conduct.py` update `test_status_reads_each_stage_from_disk`, `test_a_rerun_recovers_a_dead_release` and `test_a_release_cut_short_is_recovered` to the reason, and add `test_status_prints_a_tip_tagged_elsewhere_with_its_reason`.
   Verify: `uv run pytest tests/test_conduct.py -q -k "status_reads_each_stage or dead_release or release_cut_short or tagged_elsewhere"` exits `0`.
