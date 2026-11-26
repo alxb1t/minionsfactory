@@ -7,7 +7,7 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
 - [x] 3 — The stations · hard
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
 ## 1 — The pin
@@ -66,17 +66,17 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 
 ## 4 — The fix
 
-- [ ] 4.1 In `skills/mflib/marks.py` write `head_of` of [D4](design.md#d4), and let each head reader take it in place of its own pattern; the plan-output reader of the converge script compares `done_head` in place of a line.
+- [x] 4.1 In `skills/mflib/marks.py` write `head_of` of [D4](design.md#d4), and let each head reader take it in place of its own pattern; the plan-output reader of the converge script compares `done_head` in place of a line.
   Outside a merge the integrate reader reads no head as a red gate on another head; inside an open merge today's reading stands. Delete `done_lines`; its unit case is carried as [design](design.md#tests) says.
   Verify: `grep -n -e '^def head_of' skills/mflib/marks.py` prints a line.
-- [ ] 4.2 Write the one `read` of [D5](design.md#d5) and make each parser and `stands` go through it, the time through `lstat`: a stop mark that cannot be read raises `Broken` and the conductor halts its version naming the mark, `conduct.py status` names it and goes on, a pass mark that cannot be read is absent, the stop marks' stand tests call `standing`, `gate_red_text` answers `''` for a file that cannot be read, and the notes keep their own open under the larger bound. The viewer's borrowed reader of `build.halt`, the settling test of the integrate script and the conductor's test of a stranded tip take `Broken` as [D5](design.md#d5) says.
+- [x] 4.2 Write the one `read` of [D5](design.md#d5) and make each parser and `stands` go through it, the time through `lstat`: a stop mark that cannot be read raises `Broken` and the conductor halts its version naming the mark, `conduct.py status` names it and goes on, a pass mark that cannot be read is absent, the stop marks' stand tests call `standing`, `gate_red_text` answers `''` for a file that cannot be read, and the notes keep their own open under the larger bound. The viewer's borrowed reader of `build.halt`, the settling test of the integrate script and the conductor's test of a stranded tip take `Broken` as [D5](design.md#d5) says.
   Verify: `grep -n -e '^def read' skills/mflib/marks.py` prints a line.
-- [ ] 4.3 Make `write` the one write: `Run.diagnose`, `Run.merge_in` and `Run.stack` call it. A failed write of `stacked-on` halts its version and not the run; the others keep their answers ([D6](design.md#d6)).
+- [x] 4.3 Make `write` the one write: `Run.diagnose`, `Run.merge_in` and `Run.stack` call it. A failed write of `stacked-on` halts its version and not the run; the others keep their answers ([D6](design.md#d6)).
   Delete the in-place write of the module.
   Verify: `git grep -c -e 'def write_in_place(' -- skills/mflib/marks.py` prints nothing.
-- [ ] 4.4 Take the release script's writes and unlinks under the change folder's descriptor ([D7](design.md#d7)): the mark and the saved patches through `write`, the drop and the restore through `remove` in place of their `(folder / name).unlink(missing_ok=True)` loops, an `OSError` a halt naming the mark, a patch's free name the first at which nothing stands.
+- [x] 4.4 Take the release script's writes and unlinks under the change folder's descriptor ([D7](design.md#d7)): the mark and the saved patches through `write`, the drop and the restore through `remove` in place of their `(folder / name).unlink(missing_ok=True)` loops, an `OSError` a halt naming the mark, a patch's free name the first at which nothing stands.
   Verify: `git grep -c -F -e 'name).unlink(' -- skills/mf-release/scripts/release.py` prints nothing.
-- [ ] 4.5 Turn each case and pin of the table of [D11](design.md#d11) in `tests/test_mark_pins.py`, `tests/test_marks.py` and `tests/test_conduct.py` to the one side, its name and its fixture kept.
+- [x] 4.5 Turn each case and pin of the table of [D11](design.md#d11) in `tests/test_mark_pins.py`, `tests/test_marks.py` and `tests/test_conduct.py` to the one side, its name and its fixture kept.
   Verify: `uv run pytest tests/test_mark_pins.py tests/test_marks.py tests/test_conduct.py tests/test_release.py -n auto -q` exits `0`.
 
 ## 5 — The rule and the record

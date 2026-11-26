@@ -201,12 +201,18 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
 
 
 def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
-    """Return whether the version's merge is open with its note beside it."""
-    return (
-        tree is not None
-        and mflib.marks.stands(_primary(cwd), change, mflib.marks.INTEGRATE_MD)
-        and _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
-    )
+    """Return whether the version's merge is open with its note beside it.
+
+    A note that cannot be read halts, naming it. Why: 0154-marks design D5.
+    """
+    if tree is None:
+        return False
+    try:
+        noted = mflib.marks.standing(_primary(cwd), change, mflib.marks.INTEGRATE_MD)
+    except mflib.marks.Broken as error:
+        raise Stop(1, f"next: halt — .minions/changes/{change}/{error}") from None
+    merging = _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
+    return noted and merging
 
 
 def _holds(cwd: Path, change: str) -> bool:

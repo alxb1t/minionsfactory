@@ -735,7 +735,7 @@ _MARKS = {
         "release: cannot run — release.pre has no gate:",
     ),
     "bad-tag": (
-        lambda r: _mark_text(r, "tag: 2\nversion: v0.2\ngate: 41\nhead: x\n"),
+        lambda r: _mark_text(r, "tag: 2\nversion: v0.2\ngate: 41\nhead: abc1234\n"),
         2,
         "release: cannot run — release.pre holds no tag or gate seconds",
     ),

@@ -391,12 +391,27 @@ class Unreachable(Stop):
     """A read of `origin` that failed: the run waits on it, and halts on no other."""
 
 
+class Marked(Stop):
+    """A mark that cannot be read or written: its version halts, naming it."""
+
+
 def _marked(change: str, error: Exception) -> Stop:
     """Return the halt of a mark's `Broken` or `Unwritten`, its words kept.
 
-    Why: 0154-marks design D3.
+    Why: 0154-marks design D3, D5.
     """
-    return Stop(1, f"conduct: halt — .minions/changes/{change}/{error}")
+    return Marked(1, f"conduct: halt — .minions/changes/{change}/{error}")
+
+
+def _standing(primary: Path, change: str, name: str) -> bool:
+    """Return whether a stop mark stands; one that cannot be read halts its version.
+
+    Why: 0154-marks design D5.
+    """
+    try:
+        return mflib.marks.standing(primary, change, name)
+    except mflib.marks.Broken as error:
+        raise _marked(change, error) from None
 
 
 def _run(
@@ -746,7 +761,11 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     A broken models file fails, and a queued entry that holds `models` fails a file
     whose bytes differ from its text. Why: 0082 design D4; 0106 D7; 0142-models D7.
     """
-    if (halt := mflib.marks.cutter_halt(primary, change)) is not None:
+    try:
+        halt = mflib.marks.cutter_halt(primary, change)
+    except mflib.marks.Broken as error:
+        return f".minions/changes/{change}/{error}"
+    if halt is not None:
         return halt
     # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
     tip = _subject(primary, f"refs/heads/{change}")
@@ -1039,12 +1058,17 @@ def _unstack(primary: Path, change: str) -> None:
 
 
 def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
-    r"""Return `build.halt`'s sub-task and stop when it names `HEAD`.
+    r"""Return `build.halt`'s sub-task and stop when it names `HEAD`; None for none.
 
-    None for a missing, unreadable or stale file. Why: 0067-rescue design D1.
+    One that cannot be read answers its name and why. Why: 0067 D1; 0154-marks D5.
     e.g. "sub-task: 1.2\nstop: 3\nhead: <HEAD>\n" → ("1.2", "3")
     """
-    if (found := mflib.marks.build_halt(runs.parent, change)) is None:
+    name = mflib.marks.BUILD_HALT
+    try:
+        found = mflib.marks.build_halt(runs.parent, change)
+    except mflib.marks.Broken as error:
+        return name, str(error).removeprefix(f"{name} ")
+    if found is None:
         return None
     sub_task, stop, head = found
     named = _maybe(tree, "rev-parse", "-q", "--verify", f"{head}^{{commit}}")
@@ -1369,12 +1393,16 @@ def _unjudged(
 
 
 def _red(primary: Path, tree: Path, change: str) -> str | None:
-    r"""Return the full sha a `.red` file's `head:` names, else its raw text.
+    r"""Return the full sha a `.red` file's head names, else its raw text.
 
-    None for no file, or no `head:` line. Why: 0071-ship-fixes design D2.
+    None for no file or no head; a broken one halts. Why: 0071 D2; 0154-marks D4, D5.
     e.g. "gate red\n2026-11-05\nhead: 7ee2179\n" → "7ee2179…" in full
     """
-    if (head := mflib.marks.red_head(primary, change)) is None:
+    try:
+        head = mflib.marks.red_head(primary, change)
+    except mflib.marks.Broken as error:
+        raise _marked(change, error) from None
+    if head is None:
         return None
     named = _maybe(tree, "rev-parse", "-q", "--verify", f"{head}^{{commit}}")
     return named.strip() if named else head
@@ -1469,9 +1497,13 @@ def _note(tree: Path, change: str, moved: list[str]) -> str:
 def _undroppable(primary: Path, tree: Path, change: str, default: str) -> str | None:
     """Return why `release.py pre` may not drop a stranded tip, or None when it may.
 
-    Why: 0152-release-script design D10.
+    Why: 0152-release-script design D10; 0154-marks design D5.
     """
-    if not mflib.marks.stands(primary, change, mflib.marks.RELEASE_PRE):
+    try:
+        whole = mflib.marks.release_pre(primary, change) is not None
+    except mflib.marks.Broken as error:
+        return f".minions/changes/{change}/{error}"
+    if not whole:
         return f".minions/changes/{change}/release.pre is missing"
     if _ancestor(tree, "HEAD", default):
         return f"HEAD is on {default}"
@@ -1493,7 +1525,7 @@ def _release_tip(
     Why: 0152-release-script design D10.
     """
     runs = mflib.layout.run_dir(primary)
-    if mflib.marks.stands(primary, change, mflib.marks.RELEASE_HELD):
+    if _standing(primary, change, mflib.marks.RELEASE_HELD):
         return "released", (
             f"{tag}: .minions/changes/{change}/release.held holds a person's no:"
             f" /mf-release {change} merges it on their yes"
@@ -1541,18 +1573,17 @@ def stage_of(
         raise Stop(2, f"conduct: cannot run — {change} has no worktree")
     runs = mflib.layout.run_dir(primary)
     red, merging = _red(primary, tree, change), _merge_open(tree)
+    headless = red is None and _standing(primary, change, mflib.marks.INTEGRATE_RED)
     note = f".minions/changes/{change}/integrate"
-    if red is not None and not merging:
+    if (red is not None or headless) and not merging:
         if red == _git(tree, "rev-parse", "HEAD").strip():
             return "integrating", f"red gate: {note}.red"
         return "integrate", "red gate on another head: integrate gates again"
     if merging:
-        # A `.red` with a `head:` names a committed merge: an open one's is stale.
-        if red is None and mflib.marks.stands(
-            primary, change, mflib.marks.INTEGRATE_RED
-        ):
+        # A `.red` with a head names a committed merge: an open one's is stale.
+        if headless:
             return "integrating", f"red gate: {note}.red"
-        if mflib.marks.stands(primary, change, mflib.marks.INTEGRATE_MD):
+        if _standing(primary, change, mflib.marks.INTEGRATE_MD):
             return "integrating", f"semantic conflict: {note}.md"
         if _conflicts(tree):
             return "integrate", "interrupted: a merge is open with no note"
@@ -1690,15 +1721,14 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     note = f".minions/changes/{version.change}/integrate"
     change = version.change
     red = _red(primary, tree, change)
+    headless = red is None and _standing(primary, change, mflib.marks.INTEGRATE_RED)
     if _merge_open(tree):
-        if red is None and mflib.marks.stands(
-            primary, change, mflib.marks.INTEGRATE_RED
-        ):
+        if headless:
             return f"integrate halted — red gate, see {note}.red"
-        if mflib.marks.stands(primary, change, mflib.marks.INTEGRATE_MD):
+        if _standing(primary, change, mflib.marks.INTEGRATE_MD):
             return f"integrate halted — semantic conflict, see {note}.md"
         return "a merge is still open"
-    if red is not None:
+    if red is not None or headless:
         return f"integrate halted — red gate, see {note}.red"
     default = default_branch(primary)
     merge = _git(tree, "rev-list", "--first-parent", "--merges", "-1", "HEAD").strip()
@@ -3002,7 +3032,7 @@ def _settled(
     merge = _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD")
     if merge is None or merge.strip() != start.merge:
         return None, "supervisor closed the merge"
-    if not mflib.marks.stands(primary, change, mflib.marks.INTEGRATE_MD):
+    if not _standing(primary, change, mflib.marks.INTEGRATE_MD):
         return None, f"supervisor removed .minions/changes/{change}/integrate.md"
     entries = set(start.index.splitlines()) ^ set(
         _git(tree, "ls-files", "-s").splitlines()
@@ -5324,9 +5354,9 @@ class Run:
         name = f".minions/changes/{change}/{mflib.marks.RESCUE}"
         text = mflib.marks.diagnosis_text(change, halt)
         try:
-            mflib.marks.write_in_place(self.primary, change, mflib.marks.RESCUE, text)
-        except OSError as error:
-            self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
+            mflib.marks.write(self.primary, change, mflib.marks.RESCUE, text)
+        except mflib.marks.Unwritten as error:
+            self.halt(change, f"rescue: cannot write {name} — {error.cause.strerror}")
             return
         self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
         with self.guard:
@@ -5935,9 +5965,7 @@ class Run:
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
         opened = _merge_open(tree)
-        if opened and mflib.marks.stands(
-            self.primary, change, mflib.marks.INTEGRATE_MD
-        ):
+        if opened and _standing(self.primary, change, mflib.marks.INTEGRATE_MD):
             return
         _refuse_config_commands(tree)
         merge = ("merge", "-q", "--no-ff", "--no-commit", ref)
@@ -5947,14 +5975,11 @@ class Run:
             text = _note(tree, change, moved)
             # A link at the change's folder raises: the version halts, nothing written.
             try:
-                mflib.marks.write_in_place(
-                    self.primary, change, mflib.marks.INTEGRATE_MD, text
-                )
-            except OSError as error:
+                mflib.marks.write(self.primary, change, mflib.marks.INTEGRATE_MD, text)
+            except mflib.marks.Unwritten as error:
                 name = f".minions/changes/{change}/{mflib.marks.INTEGRATE_MD}"
-                raise Stop(
-                    1, f"conduct: halt — cannot write {name} — {error.strerror}"
-                ) from None
+                said = f"cannot write {name} — {error.cause.strerror}"
+                raise Stop(1, f"conduct: halt — {said}") from None
             return
         message = f"chore(integrate): merge {ref} into {change}"
         if stacked is not None:
@@ -5968,11 +5993,10 @@ class Run:
         """Mark a version stacked, then merge its dependency's built head in.
 
         A merge that halts leaves a file naming no ancestor of `HEAD`, which
-        `_stacked_on` reads as none. Why: 0099-stacked-builds design D2.
+        `_stacked_on` reads as none; a failed write halts. Why: 0099 D2; 0154 D6.
         """
-        mflib.marks.write_in_place(
-            self.primary, change, mflib.marks.STACKED_ON, mflib.marks.stacked_text(head)
-        )
+        text = mflib.marks.stacked_text(head)
+        _write_state(self.primary, change, mflib.marks.STACKED_ON, text)
         if not _ancestor(tree, head, "HEAD"):
             self.merge_in(tree, change, head, dependency)
         self.log.event(change, "stacked", f"on {dependency} at {head[:7]}")
@@ -6048,7 +6072,7 @@ class Run:
         at = shlex.quote(str(tree))
         if _merge_open(tree):
             noted = any(
-                mflib.marks.stands(self.primary, change, name)
+                _standing(self.primary, change, name)
                 for name in (mflib.marks.INTEGRATE_MD, mflib.marks.INTEGRATE_RED)
             )
             after = _dependencies(self.primary, change)
@@ -6324,7 +6348,10 @@ class Run:
         """
         primary = self.primary
         why = _check_cut(primary, change, tree)
-        answered = why is not None and why == mflib.marks.cutter_halt(primary, change)
+        answered = False
+        with contextlib.suppress(mflib.marks.Broken):
+            halted = mflib.marks.cutter_halt(primary, change)
+            answered = why is not None and why == halted
         if why is None:
             why = _unapproved(primary, change, entry.get("dependencies", []))
             answered = why is not None and why.startswith(UNAPPROVED)
@@ -8899,10 +8926,14 @@ def status(cwd: Path) -> str:
 def _status_line(primary: Path, version: Version) -> str:
     """Return `<change-id> · <stage>`, a halting stage's reason, a models file's halt.
 
-    A control character of the reason reads `?`. Why: 0142-models D10; 0151-stamps D8.
+    A broken mark reads `halted`, a control byte `?`. Why: 0142 D10; 0151 D8; 0154 D5.
     e.g. "0001-todo · released — v0.1.0 is not the commit its tag names".
     """
-    stage, why = stage_of(primary, version)
+    try:
+        stage, why = stage_of(primary, version)
+    except Marked as stop:
+        said = str(stop).removeprefix("conduct: halt — ")
+        return f"{version.change} · halted — {said}"
     line = f"{version.change} · {stage}"
     if why and stage in HALTS:
         # The reason holds worker-written text: no control byte reaches the terminal.

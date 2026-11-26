@@ -275,24 +275,34 @@ def _derived(path: str, change: str) -> bool:
     )
 
 
-def _save(git: Git, folder: Path) -> None:
-    """Save the tree's changes and untracked files as a patch, over no earlier one.
+def _save(git: Git, primary: Path, change: str) -> None:
+    """Save the tree's changes and untracked files as a patch, at the first free name.
 
-    Why: 0152-release-script design D8; as the build's `build.discarded.patch`.
+    Why: 0152-release-script design D8; 0154-marks design D7.
     """
     git.out("add", "-A", "--", ".")
     patch = git.out("diff", "--cached", "--binary", "--no-renames", "HEAD")
-    folder.mkdir(parents=True, exist_ok=True)
     taken = 1
-    while (kept := folder / mflib.marks.discarded(taken)).exists():
+    while mflib.marks.present(primary, change, mflib.marks.discarded(taken)):
         taken += 1
+    name = mflib.marks.discarded(taken)
     try:
-        mflib.statefile.write(kept, patch)
-    except mflib.statefile.WriteFailed as failed:
-        raise cannot(
-            f"{kept.name} could not be written: {failed.error.strerror}"
-        ) from None
-    _ok(f"saved · {kept.name}")
+        mflib.marks.write(primary, change, name, patch)
+    except mflib.marks.Unwritten as error:
+        raise cannot(f"{name} could not be written: {error.cause.strerror}") from None
+    _ok(f"saved · {name}")
+
+
+def _unmark(primary: Path, change: str) -> None:
+    """Remove the release's flag and mark by name; a failure halts, naming the mark.
+
+    Why: 0154-marks design D7.
+    """
+    for name in (mflib.marks.RELEASE_FLAG, mflib.marks.RELEASE_PRE):
+        try:
+            mflib.marks.remove(primary, change, name)
+        except OSError as error:
+            raise halt(f"{name} cannot be removed: {error.strerror}") from None
 
 
 def _restore(git: Git, primary: Path, change: str) -> None:
@@ -303,15 +313,13 @@ def _restore(git: Git, primary: Path, change: str) -> None:
     """
     paths = _dirty(git)
     if paths and all(_derived(path, change) for path in paths):
-        _save(git, mflib.layout.change_dir(primary, change))
+        _save(git, primary, change)
         git.out("restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
         archived = git.cwd / "openspec" / "changes" / "archive" / change
         shutil.rmtree(archived, ignore_errors=True)
         (git.cwd / "metrics" / "changes" / f"{change}.json").unlink(missing_ok=True)
         _ok("restore — a dead release's derived work is back at HEAD")
-    folder = mflib.layout.change_dir(primary, change)
-    for name in (mflib.marks.RELEASE_FLAG, mflib.marks.RELEASE_PRE):
-        (folder / name).unlink(missing_ok=True)
+    _unmark(primary, change)
 
 
 def _gate(git: Git, fresh: bool = False) -> int:
@@ -534,9 +542,7 @@ def _again(
     if at:
         git.out("tag", "-d", tag)
     git.out("reset", "-q", "--hard", "HEAD~1")
-    folder = mflib.layout.change_dir(primary, change)
-    for name in (mflib.marks.RELEASE_FLAG, mflib.marks.RELEASE_PRE):
-        (folder / name).unlink(missing_ok=True)
+    _unmark(primary, change)
     return f"release: drop — {tag} and its commit"
 
 
@@ -567,16 +573,13 @@ def pre(cwd: Path, change: str, run: bool, given: str | None = None) -> str:
     _entries(git)
     _planned(git, change, default)
     _shipped(git, change, keys, default)
-    folder = mflib.layout.change_dir(primary, change)
-    folder.mkdir(parents=True, exist_ok=True)
     version = tag.removesuffix(".0")
     mark = f"tag: {tag}\nversion: {version}\ngate: {seconds}\nhead: {head}\n"
     try:
-        mflib.statefile.write(folder / mflib.marks.RELEASE_PRE, mark)
-    except mflib.statefile.WriteFailed as failed:
-        raise cannot(
-            f"{mflib.marks.RELEASE_PRE} could not be written: {failed.error.strerror}"
-        ) from None
+        mflib.marks.write(primary, change, mflib.marks.RELEASE_PRE, mark)
+    except mflib.marks.Unwritten as error:
+        said = f"{error.name} could not be written: {error.cause.strerror}"
+        raise cannot(said) from None
     return f"release: tag — {tag}"
 
 

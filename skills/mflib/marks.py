@@ -1,7 +1,7 @@
 """Name the marks of a change folder, write the text of each and read it back.
 
-Each function reads, writes or removes a mark as the copy it replaces does.
-Why: 0154-marks design D1, D2 and D3.
+One read, one `head:` rule and one staged write serve every mark.
+Why: 0154-marks design D1, D2, D4, D5 and D6.
 """
 
 import contextlib
@@ -35,13 +35,11 @@ GATE_RED = "gate.red"
 BOUND = 65536
 NOTES_BOUND = 1048576
 RELEASE_KEYS = ("tag", "version", "gate", "head")
-# Each copy's own `head:` pattern: remove when one head rule reads every mark.
-# Why: 0154-marks design D3.
-_DONE_HEAD = re.compile(r"^head:\s*(\S+)", re.MULTILINE)
-_RED_HEAD = re.compile(r"^head:[ \t]*(\S+)", re.MULTILINE)
-_HALT_KEYS = re.compile(r"^(sub-task|stop|head):[ \t]*(\S.*?)[ \t]*$", re.MULTILINE)
+_HEAD = re.compile(r"[0-9a-f]{7,40}")
+_HALT_KEYS = re.compile(r"^(sub-task|stop):[ \t]*(\S.*?)[ \t]*$", re.MULTILINE)
 _FULL_SHA = re.compile(r"[0-9a-f]{40}")
 _CUT_HALT_WIDTH = 300
+_PHRASES = {errno.ELOOP: "it is a link", errno.EINVAL: "it is not a regular file"}
 
 
 class Broken(ValueError):
@@ -76,114 +74,137 @@ def _folder(primary: Path, change: str) -> int:
     return statefile.folder(layout.run_dir(primary), layout.CHANGES, change)
 
 
-def _path_text(primary: Path, change: str, name: str) -> str | None:
-    """Return a mark's text read by its path, a link followed; "" for no file.
+def read(primary: Path, change: str, name: str, bound: int = BOUND) -> str | None:
+    """Return a mark's text, read through no link and without blocking; None for none.
 
-    None when it cannot be read or decoded.
+    A link, no regular file, a file over `bound` bytes or one not UTF-8 raises
+    `Broken`. Why: 0154-marks design D5.
     """
-    file = _path(primary, change, name)
     try:
-        return file.read_text() if file.is_file() else ""
-    except (OSError, UnicodeDecodeError):
+        fd = statefile.open_folder(layout.run_dir(primary), layout.CHANGES, change)
+    except FileNotFoundError:
         return None
+    except OSError as error:
+        why = f"its folder cannot be opened — {error.strerror}"
+        raise Broken(f"{name} cannot be read: {why}") from None
+    try:
+        data = statefile.read_bytes(name, folder=fd, limit=bound + 1)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        why = _PHRASES.get(error.errno, str(error.strerror))
+        raise Broken(f"{name} cannot be read: {why}") from None
+    finally:
+        os.close(fd)
+    if len(data) > bound:
+        raise Broken(f"{name} cannot be read: it is over {bound} bytes")
+    try:
+        return data.decode()
+    except UnicodeDecodeError:
+        raise Broken(f"{name} cannot be read: it is not UTF-8") from None
+
+
+def _passed(primary: Path, change: str, name: str, bound: int = BOUND) -> str:
+    """Return a mark's text; "" when it is missing or cannot be read."""
+    try:
+        return read(primary, change, name, bound) or ""
+    except Broken:
+        return ""
+
+
+def head_of(text: str) -> str | None:
+    r"""Return the value of the text's one `head:` line when it is 7 to 40 hex digits.
+
+    e.g. "head: abc1234\r\n" → "abc1234"; a second `head:` line → None
+    """
+    values = [
+        line.removeprefix("head:").strip(" \t\r")
+        for line in text.split("\n")
+        if line.startswith("head:")
+    ]
+    return values[0] if len(values) == 1 and _HEAD.fullmatch(values[0]) else None
 
 
 def done_head(primary: Path, change: str) -> str | None:
-    """Return the word `build.done`'s first `head:` names, or None."""
-    found = _DONE_HEAD.search(_path_text(primary, change, BUILD_DONE) or "")
-    return found[1] if found else None
+    """Return the head `build.done` holds; None when it holds none or cannot be read."""
+    return head_of(_passed(primary, change, BUILD_DONE))
 
 
 def simplified_head(primary: Path, change: str) -> str | None:
-    """Return the word `build.simplified`'s first `head:` names, or None."""
-    found = _DONE_HEAD.search(_path_text(primary, change, BUILD_SIMPLIFIED) or "")
-    return found[1] if found else None
+    """Return the head `build.simplified` holds; None when it holds none or is bad."""
+    return head_of(_passed(primary, change, BUILD_SIMPLIFIED))
 
 
 def red_head(primary: Path, change: str) -> str | None:
-    """Return the word `integrate.red`'s first `head:` line names, or None."""
-    found = _RED_HEAD.search(_path_text(primary, change, INTEGRATE_RED) or "")
-    return found[1] if found else None
+    """Return the head `integrate.red` holds, or None; a broken one raises `Broken`."""
+    return head_of(read(primary, change, INTEGRATE_RED) or "")
 
 
 def build_halt(primary: Path, change: str) -> tuple[str, str, str] | None:
-    r"""Return `build.halt`'s sub-task, stop and head, the last of each; or None.
+    r"""Return `build.halt`'s sub-task and stop, the last of each, and head; or None.
 
+    A mark that cannot be read raises `Broken`.
     e.g. "sub-task: 1.2\nstop: 3\nhead: abc1234\n" → ("1.2", "3", "abc1234")
     """
-    text = _path_text(primary, change, BUILD_HALT) or ""
+    text = read(primary, change, BUILD_HALT) or ""
     keys = dict(_HALT_KEYS.findall(text))
-    if not {"sub-task", "stop", "head"} <= keys.keys():
+    if (head := head_of(text)) is None or not {"sub-task", "stop"} <= keys.keys():
         return None
-    return keys["sub-task"], keys["stop"], keys["head"]
+    return keys["sub-task"], keys["stop"], head
 
 
 def stacked_head(primary: Path, change: str) -> str | None:
     """Return `stacked-on`'s first word when it is a full sha, else None."""
-    words = (_path_text(primary, change, STACKED_ON) or "").split()
+    words = _passed(primary, change, STACKED_ON).split()
     return words[0] if words and _FULL_SHA.fullmatch(words[0]) else None
 
 
 def cutter_halt(primary: Path, change: str) -> str | None:
-    """Return `cut.halt`'s first line, stripped and cut; None when it cannot be opened.
+    """Return `cut.halt`'s first line, stripped and cut; None with no file.
 
-    The open follows no link; a bad byte is replaced.
+    A mark that cannot be read raises `Broken`.
     """
-    fd = _folder(primary, change)
-    try:
-        halt = os.open(CUT_HALT, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-    except OSError:
-        halt = None
-    finally:
-        os.close(fd)
-    if halt is None:
+    if (text := read(primary, change, CUT_HALT)) is None:
         return None
-    with os.fdopen(halt, errors="replace") as file:
-        return file.readline().strip()[:_CUT_HALT_WIDTH]
-
-
-def done_lines(primary: Path, change: str) -> list[str]:
-    """Return `build.done`'s lines, through no link; none when it cannot be read."""
-    text = ""
-    with contextlib.suppress(OSError):
-        text = statefile.read(_path(primary, change, BUILD_DONE))
-    return text.splitlines()
+    return text.partition("\n")[0].strip()[:_CUT_HALT_WIDTH]
 
 
 def plan_check_text(primary: Path, change: str) -> str | None:
-    """Return `plan-check.txt`'s text, a bad byte replaced; None with no file.
-
-    A link, or a file that is no regular file, raises `OSError`.
-    """
+    """Return `plan-check.txt`'s text; None when it is missing or cannot be read."""
     try:
-        return statefile.read(_path(primary, change, PLAN_CHECK))
-    except FileNotFoundError:
+        return read(primary, change, PLAN_CHECK, NOTES_BOUND)
+    except Broken:
         return None
 
 
 def release_pre(primary: Path, change: str) -> dict[str, str] | None:
-    r"""Return `release.pre`'s keys, the last of two winning; None with no file.
+    r"""Return `release.pre`'s keys, the last of two winning but `head`; None with none.
 
     A mark that cannot be read, or lacks a key of `RELEASE_KEYS`, raises `Broken`.
-    e.g. "tag: v1.2.0\nversion: v1.2\ngate: 9\nhead: abc\n" → {"tag": "v1.2.0", …}
+    e.g. "tag: v1.2.0\nversion: v1.2\ngate: 9\nhead: abc1234\n" → {"gate": "9", …}
     """
-    try:
-        text = statefile.read(_path(primary, change, RELEASE_PRE))
-    except FileNotFoundError:
+    if (text := read(primary, change, RELEASE_PRE)) is None:
         return None
-    except OSError as error:
-        raise Broken(f"{RELEASE_PRE} cannot be read: {error.strerror}") from None
     pairs = (line.partition(":") for line in text.splitlines())
     keys = {key.strip(): value.strip() for key, colon, value in pairs if colon}
+    keys["head"] = head_of(text) or ""
     for key in RELEASE_KEYS:
         if not keys.get(key):
             raise Broken(f"{RELEASE_PRE} has no {key}:")
     return keys
 
 
+def standing(primary: Path, change: str, name: str) -> bool:
+    """Return whether a stop mark stands; one that cannot be read raises `Broken`."""
+    return read(primary, change, name) is not None
+
+
 def stands(primary: Path, change: str, name: str) -> bool:
-    """Return whether a regular file stands at the mark, a link followed."""
-    return _path(primary, change, name).is_file()
+    """Return whether a regular file stands at the mark, read through no link."""
+    try:
+        return standing(primary, change, name)
+    except Broken:
+        return False
 
 
 def present(primary: Path, change: str, name: str) -> bool:
@@ -204,18 +225,15 @@ def mtime(primary: Path, change: str, name: str) -> int | None:
 
 
 def gate_red_text(primary: Path, change: str) -> str:
-    """Return `gate.red`'s text, a link followed; "" when it cannot be read."""
-    shown = ""
-    with contextlib.suppress(OSError, UnicodeDecodeError):
-        shown = _path(primary, change, GATE_RED).read_text()
-    return shown
+    """Return `gate.red`'s text; "" when it is missing or cannot be read."""
+    return _passed(primary, change, GATE_RED, NOTES_BOUND)
 
 
 def open_notes(primary: Path, change: str, flags: int) -> int | None:
     """Return a descriptor on `build-notes.md`, opened with `flags`; None with no file.
 
-    A link, a file that cannot be opened, or one that is no regular file of one name
-    raises `Broken`. Why: 0102-build-per-phase design D3.
+    A link, a file that cannot be opened, one that is no regular file of one name or
+    one over `NOTES_BOUND` raises `Broken`. Why: 0102-build-per-phase design D3.
     """
     fd = _folder(primary, change)
     try:
@@ -232,6 +250,9 @@ def open_notes(primary: Path, change: str, flags: int) -> int | None:
     if not stat.S_ISREG(found.st_mode) or found.st_nlink != 1:
         os.close(file)
         raise Broken(f"{BUILD_NOTES} is not a regular file of one name")
+    if found.st_size > NOTES_BOUND:
+        os.close(file)
+        raise Broken(f"{BUILD_NOTES} is over {NOTES_BOUND} bytes")
     return file
 
 
@@ -298,7 +319,7 @@ def plan_check_body(base: str, output: str) -> str:
 def write(primary: Path, change: str, name: str, text: str) -> None:
     """Write the mark `name` staged, refusing a link; a failure raises `Unwritten`.
 
-    Why: 0144-gate-outside design D2.
+    Why: 0144-gate-outside design D2; 0154-marks design D6.
     """
     try:
         fd = _folder(primary, change)
@@ -309,21 +330,6 @@ def write(primary: Path, change: str, name: str, text: str) -> None:
     except (OSError, statefile.WriteFailed) as error:
         cause = error.error if isinstance(error, statefile.WriteFailed) else error
         raise Unwritten(name, cause) from None
-
-
-def write_in_place(primary: Path, change: str, name: str, text: str) -> None:
-    """Write `text` over the mark `name`, truncated, through no link.
-
-    A failure raises `OSError`. Why: 0071-ship-fixes design D8.
-    """
-    fd = _folder(primary, change)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_TRUNC
-    try:
-        file = os.open(name, flags, 0o644, dir_fd=fd)
-    finally:
-        os.close(fd)
-    with os.fdopen(file, "w") as out:
-        out.write(text)
 
 
 def remove(primary: Path, change: str, name: str) -> None:

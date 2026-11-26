@@ -1,13 +1,12 @@
 """Pins of the marks as the conductor and `release.py` read, write and remove them.
 
-Each case holds today's behaviour and starts no worker. Why: 0154-marks design D8.
+Each case holds the one side and starts no worker. Why: 0154-marks design D8, D11.
 """
 
 import errno
 import os
 import runpy
 import threading
-import time
 import types
 from collections.abc import Callable
 from pathlib import Path
@@ -121,37 +120,10 @@ def _within(call: Callable[[], Any], seconds: float = 5.0) -> Any:  # noqa: ANN4
     return done[0]
 
 
-def _blocks(call: Callable[[], Any], pipe: Path) -> tuple[bool, Any]:
-    """Return whether `call` blocks on `pipe`, and what it returns once freed."""
-    done: list[Any] = []
-    failed: list[BaseException] = []
-
-    def run() -> None:
-        try:
-            done.append(call())
-        # why: the thread carries any failure of the call back to the test
-        except BaseException as error:  # noqa: BLE001
-            failed.append(error)
-
-    thread = threading.Thread(target=run, daemon=True)
-    thread.start()
-    thread.join(0.3)
-    blocked = thread.is_alive()
-    deadline = time.monotonic() + 5
-    while thread.is_alive() and time.monotonic() < deadline:
-        try:
-            os.close(os.open(pipe, os.O_WRONLY | os.O_NONBLOCK))
-        except OSError:
-            time.sleep(0.01)
-        thread.join(0.05)
-    assert not thread.is_alive(), "the call stayed blocked"
-    if failed:
-        raise failed[0]
-    return blocked, done[0]
-
-
 def test_case_c_cut_halt(tmp_path: Path) -> None:
-    halt = _conduct()["mflib"].marks.cutter_halt
+    conduct = _conduct()
+    marks = conduct["mflib"].marks
+    halt = marks.cutter_halt
     mark = _folder(tmp_path) / "cut.halt"
     assert halt(tmp_path, _CHANGE) is None
 
@@ -162,15 +134,19 @@ def test_case_c_cut_halt(tmp_path: Path) -> None:
     mark.write_text("   " + "y" * 310 + "\n")
     assert halt(tmp_path, _CHANGE) == "y" * 300
     mark.write_bytes(b"a\xffb\n")
-    assert halt(tmp_path, _CHANGE) == "a�b"
+    with pytest.raises(marks.Broken):
+        halt(tmp_path, _CHANGE)
+    said = f".minions/changes/{_CHANGE}/cut.halt cannot be read: it is not UTF-8"
+    assert conduct["_check_cut"](tmp_path, _CHANGE, tmp_path) == said
 
     mark.write_text("")
     assert halt(tmp_path, _CHANGE) == ""
-    assert _conduct()["_check_cut"](tmp_path, _CHANGE, tmp_path) == ""
+    assert conduct["_check_cut"](tmp_path, _CHANGE, tmp_path) == ""
 
     mark.unlink()
     _plant(mark, "link", "a halt\n")
-    assert halt(tmp_path, _CHANGE) is None
+    with pytest.raises(marks.Broken, match=r"^cut\.halt cannot be read: it is a link$"):
+        halt(tmp_path, _CHANGE)
 
 
 def _closed_at(root: Path, tree: Path, text: str) -> bool:
@@ -187,10 +163,12 @@ def test_case_d_build_done_head(tmp_path: Path) -> None:
     mark = _folder(root) / "build.done"
     assert head(root, _CHANGE) is None
 
+    mark.write_text("head: abc1234\n")
+    assert head(root, _CHANGE) == "abc1234"
     mark.write_text("head:\nabc1234\n")
-    assert head(root, _CHANGE) == "abc1234"
+    assert head(root, _CHANGE) is None
     mark.write_text("head:   \n\n  abc1234 x\n")
-    assert head(root, _CHANGE) == "abc1234"
+    assert head(root, _CHANGE) is None
     mark.unlink()
     for shape in ("pipe", "binary", "dangling", "folder"):
         _plant(mark, shape)
@@ -200,11 +178,13 @@ def test_case_d_build_done_head(tmp_path: Path) -> None:
         else:
             mark.unlink()
 
-    # `HEAD`, a branch name and an annotated tag each resolve to the tree's `HEAD`.
+    # A full sha and its short form close the build; `HEAD`, a branch and a tag do not.
     _git(tree, "tag", "-a", "-m", "built", "built-tag")
-    for word in ("HEAD", _CHANGE, "built-tag", _git(tree, "rev-parse", "HEAD")):
+    sha = _git(tree, "rev-parse", "HEAD")
+    for word in (sha, sha[:7]):
         assert _closed_at(root, tree, f"head: {word}\n"), word
-    assert not _closed_at(root, tree, "head: main\n")
+    for word in ("HEAD", _CHANGE, "built-tag", "main"):
+        assert not _closed_at(root, tree, f"head: {word}\n"), word
     assert not _closed_at(root, tree, "simplify: none\n")
 
 
@@ -334,10 +314,14 @@ def test_case_g_release_held_stands_as_a_file_or_a_link_to_one(tmp_path: Path) -
         f" /mf-release {_CHANGE} merges it on their yes"
     )
     assert tip(root, tree, _CHANGE, "v1.0.0") != ("released", held)
-    for shape in ("file", "link"):
-        _plant(mark, shape, "no\n")
-        assert tip(root, tree, _CHANGE, "v1.0.0") == ("released", held), shape
-        mark.unlink()
+    _plant(mark, "file", "no\n")
+    assert tip(root, tree, _CHANGE, "v1.0.0") == ("released", held)
+    mark.unlink()
+    _plant(mark, "link", "no\n")
+    said = f"conduct: halt — .minions/changes/{_CHANGE}/release.held cannot be read: "
+    with pytest.raises(conduct["Stop"]) as stopped:
+        tip(root, tree, _CHANGE, "v1.0.0")
+    assert str(stopped.value).startswith(said)
 
 
 def _halted(root: Path, tree: Path, text: str) -> Any:  # noqa: ANN401
@@ -359,9 +343,9 @@ def test_case_h_build_halt_keys(tmp_path: Path) -> None:
     spaced = whole.format(sub="  1.2  and   more \t")
     assert _halted(root, tree, spaced) == ("1.2  and   more", "3")
 
-    # The last `head:` wins.
+    # Two `head:` lines hold no head.
     late = "sub-task: 1.2\nstop: 3\nhead: deadbeef\nhead: {head}\n"
-    assert _halted(root, tree, late) == ("1.2", "3")
+    assert _halted(root, tree, late) is None
     early = "sub-task: 1.2\nstop: 3\nhead: {head}\nhead: deadbeef\n"
     assert _halted(root, tree, early) is None
 
@@ -457,11 +441,16 @@ def test_case_m_a_failed_write_stops_the_version_with_code_1(tmp_path: Path) -> 
     note = _folder(root) / "integrate.md"
     note.unlink()
     note.symlink_to(tmp_path / "gone.md")
+    name = f".minions/changes/{_CHANGE}/integrate.md"
 
+    # In the open merge the note's stand test meets the link first.
+    with pytest.raises(conduct["Stop"]) as stopped:
+        run.merge_in(tree, _CHANGE, "main")
+    assert str(stopped.value) == f"conduct: halt — {name} cannot be read: it is a link"
+    _git(tree, "merge", "--abort")
     with pytest.raises(conduct["Stop"]) as stopped:
         run.merge_in(tree, _CHANGE, "main")
     assert stopped.value.code == 1
-    name = f".minions/changes/{_CHANGE}/integrate.md"
     assert str(stopped.value).startswith(f"conduct: halt — cannot write {name} — ")
     assert not (tmp_path / "gone.md").exists()
     assert conduct["_merge_open"](tree)
@@ -483,26 +472,35 @@ def test_case_m_the_settling_tests_stand_the_note_by_is_file(tmp_path: Path) -> 
     note = _folder(root) / "integrate.md"
     note.unlink()
     opened = conduct["_opened"](root, tree, _CHANGE)
-    settling = runpy.run_path(str(_INTEGRATE))["_settling"]
+    integrate = runpy.run_path(str(_INTEGRATE))
+    settling = integrate["_settling"]
     nothing = (None, f"supervisor removed .minions/changes/{_CHANGE}/integrate.md")
-    held = (None, "")
+    assert not settling(root, _CHANGE, tree)
+    assert conduct["_settled"](root, tree, _CHANGE, opened) == nothing
+    said = f".minions/changes/{_CHANGE}/integrate.md cannot be read: "
     for shape, stands in (
         ("file", True),
         ("empty", True),
-        ("link", True),
+        ("link", False),
         ("hard", True),
         ("dangling", False),
         ("folder", False),
         ("pipe", False),
     ):
         _plant(note, shape, "note\n")
-        assert settling(root, _CHANGE, tree) is stands, shape
-        reading = _within(lambda: conduct["_settled"](root, tree, _CHANGE, opened))
-        assert reading == (held if stands else nothing), shape
-        if shape == "folder":
-            note.rmdir()
+        if stands:
+            assert settling(root, _CHANGE, tree), shape
+            reading = _within(lambda: conduct["_settled"](root, tree, _CHANGE, opened))
+            assert reading == (None, ""), shape
         else:
-            note.unlink()
+            with pytest.raises(integrate["Stop"]) as halted:
+                settling(root, _CHANGE, tree)
+            assert halted.value.code == 1, shape
+            assert str(halted.value).startswith(f"next: halt — {said}"), shape
+            with pytest.raises(conduct["Stop"]) as stopped:
+                _within(lambda: conduct["_settled"](root, tree, _CHANGE, opened))
+            assert str(stopped.value).startswith(f"conduct: halt — {said}"), shape
+        _clear(note)
     assert not settling(root, _CHANGE, None)
 
 
@@ -588,10 +586,14 @@ def test_case_r_the_red_head_is_the_first_on_a_line(tmp_path: Path) -> None:
     mark = _folder(root) / "integrate.red"
     assert red(root, tree, _CHANGE) is None
 
-    mark.write_text(f"gate red\n2026-11-05\nhead: {head[:7]}\nhead: deadbeef\n")
+    mark.write_text(f"gate red\n2026-11-05\nhead: {head[:7]}\n")
     assert red(root, tree, _CHANGE) == head
+    mark.write_text(f"gate red\n2026-11-05\nhead: {head[:7]}\nhead: deadbeef\n")
+    assert red(root, tree, _CHANGE) is None
+    mark.write_text("head: abcdef1\n")
+    assert red(root, tree, _CHANGE) == "abcdef1"
     mark.write_text("head: nocommit\n")
-    assert red(root, tree, _CHANGE) == "nocommit"
+    assert red(root, tree, _CHANGE) is None
     mark.write_text("gate red\nno head here\n")
     assert red(root, tree, _CHANGE) is None
     mark.write_text(f"head:\n{head}\n")
@@ -607,21 +609,20 @@ def test_case_r_stage_of_reads_the_red_by_its_head(tmp_path: Path) -> None:
     mark = _folder(root) / "integrate.red"
     note = f".minions/changes/{_CHANGE}/integrate"
 
+    other = ("integrate", "red gate on another head: integrate gates again")
     mark.write_text(f"head: {head}\n")
     assert conduct["stage_of"](root, version) == (
         "integrating",
         f"red gate: {note}.red",
     )
-    mark.write_text("head: nocommit\n")
-    assert conduct["stage_of"](root, version) == (
-        "integrate",
-        "red gate on another head: integrate gates again",
-    )
+    mark.write_text("head: abcdef1\n")
+    assert conduct["stage_of"](root, version) == other
+    # Outside a merge a red with no head is a red gate on another head.
     mark.write_text("gate red\n")
-    assert conduct["stage_of"](root, version)[0] == "build"
+    assert conduct["stage_of"](root, version) == other
 
     # In an open merge a headed red is stale, a headless one is the merge's red gate,
-    # and a folder stands for nothing.
+    # and a folder halts the version.
     _open_merge(root, tree)
     resumes = (
         "integrate",
@@ -636,7 +637,8 @@ def test_case_r_stage_of_reads_the_red_by_its_head(tmp_path: Path) -> None:
     )
     mark.unlink()
     mark.mkdir()
-    assert conduct["stage_of"](root, version) == resumes
+    with pytest.raises(conduct["Stop"], match=r"integrate\.red cannot be read: "):
+        conduct["stage_of"](root, version)
 
 
 def test_case_s_stacked_on_names_a_full_head_alone(tmp_path: Path) -> None:
@@ -828,7 +830,7 @@ def test_case_t_the_rescue_compares_the_time_of_rescue_md(tmp_path: Path) -> Non
 def test_case_w_the_in_place_write_truncates_and_makes_the_folder(
     tmp_path: Path,
 ) -> None:
-    write = _conduct()["mflib"].marks.write_in_place
+    write = _conduct()["mflib"].marks.write
     umask = os.umask(0o022)
     try:
         write(tmp_path, _CHANGE, "mark", "a longer first text\n")
@@ -842,19 +844,21 @@ def test_case_w_the_in_place_write_truncates_and_makes_the_folder(
 
 
 def test_case_w_the_in_place_write_refuses_a_link_and_a_folder(tmp_path: Path) -> None:
-    write = _conduct()["mflib"].marks.write_in_place
+    marks = _conduct()["mflib"].marks
+    write = marks.write
     mark = _folder(tmp_path) / "mark"
     outside = tmp_path / "outside"
     outside.write_text("the person's\n")
     mark.symlink_to(outside)
-    with pytest.raises(OSError, match="symbolic links") as linked:
+    with pytest.raises(marks.Unwritten, match="symbolic links") as linked:
         write(tmp_path, _CHANGE, "mark", "x\n")
-    assert linked.value.errno == errno.ELOOP
+    assert linked.value.cause.errno == errno.ELOOP
     assert outside.read_text() == "the person's\n"
     mark.unlink()
     mark.mkdir()
-    with pytest.raises(IsADirectoryError):
+    with pytest.raises(marks.Unwritten, match=r"^mark cannot be written: "):
         write(tmp_path, _CHANGE, "mark", "x\n")
+    assert mark.is_dir()
 
     # A link at the change's folder is refused as well.
     other = tmp_path / "other"
@@ -862,9 +866,9 @@ def test_case_w_the_in_place_write_refuses_a_link_and_a_folder(tmp_path: Path) -
     aside = other / ".minions" / "changes" / "0002-aside"
     aside.mkdir()
     (other / ".minions" / "changes" / "0003-linked").symlink_to(aside)
-    with pytest.raises(OSError) as refused:  # noqa: PT011
+    with pytest.raises(marks.Unwritten) as refused:
         write(other, "0003-linked", "mark", "x\n")
-    assert refused.value.errno in (errno.ELOOP, errno.ENOTDIR)
+    assert refused.value.cause.errno in (errno.ELOOP, errno.ENOTDIR)
     assert not (aside / "mark").exists()
 
 
@@ -890,9 +894,10 @@ def test_case_x_the_simplified_head_is_the_first_word_after_a_head_key(
     tmp_path: Path,
 ) -> None:
     assert _simplified(tmp_path, "file") == "abc1234"
-    assert _simplified(tmp_path, "file", "note\nhead: abc1234\nhead: z\n") == "abc1234"
-    assert _simplified(tmp_path, "file", "head:\nabc1234\n") == "abc1234"
-    assert _simplified(tmp_path, "file", "head:\n\nhead: z\n") == "head:"
+    assert _simplified(tmp_path, "file", "note\nhead: abc1234\n") == "abc1234"
+    assert _simplified(tmp_path, "file", "note\nhead: abc1234\nhead: z\n") is None
+    assert _simplified(tmp_path, "file", "head:\nabc1234\n") is None
+    assert _simplified(tmp_path, "file", "head:\n\nhead: z\n") is None
     for text in ("head:\n", "head:   \n", "note\n", ""):
         assert _simplified(tmp_path, "file", text) is None, text
     assert _simplified(tmp_path, "empty") is None
@@ -902,13 +907,10 @@ def test_case_x_the_simplified_head_is_the_first_word_after_a_head_key(
 def test_case_x_the_simplified_reader_follows_a_link_and_reads_a_file_whole(
     tmp_path: Path,
 ) -> None:
-    for shape in ("link", "hard"):
-        assert _simplified(tmp_path, shape) == "abc1234", shape
-    for shape in ("dangling", "folder", "pipe"):
+    assert _simplified(tmp_path, "hard") == "abc1234"
+    for shape in ("link", "dangling", "folder", "pipe"):
         assert _simplified(tmp_path, shape) is None, shape
-    assert (
-        _simplified(tmp_path, "file", "z\n" * _BOUND + "head: abc1234\n") == "abc1234"
-    )
+    assert _simplified(tmp_path, "file", "z\n" * _BOUND + "head: abc1234\n") is None
 
 
 def test_case_x_the_simplified_writer_writes_a_head_and_a_newline_alone(
@@ -976,8 +978,10 @@ def test_case_x_the_amends_test_resolves_the_head_it_names(tmp_path: Path) -> No
     _git(tree, "tag", "-a", "-m", "simplified", "simplified-tag")
     _commit(root, {"main.txt": "x\n"}, "main moves")
     off_branch = _git(root, "rev-parse", "main")
+    short = _git(tree, "rev-parse", "HEAD")[:7]
+    assert _amends(root, tree, f"head: {short}\n")
     for word in ("HEAD", _CHANGE, "simplified-tag"):
-        assert _amends(root, tree, f"head: {word}\n"), word
+        assert not _amends(root, tree, f"head: {word}\n"), word
     for word in ("main", off_branch, "nocommit", ""):
         assert not _amends(root, tree, f"head: {word}\n"), word
 
@@ -990,12 +994,13 @@ _CONVERGE = (
     / "converge.py"
 )
 _KEPT = "base: base1\nout line\n"
+_H1 = "abc1234"
 
 
 def _planned(
     tmp_path: Path, plan: Callable[[Path], None], done: str | None = None
 ) -> str:
-    """Return converge's plan output for `HEAD` `H1`, `plan` planting the kept file."""
+    """Return converge's plan output for `HEAD` `_H1`, `plan` planting the kept file."""
     converge = runpy.run_path(str(_CONVERGE))
     fresh = lambda context, argv: (0, "fresh run\n")  # noqa: E731
     converge["_plan_output"].__globals__["_captured"] = fresh
@@ -1003,9 +1008,9 @@ def _planned(
     context = converge["Context"](host, _CHANGE, tmp_path, {}, 1e12)
     context.base = "base1"
     folder = _folder(tmp_path)
-    (folder / "build.done").write_text(done or "head: H1\nsimplify: none\n")
+    (folder / "build.done").write_text(done or f"head: {_H1}\nsimplify: none\n")
     plan(folder / "plan-check.txt")
-    return _within(lambda: converge["_plan_output"](context, "H1"))
+    return _within(lambda: converge["_plan_output"](context, _H1))
 
 
 def test_case_p_converge_keeps_the_close_s_plan_check_of_a_regular_file(
@@ -1021,12 +1026,17 @@ def test_case_p_converge_keeps_the_close_s_plan_check_of_a_regular_file(
     def bad(mark: Path) -> None:
         mark.write_bytes(b"base: base1\nout \xff\n")
 
-    assert _planned(tmp_path / "bad", bad) == "out �\n"
+    assert _planned(tmp_path / "bad", bad) == "fresh run\n"
     big = "x" * (_BOUND + 10)
     whole = _planned(
         tmp_path / "big", lambda mark: _plant(mark, "file", f"base: base1\n{big}\n")
     )
     assert whole == f"{big}\n"
+    over = "x" * (1048576 + 10)
+    fresh = _planned(
+        tmp_path / "over", lambda mark: _plant(mark, "file", f"base: base1\n{over}\n")
+    )
+    assert fresh == "fresh run\n"
 
 
 def test_case_p_converge_reads_build_done_for_a_head_line(tmp_path: Path) -> None:
@@ -1034,9 +1044,9 @@ def test_case_p_converge_reads_build_done_for_a_head_line(tmp_path: Path) -> Non
         _plant(mark, "file", _KEPT)
 
     heads = (
-        ("head: other\nhead: H1\n", "out line\n"),
-        ("head: H1 \n", "fresh run\n"),
-        ("head: H1\n\xff\n", "out line\n"),
+        (f"head: other\nhead: {_H1}\n", "fresh run\n"),
+        (f"head: {_H1} \n", "out line\n"),
+        (f"head: {_H1}\n\xff\n", "out line\n"),
         ("simplify: none\n", "fresh run\n"),
     )
     for n, (text, expected) in enumerate(heads):
@@ -1139,8 +1149,8 @@ def test_case_a_a_red_gate_drops_the_simplify_commit_but_for_a_fault_not_its_own
         ("sandbox", text("git: sandboxed: denied\n"), True),
         ("near", text("past it limit\nsandbox: denied\n"), False),
         ("bad byte", binary, False),
-        ("link", link, True),
-        ("big", big, True),
+        ("link", link, False),
+        ("big", big, False),
         ("dangling", lambda mark: _plant(mark, "dangling"), False),
     )
     for name, plant, kept in cases:
@@ -1219,24 +1229,25 @@ def _descriptors() -> int:
 
 
 def test_case_b_the_in_place_write_goes_through_a_hard_link(tmp_path: Path) -> None:
-    write = _conduct()["mflib"].marks.write_in_place
+    marks = _conduct()["mflib"].marks
+    write = marks.write
     mark = _folder(tmp_path) / "mark"
     _plant(mark, "hard", "first, and longer\n")
     other = mark.parent.parent / ".other-mark"
     held = _descriptors()
     write(tmp_path, _CHANGE, "mark", "second\n")
-    assert other.read_text() == "second\n"
+    assert other.read_text() == "first, and longer\n"
     assert mark.read_text() == "second\n"
     assert _descriptors() == held
 
-    # A refused write leaves no descriptor open either.
+    # A refused write leaves no descriptor open either; a folder is the caller's stop.
     mark.unlink()
     _plant(mark, "link")
-    with pytest.raises(OSError):  # noqa: PT011
+    with pytest.raises(marks.Unwritten):
         write(tmp_path, _CHANGE, "mark", "x\n")
     mark.unlink()
     mark.mkdir()
-    with pytest.raises(OSError):  # noqa: PT011
+    with pytest.raises(marks.Unwritten):
         write(tmp_path, _CHANGE, "mark", "x\n")
     assert _descriptors() == held
 
@@ -1495,8 +1506,8 @@ def repo(request: pytest.FixtureRequest) -> Repo:
     return request.getfixturevalue("_release_repo")
 
 
-_WHOLE = "tag: v0.2.0\nversion: v0.2\ngate: 41\nhead: abc\n"
-_KEYS = {"tag": "v0.2.0", "version": "v0.2", "gate": "41", "head": "abc"}
+_WHOLE = "tag: v0.2.0\nversion: v0.2\ngate: 41\nhead: abc1234\n"
+_KEYS = {"tag": "v0.2.0", "version": "v0.2", "gate": "41", "head": "abc1234"}
 
 
 def _pre(repo: Repo) -> Path:
@@ -1512,15 +1523,22 @@ def test_case_e_the_release_mark_reader_takes_keys_as_it_does(repo: Repo) -> Non
     assert read(repo.root, _CHANGE, "gone") == _KEYS
 
     # Key and value are stripped, the first colon splits, a colonless line is no key.
-    mark.write_text(" tag : v0.2.0 \nversion: v0.2:x\ngate:41\n head : abc \nnote\n")
+    mark.write_text(" tag : v0.2.0 \nversion: v0.2:x\ngate:41\nhead:abc1234 \nnote\n")
     assert read(repo.root, _CHANGE, "gone") == {**_KEYS, "version": "v0.2:x"}
-    mark.write_text(_WHOLE + "head: second\n")
-    assert read(repo.root, _CHANGE, "gone")["head"] == "second"
-    mark.write_bytes(_WHOLE.encode() + b"a note \xff\n")
-    assert read(repo.root, _CHANGE, "gone") == _KEYS
+
+    # Two heads, a bad byte and a mark over the bound are the caller's stop.
+    cannot = "release: cannot run — release.pre "
     long = "a" * (_BOUND + 10)
-    mark.write_text(_WHOLE.replace("head: abc", f"head: {long}"))
-    assert read(repo.root, _CHANGE, "gone")["head"] == long
+    for text, said in (
+        ((_WHOLE + "head: def5678\n").encode(), "has no head:"),
+        (_WHOLE.encode() + b"a note \xff\n", "cannot be read: it is not UTF-8"),
+        ((_WHOLE + f"note: {long}\n").encode(), "cannot be read: it is over 65536"),
+    ):
+        mark.write_bytes(text)
+        with pytest.raises(repo.ns.Stop) as stopped:
+            read(repo.root, _CHANGE, "gone")
+        assert stopped.value.code == 2, said
+        assert str(stopped.value).startswith(f"{cannot}{said}"), said
 
 
 def test_case_e_a_missing_or_malformed_release_mark_is_a_stop(repo: Repo) -> None:
@@ -1534,7 +1552,7 @@ def test_case_e_a_missing_or_malformed_release_mark_is_a_stop(repo: Repo) -> Non
         ("", "has no tag:"),
         (_WHOLE.replace("tag: v0.2.0\n", "tag:\n"), "has no tag:"),
         (_WHOLE.replace("gate: 41\n", ""), "has no gate:"),
-        (_WHOLE.replace("head: abc\n", "note\n"), "has no head:"),
+        (_WHOLE.replace("head: abc1234\n", "note\n"), "has no head:"),
         (_WHOLE.replace("v0.2.0", "2"), "holds no tag or gate seconds"),
         (_WHOLE.replace("41", "x"), "holds no tag or gate seconds"),
     ):
@@ -1613,6 +1631,15 @@ def test_case_e_a_restore_of_a_clean_tree_saves_no_patch(repo: Repo) -> None:
     assert not flag.exists()
     assert list(repo.run_folder.glob("release.discarded.*")) == []
 
+    # A removal through a linked change folder is a stop.
+    aside = repo.root.parent / "aside"
+    repo.run_folder.rename(aside)
+    repo.run_folder.symlink_to(aside)
+    code, lines = repo.pre("--run")
+    assert code == 1
+    assert lines[-1].startswith("release: halt — release.flag cannot be removed: ")
+    assert (aside / "release.pre").exists()
+
 
 def _dirty(repo: Repo) -> None:
     """Leave a person's edit and a binary file the restore saves."""
@@ -1644,8 +1671,9 @@ def test_case_e_save_replaces_a_dangling_link(repo: Repo) -> None:
     taken.symlink_to(repo.root.parent / "nowhere.patch")
     code, _ = repo.pre("--run")
     assert code == 0
-    assert not taken.is_symlink()
-    assert "edited by hand" in taken.read_text()
+    assert taken.is_symlink()
+    saved = repo.run_folder / "release.discarded.2.patch"
+    assert "edited by hand" in saved.read_text()
     assert not (repo.root.parent / "nowhere.patch").exists()
 
 
@@ -1657,6 +1685,7 @@ def _held(root: Path, tree: Path, tag: str = "v1.0.0") -> tuple[str, str]:
 def test_case_o_release_held_stands_as_a_file_an_empty_file_or_a_link_to_one(
     tmp_path: Path,
 ) -> None:
+    conduct = _conduct()
     root = _primary(tmp_path)
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
     mark = _folder(root) / "release.held"
@@ -1664,22 +1693,28 @@ def test_case_o_release_held_stands_as_a_file_an_empty_file_or_a_link_to_one(
         f"v1.0.0: .minions/changes/{_CHANGE}/release.held holds a person's no:"
         f" /mf-release {_CHANGE} merges it on their yes"
     )
+    said = f"conduct: halt — .minions/changes/{_CHANGE}/release.held cannot be read: "
+
+    def tip() -> tuple[str, str]:
+        return conduct["_release_tip"](root, tree, _CHANGE, "v1.0.0")
+
     for shape, stands in (
         ("file", True),
         ("empty", True),
-        ("link", True),
+        ("link", False),
         ("hard", True),
         ("dangling", False),
         ("folder", False),
         ("pipe", False),
     ):
         _plant(mark, shape, "no\n")
-        reading = _within(lambda: _held(root, tree))
-        assert (reading == ("released", held)) is stands, shape
-        if shape == "folder":
-            mark.rmdir()
+        if stands:
+            assert _within(tip) == ("released", held), shape
         else:
-            mark.unlink()
+            with pytest.raises(conduct["Stop"]) as stopped:
+                _within(tip)
+            assert str(stopped.value).startswith(said), shape
+        _clear(mark)
 
 
 def test_case_o_release_flag_stands_in_every_shape(tmp_path: Path) -> None:
@@ -1710,24 +1745,26 @@ def test_case_o_a_stranded_tip_drops_only_under_a_release_pre_that_is_a_file(
     missing = f".minions/changes/{_CHANGE}/release.pre is missing"
     undroppable = conduct["_undroppable"]
     assert undroppable(root, tree, _CHANGE, "main") == missing
+    # The drop takes the mark only when it reads whole.
+    whole = "tag: v1.0.0\nversion: v1.0\ngate: 1\nhead: abc1234\n"
     for shape, drops in (
         ("file", True),
-        ("empty", True),
-        ("link", True),
+        ("empty", False),
+        ("link", False),
         ("hard", True),
         ("dangling", False),
         ("folder", False),
         ("pipe", False),
     ):
-        _plant(mark, shape, "tag: v1.0.0\n")
+        _plant(mark, shape, whole)
         why = _within(lambda: undroppable(root, tree, _CHANGE, "main"))
         assert (why is None) is drops, shape
         if not drops:
-            assert why == missing, shape
-        if shape == "folder":
-            mark.rmdir()
-        else:
-            mark.unlink()
+            assert why.startswith(f".minions/changes/{_CHANGE}/release.pre "), shape
+        _clear(mark)
+    _plant(mark, "file", "tag: v1.0.0\n")
+    said = f".minions/changes/{_CHANGE}/release.pre has no version:"
+    assert undroppable(root, tree, _CHANGE, "main") == said
 
 
 def _clear(mark: Path) -> None:
@@ -1772,24 +1809,41 @@ def test_pin_readers_follow_a_link_and_read_a_file_whole(tmp_path: Path) -> None
             ("1.2", "3"),
         ),
     )
+    # A pass mark that cannot be read is absent, a stop mark halts its version, and
+    # `build.halt` answers its name and why.
+    phrases = {
+        "link": "it is a link",
+        "pipe": "it is not a regular file",
+        "folder": "it is not a regular file",
+        "dangling": "it is a link",
+        "binary": "it is not UTF-8",
+        "whole": f"it is over {_BOUND} bytes",
+    }
+
+    def reading(read: Callable[[], Any]) -> Any:  # noqa: ANN401
+        try:
+            return _within(read)
+        except conduct["Stop"]:
+            return "halt"
+
     for name, text, before, read, value in readers:
         mark = marks / name
         padding = "z\n" * _BOUND
         whole = padding + text if before else text + padding
-        for shape, expected in (
-            ("link", value),
-            ("hard", value),
-            ("pipe", None),
-            ("folder", None),
-            ("dangling", None),
-            ("binary", None),
-            ("whole", value),
-        ):
+        broken = {
+            "integrate.red": lambda shape: "halt",
+            "build.halt": lambda shape: (
+                "build.halt",
+                f"cannot be read: {phrases[shape]}",
+            ),
+        }.get(name, lambda shape: None)
+        for shape in ("link", "hard", "pipe", "folder", "dangling", "binary", "whole"):
             if shape == "whole":
                 mark.write_text(whole)
             else:
                 _plant(mark, shape, text)
-            assert _within(read) == expected, (name, shape)
+            expected = value if shape == "hard" else broken(shape)
+            assert reading(read) == expected, (name, shape)
             _clear(mark)
 
 
@@ -1809,18 +1863,29 @@ def test_pin_stands_of_the_stop_marks_are_is_file(tmp_path: Path) -> None:
         ("integrate.red", ("integrating", f"red gate: {note}.red")),
     ):
         mark = _folder(root) / name
+        assert conduct["stage_of"](root, version) == resumes
+        said = f"conduct: halt — .minions/changes/{_CHANGE}/{name} cannot be read: "
         for shape, stands in (
             ("file", True),
             ("empty", True),
-            ("link", True),
+            ("link", False),
             ("hard", True),
             ("dangling", False),
             ("pipe", False),
             ("folder", False),
         ):
             _plant(mark, shape, "a note\n")
-            reading = _within(lambda: conduct["stage_of"](root, version))
-            assert reading == (standing if stands else resumes), (name, shape)
+            if stands:
+                reading = _within(lambda: conduct["stage_of"](root, version))
+                assert reading == standing, (name, shape)
+            else:
+                with pytest.raises(conduct["Stop"]) as stopped:
+                    _within(lambda: conduct["stage_of"](root, version))
+                assert str(stopped.value).startswith(said), (name, shape)
+                # `conduct.py status` names the mark on the version's line.
+                line = conduct["_status_line"](root, version)
+                halted = f"{_CHANGE} · halted — {said.removeprefix('conduct: halt — ')}"
+                assert line.startswith(halted), (name, shape)
             _clear(mark)
 
 
@@ -1839,65 +1904,55 @@ def test_pin_notes_stop_the_version_and_read_with_no_bound(tmp_path: Path) -> No
         with pytest.raises(conduct["Stop"]):
             _within(lambda: opened(tmp_path, _CHANGE, os.O_RDONLY))
         _clear(mark)
+    mark.write_text("x" * 2**20)
+    assert conduct["mflib"].marks.note_lines(tmp_path, _CHANGE) == 1
     mark.write_text("x\n" * (2**20 + 10))
-    assert conduct["mflib"].marks.note_lines(tmp_path, _CHANGE) == 2**20 + 10
+    lines = halting(conduct, conduct["mflib"].marks.note_lines)
+    with pytest.raises(conduct["Stop"], match=r"is over 1048576 bytes$"):
+        lines(tmp_path, _CHANGE)
 
 
 def test_pin_cut_halt_is_no_halt_through_a_link_and_blocks_on_a_pipe(
     tmp_path: Path,
 ) -> None:
-    halt = _conduct()["mflib"].marks.cutter_halt
+    marks = _conduct()["mflib"].marks
+    halt = marks.cutter_halt
     mark = _folder(tmp_path) / "cut.halt"
-    _plant(mark, "link", "a halt\n")
-    assert halt(tmp_path, _CHANGE) is None
-    mark.unlink()
-    _plant(mark, "folder")
-    with pytest.raises(IsADirectoryError):
-        halt(tmp_path, _CHANGE)
-    mark.rmdir()
-    os.mkfifo(mark)
-    blocked, reading = _blocks(lambda: halt(tmp_path, _CHANGE), mark)
-    assert blocked
-    assert reading == ""
-
-
-def _blocked_writing(call: Callable[[], Any], pipe: Path) -> bool:
-    """Return whether `call` blocks writing `pipe`; a reader then frees it."""
-    done = threading.Thread(target=call, daemon=True)
-    done.start()
-    done.join(0.3)
-    blocked = done.is_alive()
-    reader = os.open(pipe, os.O_RDONLY | os.O_NONBLOCK)
-    try:
-        done.join(5)
-        assert not done.is_alive(), "the write stayed blocked"
-    finally:
-        os.close(reader)
-    return blocked
+    for shape, said in (
+        ("link", "it is a link"),
+        ("folder", "it is not a regular file"),
+        ("pipe", "it is not a regular file"),
+    ):
+        _plant(mark, shape, "a halt\n")
+        with pytest.raises(marks.Broken, match=f"^cut.halt cannot be read: {said}$"):
+            _within(lambda: halt(tmp_path, _CHANGE))
+        _clear(mark)
 
 
 def test_pin_writers_write_through_a_hard_link_and_refuse_or_block_elsewhere(
     tmp_path: Path,
 ) -> None:
-    write = _conduct()["mflib"].marks.write_in_place
+    marks = _conduct()["mflib"].marks
+    write = marks.write
     mark = _folder(tmp_path) / "mark"
     _plant(mark, "hard", "first\n")
     write(tmp_path, _CHANGE, "mark", "second\n")
-    assert (mark.parent.parent / ".other-mark").read_text() == "second\n"
+    assert (mark.parent.parent / ".other-mark").read_text() == "first\n"
+    assert mark.read_text() == "second\n"
     mark.unlink()
     _plant(mark, "link")
-    with pytest.raises(OSError) as linked:  # noqa: PT011
+    with pytest.raises(marks.Unwritten) as linked:
         write(tmp_path, _CHANGE, "mark", "x\n")
-    assert linked.value.errno == errno.ELOOP
+    assert linked.value.cause.errno == errno.ELOOP
     mark.unlink()
     mark.mkdir()
-    with pytest.raises(OSError) as folder:  # noqa: PT011
+    with pytest.raises(marks.Unwritten):
         write(tmp_path, _CHANGE, "mark", "x\n")
-    assert folder.value.errno == errno.EISDIR
     mark.rmdir()
+    # A pipe at the name is replaced, never written through.
     os.mkfifo(mark)
-    blocked = _blocked_writing(lambda: write(tmp_path, _CHANGE, "mark", "x\n"), mark)
-    assert blocked
+    _within(lambda: write(tmp_path, _CHANGE, "mark", "x\n"))
+    assert mark.read_text() == "x\n"
 
 
 def _dependency(root: Path) -> str:
@@ -1919,10 +1974,13 @@ def test_pin_failed_write_of_stacked_on_halts_the_whole_run(
     run = conduct["Run"](root, "claude")
     mark = _folder(root) / "stacked-on"
     mark.symlink_to(tmp_path / "gone")
-    with pytest.raises(OSError) as refused:  # noqa: PT011
+    said = f"conduct: halt — .minions/changes/{_CHANGE}/stacked-on cannot be written: "
+    with pytest.raises(conduct["Stop"]) as refused:
         run.stack(tree, _CHANGE, "0000-dep", head)
-    assert refused.value.errno == errno.ELOOP
+    assert refused.value.code == 1
+    assert str(refused.value).startswith(said)
 
+    # The version halts, not the run.
     monkeypatch.setitem(
         conduct["Run"].take.__globals__, "_models", lambda *_: ("model", None, None)
     )
@@ -1932,8 +1990,8 @@ def test_pin_failed_write_of_stacked_on_halts_the_whole_run(
     )
     run.take(conduct["Version"](_CHANGE, tree), {})
     [(who, why)] = run.halts
-    assert who == "run"
-    assert why.startswith("conduct.py failed: ")
+    assert who == _CHANGE
+    assert why.startswith(said)
     assert not (tmp_path / "gone").exists()
 
 
@@ -2005,15 +2063,15 @@ def test_pin_head_forms_of_build_done(tmp_path: Path) -> None:
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
     head = _git(tree, "rev-parse", "HEAD")
     answers = {
-        "HEAD": ("HEAD", True),
-        "branch": (_CHANGE, True),
-        "six digits": ("123456", False),
+        "HEAD": (None, False),
+        "branch": (None, False),
+        "six digits": (None, False),
         "seven digits": (head[:7], True),
         "forty zeros": ("0" * 40, False),
-        "next line": (head, True),
-        "a second head line": (head, True),
-        "the real head second": ("other", False),
-        "a word after it": (head, True),
+        "next line": (None, False),
+        "a second head line": (None, False),
+        "the real head second": (None, False),
+        "a word after it": (None, False),
         "none": (None, False),
     }
     for label, form in _FORMS:
@@ -2028,15 +2086,15 @@ def test_pin_head_forms_of_build_simplified(tmp_path: Path) -> None:
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
     head = _git(tree, "rev-parse", "HEAD")
     answers = {
-        "HEAD": ("HEAD", True),
-        "branch": (_CHANGE, True),
-        "six digits": ("123456", False),
+        "HEAD": (None, False),
+        "branch": (None, False),
+        "six digits": (None, False),
         "seven digits": (head[:7], True),
         "forty zeros": ("0" * 40, False),
-        "next line": (head, True),
-        "a second head line": (head, True),
-        "the real head second": ("other", False),
-        "a word after it": (head, True),
+        "next line": (None, False),
+        "a second head line": (None, False),
+        "the real head second": (None, False),
+        "a word after it": (None, False),
         "none": (None, False),
     }
     for label, form in _FORMS:
@@ -2056,16 +2114,16 @@ def test_pin_head_forms_of_integrate_red(tmp_path: Path) -> None:
     own = ("integrating", f"red gate: {note}.red")
     other = ("integrate", "red gate on another head: integrate gates again")
     answers = {
-        "HEAD": (head, own),
-        "branch": (head, own),
-        "six digits": ("123456", other),
+        "HEAD": (None, other),
+        "branch": (None, other),
+        "six digits": (None, other),
         "seven digits": (head, own),
         "forty zeros": ("0" * 40, other),
-        "next line": (None, ("build", "closing steps left")),
-        "a second head line": (head, own),
-        "the real head second": ("other", other),
-        "a word after it": (head, own),
-        "none": (None, ("build", "closing steps left")),
+        "next line": (None, other),
+        "a second head line": (None, other),
+        "the real head second": (None, other),
+        "a word after it": (None, other),
+        "none": (None, other),
     }
     mark = _folder(root) / "integrate.red"
     for label, text in _FORMS:
@@ -2082,14 +2140,14 @@ def test_pin_head_forms_of_build_halt(tmp_path: Path) -> None:
     mark = _folder(root) / "build.halt"
     read = ("1.2", "3")
     answers = {
-        "HEAD": read,
-        "branch": read,
+        "HEAD": None,
+        "branch": None,
         "six digits": None,
         "seven digits": read,
         "forty zeros": None,
         "next line": None,
         "a second head line": None,
-        "the real head second": read,
+        "the real head second": None,
         "a word after it": None,
         "none": None,
     }
@@ -2103,32 +2161,21 @@ def test_pin_head_forms_of_release_pre(repo: Repo) -> None:
     sha = repo.head
     mark = _pre(repo)
     head = {"head": sha, "short": sha[:7], "branch": _CHANGE}
-    halts = {
-        "HEAD": "HEAD",
-        "branch": _CHANGE[:8],
-        "six digits": "123456",
-        "seven digits": sha[:7],
-        "forty zeros": "0" * 8,
-        "a second head line": "other",
-        "a word after it": sha[:8],
-    }
+    halts = {"seven digits": sha[:7], "forty zeros": "0" * 8}
     for label, text in _FORMS:
         formed = text.format(**head)
-        body = _WHOLE.replace("head: abc\n", "") + formed
+        body = _WHOLE.replace("head: abc1234\n", "") + formed
         mark.write_text(body)
-        if label in ("none", "next line"):
-            with pytest.raises(repo.ns.Stop) as stopped:
-                repo.ns._mark(repo.root, _CHANGE, sha)
-            assert stopped.value.code == 2, label
-            assert (
-                str(stopped.value) == "release: cannot run — release.pre has no head:"
-            )
-        elif label == "the real head second":
-            assert repo.ns._mark(repo.root, _CHANGE, sha)["head"] == sha
-        else:
-            with pytest.raises(repo.ns.Stop) as stopped:
-                repo.ns._mark(repo.root, _CHANGE, sha)
+        with pytest.raises(repo.ns.Stop) as stopped:
+            repo.ns._mark(repo.root, _CHANGE, sha)
+        if label in halts:
             assert stopped.value.code == 1, label
             at = f"release.pre: head {halts[label]} is not HEAD {sha[:8]}"
             said = f"release: halt — {at}"
             assert str(stopped.value).startswith(said), label
+        else:
+            assert stopped.value.code == 2, label
+            no_head = "release: cannot run — release.pre has no head:"
+            assert str(stopped.value) == no_head, label
+    mark.write_text(_WHOLE.replace("abc1234", sha))
+    assert repo.ns._mark(repo.root, _CHANGE, sha)["head"] == sha
