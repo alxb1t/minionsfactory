@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The conductor, `integrate.py`, `converge.py` and `release.py` read, test, write and remove each mark through `skills/mflib/marks.py`, and spell no mark's name of their own; the conductor's copies of the readers and the in-place writer are gone. Behaviour is unchanged, held by the pin (0154-marks, phase 3).
 - Every mark has one read, one `head:` rule and one staged write. A mark is read through no link, without blocking and within its bound. A head is one `head:` line of 7 to 40 hex digits, so `HEAD`, a branch name or a second `head:` line no longer closes a build.
 - A broken stop mark (`build.halt`, `cut.halt`, `integrate.red`, `integrate.md`, `release.held`) halts its version, naming the mark, and `conduct.py status` names it; a broken pass mark is absent. A failed write of `stacked-on` halts its version, not the run, and `release.py` writes and removes its marks under the change folder's descriptor (0154-marks, phase 4).
+- The structure rule holds the marks' names: outside `skills/mflib/`, no string equals one, `run.py` alone listed. D57 and the threat model name `skills/mflib/marks.py` as the module that names, writes and reads the marks through no link (0154-marks, phase 5).
 
 ## [0.123.1] - 2026-11-24
 

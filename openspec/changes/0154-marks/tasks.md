@@ -8,7 +8,7 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 - [x] 2 — The module · hard
 - [x] 3 — The stations · hard
 - [x] 4 — The fix · hard
-- [ ] 5 — The rule and the record · moderate
+- [x] 5 — The rule and the record · moderate
 
 ## 1 — The pin
 
@@ -81,9 +81,9 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 
 ## 5 — The rule and the record
 
-- [ ] 5.1 In `tests/test_structure.py` extend the format rule by the marks' names of [D9](design.md#d9): equality with a name of the module, its list `run.py` alone, a planted-breach twin `test_check_formats_fails_on_a_planted_mark_name` and a stale-entry case `test_check_formats_fails_on_a_listed_mark_name_that_is_gone`, the twins taking their own list.
+- [x] 5.1 In `tests/test_structure.py` extend the format rule by the marks' names of [D9](design.md#d9): equality with a name of the module, its list `run.py` alone, a planted-breach twin `test_check_formats_fails_on_a_planted_mark_name` and a stale-entry case `test_check_formats_fails_on_a_listed_mark_name_that_is_gone`, the twins taking their own list.
   Verify: `git grep -n -e 'test_check_formats_fails_on_a_planted_mark_name' -e 'test_check_formats_fails_on_a_listed_mark_name_that_is_gone' -- tests/test_structure.py` prints a line of each.
-- [ ] 5.2 In `docs/decisions.md` edit D57 where it lives: add `replan.mark`, `cut.red` and `release.discarded.<n>.patch` to its list of marks and name `skills/mflib/marks.py` as the module that writes and parses them, found through `change_dir`.
+- [x] 5.2 In `docs/decisions.md` edit D57 where it lives: add `replan.mark`, `cut.red` and `release.discarded.<n>.patch` to its list of marks and name `skills/mflib/marks.py` as the module that writes and parses them, found through `change_dir`.
   Verify: `git grep -n -e 'skills/mflib/marks.py' -- docs/decisions.md` prints a line.
-- [ ] 5.3 In `THREAT_MODEL.md` make true the sentences on the change folder: the marks' module reads each mark through no link and its staged write follows none, and the home's surface line lists it.
+- [x] 5.3 In `THREAT_MODEL.md` make true the sentences on the change folder: the marks' module reads each mark through no link and its staged write follows none, and the home's surface line lists it.
   Verify: `git grep -n -e 'skills/mflib/marks.py' -- THREAT_MODEL.md` prints a line.
