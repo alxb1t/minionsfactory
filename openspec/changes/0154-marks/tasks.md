@@ -77,7 +77,7 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 - [ ] 4.4 Take the release script's writes and unlinks under the change folder's descriptor ([D7](design.md#d7)): the mark and the saved patches through `write`, the drop and the restore through `remove` in place of their `(folder / name).unlink(missing_ok=True)` loops, an `OSError` a halt naming the mark, a patch's free name the first at which nothing stands.
   Verify: `git grep -c -F -e 'name).unlink(' -- skills/mf-release/scripts/release.py` prints nothing.
 - [ ] 4.5 Turn each case and pin of the table of [D11](design.md#d11) in `tests/test_mark_pins.py`, `tests/test_marks.py` and `tests/test_conduct.py` to the one side, its name and its fixture kept.
-  Verify: `uv run pytest tests/test_mark_pins.py tests/test_marks.py tests/test_conduct.py tests/test_release.py -q` exits `0`.
+  Verify: `uv run pytest tests/test_mark_pins.py tests/test_marks.py tests/test_conduct.py tests/test_release.py -n auto -q` exits `0`.
 
 ## 5 — The rule and the record
 
