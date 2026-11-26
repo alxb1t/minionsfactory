@@ -4,7 +4,7 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The stations · hard
 - [ ] 4 — The fix · hard
@@ -12,21 +12,21 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 
 ## 1 — The pin
 
-- [ ] 1.1 **HALT CHECK** The conductor still holds the readers [design](design.md#context) says it does.
+- [x] 1.1 **HALT CHECK** The conductor still holds the readers [design](design.md#context) says it does.
   Verify: `git grep -q -e '^def _stacked_on' -e '^def _build_halt' -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 1.2 Create `tests/test_mark_pins.py`: the conductor loader of the tests, a planted change folder, a helper that reads a blocking path in a thread, and the cases `c`, `d` and `g` of [D8](design.md#d8), each a test named as [D8](design.md#d8) says.
+- [x] 1.2 Create `tests/test_mark_pins.py`: the conductor loader of the tests, a planted change folder, a helper that reads a blocking path in a thread, and the cases `c`, `d` and `g` of [D8](design.md#d8), each a test named as [D8](design.md#d8) says.
   Verify: `grep -n -e '^def test_case_c' -e '^def test_case_d' -e '^def test_case_g' tests/test_mark_pins.py` prints a line of each.
-- [ ] 1.3 Add the cases `h`, `m` and `n` to `tests/test_mark_pins.py`, each as the table of [D8](design.md#d8) says, no worker started.
+- [x] 1.3 Add the cases `h`, `m` and `n` to `tests/test_mark_pins.py`, each as the table of [D8](design.md#d8) says, no worker started.
   Verify: `grep -n -e '^def test_case_h' -e '^def test_case_m' -e '^def test_case_n' tests/test_mark_pins.py` prints a line of each.
-- [ ] 1.4 Add the cases `r`, `s`, `t` and `w` to `tests/test_mark_pins.py`.
+- [x] 1.4 Add the cases `r`, `s`, `t` and `w` to `tests/test_mark_pins.py`.
   Verify: `grep -n -e '^def test_case_r' -e '^def test_case_s' -e '^def test_case_t' -e '^def test_case_w' tests/test_mark_pins.py` prints a line of each.
-- [ ] 1.5 Add the cases `x`, `p`, `a` and `l` to `tests/test_mark_pins.py`: the marks the conductor gained since the models file, `build.simplified`, `plan-check.txt` with the plan-output reader of the converge script, `gate.red` and `replan.mark`.
+- [x] 1.5 Add the cases `x`, `p`, `a` and `l` to `tests/test_mark_pins.py`: the marks the conductor gained since the models file, `build.simplified`, `plan-check.txt` with the plan-output reader of the converge script, `gate.red` and `replan.mark`.
   Verify: `grep -n -e '^def test_case_x' -e '^def test_case_p' -e '^def test_case_a' -e '^def test_case_l' tests/test_mark_pins.py` prints a line of each.
-- [ ] 1.6 Add the cases `b`, `e` and `o` to `tests/test_mark_pins.py`: the writers and the removers, the release script's marks through its commands, and the conductor's reads of `release.held`, `release.flag` and `release.pre`.
+- [x] 1.6 Add the cases `b`, `e` and `o` to `tests/test_mark_pins.py`: the writers and the removers, the release script's marks through its commands, and the conductor's reads of `release.held`, `release.flag` and `release.pre`.
   Verify: `grep -n -e '^def test_case_b' -e '^def test_case_e' -e '^def test_case_o' tests/test_mark_pins.py` prints a line of each.
-- [ ] 1.7 Add the pins of the readers, the stand tests, the build's notes, `cut.halt`, the writers, the failed writes and the marks the conductor gained since the models file, `cut.red` among them, as the pin table of [D8](design.md#d8) lists them.
+- [x] 1.7 Add the pins of the readers, the stand tests, the build's notes, `cut.halt`, the writers, the failed writes and the marks the conductor gained since the models file, `cut.red` among them, as the pin table of [D8](design.md#d8) lists them.
   Verify: `grep -n -e '^def test_pin_readers' -e '^def test_pin_stands' -e '^def test_pin_notes' -e '^def test_pin_cut_halt' -e '^def test_pin_writers' -e '^def test_pin_failed_write' -e '^def test_pin_new_marks' tests/test_mark_pins.py` prints a line of each.
-- [ ] 1.8 Add the head forms of [D8](design.md#d8) for each mark that holds a `head:`, and the cases of the run's loop: a dependent's `stacked-on` goes before converge and before the release, and a closed build is not closed again.
+- [x] 1.8 Add the head forms of [D8](design.md#d8) for each mark that holds a `head:`, and the cases of the run's loop: a dependent's `stacked-on` goes before converge and before the release, and a closed build is not closed again.
   Verify: `grep -n -e '^def test_pin_head' -e '^def test_loop_' tests/test_mark_pins.py` prints a line of each.
 
 ## 2 — The module
