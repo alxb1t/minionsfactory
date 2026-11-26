@@ -5,7 +5,7 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The stations · hard
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
@@ -31,18 +31,18 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 
 ## 2 — The module
 
-- [ ] 2.1 Create `skills/mflib/marks.py` with the names of [D2](design.md#d2), the bounds, the builder of a saved patch's name, and the errors `Broken` and `Unwritten`. It imports `layout` and `statefile` alone.
+- [x] 2.1 Create `skills/mflib/marks.py` with the names of [D2](design.md#d2), the bounds, the builder of a saved patch's name, and the errors `Broken` and `Unwritten`. It imports `layout` and `statefile` alone.
   Verify: `grep -n -e '^BUILD_DONE = "build.done"' -e '^RELEASE_PRE = "release.pre"' skills/mflib/marks.py` prints a line of each.
-- [ ] 2.2 Add the parsers of [D2](design.md#d2), each as its copy behaves today ([D3](design.md#d3)): a path read, its own pattern, its own answer to a bad byte.
+- [x] 2.2 Add the parsers of [D2](design.md#d2), each as its copy behaves today ([D3](design.md#d3)): a path read, its own pattern, its own answer to a bad byte.
   Verify: `grep -n -e '^def done_head' -e '^def release_pre' -e '^def plan_check_text' skills/mflib/marks.py` prints a line of each.
-- [ ] 2.3 Add the stand tests, the time and the notes functions of [D2](design.md#d2), each as the conductor's copy is today.
+- [x] 2.3 Add the stand tests, the time and the notes functions of [D2](design.md#d2), each as the conductor's copy is today.
   Verify: `grep -n -e '^def stands' -e '^def present' -e '^def mtime' -e '^def open_notes' skills/mflib/marks.py` prints a line of each.
-- [ ] 2.4 Add the text writers, the staged write, the in-place write and the remover of [D2](design.md#d2), each as the conductor's copy is today.
+- [x] 2.4 Add the text writers, the staged write, the in-place write and the remover of [D2](design.md#d2), each as the conductor's copy is today.
   A function that raises a conductor `Stop` today raises `Broken` or `Unwritten` with the same words ([D3](design.md#d3)).
   Verify: `grep -n -e '^def write_in_place' -e '^def remove' -e '^def halt_text' skills/mflib/marks.py` prints a line of each.
-- [ ] 2.5 Create `tests/test_marks.py`: a unit case for each function of the module on a planted change folder, holding the copy's behaviour of today, every line of the module covered.
+- [x] 2.5 Create `tests/test_marks.py`: a unit case for each function of the module on a planted change folder, holding the copy's behaviour of today, every line of the module covered.
   Verify: `uv run pytest tests/test_marks.py -q` exits `0`.
-- [ ] 2.6 Add the module's row to `docs/modules.md`: `skills/mflib/marks.py`, layer `home`, naming `layout.py` and `statefile.py`.
+- [x] 2.6 Add the module's row to `docs/modules.md`: `skills/mflib/marks.py`, layer `home`, naming `layout.py` and `statefile.py`.
   Verify: `uv run pytest tests/test_structure.py -q` exits `0`.
 
 ## 3 — The stations

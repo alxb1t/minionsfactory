@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `tests/test_mark_pins.py` pins how the conductor, `integrate.py`, `converge.py` and `release.py` read, test, write and remove each mark of a change folder, green on the code as it stands, so the move to one module changes no behaviour unseen (0154-marks, phase 1).
+- `skills/mflib/marks.py` names each mark of a change folder once and holds its readers, stand tests, text writers, writes and removal, each a copy of today's behaviour; no script calls it yet (0154-marks, phase 2).
 
 ## [0.123.1] - 2026-11-24
 
