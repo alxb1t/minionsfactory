@@ -5,6 +5,7 @@ Why: 0127-test-cost design D2.
 
 import sys
 import types
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -31,3 +32,19 @@ def conduct() -> dict[str, Any]:
         else:
             sys.modules["<run_path>"] = old
     return dict(module.__dict__)
+
+
+def halting(conduct: dict[str, Any], call: Callable[..., Any]) -> Callable[..., Any]:
+    """Return the marks' function `call`, its `Broken` raised as the conductor's halt.
+
+    Why: 0154-marks design D3.
+    """
+    broken = conduct["mflib"].marks.Broken
+
+    def halted(primary: Path, change: str, *rest: Any) -> Any:  # noqa: ANN401
+        try:
+            return call(primary, change, *rest)
+        except broken as error:
+            raise conduct["_marked"](change, error) from None
+
+    return halted

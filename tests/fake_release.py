@@ -56,7 +56,9 @@ def _pre(here: Path, change: str, origin: str | None) -> str:
     tag = f"v0.{len(_git(here, 'tag', '-l').split()) + 1}.0"
     marks.mkdir(parents=True, exist_ok=True)
     head = _git(here, "rev-parse", "HEAD")
-    (marks / "release.pre").write_text(f"tag: {tag}\nhead: {head}\n")
+    version = tag.removesuffix(".0")
+    mark = f"tag: {tag}\nversion: {version}\ngate: 1\nhead: {head}\n"
+    (marks / "release.pre").write_text(mark)
     return f"release: tag — {tag}"
 
 

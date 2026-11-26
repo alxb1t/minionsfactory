@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.debtfile
 import mflib.findings
 import mflib.layout
+import mflib.marks
 import mflib.modelsfile
 import mflib.statefile
 
@@ -55,8 +56,6 @@ RUN_OPTIONS = (
 ROLES = ("conformance", "adversarial")
 SETTLED = ("verified", "accepted")
 PATCH = "diff.patch"
-MARK = "release.pre"
-FLAG = "release.flag"
 VERSION_FILES = ("pyproject.toml", "uv.lock", "package.json", "package-lock.json")
 
 
@@ -276,24 +275,34 @@ def _derived(path: str, change: str) -> bool:
     )
 
 
-def _save(git: Git, folder: Path) -> None:
-    """Save the tree's changes and untracked files as a patch, over no earlier one.
+def _save(git: Git, primary: Path, change: str) -> None:
+    """Save the tree's changes and untracked files as a patch, at the first free name.
 
-    Why: 0152-release-script design D8; as the build's `build.discarded.patch`.
+    Why: 0152-release-script design D8; 0154-marks design D7.
     """
     git.out("add", "-A", "--", ".")
     patch = git.out("diff", "--cached", "--binary", "--no-renames", "HEAD")
-    folder.mkdir(parents=True, exist_ok=True)
     taken = 1
-    while (kept := folder / f"release.discarded.{taken}.patch").exists():
+    while mflib.marks.present(primary, change, mflib.marks.discarded(taken)):
         taken += 1
+    name = mflib.marks.discarded(taken)
     try:
-        mflib.statefile.write(kept, patch)
-    except mflib.statefile.WriteFailed as failed:
-        raise cannot(
-            f"{kept.name} could not be written: {failed.error.strerror}"
-        ) from None
-    _ok(f"saved · {kept.name}")
+        mflib.marks.write(primary, change, name, patch)
+    except mflib.marks.Unwritten as error:
+        raise cannot(f"{name} could not be written: {error.cause.strerror}") from None
+    _ok(f"saved · {name}")
+
+
+def _unmark(primary: Path, change: str) -> None:
+    """Remove the release's flag and mark by name; a failure halts, naming the mark.
+
+    Why: 0154-marks design D7.
+    """
+    for name in (mflib.marks.RELEASE_FLAG, mflib.marks.RELEASE_PRE):
+        try:
+            mflib.marks.remove(primary, change, name)
+        except OSError as error:
+            raise halt(f"{name} cannot be removed: {error.strerror}") from None
 
 
 def _restore(git: Git, primary: Path, change: str) -> None:
@@ -304,15 +313,13 @@ def _restore(git: Git, primary: Path, change: str) -> None:
     """
     paths = _dirty(git)
     if paths and all(_derived(path, change) for path in paths):
-        _save(git, mflib.layout.change_dir(primary, change))
+        _save(git, primary, change)
         git.out("restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
         archived = git.cwd / "openspec" / "changes" / "archive" / change
         shutil.rmtree(archived, ignore_errors=True)
         (git.cwd / "metrics" / "changes" / f"{change}.json").unlink(missing_ok=True)
         _ok("restore — a dead release's derived work is back at HEAD")
-    folder = mflib.layout.change_dir(primary, change)
-    for name in (FLAG, MARK):
-        (folder / name).unlink(missing_ok=True)
+    _unmark(primary, change)
 
 
 def _gate(git: Git, fresh: bool = False) -> int:
@@ -470,20 +477,14 @@ def _opened(cwd: Path, change: str, run: bool) -> tuple[Git, Path]:
 
 def _read_mark(primary: Path, change: str, missing: str) -> dict[str, str]:
     """Return `release.pre`'s keys; a missing mark halts with `missing`."""
-    path = mflib.layout.change_dir(primary, change) / MARK
     try:
-        text = mflib.statefile.read(path)
-    except FileNotFoundError:
-        raise halt(missing) from None
-    except OSError as error:
-        raise cannot(f"{MARK} cannot be read: {error.strerror}") from None
-    pairs = (line.partition(":") for line in text.splitlines())
-    keys = {key.strip(): value.strip() for key, colon, value in pairs if colon}
-    for key in ("tag", "version", "gate", "head"):
-        if not keys.get(key):
-            raise cannot(f"{MARK} has no {key}:")
+        keys = mflib.marks.release_pre(primary, change)
+    except mflib.marks.Broken as error:
+        raise cannot(str(error)) from None
+    if keys is None:
+        raise halt(missing)
     if not TAG.fullmatch(keys["tag"]) or not keys["gate"].isdigit():
-        raise cannot(f"{MARK} holds no tag or gate seconds")
+        raise cannot(f"{mflib.marks.RELEASE_PRE} holds no tag or gate seconds")
     return keys
 
 
@@ -496,12 +497,13 @@ def _released(git: Git, primary: Path, change: str) -> dict[str, str] | None:
     subject = git.out("log", "-1", "--format=%s", "HEAD").strip()
     if (said := RELEASE_SUBJECT.fullmatch(subject)) is None:
         return None
-    keys = _read_mark(primary, change, f"HEAD is {subject}, and {MARK} is missing")
+    pre = mflib.marks.RELEASE_PRE
+    keys = _read_mark(primary, change, f"HEAD is {subject}, and {pre} is missing")
     if said[1] != keys["tag"]:
-        raise halt(f"release commit: HEAD says {said[1]}, {MARK} says {keys['tag']}")
+        raise halt(f"release commit: HEAD says {said[1]}, {pre} says {keys['tag']}")
     parents = git.out("rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
     if parents != [keys["head"]]:
-        raise halt(f"release commit: its parent is not {MARK}'s {keys['head'][:8]}")
+        raise halt(f"release commit: its parent is not {pre}'s {keys['head'][:8]}")
     changed = git.out(
         "diff-tree", "-r", "--no-renames", "--name-only", "-z", "HEAD~1", "HEAD"
     )
@@ -540,9 +542,7 @@ def _again(
     if at:
         git.out("tag", "-d", tag)
     git.out("reset", "-q", "--hard", "HEAD~1")
-    folder = mflib.layout.change_dir(primary, change)
-    for name in (FLAG, MARK):
-        (folder / name).unlink(missing_ok=True)
+    _unmark(primary, change)
     return f"release: drop — {tag} and its commit"
 
 
@@ -573,14 +573,13 @@ def pre(cwd: Path, change: str, run: bool, given: str | None = None) -> str:
     _entries(git)
     _planned(git, change, default)
     _shipped(git, change, keys, default)
-    folder = mflib.layout.change_dir(primary, change)
-    folder.mkdir(parents=True, exist_ok=True)
     version = tag.removesuffix(".0")
     mark = f"tag: {tag}\nversion: {version}\ngate: {seconds}\nhead: {head}\n"
     try:
-        mflib.statefile.write(folder / MARK, mark)
-    except mflib.statefile.WriteFailed as failed:
-        raise cannot(f"{MARK} could not be written: {failed.error.strerror}") from None
+        mflib.marks.write(primary, change, mflib.marks.RELEASE_PRE, mark)
+    except mflib.marks.Unwritten as error:
+        said = f"{error.name} could not be written: {error.cause.strerror}"
+        raise cannot(said) from None
     return f"release: tag — {tag}"
 
 
@@ -590,11 +589,13 @@ def _mark(primary: Path, change: str, head: str) -> dict[str, str]:
     Why: 0152-release-script design D4.
     """
     keys = _read_mark(
-        primary, change, f"{MARK} is missing — run release.py pre {change}"
+        primary,
+        change,
+        f"{mflib.marks.RELEASE_PRE} is missing — run release.py pre {change}",
     )
     if keys["head"] != head:
         raise halt(
-            f"{MARK}: head {keys['head'][:8]} is not HEAD {head[:8]}"
+            f"{mflib.marks.RELEASE_PRE}: head {keys['head'][:8]} is not HEAD {head[:8]}"
             f" — run release.py pre {change}"
         )
     return keys
@@ -950,7 +951,7 @@ def finish(cwd: Path, change: str, run: bool, given: str | None = None) -> str:
     tag = keys["tag"]
     proposal = git.cwd / "openspec" / "changes" / "archive" / change / "proposal.md"
     _debt(primary, mflib.findings.front(_text(proposal))[0])
-    flag = mflib.layout.change_dir(primary, change) / FLAG
+    flag = mflib.layout.change_dir(primary, change) / mflib.marks.RELEASE_FLAG
     if os.path.lexists(flag):
         raise halt(
             f"{flag.relative_to(primary)} stands — read the prose it names, then merge"
@@ -971,7 +972,7 @@ def merge(cwd: Path, change: str, run: bool, _given: str | None = None) -> str:
     if _tag_commit(git, tag) != git.out("rev-parse", "HEAD").strip():
         raise halt(f"merge: {tag} is not on HEAD — run release.py finish {change}")
     _ok(f"tag · {tag} is on HEAD")
-    flag = mflib.layout.change_dir(primary, change) / FLAG
+    flag = mflib.layout.change_dir(primary, change) / mflib.marks.RELEASE_FLAG
     if os.path.lexists(flag):
         raise halt(
             f"{flag.relative_to(primary)} stands — read the prose it names, then merge"

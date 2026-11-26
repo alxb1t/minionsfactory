@@ -36,6 +36,7 @@ import mflib.modelsfile
 import mflib.statefile
 import pytest
 from conduct_load import conduct as _conduct
+from conduct_load import halting
 from fake_worker import (
     _IDENTITY,
     _amend_needed,
@@ -598,7 +599,8 @@ def test_status_reads_each_stage_from_disk(
         red.write_text(f"gate red\n2026-11-05\nhead: {named}\n")
         assert stage() == "0001-todo · integrate"
     red.write_bytes(b"gate red\nhead: \xff\n")
-    assert conduct["_red"](root, tree, "0001-todo") is None
+    with pytest.raises(conduct["Stop"], match=r"integrate\.red cannot be read: "):
+        conduct["_red"](root, tree, "0001-todo")
     red.unlink()
 
     _git(tree, "commit", "-q", "--allow-empty", "-m", "chore(release): v0.1.0")
@@ -845,6 +847,13 @@ def test_each_check_passes_only_on_disk_evidence(
         "-m",
         "chore(integrate): merge main into 0001-todo",
     )
+    # Outside a merge a red with no head is a red gate on another head.
+    assert check("integrate") == (
+        1,
+        "check: integrate · fail — integrate halted — red gate,"
+        " see .minions/changes/0001-todo/integrate.red",
+    )
+    (marks / "integrate.red").unlink()
     assert check("integrate") == (0, "check: integrate · pass")
     red = marks / "integrate.red"
     red.write_text(f"gate red\n2026-11-05\nhead: {_git(tree, 'rev-parse', 'HEAD')}\n")
@@ -1618,27 +1627,27 @@ def test_a_dependents_delta_halts_as_integrating(
     assert note.read_text() == held
 
     # A link at the change's folder halts the version, not the run; nothing written.
-    # The take's read of the models file meets it first: 0142-models design D6.
+    # The stage's read of `integrate.red` meets it first: 0154-marks design D5.
     marks, aside = note.parent, tmp_path / "aside"
     marks.rename(aside)
     (aside / "integrate.md").unlink()
     marks.symlink_to(aside)
     log = again(1)
     assert (
-        " · 0002-marks · halt — conduct: halt — changes/0002-marks/models.toml:"
-        " its folder cannot be opened: "
+        " · 0002-marks · halt — conduct: halt — .minions/changes/0002-marks/"
+        "integrate.red cannot be read: its folder cannot be opened — "
     ) in log
     assert " · run · halt — halted 0002-marks · blocked none · " in log
     assert not (aside / "integrate.md").exists()
     marks.unlink()
     aside.rename(marks)
-    # A link at the note is refused by the note's own write; nothing written.
+    # A link at the note halts the version at its stand test; nothing written.
     gone = tmp_path / "gone.md"
     note.symlink_to(gone)
     log = again(1)
     assert (
-        " · 0002-marks · halt — conduct: halt — cannot write"
-        " .minions/changes/0002-marks/integrate.md — "
+        " · 0002-marks · halt — conduct: halt — .minions/changes/0002-marks/"
+        "integrate.md cannot be read: it is a link"
     ) in log
     assert " · run · halt — halted 0002-marks · blocked none · " in log
     assert not gone.exists()
@@ -2618,13 +2627,16 @@ def test_run_halts_when_a_worker_claims_what_disk_does_not_show(
     calls = fake("deny", "liar")
     root = _primary(tmp_path)
     tree = _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    # A halt file naming another head is stale, and an unreadable one is none: the
-    # halt line leaves them out.
+    # A halt file naming another head is stale: the halt line leaves it out. An
+    # unreadable one answers its name.
     stale = root / ".minions" / "changes" / "0001-todo" / "build.halt"
     stale.parent.mkdir(parents=True, exist_ok=True)
     stale.write_bytes(b"\xff")
     halt = conduct["_build_halt"]
-    assert halt(root / ".minions", tree, "0001-todo") is None
+    assert halt(root / ".minions", tree, "0001-todo") == (
+        "build.halt",
+        "cannot be read: it is not UTF-8",
+    )
     base = _git(root, "rev-parse", "HEAD")
     stale.write_text(f"sub-task: 9.9\nstop: 1\nevidence: old\nhead: {base}\n")
 
@@ -2792,9 +2804,11 @@ def test_the_notes_open_only_as_one_regular_file(tmp_path: Path) -> None:
             with pytest.raises(
                 conduct["Stop"], match=r"build-notes\.md (is not|cannot)"
             ):
-                conduct["_open_notes"](root, "0001-todo", flags)
+                halting(conduct, conduct["mflib"].marks.open_notes)(
+                    root, "0001-todo", flags
+                )
         with pytest.raises(conduct["Stop"], match=r"build-notes\.md (is not|cannot)"):
-            conduct["_note_lines"](root, "0001-todo")
+            halting(conduct, conduct["mflib"].marks.note_lines)(root, "0001-todo")
         if notes.is_dir():
             notes.rmdir()
         else:
@@ -2802,7 +2816,7 @@ def test_the_notes_open_only_as_one_regular_file(tmp_path: Path) -> None:
     assert outside.read_text() == "line\n" * 60
 
     notes.write_text("a\nb\n")
-    assert conduct["_note_lines"](root, "0001-todo") == 2
+    assert conduct["mflib"].marks.note_lines(root, "0001-todo") == 2
 
 
 def test_a_phase_check_wants_its_line_ticked_and_none_before_it_unticked(

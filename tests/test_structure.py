@@ -7,6 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+from mflib import marks
 
 _REPO = Path(__file__).resolve().parent.parent
 _FOLDERS = ("skills", "scripts")
@@ -88,6 +89,8 @@ FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("review_metrics.py", r"\d\d:\d\d:\d\d"),
         # the card's reader
         ("run.py", "- **"),
+        # the mark's own read, until the readers' version
+        ("run.py", "build.done"),
         ("run.py", "## Run"),
         ("run.py", "status_log.md"),
         # the run log's reader, until the readers' version
@@ -111,6 +114,11 @@ _CARD_PATTERN = r"- \*\*"
 _TITLE = "# Ship run"
 _CLOCK = r"\d\d:\d\d:\d\d"
 _CLOCK_GROUPS = r"(\d\d):(\d\d):(\d\d)"
+_MARKS = frozenset(
+    value
+    for name, value in vars(marks).items()
+    if name.isupper() and isinstance(value, str)
+)
 SEED = "sys.path.insert(0, str(Path(__file__).resolve().parents[2]))"
 SCRIPTS_SEED = (
     'sys.path.insert(0, str(Path(__file__).resolve().parents[{}] / "skills"))'
@@ -476,7 +484,7 @@ def _format_name(text: str) -> str:
     e.g. `"status_log.md"` → itself, `"^(## Run\\b.*)$"` → `"## Run"`,
     `"^- \\*\\*"` → `"- **"`, `"(\\d\\d):(\\d\\d):(\\d\\d)"` → `"\\d\\d:\\d\\d:\\d\\d"`
     """
-    if text == _LOG:
+    if text == _LOG or text in _MARKS:
         return text
     if _CARD in text or _CARD_PATTERN in text:
         return _CARD
@@ -493,7 +501,7 @@ def check_formats(
     """Return a breach line for each format name spelled outside the home — rule 6.
 
     e.g. `["x.py spells ## Run: a format name outside skills/mflib/, not listed …"]`
-    Why: 0136-status-log design D9.
+    Why: 0136-status-log design D9; a mark's name: 0154-marks design D9.
     """
     found = {
         f"{path.rpartition('/')[2]} spells {name}"
@@ -1087,6 +1095,28 @@ def test_check_formats_passes_the_home_modules(tmp_path: Path) -> None:
     assert check_formats(root, listed=frozenset()) == []
 
 
+def test_check_formats_fails_on_a_planted_mark_name(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": f'MARK = "{marks.BUILD_DONE}"\n'})
+    assert check_formats(root, listed=frozenset()) == [
+        "x.py spells build.done: a format name outside skills/mflib/, "
+        "not listed in FORMAT_SITES"
+    ]
+
+
+def test_check_formats_fails_on_a_listed_mark_name_that_is_gone(
+    tmp_path: Path,
+) -> None:
+    root = _plant(tmp_path, {"scripts/x.py": ""})
+    assert check_formats(root, listed=frozenset({("x.py", "build.done")})) == [
+        "x.py spells build.done: listed in FORMAT_SITES, not found"
+    ]
+
+
+def test_check_formats_passes_a_mark_name_in_the_marks_module(tmp_path: Path) -> None:
+    root = _plant(tmp_path, {"skills/mflib/marks.py": 'DONE = "build.done"\n'})
+    assert check_formats(root, listed=frozenset()) == []
+
+
 @pytest.mark.parametrize(
     "source",
     ['TITLE = "- **R1 — a title**"\n', 'TITLE = r"^- \\*\\*(R\\d+) — "\n'],
@@ -1170,8 +1200,9 @@ def test_check_formats_card_head_passes_the_findings_module(tmp_path: Path) -> N
     [
         '"""status_log.md"""\ndef f() -> None:\n    """## Run 2 — d"""\n',
         'SAY = "the status_log.md"\nTOO = "## Ru"\n',
+        'SAY = "wrote build.done"\nTOO = "build.done.x"\n',
     ],
-    ids=["docstring", "no-name"],
+    ids=["docstring", "no-name", "a-message-with-a-mark-name"],
 )
 def test_check_formats_passes_a_docstring(tmp_path: Path, source: str) -> None:
     root = _plant(tmp_path, {"scripts/x.py": source})

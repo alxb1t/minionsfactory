@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.debtfile
 import mflib.findings
 import mflib.layout
+import mflib.marks
 import mflib.statefile
 import mflib.statuslog
 
@@ -434,12 +435,11 @@ def _plan_output(context: Context, head: str) -> str:
     The close's lines count only from this freeze's base. Otherwise a run's.
     Why: 0144-gate-outside design D7.
     """
-    kept = None
-    with suppress(OSError):
-        kept = _text(context.folder / "plan-check.txt")
-    done = _read(context.folder / "build.done").splitlines()
+    primary = Path(context.host.primary)
+    kept = mflib.marks.plan_check_text(primary, context.change)
+    done = mflib.marks.done_head(primary, context.change)
     based, _, lines = (kept or "").partition("\n")
-    if f"head: {head}" in done and based == f"base: {context.base}":
+    if done == head and based == f"base: {context.base}":
         return lines
     plan = script("plan_check.py", "--change", context.change, "--base", context.base)
     return _captured(context, plan)[1]

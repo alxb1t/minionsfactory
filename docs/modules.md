@@ -33,7 +33,7 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `scripts/metrics/tests_collected.py` | reader | — |
 | `skills/mf-build/scripts/metrics.py` | station | layout.py |
 | `skills/mf-converge/scripts/bundle.py` | station | statefile.py |
-| `skills/mf-converge/scripts/converge.py` | station | bundle.py, debt_match.py, debtfile.py, evidence.py, findings.py, gate_check.py, gate_integrity.py, gate_run.py, integrate.py, layout.py, open_cards.py, overlap.py, plan_check.py, skip_stub.py, statefile.py, statuslog.py |
+| `skills/mf-converge/scripts/converge.py` | station | bundle.py, debt_match.py, debtfile.py, evidence.py, findings.py, gate_check.py, gate_integrity.py, gate_run.py, integrate.py, layout.py, marks.py, open_cards.py, overlap.py, plan_check.py, skip_stub.py, statefile.py, statuslog.py |
 | `skills/mf-converge/scripts/debt_match.py` | station | debtfile.py, statefile.py |
 | `skills/mf-converge/scripts/evidence.py` | station | — |
 | `skills/mf-converge/scripts/gate_check.py` | station | layout.py |
@@ -50,12 +50,12 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-cut-change/scripts/cut_pre.py` | station | layout.py |
 | `skills/mf-cut-change/scripts/facts.py` | station | brief_check.py |
 | `skills/mf-cut-change/scripts/verify_check.py` | station | cut_pre.py, plan_check.py |
-| `skills/mf-integrate/scripts/integrate.py` | station | findings.py, layout.py |
+| `skills/mf-integrate/scripts/integrate.py` | station | findings.py, layout.py, marks.py |
 | `skills/mf-plan/scripts/brief_check.py` | station | conduct.py, layout.py, modelsfile.py, verify_check.py |
 | `skills/mf-release/scripts/next_tag.py` | station | — |
-| `skills/mf-release/scripts/release.py` | station | debtfile.py, findings.py, gate_check.py, gate_run.py, layout.py, metrics.py, modelsfile.py, next_tag.py, statefile.py |
+| `skills/mf-release/scripts/release.py` | station | debtfile.py, findings.py, gate_check.py, gate_run.py, layout.py, marks.py, metrics.py, modelsfile.py, next_tag.py, statefile.py |
 | `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, layout.py, metrics.py, overlap.py |
-| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, claim.py, converge.py, cut_check.py, debtfile.py, findings.py, gate_run.py, integrate.py, layout.py, metrics.py, modelsfile.py, pin.py, plan_check.py, platform.py, release.py, runlog.py, statefile.py, statuslog.py |
+| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, claim.py, converge.py, cut_check.py, debtfile.py, findings.py, gate_run.py, integrate.py, layout.py, marks.py, metrics.py, modelsfile.py, pin.py, plan_check.py, platform.py, release.py, runlog.py, statefile.py, statuslog.py |
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py, layout.py |
 | `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, layout.py, platform.py, statefile.py |
 | `skills/mflib/__init__.py` | home | — |
@@ -63,6 +63,7 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mflib/debtfile.py` | home | findings.py, statefile.py |
 | `skills/mflib/findings.py` | home | statefile.py |
 | `skills/mflib/layout.py` | home | — |
+| `skills/mflib/marks.py` | home | layout.py, statefile.py |
 | `skills/mflib/modelsfile.py` | home | layout.py, statefile.py |
 | `skills/mflib/platform.py` | home | — |
 | `skills/mflib/runlog.py` | home | statefile.py |

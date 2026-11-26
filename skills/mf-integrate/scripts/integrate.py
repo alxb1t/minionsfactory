@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.findings
 import mflib.layout
+import mflib.marks
 
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)")
@@ -200,13 +201,18 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
 
 
 def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
-    """Return whether the version's merge is open with its note beside it."""
-    note = mflib.layout.change_dir(_primary(cwd), change) / "integrate.md"
-    return (
-        tree is not None
-        and note.is_file()
-        and _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
-    )
+    """Return whether the version's merge is open with its note beside it.
+
+    A note that cannot be read halts, naming it. Why: 0154-marks design D5.
+    """
+    if tree is None:
+        return False
+    try:
+        noted = mflib.marks.standing(_primary(cwd), change, mflib.marks.INTEGRATE_MD)
+    except mflib.marks.Broken as error:
+        raise Stop(1, f"next: halt — .minions/changes/{change}/{error}") from None
+    merging = _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
+    return noted and merging
 
 
 def _holds(cwd: Path, change: str) -> bool:
