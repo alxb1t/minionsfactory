@@ -6,7 +6,7 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The stations · hard
+- [x] 3 — The stations · hard
 - [ ] 4 — The fix · hard
 - [ ] 5 — The rule and the record · moderate
 
@@ -47,21 +47,21 @@ The phases: pin the marks as they are, add the module, move the callers, give ea
 
 ## 3 — The stations
 
-- [ ] 3.1 In `skills/mf-ship/scripts/conduct.py` read `build.done`, `build.simplified`, `stacked-on`, `build.halt` and the build's notes through the module; the readers that add git logic keep their names.
+- [x] 3.1 In `skills/mf-ship/scripts/conduct.py` read `build.done`, `build.simplified`, `stacked-on`, `build.halt` and the build's notes through the module; the readers that add git logic keep their names.
   Delete `_done_head`, `_simplified_head`, `_open_notes` and `_note_lines`.
   Verify: `git grep -c -e '^def _done_head' -e '^def _simplified_head' -e '^def _open_notes' -e '^def _note_lines' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` read `cut.halt`, `integrate.red`, `integrate.md`, `integrate.settled`, `release.held`, `release.flag`, `release.pre`, `gate.red` and the time of `rescue.md` through the module, the stand test that builds `integrate{end}` among them.
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` read `cut.halt`, `integrate.red`, `integrate.md`, `integrate.settled`, `release.held`, `release.flag`, `release.pre`, `gate.red` and the time of `rescue.md` through the module, the stand test that builds `integrate{end}` among them.
   Delete `_cutter_halt` and `_mtime`; the readers that add meaning keep their names.
   Verify: `git grep -c -e '^def _cutter_halt' -e '^def _mtime' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.3 In `skills/mf-ship/scripts/conduct.py` write each mark through the module: the callers of the in-place writer call the module's, the text writers serve the halt, the close, the plan check and the supervisor, and each mark's unlink calls the module's remover.
+- [x] 3.3 In `skills/mf-ship/scripts/conduct.py` write each mark through the module: the callers of the in-place writer call the module's, the text writers serve the halt, the close, the plan check and the supervisor, and each mark's unlink calls the module's remover.
   Delete `_write_in_change`. Each caller keeps its answer to a failed write ([D6](design.md#d6)); the remover for the cut's reservation stays.
   Verify: `git grep -c -e '^def _write_in_change' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.4 Give the module's names to each other bare mark name of the conductor, `Run._needs`' action word among them, to the settling test of `skills/mf-integrate/scripts/integrate.py`, and to the reads of `plan-check.txt` and `build.done` in `skills/mf-converge/scripts/converge.py`.
+- [x] 3.4 Give the module's names to each other bare mark name of the conductor, `Run._needs`' action word among them, to the settling test of `skills/mf-integrate/scripts/integrate.py`, and to the reads of `plan-check.txt` and `build.done` in `skills/mf-converge/scripts/converge.py`.
   Name `../../mflib/marks.py` in the line of `skills/mf-converge/SKILL.md` that lists what `converge.py` loads, for those two reads.
   Verify: `git grep -c -E '"(build\.(done|halt|closing|simplified)|build-notes\.md|stacked-on|cut\.(halt|red)|integrate\.(md|red|settled)|release\.(held|flag|pre)|rescue\.md|replan\.mark|plan-check\.txt|gate\.red)"' -- skills/mf-ship/scripts/conduct.py skills/mf-integrate/scripts/integrate.py skills/mf-converge/scripts/converge.py` prints nothing.
-- [ ] 3.5 In `skills/mf-release/scripts/release.py` name `release.pre`, `release.flag` and the saved patches through the module, the mark's reader calling `release_pre`; its writes and its unlinks keep their path form.
+- [x] 3.5 In `skills/mf-release/scripts/release.py` name `release.pre`, `release.flag` and the saved patches through the module, the mark's reader calling `release_pre`; its writes and its unlinks keep their path form.
   Verify: `git grep -c -e '^MARK = ' -e '^FLAG = ' -- skills/mf-release/scripts/release.py` prints nothing.
-- [ ] 3.6 Change the lines by which `tests/test_conduct.py` and `tests/test_mark_pins.py` reach a name the conductor no longer holds: no assert changes. Take from `tests/test_structure.py` each listed exception its rules name as gone, and make `docs/modules.md` name `marks.py` in each row that now loads it.
+- [x] 3.6 Change the lines by which `tests/test_conduct.py` and `tests/test_mark_pins.py` reach a name the conductor no longer holds: no assert changes. Take from `tests/test_structure.py` each listed exception its rules name as gone, and make `docs/modules.md` name `marks.py` in each row that now loads it.
   Verify: `uv run pytest tests/test_conduct.py tests/test_mark_pins.py tests/test_release.py tests/test_structure.py -n auto -q` exits `0`.
 
 ## 4 — The fix

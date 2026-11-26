@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 from conduct_load import conduct as _conduct
+from conduct_load import halting
 from fake_worker import _commit, _git
 from mflib import layout
 from test_release import Repo, _cut_release, _forged, _merge, _moved
@@ -150,7 +151,7 @@ def _blocks(call: Callable[[], Any], pipe: Path) -> tuple[bool, Any]:
 
 
 def test_case_c_cut_halt(tmp_path: Path) -> None:
-    halt = _conduct()["_cutter_halt"]
+    halt = _conduct()["mflib"].marks.cutter_halt
     mark = _folder(tmp_path) / "cut.halt"
     assert halt(tmp_path, _CHANGE) is None
 
@@ -180,7 +181,7 @@ def _closed_at(root: Path, tree: Path, text: str) -> bool:
 
 def test_case_d_build_done_head(tmp_path: Path) -> None:
     conduct = _conduct()
-    head = conduct["_done_head"]
+    head = conduct["mflib"].marks.done_head
     root = _primary(tmp_path)
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
     mark = _folder(root) / "build.done"
@@ -507,7 +508,7 @@ def test_case_m_the_settling_tests_stand_the_note_by_is_file(tmp_path: Path) -> 
 
 def test_case_n_build_notes_stop_the_version_on_a_wrong_shape(tmp_path: Path) -> None:
     conduct = _conduct()
-    lines = conduct["_note_lines"]
+    lines = halting(conduct, conduct["mflib"].marks.note_lines)
     mark = _folder(tmp_path) / "build-notes.md"
     plain = f".minions/changes/{_CHANGE}/build-notes.md"
     for shape, said in (
@@ -529,7 +530,7 @@ def test_case_n_build_notes_stop_the_version_on_a_wrong_shape(tmp_path: Path) ->
 
 
 def test_case_n_build_notes_lines_are_counted_whole(tmp_path: Path) -> None:
-    lines = _conduct()["_note_lines"]
+    lines = _conduct()["mflib"].marks.note_lines
     assert lines(tmp_path, _CHANGE) == 0
     assert (tmp_path / ".minions" / "changes" / _CHANGE).is_dir()
     mark = _folder(tmp_path) / "build-notes.md"
@@ -729,7 +730,11 @@ def test_case_s_catch_up_passes_a_stacked_version(tmp_path: Path) -> None:
 def test_case_t_mtime_is_the_lstat_time_of_a_regular_file_alone(
     tmp_path: Path,
 ) -> None:
-    mtime = _conduct()["_mtime"]
+    marks = _conduct()["mflib"].marks
+
+    def mtime(path: Path) -> int | None:
+        return marks.mtime(tmp_path, _CHANGE, path.name)
+
     mark = _folder(tmp_path) / "integrate.settled"
     assert mtime(mark) is None
     for shape in ("file", "empty", "hard"):
@@ -823,7 +828,7 @@ def test_case_t_the_rescue_compares_the_time_of_rescue_md(tmp_path: Path) -> Non
 def test_case_w_the_in_place_write_truncates_and_makes_the_folder(
     tmp_path: Path,
 ) -> None:
-    write = _conduct()["_write_in_change"]
+    write = _conduct()["mflib"].marks.write_in_place
     umask = os.umask(0o022)
     try:
         write(tmp_path, _CHANGE, "mark", "a longer first text\n")
@@ -837,7 +842,7 @@ def test_case_w_the_in_place_write_truncates_and_makes_the_folder(
 
 
 def test_case_w_the_in_place_write_refuses_a_link_and_a_folder(tmp_path: Path) -> None:
-    write = _conduct()["_write_in_change"]
+    write = _conduct()["mflib"].marks.write_in_place
     mark = _folder(tmp_path) / "mark"
     outside = tmp_path / "outside"
     outside.write_text("the person's\n")
@@ -870,14 +875,14 @@ def test_case_w_unstack_raises_on_a_folder(tmp_path: Path) -> None:
 
 
 def _simplified(tmp_path: Path, shape: str, text: str = "head: abc1234\n") -> Any:  # noqa: ANN401
-    """Plant `build.simplified` as `shape`; return `_simplified_head`, none blocking."""
+    """Plant `build.simplified` as `shape`; return `simplified_head`, none blocking."""
     mark = _folder(tmp_path) / "build.simplified"
     if mark.is_dir() and not mark.is_symlink():
         mark.rmdir()
     else:
         mark.unlink(missing_ok=True)
     _plant(mark, shape, text)
-    reader = _conduct()["_simplified_head"]
+    reader = _conduct()["mflib"].marks.simplified_head
     return _within(lambda: reader(tmp_path, _CHANGE))
 
 
@@ -1214,7 +1219,7 @@ def _descriptors() -> int:
 
 
 def test_case_b_the_in_place_write_goes_through_a_hard_link(tmp_path: Path) -> None:
-    write = _conduct()["_write_in_change"]
+    write = _conduct()["mflib"].marks.write_in_place
     mark = _folder(tmp_path) / "mark"
     _plant(mark, "hard", "first, and longer\n")
     other = mark.parent.parent / ".other-mark"
@@ -1741,7 +1746,8 @@ def test_pin_readers_follow_a_link_and_read_a_file_whole(tmp_path: Path) -> None
     marks = _folder(root)
     halt = f"sub-task: 1.2\nstop: 3\nhead: {head}\n"
     named = f"head: {head}\n"
-    done, simplified = conduct["_done_head"], conduct["_simplified_head"]
+    done = conduct["mflib"].marks.done_head
+    simplified = conduct["mflib"].marks.simplified_head
     red, stacked, built = (
         conduct["_red"],
         conduct["_stacked_on"],
@@ -1820,7 +1826,7 @@ def test_pin_stands_of_the_stop_marks_are_is_file(tmp_path: Path) -> None:
 
 def test_pin_notes_stop_the_version_and_read_with_no_bound(tmp_path: Path) -> None:
     conduct = _conduct()
-    opened = conduct["_open_notes"]
+    opened = halting(conduct, conduct["mflib"].marks.open_notes)
     assert opened(tmp_path, _CHANGE, os.O_RDONLY) is None
     mark = _folder(tmp_path) / "build-notes.md"
     mark.write_text("a\n")
@@ -1834,13 +1840,13 @@ def test_pin_notes_stop_the_version_and_read_with_no_bound(tmp_path: Path) -> No
             _within(lambda: opened(tmp_path, _CHANGE, os.O_RDONLY))
         _clear(mark)
     mark.write_text("x\n" * (2**20 + 10))
-    assert conduct["_note_lines"](tmp_path, _CHANGE) == 2**20 + 10
+    assert conduct["mflib"].marks.note_lines(tmp_path, _CHANGE) == 2**20 + 10
 
 
 def test_pin_cut_halt_is_no_halt_through_a_link_and_blocks_on_a_pipe(
     tmp_path: Path,
 ) -> None:
-    halt = _conduct()["_cutter_halt"]
+    halt = _conduct()["mflib"].marks.cutter_halt
     mark = _folder(tmp_path) / "cut.halt"
     _plant(mark, "link", "a halt\n")
     assert halt(tmp_path, _CHANGE) is None
@@ -1873,7 +1879,7 @@ def _blocked_writing(call: Callable[[], Any], pipe: Path) -> bool:
 def test_pin_writers_write_through_a_hard_link_and_refuse_or_block_elsewhere(
     tmp_path: Path,
 ) -> None:
-    write = _conduct()["_write_in_change"]
+    write = _conduct()["mflib"].marks.write_in_place
     mark = _folder(tmp_path) / "mark"
     _plant(mark, "hard", "first\n")
     write(tmp_path, _CHANGE, "mark", "second\n")
@@ -2014,7 +2020,7 @@ def test_pin_head_forms_of_build_done(tmp_path: Path) -> None:
         done, closed = answers[label]
         text = _formed(form, tree)
         assert _closed_at(root, tree, text) is closed, label
-        assert conduct["_done_head"](root, _CHANGE) == done, label
+        assert conduct["mflib"].marks.done_head(root, _CHANGE) == done, label
 
 
 def test_pin_head_forms_of_build_simplified(tmp_path: Path) -> None:
@@ -2037,7 +2043,7 @@ def test_pin_head_forms_of_build_simplified(tmp_path: Path) -> None:
         word, amends = answers[label]
         text = _formed(form, tree)
         assert _amends(root, tree, text) is amends, label
-        assert _conduct()["_simplified_head"](root, _CHANGE) == word, label
+        assert _conduct()["mflib"].marks.simplified_head(root, _CHANGE) == word, label
 
 
 def test_pin_head_forms_of_integrate_red(tmp_path: Path) -> None:

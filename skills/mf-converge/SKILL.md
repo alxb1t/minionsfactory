@@ -55,7 +55,8 @@ Each status-log event as it writes it, `HH:MM:SS · round N · <event> — <deta
 The Steps its functions name: 1 preconditions · 2 freeze · 3 dispatch · 5 verdicts · 6 fix · 7 verify and the cap · 8 pickup ·
 9 debt · 10 report. It loads `bundle.py`, `debt_match.py`, `skip_stub.py`, `open_cards.py`,
 `plan_check.py`, `evidence.py`, `gate_integrity.py` and `overlap.py` from its folder, `../../mf-integrate/scripts/integrate.py` for `replay`,
-`../../mflib/layout.py` for the run directory's paths, `../../mflib/statuslog.py` for each status-log event,
+`../../mflib/layout.py` for the run directory's paths, `../../mflib/marks.py` for its reads of `plan-check.txt` and
+`build.done`, `../../mflib/statuslog.py` for each status-log event,
 `../../mflib/findings.py` for its reads and writes of a findings file, `../../mflib/debtfile.py` for its reads and
 writes of the debt file and its lock, and `../../mflib/statefile.py` for its reads
 that follow no link; it runs

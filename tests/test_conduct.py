@@ -36,6 +36,7 @@ import mflib.modelsfile
 import mflib.statefile
 import pytest
 from conduct_load import conduct as _conduct
+from conduct_load import halting
 from fake_worker import (
     _IDENTITY,
     _amend_needed,
@@ -2792,9 +2793,11 @@ def test_the_notes_open_only_as_one_regular_file(tmp_path: Path) -> None:
             with pytest.raises(
                 conduct["Stop"], match=r"build-notes\.md (is not|cannot)"
             ):
-                conduct["_open_notes"](root, "0001-todo", flags)
+                halting(conduct, conduct["mflib"].marks.open_notes)(
+                    root, "0001-todo", flags
+                )
         with pytest.raises(conduct["Stop"], match=r"build-notes\.md (is not|cannot)"):
-            conduct["_note_lines"](root, "0001-todo")
+            halting(conduct, conduct["mflib"].marks.note_lines)(root, "0001-todo")
         if notes.is_dir():
             notes.rmdir()
         else:
@@ -2802,7 +2805,7 @@ def test_the_notes_open_only_as_one_regular_file(tmp_path: Path) -> None:
     assert outside.read_text() == "line\n" * 60
 
     notes.write_text("a\nb\n")
-    assert conduct["_note_lines"](root, "0001-todo") == 2
+    assert conduct["mflib"].marks.note_lines(root, "0001-todo") == 2
 
 
 def test_a_phase_check_wants_its_line_ticked_and_none_before_it_unticked(

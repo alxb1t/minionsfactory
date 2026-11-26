@@ -48,6 +48,7 @@ import mflib.claim
 import mflib.debtfile
 import mflib.findings
 import mflib.layout
+import mflib.marks
 import mflib.modelsfile
 import mflib.platform
 import mflib.runlog
@@ -146,15 +147,8 @@ RERUN = "re-run: halted before round 1 at this head"
 RERAN = "halted before round 1 again at this head: a commit answers it"
 HALT_HEAD = re.compile(r" · head ([0-9a-f]{7,40})$")
 STUCK = (*HALTS, "waiting")
-# A stacked version's file: the built head it builds on, its build's base.
-# Why: 0099-stacked-builds design D2, D5.
-STACKED_ON = "stacked-on"
-# The head the simplify worker left, past which an amend alone closes with no worker.
-# Why: 0144-gate-outside design D5, D6.
-SIMPLIFIED = "build.simplified"
-# What a phase hands the next, and the lines of each phase's append the run keeps.
+# The lines of each phase's append to the build's notes the run keeps.
 # Why: 0102-build-per-phase design D3.
-NOTES_FILE = "build-notes.md"
 NOTES = 40
 STATIONS = ("build", "converge", "integrate", "release")
 FIXER = "converge.fix"
@@ -191,9 +185,6 @@ RESCUES = 3
 LOAD_WAIT = 1800
 LOAD_POLL = 30
 SUPERVISES = 2
-# A design-sized cap's re-plan is taken once a version: this mark records it.
-# Why: 0145-halts-alone design D9.
-REPLAN_MARK = "replan.mark"
 DESIGN = "a design change"
 # A supervisor at an integrate note stages Markdown under these alone.
 # Why: 0090-supervisor-merge design D3.
@@ -398,6 +389,14 @@ class Stop(Exception):
 
 class Unreachable(Stop):
     """A read of `origin` that failed: the run waits on it, and halts on no other."""
+
+
+def _marked(change: str, error: Exception) -> Stop:
+    """Return the halt of a mark's `Broken` or `Unwritten`, its words kept.
+
+    Why: 0154-marks design D3.
+    """
+    return Stop(1, f"conduct: halt — .minions/changes/{change}/{error}")
 
 
 def _run(
@@ -719,21 +718,6 @@ def _folder_fd(root: Path, *parts: str) -> int:
     return mflib.statefile.folder(root, *parts)
 
 
-def _write_in_change(primary: Path, change: str, name: str, text: str) -> None:
-    """Write `text` to the change's file `name`, through no link; one raises `OSError`.
-
-    Why: 0071-ship-fixes design D8.
-    """
-    fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_TRUNC
-    try:
-        file = os.open(name, flags, 0o644, dir_fd=fd)
-    finally:
-        os.close(fd)
-    with os.fdopen(file, "w") as out:
-        out.write(text)
-
-
 def _remove_in(root: Path, *parts: str, name: str) -> None:
     """Remove `root`'s file `parts`/`name` when it stands, through no link."""
     fd = _folder_fd(root, *parts)
@@ -742,54 +726,6 @@ def _remove_in(root: Path, *parts: str, name: str) -> None:
             os.unlink(name, dir_fd=fd)
     finally:
         os.close(fd)
-
-
-def _open_notes(primary: Path, change: str, flags: int) -> int | None:
-    """Return a descriptor on the change's `build-notes.md`; None with no file.
-
-    Why: 0102-build-per-phase design D3.
-    """
-    fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
-    name = f".minions/changes/{change}/{NOTES_FILE}"
-    try:
-        file = os.open(NOTES_FILE, flags | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-    except FileNotFoundError:
-        return None
-    except OSError as error:
-        linked = error.errno == errno.ELOOP
-        why = "is a link" if linked else f"cannot be opened — {error.strerror}"
-        raise Stop(1, f"conduct: halt — {name} {why}") from None
-    finally:
-        os.close(fd)
-    found = os.fstat(file)
-    if not stat.S_ISREG(found.st_mode) or found.st_nlink != 1:
-        os.close(file)
-        raise Stop(1, f"conduct: halt — {name} is not a regular file of one name")
-    return file
-
-
-def _note_lines(primary: Path, change: str) -> int:
-    """Return the lines of the change's `build-notes.md`; 0 with no file."""
-    file = _open_notes(primary, change, os.O_RDONLY)
-    if file is None:
-        return 0
-    with os.fdopen(file, "rb") as notes:
-        return len(notes.read().splitlines())
-
-
-def _cutter_halt(primary: Path, change: str) -> str | None:
-    """Return the cutter's `cut.halt` line, read through no link; None with none."""
-    fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
-    try:
-        halt = os.open("cut.halt", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-    except OSError:
-        halt = None
-    finally:
-        os.close(fd)
-    if halt is None:
-        return None
-    with os.fdopen(halt, errors="replace") as file:
-        return file.readline().strip()[:300]
 
 
 def _cut_answer(change: str, brief: str) -> str:
@@ -810,7 +746,7 @@ def _check_cut(primary: Path, change: str, tree: Path) -> str | None:
     A broken models file fails, and a queued entry that holds `models` fails a file
     whose bytes differ from its text. Why: 0082 design D4; 0106 D7; 0142-models D7.
     """
-    if (halt := _cutter_halt(primary, change)) is not None:
+    if (halt := mflib.marks.cutter_halt(primary, change)) is not None:
         return halt
     # why: a tag of the branch's name is no branch. 0103-fewer-rounds design D6.
     tip = _subject(primary, f"refs/heads/{change}")
@@ -993,26 +929,9 @@ def _granted_run(runs: Path, change: str) -> bool:
     return _run_marked(runs, change, "grant")
 
 
-def _done_head(primary: Path, change: str) -> str | None:
-    """Return the word `build.done`'s `head:` names, or None.
-
-    A missing or unreadable file names none, nor does one that is no regular file.
-    Why: 0055-build-resume design D2.
-    """
-    done = mflib.layout.change_dir(primary, change) / "build.done"
-    if not done.is_file():
-        return None
-    try:
-        text = done.read_text()
-    except (OSError, UnicodeDecodeError):
-        return None
-    found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
-    return found[1] if found else None
-
-
 def _closed(runs: Path, tree: Path, change: str) -> bool:
     """Return whether `.minions/changes/<change>/build.done` names the tree's `HEAD`."""
-    if (done := _done_head(runs.parent, change)) is None:
+    if (done := mflib.marks.done_head(runs.parent, change)) is None:
         return False
     named = _maybe(tree, "rev-parse", "-q", "--verify", f"{done}^{{commit}}")
     return (named or "").strip() == _git(tree, "rev-parse", "HEAD").strip()
@@ -1023,7 +942,7 @@ def _built_head(primary: Path, change: str) -> str | None:
 
     Why: 0099-stacked-builds design D1, D6.
     """
-    done = _done_head(primary, change)
+    done = mflib.marks.done_head(primary, change)
     named = done and _maybe(
         primary, "rev-parse", "-q", "--verify", f"{done}^{{commit}}"
     )
@@ -1071,14 +990,9 @@ def _stacked_on(
 
     Why: 0099-stacked-builds design D3.
     """
-    file = mflib.layout.change_dir(primary, change) / STACKED_ON
-    try:
-        words = file.read_text().split() if file.is_file() else []
-    except (OSError, UnicodeDecodeError):
+    if (head := mflib.marks.stacked_head(primary, change)) is None:
         return None
-    if not words or not re.fullmatch(r"[0-9a-f]{40}", words[0]):
-        return None
-    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{words[0]}^{{commit}}")
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{head}^{{commit}}")
     if not named or not _ancestor(tree, named.strip(), "HEAD"):
         return None
     sha = named.strip()
@@ -1120,10 +1034,8 @@ def _cut_commit(tree: Path, change: str) -> str | None:
 
 def _unstack(primary: Path, change: str) -> None:
     """Remove the change's `stacked-on` when one stands, through no link."""
-    if os.path.lexists(mflib.layout.change_dir(primary, change) / STACKED_ON):
-        _remove_in(
-            mflib.layout.run_dir(primary), mflib.layout.CHANGES, change, name=STACKED_ON
-        )
+    if mflib.marks.present(primary, change, mflib.marks.STACKED_ON):
+        mflib.marks.remove(primary, change, mflib.marks.STACKED_ON)
 
 
 def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
@@ -1132,18 +1044,13 @@ def _build_halt(runs: Path, tree: Path, change: str) -> tuple[str, str] | None:
     None for a missing, unreadable or stale file. Why: 0067-rescue design D1.
     e.g. "sub-task: 1.2\nstop: 3\nhead: <HEAD>\n" → ("1.2", "3")
     """
-    file = mflib.layout.change_dir(runs.parent, change) / "build.halt"
-    try:
-        text = file.read_text() if file.is_file() else ""
-    except (OSError, UnicodeDecodeError):
+    if (found := mflib.marks.build_halt(runs.parent, change)) is None:
         return None
-    keys = dict(re.findall(r"^(sub-task|stop|head):[ \t]*(\S.*?)[ \t]*$", text, re.M))
-    if not {"sub-task", "stop", "head"} <= keys.keys():
-        return None
-    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{keys['head']}^{{commit}}")
+    sub_task, stop, head = found
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{head}^{{commit}}")
     if (named or "").strip() != _git(tree, "rev-parse", "HEAD").strip():
         return None
-    return keys["sub-task"], keys["stop"]
+    return sub_task, stop
 
 
 def _is_event(line: str, event: str) -> bool:
@@ -1467,16 +1374,10 @@ def _red(primary: Path, tree: Path, change: str) -> str | None:
     None for no file, or no `head:` line. Why: 0071-ship-fixes design D2.
     e.g. "gate red\n2026-11-05\nhead: 7ee2179\n" → "7ee2179…" in full
     """
-    file = mflib.layout.change_dir(primary, change) / "integrate.red"
-    try:
-        text = file.read_text() if file.is_file() else ""
-    except (OSError, UnicodeDecodeError):
+    if (head := mflib.marks.red_head(primary, change)) is None:
         return None
-    found = re.search(r"^head:[ \t]*(\S+)", text, re.MULTILINE)
-    if found is None:
-        return None
-    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{found[1]}^{{commit}}")
-    return named.strip() if named else found[1]
+    named = _maybe(tree, "rev-parse", "-q", "--verify", f"{head}^{{commit}}")
+    return named.strip() if named else head
 
 
 def _merge_open(tree: Path) -> bool:
@@ -1570,7 +1471,7 @@ def _undroppable(primary: Path, tree: Path, change: str, default: str) -> str | 
 
     Why: 0152-release-script design D10.
     """
-    if not (mflib.layout.change_dir(primary, change) / "release.pre").is_file():
+    if not mflib.marks.stands(primary, change, mflib.marks.RELEASE_PRE):
         return f".minions/changes/{change}/release.pre is missing"
     if _ancestor(tree, "HEAD", default):
         return f"HEAD is on {default}"
@@ -1592,8 +1493,7 @@ def _release_tip(
     Why: 0152-release-script design D10.
     """
     runs = mflib.layout.run_dir(primary)
-    marks = mflib.layout.change_dir(primary, change)
-    if (marks / "release.held").is_file():
+    if mflib.marks.stands(primary, change, mflib.marks.RELEASE_HELD):
         return "released", (
             f"{tag}: .minions/changes/{change}/release.held holds a person's no:"
             f" /mf-release {change} merges it on their yes"
@@ -1612,7 +1512,7 @@ def _release_tip(
                 " /mf-converge, /mf-release"
             )
         return "release", f"{tag} {stated}; {default} moved: release.py pre drops it"
-    if os.path.lexists(marks / "release.flag"):
+    if mflib.marks.present(primary, change, mflib.marks.RELEASE_FLAG):
         return "released", (
             f"{tag} {stated}; .minions/changes/{change}/release.flag stands:"
             f" a person reads the prose it names, then /mf-release {change} merges it"
@@ -1647,11 +1547,12 @@ def stage_of(
             return "integrating", f"red gate: {note}.red"
         return "integrate", "red gate on another head: integrate gates again"
     if merging:
-        marks = mflib.layout.change_dir(primary, change)
         # A `.red` with a `head:` names a committed merge: an open one's is stale.
-        if red is None and (marks / "integrate.red").is_file():
+        if red is None and mflib.marks.stands(
+            primary, change, mflib.marks.INTEGRATE_RED
+        ):
             return "integrating", f"red gate: {note}.red"
-        if (marks / "integrate.md").is_file():
+        if mflib.marks.stands(primary, change, mflib.marks.INTEGRATE_MD):
             return "integrating", f"semantic conflict: {note}.md"
         if _conflicts(tree):
             return "integrate", "interrupted: a merge is open with no note"
@@ -1674,7 +1575,7 @@ def stage_of(
             return "human", f"phase {number} — {title}"
         return "build", f"phase {number} unticked"
     end = _run_end(runs, change)
-    done = _done_head(primary, change)
+    done = mflib.marks.done_head(primary, change)
     if (
         end is None
         and not _closed(runs, tree, change)
@@ -1787,12 +1688,14 @@ def _check_integrate(primary: Path, version: Version, tree: Path) -> str | None:
     Why: 0071-ship-fixes design D2.
     """
     note = f".minions/changes/{version.change}/integrate"
-    red = _red(primary, tree, version.change)
-    marks = mflib.layout.change_dir(primary, version.change)
+    change = version.change
+    red = _red(primary, tree, change)
     if _merge_open(tree):
-        if red is None and (marks / "integrate.red").is_file():
+        if red is None and mflib.marks.stands(
+            primary, change, mflib.marks.INTEGRATE_RED
+        ):
             return f"integrate halted — red gate, see {note}.red"
-        if (marks / "integrate.md").is_file():
+        if mflib.marks.stands(primary, change, mflib.marks.INTEGRATE_MD):
             return f"integrate halted — semantic conflict, see {note}.md"
         return "a merge is still open"
     if red is not None:
@@ -3083,7 +2986,7 @@ def _opened(primary: Path, tree: Path, change: str) -> Opened:
         _git(tree, "rev-parse", "HEAD").strip(),
         _git(tree, "rev-parse", "MERGE_HEAD").strip(),
         _git(tree, "ls-files", "-s"),
-        _mtime(mflib.layout.change_dir(primary, change) / "integrate.settled"),
+        mflib.marks.mtime(primary, change, mflib.marks.INTEGRATE_SETTLED),
     )
 
 
@@ -3099,8 +3002,7 @@ def _settled(
     merge = _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD")
     if merge is None or merge.strip() != start.merge:
         return None, "supervisor closed the merge"
-    marks = mflib.layout.change_dir(primary, change)
-    if not (marks / "integrate.md").is_file():
+    if not mflib.marks.stands(primary, change, mflib.marks.INTEGRATE_MD):
         return None, f"supervisor removed .minions/changes/{change}/integrate.md"
     entries = set(start.index.splitlines()) ^ set(
         _git(tree, "ls-files", "-s").splitlines()
@@ -3117,7 +3019,8 @@ def _settled(
     unstaged |= set(_git(tree, "ls-files", "--others", "--exclude-standard").split())
     if unstaged:
         return None, f"supervisor left unstaged {' '.join(sorted(unstaged))}"
-    if _mtime(marks / "integrate.settled") in (None, start.written):
+    settled = mflib.marks.mtime(primary, change, mflib.marks.INTEGRATE_SETTLED)
+    if settled in (None, start.written):
         return None, ""
     if unmerged:
         return None, f"supervisor left {' '.join(unmerged)} unmerged"
@@ -3144,15 +3047,6 @@ def _settle_kept(tree: Path, staged: str) -> str | None:
     if past := sorted(moved - fixed):
         return f"the merge holds {' '.join(past)} past the supervisor's settle"
     return None
-
-
-def _mtime(path: Path) -> int | None:
-    """Return a regular file's modification time in nanoseconds, else None."""
-    try:
-        status = path.lstat()
-    except OSError:
-        return None
-    return status.st_mtime_ns if stat.S_ISREG(status.st_mode) else None
 
 
 def _entries(folder: Path, empty: bool) -> list[str]:
@@ -4778,7 +4672,7 @@ class Run:
             if change in self.answered:
                 return "a re-run"
             if change in self.diagnosed:
-                return "rescue.md"
+                return mflib.marks.RESCUE
         entry = _cuts(self.primary).get(change, {})
         halt, brief = entry.get("halt"), entry.get("brief")
         if (
@@ -5212,8 +5106,7 @@ class Run:
             first = change not in self.repaired
             self.repaired.add(change)
         if first:
-            runs = mflib.layout.run_dir(self.primary)
-            _remove_in(runs, mflib.layout.CHANGES, change, name="build.halt")
+            mflib.marks.remove(self.primary, change, mflib.marks.BUILD_HALT)
             prompt = PROMPTS["build"].format(change=change, phase=REPAIR_PHASE)
             spawned = self.spawn(
                 change, "build", tree, prompt, models, phase=REPAIR_PHASE
@@ -5268,8 +5161,7 @@ class Run:
             self.rescues.setdefault(change, []).append(key)
         models = self.planned_models(change, "rescue")
         before = _git(tree, "rev-parse", "HEAD").strip()
-        diagnosis = mflib.layout.change_dir(self.primary, change) / "rescue.md"
-        written = _mtime(diagnosis)
+        written = mflib.marks.mtime(self.primary, change, mflib.marks.RESCUE)
         decide = " with decide=recommended" if change in self.decides else ""
         prompt = PROMPTS["rescue"].format(change=change, decide=decide)
         sha = None
@@ -5294,8 +5186,9 @@ class Run:
                     _git(tree, "reset", "-q", "--hard", before)
                     said = f"rescue commit {head[:7]} dropped: {why}"
                     self.log.event(change, "reset", said)
-                name = f".minions/changes/{change}/rescue.md"
-                if not why and _mtime(diagnosis) not in (None, written):
+                name = f".minions/changes/{change}/{mflib.marks.RESCUE}"
+                now = mflib.marks.mtime(self.primary, change, mflib.marks.RESCUE)
+                if not why and now not in (None, written):
                     self.log.event("run", "rescue", f"{change}: diagnosed · {name}")
                     with self.guard:
                         self.diagnosed.add(change)
@@ -5344,9 +5237,7 @@ class Run:
         converged = held == "converge-halted"
         halt = (_converge_halt(minions, change) or "") if converged else ""
         replan = converged and self.design_cap(change, halt)
-        marked = os.path.lexists(
-            mflib.layout.change_dir(self.primary, change) / REPLAN_MARK
-        )
+        marked = mflib.marks.present(self.primary, change, mflib.marks.REPLAN)
         with self.guard:
             left = (change in self.diagnosed or spent) and change not in self.answered
         if (
@@ -5400,7 +5291,10 @@ class Run:
                     detail = f"{change}: decided · {held} · {sha[:7]}"
                     if replan:
                         _write_state(
-                            self.primary, change, REPLAN_MARK, f"head: {sha}\n"
+                            self.primary,
+                            change,
+                            mflib.marks.REPLAN,
+                            mflib.marks.head_text(sha),
                         )
                         detail += " · re-plan"
                     self.log.event("run", "supervise", detail)
@@ -5427,15 +5321,10 @@ class Run:
 
         Why: 0071-ship-fixes design D8; 0080-minions-layout design D6.
         """
-        name = f".minions/changes/{change}/rescue.md"
-        text = (
-            f"# {change} — rescue diagnosis\n\nhalt: {halt}\nsub-task: none\n"
-            "cause: a Verify: changed since the cut\n"
-            f"proposal: commit docs({change}): amend the change directory, then"
-            f" conduct.py rejoin {change}, or /mf-ship with no run live\n"
-        )
+        name = f".minions/changes/{change}/{mflib.marks.RESCUE}"
+        text = mflib.marks.diagnosis_text(change, halt)
         try:
-            _write_in_change(self.primary, change, "rescue.md", text)
+            mflib.marks.write_in_place(self.primary, change, mflib.marks.RESCUE, text)
         except OSError as error:
             self.halt(change, f"rescue: cannot write {name} — {error.strerror}")
             return
@@ -5526,7 +5415,10 @@ class Run:
         It reads and rewrites the file through one descriptor that follows no link,
         and logs a cut. Why: 0102-build-per-phase design D3.
         """
-        file = _open_notes(self.primary, change, os.O_RDWR)
+        try:
+            file = mflib.marks.open_notes(self.primary, change, os.O_RDWR)
+        except mflib.marks.Broken as error:
+            raise _marked(change, error) from None
         if file is None:
             return
         with os.fdopen(file, "r+b") as notes:
@@ -5727,7 +5619,12 @@ class Run:
                 numbered = phase not in (None, "close")
                 label = f"phase {phase}" if numbered else phase
                 # A link at the notes halts here, before the spawn.
-                notes = _note_lines(self.primary, change) if numbered else 0
+                try:
+                    notes = (
+                        mflib.marks.note_lines(self.primary, change) if numbered else 0
+                    )
+                except mflib.marks.Broken as error:
+                    raise _marked(change, error) from None
                 prompt = PROMPTS.get(stage, "").format(
                     change=version.change, settled=settled, phase=phase
                 )
@@ -5763,12 +5660,7 @@ class Run:
                 if stage in ("converge", "release"):
                     _unstack(self.primary, change)
                 if stage == "build":
-                    _remove_in(
-                        mflib.layout.run_dir(self.primary),
-                        mflib.layout.CHANGES,
-                        change,
-                        name="build.halt",
-                    )
+                    mflib.marks.remove(self.primary, change, mflib.marks.BUILD_HALT)
                 # An amend of the change directory past simplify closes with no worker.
                 # Why: 0144-gate-outside design D6.
                 amended = phase == "close" and _amended_since_simplify(
@@ -6042,9 +5934,10 @@ class Run:
         """
         if changed := _config_changed(self.primary, self.git_state):
             raise changed
-        note = mflib.layout.change_dir(self.primary, change) / "integrate.md"
         opened = _merge_open(tree)
-        if opened and note.is_file():
+        if opened and mflib.marks.stands(
+            self.primary, change, mflib.marks.INTEGRATE_MD
+        ):
             return
         _refuse_config_commands(tree)
         merge = ("merge", "-q", "--no-ff", "--no-commit", ref)
@@ -6054,9 +5947,11 @@ class Run:
             text = _note(tree, change, moved)
             # A link at the change's folder raises: the version halts, nothing written.
             try:
-                _write_in_change(self.primary, change, "integrate.md", text)
+                mflib.marks.write_in_place(
+                    self.primary, change, mflib.marks.INTEGRATE_MD, text
+                )
             except OSError as error:
-                name = f".minions/changes/{change}/integrate.md"
+                name = f".minions/changes/{change}/{mflib.marks.INTEGRATE_MD}"
                 raise Stop(
                     1, f"conduct: halt — cannot write {name} — {error.strerror}"
                 ) from None
@@ -6075,7 +5970,9 @@ class Run:
         A merge that halts leaves a file naming no ancestor of `HEAD`, which
         `_stacked_on` reads as none. Why: 0099-stacked-builds design D2.
         """
-        _write_in_change(self.primary, change, STACKED_ON, f"{head}\n")
+        mflib.marks.write_in_place(
+            self.primary, change, mflib.marks.STACKED_ON, mflib.marks.stacked_text(head)
+        )
         if not _ancestor(tree, head, "HEAD"):
             self.merge_in(tree, change, head, dependency)
         self.log.event(change, "stacked", f"on {dependency} at {head[:7]}")
@@ -6150,9 +6047,9 @@ class Run:
             return
         at = shlex.quote(str(tree))
         if _merge_open(tree):
-            marks = mflib.layout.change_dir(self.primary, change)
             noted = any(
-                (marks / f"integrate{end}").is_file() for end in (".md", ".red")
+                mflib.marks.stands(self.primary, change, name)
+                for name in (mflib.marks.INTEGRATE_MD, mflib.marks.INTEGRATE_RED)
             )
             after = _dependencies(self.primary, change)
             if noted or not all(_shipped(tree, "HEAD", name) for name in after):
@@ -6228,14 +6125,9 @@ class Run:
         _refuse_config_commands(tree)
         # The notes go first: a folder there halts the version before the branch moves.
         try:
-            _remove_in(
-                mflib.layout.run_dir(self.primary),
-                mflib.layout.CHANGES,
-                change,
-                name=NOTES_FILE,
-            )
+            mflib.marks.remove(self.primary, change, mflib.marks.BUILD_NOTES)
         except OSError as error:
-            name = f".minions/changes/{change}/{NOTES_FILE}"
+            name = f".minions/changes/{change}/{mflib.marks.BUILD_NOTES}"
             raise Stop(
                 1, f"conduct: halt — {name} cannot be removed — {error.strerror}"
             ) from None
@@ -6345,9 +6237,7 @@ class Run:
             except mflib.statefile.WriteFailed as error:
                 raise _unwritten(change, error) from None
         branch = _maybe(primary, "rev-parse", "-q", "--verify", f"refs/heads/{change}")
-        _remove_in(
-            mflib.layout.run_dir(primary), mflib.layout.CHANGES, change, name="cut.halt"
-        )
+        mflib.marks.remove(primary, change, mflib.marks.CUT_HALT)
         fresh = not (branch and _holds(primary, change))
         if fresh:
             # A checkout runs the filters a live worker's config names, outside it.
@@ -6434,7 +6324,7 @@ class Run:
         """
         primary = self.primary
         why = _check_cut(primary, change, tree)
-        answered = why is not None and why == _cutter_halt(primary, change)
+        answered = why is not None and why == mflib.marks.cutter_halt(primary, change)
         if why is None:
             why = _unapproved(primary, change, entry.get("dependencies", []))
             answered = why is not None and why.startswith(UNAPPROVED)
@@ -6448,7 +6338,7 @@ class Run:
         if red is None:
             self.log.event(change, "check", "cut-check · pass")
             return None, None
-        _write_state(primary, change, "cut.red", red)
+        _write_state(primary, change, mflib.marks.CUT_RED, red)
         self.log.event(change, "check", f"cut-check · fail — {_first(red)}")
         return None, _first(red)
 
@@ -6464,12 +6354,7 @@ class Run:
         default = default_branch(self.primary)
         _git(tree, "reset", "-q", "--hard", f"refs/heads/{default}")
         _git(tree, "clean", "-q", "-fd")
-        _remove_in(
-            mflib.layout.run_dir(self.primary),
-            mflib.layout.CHANGES,
-            change,
-            name="cut.halt",
-        )
+        mflib.marks.remove(self.primary, change, mflib.marks.CUT_HALT)
 
     def cut_halted(self, change: str, reason: str, logged: bool) -> None:
         """Set a queued cut's halt to `reason`, and log it unless `spawn` did.
@@ -8611,18 +8496,9 @@ def _write_state(primary: Path, change: str, name: str, text: str) -> None:
     Why: 0144-gate-outside design D2.
     """
     try:
-        fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CHANGES, change)
-        try:
-            mflib.statefile.write(Path(name), text, refuse_link=True, folder=fd)
-        finally:
-            os.close(fd)
-    except (OSError, mflib.statefile.WriteFailed) as error:
-        cause = error.error if isinstance(error, mflib.statefile.WriteFailed) else error
-        raise Stop(
-            1,
-            f"conduct: halt — .minions/changes/{change}/{name} cannot be written:"
-            f" {cause.strerror}",
-        ) from None
+        mflib.marks.write(primary, change, name, text)
+    except mflib.marks.Unwritten as error:
+        raise _marked(change, error) from None
 
 
 def _halt_build(
@@ -8633,9 +8509,8 @@ def _halt_build(
     Why: 0144-gate-outside design D2.
     """
     head = _git(tree, "rev-parse", "HEAD").strip()
-    said = " ".join(evidence.split())
-    text = f"sub-task: {sub_task}\nstop: {stop}\nevidence: {said}\nhead: {head}\n"
-    _write_state(primary, change, "build.halt", text)
+    text = mflib.marks.halt_text(sub_task, stop, evidence, head)
+    _write_state(primary, change, mflib.marks.BUILD_HALT, text)
 
 
 class _Tail(io.StringIO):
@@ -8803,31 +8678,18 @@ def _run_gate(
                 say(f"check — gate · fail — red · {seconds}s")
     if code == 0:
         say(f"check — gate · pass · {seconds}s")
-        runs = mflib.layout.run_dir(primary)
-        _remove_in(runs, mflib.layout.CHANGES, change, name="gate.red")
+        mflib.marks.remove(primary, change, mflib.marks.GATE_RED)
         return None
-    _write_state(primary, change, "gate.red", output)
+    _write_state(primary, change, mflib.marks.GATE_RED, output)
     return f"red · gate_run.py exit {code} · .minions/changes/{change}/gate.red"
-
-
-def _simplified_head(primary: Path, change: str) -> str | None:
-    """Return the word `build.simplified`'s `head:` names, or None.
-
-    A missing or unreadable file names none. Why: 0144-gate-outside design D5.
-    """
-    file = mflib.layout.change_dir(primary, change) / SIMPLIFIED
-    try:
-        text = file.read_text() if file.is_file() else ""
-    except (OSError, UnicodeDecodeError):
-        return None
-    found = re.search(r"^head:\s*(\S+)", text, re.MULTILINE)
-    return found[1] if found else None
 
 
 def _mark_simplified(primary: Path, change: str, tree: Path) -> None:
     """Write `build.simplified` naming the tree's `HEAD`."""
     head = _git(tree, "rev-parse", "HEAD").strip()
-    _write_state(primary, change, SIMPLIFIED, f"head: {head}\n")
+    _write_state(
+        primary, change, mflib.marks.BUILD_SIMPLIFIED, mflib.marks.head_text(head)
+    )
 
 
 def _amended_since_simplify(primary: Path, change: str, tree: Path) -> bool:
@@ -8836,7 +8698,7 @@ def _amended_since_simplify(primary: Path, change: str, tree: Path) -> bool:
     Its head must be an ancestor of `HEAD`, and no merge may follow it.
     Why: 0144-gate-outside design D6.
     """
-    head = _simplified_head(primary, change)
+    head = mflib.marks.simplified_head(primary, change)
     named = head and _maybe(tree, "rev-parse", "-q", "--verify", f"{head}^{{commit}}")
     if not named or not _ancestor(tree, named.strip(), "HEAD"):
         return False
@@ -8878,9 +8740,7 @@ def _close_gate(
     Return why the gate is red, or None. Why: 0144-gate-outside design D5.
     """
     evidence = _run_gate(primary, change, tree, say)
-    shown = ""
-    with contextlib.suppress(OSError, UnicodeDecodeError):
-        shown = (mflib.layout.change_dir(primary, change) / "gate.red").read_text()
+    shown = mflib.marks.gate_red_text(primary, change)
     unfair = any(mark in shown for mark in ("past its limit", "sandboxed: denied"))
     if evidence and not unfair and _subject(tree) == f"refactor({change}): simplify":
         _git(tree, "reset", "-q", "--hard", "HEAD^")
@@ -8926,7 +8786,8 @@ def _close_plan(
     code, output = _boxed(primary, tree, argv_)
     for line in output.splitlines():
         say(line)
-    _write_state(primary, change, "plan-check.txt", f"base: {base}\n{output}")
+    text = mflib.marks.plan_check_body(base, output)
+    _write_state(primary, change, mflib.marks.PLAN_CHECK, text)
     return None if code == 0 else f"plan_check.py exit {code} · {_last(output)}"
 
 
@@ -8967,9 +8828,9 @@ def close(
             return f"{stop}: {evidence}"
     head = _git(tree, "rev-parse", "HEAD").strip()
     simplify = _simplify_commit(tree, change, base) or "none"
-    _write_state(primary, change, "build.done", f"head: {head}\nsimplify: {simplify}\n")
-    runs = mflib.layout.run_dir(primary)
-    _remove_in(runs, mflib.layout.CHANGES, change, name="build.closing")
+    text = mflib.marks.done_text(head, simplify)
+    _write_state(primary, change, mflib.marks.BUILD_DONE, text)
+    mflib.marks.remove(primary, change, mflib.marks.BUILD_CLOSING)
     return None
 
 

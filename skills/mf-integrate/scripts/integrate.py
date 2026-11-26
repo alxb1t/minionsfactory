@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.findings
 import mflib.layout
+import mflib.marks
 
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)")
@@ -201,10 +202,9 @@ def unready(cwd: Path, change: str, tree: Path | None) -> str | None:
 
 def _settling(cwd: Path, change: str, tree: Path | None) -> bool:
     """Return whether the version's merge is open with its note beside it."""
-    note = mflib.layout.change_dir(_primary(cwd), change) / "integrate.md"
     return (
         tree is not None
-        and note.is_file()
+        and mflib.marks.stands(_primary(cwd), change, mflib.marks.INTEGRATE_MD)
         and _maybe(tree, "rev-parse", "-q", "--verify", "MERGE_HEAD") is not None
     )
 
