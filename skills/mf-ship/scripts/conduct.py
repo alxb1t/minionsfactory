@@ -105,6 +105,8 @@ BRIEF_CHECK = Path(__file__).resolve().parents[2] / "mf-plan/scripts/brief_check
 UV_RUN = ("uv", "run", "--script")
 PIN = Path(__file__).resolve().with_name("pin.py")
 MOVED = "delta: changed on the default branch: "
+# The integrate note stays under the bound `marks.read` holds a stop mark to.
+NOTE_BOUND = 60000
 DECISIONS = "docs/decisions.md"
 # A started build's gate and rules: changed since its base, they are merged in.
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
@@ -1465,7 +1467,7 @@ def _config_changed(primary: Path, state: list[str]) -> Stop | None:
     return None
 
 
-def _note(tree: Path, change: str, moved: list[str]) -> str:
+def _note(tree: Path, change: str, moved: list[str], bound: int = NOTE_BOUND) -> str:
     """Return the integrate note for the requirements the default branch changed.
 
     e.g. "delta: changed on the default branch: sdd: First" → a `## sdd: First` section
@@ -1484,13 +1486,18 @@ def _note(tree: Path, change: str, moved: list[str]) -> str:
             f"`openspec/changes/archive/{name}/design.md`"
             for name in dict.fromkeys(trailers.split())
         )
-        sections.append(
+        section = (
             f"## {heading}\n\n"
             f"- **The branch:** `openspec/changes/{change}/design.md`\n"
             f"- **The default branch:** {designs or 'no `Change:` trailer'}\n"
             "- **Proposed:** rewrite the delta's requirement over the default"
             " branch's text, keeping both edits.\n"
         )
+        if len("\n".join([*sections, section]).encode()) > bound:
+            left = len(moved) - len(sections)
+            sections.append(f"{left} more requirements moved: read the merge's diff.\n")
+            break
+        sections.append(section)
     return "\n".join(sections)
 
 

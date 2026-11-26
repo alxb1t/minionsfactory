@@ -434,6 +434,20 @@ def test_case_m_merge_in_writes_the_note_and_leaves_the_merge_open(
     assert _git(tree, "rev-parse", "HEAD") == head
 
 
+def test_case_m_the_note_stays_under_the_bound_its_reader_holds(tmp_path: Path) -> None:
+    conduct = _conduct()
+    _, tree, run, moved = _merging(conduct, tmp_path)
+    run.merge_in(tree, _CHANGE, "main")
+    assert conduct["NOTE_BOUND"] < conduct["mflib"].marks.BOUND
+    bound = 3 * len(_NOTE)
+
+    note = conduct["_note"](tree, _CHANGE, [moved] * 5, bound)
+    assert note.startswith(_NOTE)
+    assert len(note.encode()) <= bound + 200
+    assert note.count("## sdd: First") == 2
+    assert note.endswith("more requirements moved: read the merge's diff.\n")
+
+
 def test_case_m_a_failed_write_stops_the_version_with_code_1(tmp_path: Path) -> None:
     conduct = _conduct()
     root, tree, run, _ = _merging(conduct, tmp_path)
@@ -803,6 +817,7 @@ def _rescued(tmp_path: Path, plant: Callable[[Path], None], after: str) -> Any: 
     return run
 
 
+@pytest.mark.slow
 def test_case_t_the_rescue_compares_the_time_of_rescue_md(tmp_path: Path) -> None:
     name = f".minions/changes/{_CHANGE}/rescue.md"
 
@@ -1207,6 +1222,7 @@ def _supervised(
     return prompts
 
 
+@pytest.mark.slow
 def test_case_l_a_standing_replan_mark_stops_a_design_cap_alone(tmp_path: Path) -> None:
     [prompt] = _supervised(tmp_path / "none", None, True)
     assert "replan=yes" in prompt

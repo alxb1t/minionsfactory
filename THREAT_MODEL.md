@@ -106,8 +106,8 @@ not follow, and releases its lock only while the lock holds its token. The start
 `migrate_layout`, and of an old `backlog.md`, `migrate_debt`, follow no link they find: each halts on one, and
 `migrate_debt` on a `backlog.md` that is no regular file. The marks of a change's folder are read by
   `skills/mflib/marks.py` through no link, refusing what is no regular file, a bad byte and a file over its bound: a stop
-  mark so read halts its version and a pass mark reads as absent. Its staged write follows no link, and its stand test
-  and its time follow none. The other
+  mark so read halts its version and a pass mark reads as absent. Its read and its staged write follow no link at the mark or at the change folder, but follow the `.minions` root, and its stand test
+  and its time follow a link at any parent of the mark, the change folder included. The other
   in-process writes of a change's folder follow no link by their own checks until their formats move. Among the worker output, `build-notes.md`, which any worker of
   the run can write, the next phase reads as evidence, and the conductor counts and trims through a descriptor that
   follows no link and refuses a file that is not a regular file of one name: a hard link, a folder or a pipe halts the
