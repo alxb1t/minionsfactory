@@ -5,7 +5,7 @@ Pin the queue as it is, move it into `skills/mflib/queue.py`, send the conductor
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
@@ -37,23 +37,23 @@ Cases of the series' queue mutation run, written again at `HEAD`, each green as 
 
 `skills/mflib/queue.py` behaves as each copy does today, and no script calls it yet ([D1](design.md#d1), [D2](design.md#d2)).
 
-- [ ] 2.1 **HALT CHECK** The module does not exist yet.
+- [x] 2.1 **HALT CHECK** The module does not exist yet.
   Verify: `git ls-files --error-unmatch skills/mflib/queue.py` exits `1`.
-- [ ] 2.2 Add to `skills/mflib/statefile.py` a keyword `mode` to `folder`, the mode of each folder it makes, default `0o777`; and `def touch(path, folder, mode)`, which makes an empty file by its name under the descriptor with `O_CREAT`, `O_WRONLY`, `O_NOFOLLOW` and `O_NONBLOCK`. Add their cases to `tests/test_statefile.py`.
+- [x] 2.2 Add to `skills/mflib/statefile.py` a keyword `mode` to `folder`, the mode of each folder it makes, default `0o777`; and `def touch(path, folder, mode)`, which makes an empty file by its name under the descriptor with `O_CREAT`, `O_WRONLY`, `O_NOFOLLOW` and `O_NONBLOCK`. Add their cases to `tests/test_statefile.py`.
   Verify: `git grep -n -e "def touch" -- skills/mflib/statefile.py` prints a line, and `uv run pytest tests/test_statefile.py -n auto -q` exits `0`.
-- [ ] 2.3 Create `skills/mflib/queue.py` with its docstring and the record: the key names once, `REQUIRED`, `Entry` as a `TypedDict`, `UNREADABLE`, `halted_text(name)` returning `after <name> is cut-halted`, and the pattern of a change id. Its cases go in a new `tests/test_queue.py`, with the round-trip case of a record written and read.
+- [x] 2.3 Create `skills/mflib/queue.py` with its docstring and the record: the key names once, `REQUIRED`, `Entry` as a `TypedDict`, `UNREADABLE`, `halted_text(name)` returning `after <name> is cut-halted`, and the pattern of a change id. Its cases go in a new `tests/test_queue.py`, with the round-trip case of a record written and read.
   Verify: `uv run pytest tests/test_queue.py -n auto -q` exits `0`.
-- [ ] 2.4 Add `lock(primary)` and `Refused` to `skills/mflib/queue.py`, as `_queue_lock` behaves: the kept folder and the queue folder made mode 0700 with no parents, the lock opened `O_CREAT|O_RDWR|O_NOFOLLOW` mode 0600, a blocking `flock`, the descriptor closed in `finally`. `Refused` holds the error's `strerror`. Add the cases to `tests/test_queue.py`, the first being `test_the_lock_blocks_a_second_taker`.
+- [x] 2.4 Add `lock(primary)` and `Refused` to `skills/mflib/queue.py`, as `_queue_lock` behaves: the kept folder and the queue folder made mode 0700 with no parents, the lock opened `O_CREAT|O_RDWR|O_NOFOLLOW` mode 0600, a blocking `flock`, the descriptor closed in `finally`. `Refused` holds the error's `strerror`. Add the cases to `tests/test_queue.py`, the first being `test_the_lock_blocks_a_second_taker`.
   Verify: `uv run pytest tests/test_queue.py -n auto -q -k test_the_lock_blocks_a_second_taker` exits `0`.
-- [ ] 2.5 Add `entries(primary)`, `write(primary, change, entry)`, `remove(primary, change)` and `Unwritten` to `skills/mflib/queue.py`, as `_cuts`, `_write_cut` and the unlink of `Run.cutting` behave. `Unwritten` is an `OSError` that names the file. `entries` skips a name that is no change id and maps each unreadable shape to `UNREADABLE`. Add the cases to `tests/test_queue.py`, the first being `test_entries_skips_a_name_that_is_no_change_id`.
+- [x] 2.5 Add `entries(primary)`, `write(primary, change, entry)`, `remove(primary, change)` and `Unwritten` to `skills/mflib/queue.py`, as `_cuts`, `_write_cut` and the unlink of `Run.cutting` behave. `Unwritten` is an `OSError` that names the file. `entries` skips a name that is no change id and maps each unreadable shape to `UNREADABLE`. Add the cases to `tests/test_queue.py`, the first being `test_entries_skips_a_name_that_is_no_change_id`.
   Verify: `uv run pytest tests/test_queue.py -n auto -q -k test_entries_skips_a_name_that_is_no_change_id` exits `0`.
-- [ ] 2.6 Add `request(primary, name)`, `requests(queue)` and `requested(queue)` to `skills/mflib/queue.py`, as `_request`, `_requests` and `_requested` behave; `queue` is the queue's folder. Add the cases to `tests/test_queue.py`, the first being `test_requests_returns_the_names_it_unlinks`.
+- [x] 2.6 Add `request(primary, name)`, `requests(queue)` and `requested(queue)` to `skills/mflib/queue.py`, as `_request`, `_requests` and `_requested` behave; `queue` is the queue's folder. Add the cases to `tests/test_queue.py`, the first being `test_requests_returns_the_names_it_unlinks`.
   Verify: `uv run pytest tests/test_queue.py -n auto -q -k test_requests_returns_the_names_it_unlinks` exits `0`.
-- [ ] 2.7 Add `brief(primary, change)`, `write_brief(primary, change, path)`, `merge_tried(primary, change, merge)` and `write_supervised(primary, change, merge)` to `skills/mflib/queue.py`, as `_brief_of`, `_merge_tried` and the writes of `briefs` and `supervised` behave. Add the cases to `tests/test_queue.py`, the first being `test_a_prefix_of_the_merge_is_no_try`.
+- [x] 2.7 Add `brief(primary, change)`, `write_brief(primary, change, path)`, `merge_tried(primary, change, merge)` and `write_supervised(primary, change, merge)` to `skills/mflib/queue.py`, as `_brief_of`, `_merge_tried` and the writes of `briefs` and `supervised` behave. Add the cases to `tests/test_queue.py`, the first being `test_a_prefix_of_the_merge_is_no_try`.
   Verify: `uv run pytest tests/test_queue.py -n auto -q -k test_a_prefix_of_the_merge_is_no_try` exits `0`.
-- [ ] 2.8 Add the module's row to `docs/modules.md`: layer `home`, names `layout.py, statefile.py`.
+- [x] 2.8 Add the module's row to `docs/modules.md`: layer `home`, names `layout.py, statefile.py`.
   Verify: `git grep -n -e "skills/mflib/queue.py" -- docs/modules.md` prints the row.
-- [ ] 2.9 Run the map test over the new row, with the module's unit cases and the helpers' cases.
+- [x] 2.9 Run the map test over the new row, with the module's unit cases and the helpers' cases.
   Verify: `uv run pytest tests/test_queue.py tests/test_statefile.py tests/test_structure.py -n auto -q` exits `0`.
 
 ## 3 — The stations

@@ -422,6 +422,107 @@ def test_folder_makes_each_part_and_refuses_a_link(tmp_path: Path) -> None:
         statefile.folder(root, "c")
 
 
+def test_folder_makes_each_folder_of_the_mode_given(tmp_path: Path) -> None:
+    root = tmp_path / "up" / "root"
+    umask = os.umask(0o022)
+    try:
+        os.close(statefile.folder(root, "a", "b", mode=0o700))
+        os.close(statefile.folder(tmp_path / "plain", "c"))
+    finally:
+        os.umask(umask)
+
+    for made in (root, root / "a", root / "a" / "b"):
+        assert stat.S_IMODE(made.stat().st_mode) == 0o700
+    assert stat.S_IMODE((tmp_path / "up").stat().st_mode) == 0o755
+    assert stat.S_IMODE((tmp_path / "plain" / "c").stat().st_mode) == 0o755
+
+
+def test_folder_leaves_the_mode_of_a_folder_that_stands(tmp_path: Path) -> None:
+    (tmp_path / "a").mkdir(mode=0o755)
+
+    os.close(statefile.folder(tmp_path, "a", mode=0o700))
+
+    assert stat.S_IMODE((tmp_path / "a").stat().st_mode) == 0o755
+
+
+def _touched(tmp_path: Path, name: str, mode: int = 0o600) -> None:
+    fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        statefile.touch(name, fd, mode)
+    finally:
+        os.close(fd)
+
+
+def test_touch_makes_an_empty_file_of_the_mode_given(tmp_path: Path) -> None:
+    umask = os.umask(0o022)
+    try:
+        _touched(tmp_path, "made")
+        _touched(tmp_path, "wide", 0o644)
+    finally:
+        os.umask(umask)
+
+    assert (tmp_path / "made").read_bytes() == b""
+    assert stat.S_IMODE((tmp_path / "made").stat().st_mode) == 0o600
+    assert stat.S_IMODE((tmp_path / "wide").stat().st_mode) == 0o644
+
+
+def test_touch_leaves_a_file_that_stands(tmp_path: Path) -> None:
+    (tmp_path / "held").write_text(_OLD)
+    (tmp_path / "held").chmod(0o644)
+
+    _touched(tmp_path, "held")
+
+    assert (tmp_path / "held").read_text() == _OLD
+    assert stat.S_IMODE((tmp_path / "held").stat().st_mode) == 0o644
+
+
+def test_touch_goes_through_the_folder_given(tmp_path: Path) -> None:
+    (tmp_path / "inner").mkdir()
+    fd = os.open(tmp_path / "inner", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        statefile.touch("made", fd, 0o600)
+    finally:
+        os.close(fd)
+
+    assert (tmp_path / "inner" / "made").is_file()
+    assert not (tmp_path / "made").exists()
+
+
+def test_touch_refuses_a_link_and_leaves_its_target(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    (tmp_path / "link").symlink_to(outside)
+    (tmp_path / "held").write_text(_OLD)
+    (tmp_path / "linked").symlink_to(tmp_path / "held")
+
+    for name in ("link", "linked"):
+        with pytest.raises(OSError, match="symbolic links") as raised:
+            _touched(tmp_path, name)
+        assert raised.value.errno == errno.ELOOP
+
+    assert not outside.exists()
+    assert (tmp_path / "held").read_text() == _OLD
+
+
+def test_touch_refuses_a_fifo_inside_ten_seconds(tmp_path: Path) -> None:
+    os.mkfifo(tmp_path / "pipe")
+    said: list[OSError] = []
+
+    def run() -> None:
+        try:
+            _touched(tmp_path, "pipe")
+        except OSError as error:
+            said.append(error)
+
+    writer = threading.Thread(target=run, daemon=True)
+    writer.start()
+    # A FIFO opened blocking waits for a reader: the join bounds a red run.
+    writer.join(timeout=10)
+
+    assert not writer.is_alive()
+    [error] = said
+    assert error.errno == errno.ENXIO
+
+
 def test_folder_follows_a_link_at_its_root(tmp_path: Path) -> None:
     real = tmp_path / "real"
     real.mkdir()
