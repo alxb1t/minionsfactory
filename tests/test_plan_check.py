@@ -382,7 +382,8 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     _commit_tasks(root, "- [x] 1.1 Suite.\n  Verify: `pytest -q` prints `1`.\n")
     record()
     assert check() == (1, ["plan: 1.1 — `pytest -q` exited 3"])
-    # A pytest naming a path or node that is gone is no bare pytest: it runs.
+    # A pytest naming a path or node that is gone collects no test: a line, unrun.
+    none = "collected no test"
     (root / "tests").mkdir(exist_ok=True)
     (root / "tests/test_here.py").write_text(
         "def test_here():\n    pass\n\n\ndef _helper():\n    pass\n\n\n"
@@ -393,20 +394,23 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     (root / "docs").mkdir(exist_ok=True)
     (root / "docs/note.md").write_text("x\n")
     here = "tests/test_here.py::test_here"
-    # A parameter id cannot be proved to exist without collecting: it runs too.
-    # Nor can a directory, a file pytest never collects or a node that is no test.
+    # A parameter id cannot be proved to exist without collecting, nor can a
+    # directory, a file pytest never collects or a node that is no test.
     for named in (
         "tests/test_gone.py",
         "tests/test_here.py::test_gone",
         "tests/test_here.py::test_here[missing]",
         "docs",
-        "tests",
         "tests/helpers.py",
         "tests/test_here.py::_helper",
     ):
         _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
         record()
-        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` {none}"])
+    # A directory that holds tests collects them, and is no bare pytest: it runs.
+    _commit_tasks(root, "- [x] 1.1 Suite.\n  Verify: `pytest -q tests`.\n")
+    record()
+    assert check() == (1, ["plan: 1.1 — `pytest -q tests` exited 3"])
     _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {here}`.\n")
     record()
     assert check() == (0, ["plan: clean"])
@@ -414,13 +418,13 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     for named in (f"{file} -k gone", f"{file} -m gone", f"-c other.ini {file}"):
         _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
         record()
-        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` {none}"])
     # Collection settles what the text cannot: a node under the wrong parent and
-    # a file holding no test pass the text checks, and run.
+    # a file holding no test pass the text checks, and collect none.
     for named in (f"{file}::test_a::test_b", "tests/test_empty.py"):
         _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {named}`.\n")
         record()
-        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` exited 3"])
+        assert check() == (1, [f"plan: 1.1 — `pytest -q {named}` {none}"])
     _commit_tasks(root, f"- [x] 1.1 Suite.\n  Verify: `pytest -q {file}`.\n")
     record()
     assert check() == (0, ["plan: clean"])
@@ -451,32 +455,178 @@ def test_a_green_record_vouches_n_and_k_options(
     (root / file).write_text("def test_a():\n    pass\n")
     (root / other).write_text("def test_b():\n    pass\n")
     (root / "Makefile").write_text("gate:\n\t@true\n")
+    (root / "other.ini").write_text("[pytest]\n")
     vouched = (
         f"{file} -k test_a",
         f"-n 2 {file}",
         f"--numprocesses=2 {file}",
         f"{file} {other} -n auto",
     )
-    ran = (f"{file} -k gone", f"{file} -m gone", f"-c other.ini {file}")
-    _commit_tasks(
-        root,
-        *(
-            f"- [x] 1.{n} Suite.\n  Verify: `pytest -q {named}`.\n"
-            for n, named in enumerate((*vouched, *ran), start=1)
-        ),
-    )
-    loaded = plan_check.gate()
-    loaded["write_record"](
-        loaded["records"]() / loaded["settled_tree"](), loaded["dry_run"](), 1
-    )
-    code = plan_check.main(["--change", _CHANGE, "--base", base])
-    assert (code, capsys.readouterr().out.splitlines()) == (
+    ran = (f'{file} -m "not gone"', f"-c other.ini {file}")
+
+    def check(*named: str) -> tuple[int, list[str]]:
+        _commit_tasks(
+            root,
+            *(
+                f"- [x] 1.{n} Suite.\n  Verify: `pytest -q {words}`.\n"
+                for n, words in enumerate(named, start=1)
+            ),
+        )
+        loaded = plan_check.gate()
+        loaded["write_record"](
+            loaded["records"]() / loaded["settled_tree"](), loaded["dry_run"](), 1
+        )
+        code = plan_check.main(["--change", _CHANGE, "--base", base])
+        return code, capsys.readouterr().out.splitlines()
+
+    assert check(*vouched, *ran) == (
         1,
         [
             f"plan: 1.{n} — `pytest -q {named}` exited 3"
             for n, named in enumerate(ran, start=len(vouched) + 1)
         ],
     )
+    # A `-k` that selects no test collects none: a line, and no pytest runs.
+    gone = f"{file} -k gone"
+    assert check(gone) == (1, [f"plan: 1.1 — `pytest -q {gone}` collected no test"])
+
+
+def _logging_stubs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put a `pytest` and a `make` on `PATH` that log each call; return the log.
+
+    A `pytest --collect-only` is answered by the real one; any other call exits 3.
+    """
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    log = tmp_path / "calls.log"
+    collect = (
+        f'case "$*" in *--collect-only*) exec {sys.executable} -m pytest "$@";; esac'
+    )
+    for name, body in (("pytest", collect), ("make", "")):
+        (stub / name).write_text(
+            f'#!/bin/sh\necho "{name} $*" >> {log}\n{body}\nexit 3\n'
+        )
+        (stub / name).chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
+    return log
+
+
+def _calls(log: Path) -> list[str]:
+    return sorted(log.read_text().splitlines()) if log.exists() else []
+
+
+def test_a_failed_group_ends_the_check_before_the_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    log = _logging_stubs(tmp_path, monkeypatch)
+    suite = "pytest -q tests/test_mod.py"
+
+    def cheap(code: int) -> str:
+        return f'sh -c "echo sh >> {log}; exit {code}"'
+
+    def check(code: int, box: str) -> tuple[int, list[str]]:
+        _tasks(
+            root,
+            _ONE,
+            f"- [x] 1.1 Cheap.\n  Verify: `{cheap(code)}`.\n",
+            f"- [{box}] 1.2 Suite.\n  Verify: `{suite}`.\n",
+        )
+        argv = ["--change", _CHANGE, "--base", base]
+        return plan_check.main(argv), capsys.readouterr().out.splitlines()
+
+    # A box left unticked ends the check before any command runs.
+    assert check(1, " ") == (1, ["plan: 1.2 — unticked under the ticked phase 1"])
+    assert _calls(log) == []
+    # A cheap command that fails ends it after the collections, before a pytest run.
+    assert check(1, "x") == (1, [f"plan: 1.1 — `{cheap(1)}` exited 1"])
+    assert _calls(log) == [f"{suite} --collect-only -q", "sh"]
+    # With the quick group clean, the long group runs.
+    log.unlink()
+    assert check(0, "x") == (1, [f"plan: 1.2 — `{suite}` exited 3"])
+    assert _calls(log) == [suite, f"{suite} --collect-only -q", "sh"]
+
+
+def test_a_quick_check_runs_no_pytest_and_no_make(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    log = _logging_stubs(tmp_path, monkeypatch)
+    suite = "pytest -q tests/test_mod.py"
+
+    def quick(search: str) -> tuple[int, list[str]]:
+        _tasks(
+            root,
+            _ONE,
+            f"- [x] 1.1 Search.\n  Verify: `{search}`.\n",
+            f"- [x] 1.2 Suite.\n  Verify: `{suite}`.\n",
+            "- [x] 1.3 Gate.\n  Verify: `make gate`.\n",
+            "- [x] 1.4 **HALT CHECK** Premise.\n  Verify: `false`.\n",
+            "- [ ] 1.5 Left.\n  Verify: `false`.\n",
+        )
+        argv = ["--change", _CHANGE, "--base", base, "--quick"]
+        return plan_check.main(argv), capsys.readouterr().out.splitlines()
+
+    gone = "git grep -q -e zzz -- src"
+    assert quick(gone) == (1, [f"plan: 1.1 — `{gone}` exited 1"])
+    assert _calls(log) == [f"{suite} --collect-only -q"]
+    # Every command holding, it is clean: the box left, the HALT CHECK, the pytest
+    # run and the `make` are no part of it.
+    log.unlink()
+    assert quick("git grep -q -e _kept -- src") == (0, ["plan: clean"])
+    assert _calls(log) == [f"{suite} --collect-only -q"]
+
+
+def test_a_collection_that_finds_no_test_is_a_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    log = _logging_stubs(tmp_path, monkeypatch)
+    selected = "pytest -q tests/test_mod.py -k absent"
+    missing = "pytest -q tests/test_none.py"
+    listed = "pytest -q tests/test_mod.py --collect-only"
+    _tasks(
+        root,
+        _ONE,
+        f"- [x] 1.1 Selected.\n  Verify: `{selected}`.\n",
+        f"- [x] 1.2 Missing.\n  Verify: `{missing}`.\n",
+        f"- [x] 1.3 Listed.\n  Verify: `{listed}`.\n",
+    )
+
+    def check(*args: str) -> tuple[int, list[str]]:
+        code = plan_check.main(["--change", _CHANGE, "--base", base, *args])
+        return code, capsys.readouterr().out.splitlines()
+
+    # With no green record, each fails as a line and runs no pytest; a pytest that
+    # collects is a command of its own, and is not collected again.
+    assert check() == (
+        1,
+        [
+            f"plan: 1.1 — `{selected}` collected no test",
+            f"plan: 1.2 — `{missing}` collected no test",
+        ],
+    )
+    assert _calls(log) == [
+        listed,
+        f"{selected} --collect-only -q",
+        f"{missing} --collect-only -q",
+    ]
+    # The build's `--only` collects too.
+    assert check("--only", "1.1") == (
+        1,
+        [f"plan: 1.1 — `{selected}` collected no test"],
+    )
+
+
+def test_quick_and_only_exit_2(capsys: pytest.CaptureFixture[str]) -> None:
+    argv = ["--change", _CHANGE, "--base", "HEAD", "--quick", "--only", "1.1"]
+    assert plan_check.main(argv) == 2
+    assert capsys.readouterr().out.splitlines() == [
+        "plan: cannot check — --quick and --only are alone"
+    ]
 
 
 def test_a_command_naming_a_revision_is_keyed_by_head() -> None:

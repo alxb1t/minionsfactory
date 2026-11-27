@@ -337,7 +337,7 @@ def schedule(
     threads: list[threading.Thread] = []
     for text in work:
         argv = tokens(text)
-        need, make = weight(argv), argv[:1] == ["make"]
+        need, make = weight(argv), is_make(argv)
         with free:
             while not free.wait_for(functools.partial(ready, need, make), timeout=1):
                 pass
@@ -372,6 +372,11 @@ def report(name: str, command: Command, result: Result) -> list[str]:
         "printed other than its Verify: says" if code == held else f"exited {code}"
     )
     return [f"plan: {name} — `{command.text}` {verdict}", *shown]
+
+
+def collected_none(name: str, command: Command) -> str:
+    """Return the line of a pytest run whose collection finds no test."""
+    return f"plan: {name} — `{command.text}` collected no test"
 
 
 def passed(command: Command, code: int, stdout: str) -> bool:
@@ -470,6 +475,16 @@ def is_pytest(argv: list[str]) -> bool:
     )
 
 
+def is_make(argv: list[str]) -> bool:
+    """Return whether argv runs `make`."""
+    return argv[:1] == ["make"]
+
+
+def runs_tests(argv: list[str]) -> bool:
+    """Return whether argv is a pytest run: a pytest with no `--collect-only`."""
+    return is_pytest(argv) and "--collect-only" not in argv
+
+
 def names_tests(argv: list[str], root: Path) -> bool:
     """Return whether each operand is a test module whose `::` nodes are tests.
 
@@ -543,29 +558,34 @@ def _vouched_words(words: list[str], root: Path) -> bool:
     return True
 
 
+def wants_collection(command: Command) -> bool:
+    """Return whether a pytest run's `Verify:` says it exits 0 and no more."""
+    return (
+        runs_tests(tokens(command.text))
+        and command.exits in (None, 0)
+        and command.count is None
+        and not command.nothing
+    )
+
+
 def bare_pytest(command: Command, root: Path) -> bool:
-    """Return whether a pytest command's `Verify:` says it exits 0 and no more.
+    """Return whether a green gate may vouch for a command, per `wants_collection`.
 
     A quiet option, an operand that exists, `-n` and `-k` follow the prefix, per
     `_vouched_words`: any other option runs, so a green gate vouches for the rest.
     """
     argv = tokens(command.text)
-    return (
-        is_pytest(argv)
-        and command.exits in (None, 0)
-        and command.count is None
-        and not command.nothing
-        and _vouched_words(argv[1 if argv[0] == "pytest" else 3 :], root)
+    return wants_collection(command) and _vouched_words(
+        argv[1 if argv[0] == "pytest" else 3 :], root
     )
 
 
-def collecting(texts: list[str], root: Path, limit: float | None = None) -> set[str]:
-    """Return the commands whose collection exits 0 and prints a collected test.
+def collecting(texts: list[str], found: dict[str, Result]) -> set[str]:
+    """Return the commands whose collection in `found` exits 0 and prints a test.
 
     The collection is the command with `--collect-only -q` appended, run as any
     command is. Why: 0114-faster-plan-check design D2.
     """
-    found = schedule([text + COLLECT_ONLY for text in texts], root, limit)
     return {
         text
         for text in texts
@@ -614,40 +634,72 @@ def load(tree: str, key: str) -> Result | None:
         return None
 
 
+def _judged(
+    work: list[str], collect: list[str], root: Path, limit: float | None, head: str
+) -> dict[str, Result]:
+    """Return each command's result, kept by tree, then each collection's, kept by none.
+
+    One `schedule` starts the commands before the collections; `head` keys a kept one.
+    """
+    tree = _guarded(gate()["settled_tree"])
+    keys = {text: keyed(text, head) for text in work}
+    results: dict[str, Result] = {}
+    if tree is not None:
+        results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
+    pending = [text for text in (*keys, *collect) if text not in results]
+    fresh = schedule(list(dict.fromkeys(pending)), root, limit)
+    if tree is not None and _guarded(gate()["settled_tree"]) == tree:
+        for text, result in fresh.items():
+            if text in keys and not result.timed_out:
+                keep(tree, keys[text], result)
+    return results | fresh
+
+
 def check_verifies(
     tasks: list[Task],
     human: set[int],
     root: Path,
     only: set[str] | None = None,
     limit: float | None = None,
+    *,
+    quick: bool = False,
 ) -> list[str]:
-    """Return a line for each judged `Verify:` command that fails run again.
+    """Return a line for each judged `Verify:` command that fails, quick group first.
 
-    Each distinct command runs once, for `limit` seconds. A bare pytest passes unrun on
-    the gate's green record when its collection finds a test.
+    A line of the quick group ends the check, as does `quick`; then a bare pytest the
+    gate's green record vouches is left unrun. Why: 0157-ship-speed design D2, D3.
     """
     pairs = jobs(tasks, human, only)
-    bare = list(dict.fromkeys(c.text for _, c in pairs if bare_pytest(c, root)))
-    vouched = collecting(bare, root, limit) if bare and gate_green() else set()
-    pending = [
-        (n, c) for n, c in pairs if not (c.text in vouched and bare_pytest(c, root))
-    ]
     refs = _git(root, "for-each-ref", "--format=%(objectname) %(refname)").stdout
     head = _git(root, "rev-parse", "HEAD").stdout.strip() + "\n" + refs
-    tree = _guarded(gate()["settled_tree"])
-    keys = {command.text: keyed(command.text, head) for _, command in pending}
-    results: dict[str, Result] = {}
-    if tree is not None:
-        results = {t: kept for t, k in keys.items() if (kept := load(tree, k))}
-    fresh = schedule([text for text in keys if text not in results], root, limit)
-    results |= fresh
-    if tree is not None and _guarded(gate()["settled_tree"]) == tree:
-        for text, result in fresh.items():
-            if not result.timed_out:
-                keep(tree, keys[text], result)
+    long = {
+        c.text for _, c in pairs if runs_tests(argv := tokens(c.text)) or is_make(argv)
+    }
+    wanted = list(dict.fromkeys(c.text for _, c in pairs if wants_collection(c)))
+    work = list(dict.fromkeys(c.text for _, c in pairs if c.text not in long))
+    # why: the record is read for the tree as found; a collection may leave files
+    bare = not quick and any(bare_pytest(c, root) for _, c in pairs)
+    green = bare and gate_green()
+    found = _judged(work, [t + COLLECT_ONLY for t in wanted], root, limit, head)
+    collected = collecting(wanted, found)
     problems: list[str] = []
+    for name, command in pairs:
+        if command.text not in long:
+            problems += report(name, command, found[command.text])
+        elif wants_collection(command) and command.text not in collected:
+            problems.append(collected_none(name, command))
+    if problems or quick:
+        return problems
+    vouched = collected if green else set()
+    pending = [
+        (n, c)
+        for n, c in pairs
+        if c.text in long and not (c.text in vouched and bare_pytest(c, root))
+    ]
+    work = list(dict.fromkeys(c.text for _, c in pending))
+    found = _judged(work, [], root, limit, head)
     for name, command in pending:
-        problems += report(name, command, results[command.text])
+        problems += report(name, command, found[command.text])
     return problems
 
 
@@ -813,10 +865,13 @@ def check_corpus(tasks: list[Task], root: Path) -> list[str]:
     ]
 
 
-def check(change: str, base: str, only: set[str] | None = None) -> list[str]:
+def check(
+    change: str, base: str, only: set[str] | None = None, *, quick: bool = False
+) -> list[str]:
     """Return every problem line of a change's plan against the working tree.
 
-    With `only`, the `Verify:` lines of those sub-tasks, ticked or not, and no other.
+    The reads group's lines, when any, end it before a command runs. With `only`, the
+    `Verify:` lines of those sub-tasks alone; with `quick`, the quick group alone.
     """
     if not CHANGE.fullmatch(change) or base.startswith("-"):
         raise Stop("the change id or the base is not one this check reads")
@@ -829,20 +884,20 @@ def check(change: str, base: str, only: set[str] | None = None) -> list[str]:
     found, human = phases(tasks)
     parsed = subtasks(tasks)
     limit = verify_limit(root)
-    if only is not None:
-        return check_verifies(parsed, human, root, only, limit)
+    if only is not None or quick:
+        return check_verifies(parsed, human, root, only, limit, quick=quick)
     merge_base = _git(root, "merge-base", base, "HEAD").stdout.strip()
     design = folder / "design.md"
     tests = tests_section(
         design.read_text(errors="replace") if design.is_file() else ""
     )
-    return [
-        *check_verifies(parsed, human, root, None, limit),
+    read = [
         *check_boxes(parsed, found),
         *check_names(root, change, merge_base, tests),
         *check_tests(root, merge_base, tests),
         *check_corpus(parsed, root),
     ]
+    return read or check_verifies(parsed, human, root, None, limit)
 
 
 def _terminate(_signum: int, _frame: FrameType | None) -> None:
@@ -862,14 +917,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--only", nargs="+", metavar="N.M", help="check only these sub-tasks' Verify:"
     )
+    parser.add_argument(
+        "--quick", action="store_true", help="run no pytest test and no make"
+    )
     args = parser.parse_args(argv)
     only = None if args.only is None else set(args.only)
+    if args.quick and only is not None:
+        print("plan: cannot check — --quick and --only are alone")
+        return 2
     if only is not None and not all(ID.fullmatch(name) for name in only):
         print(f"plan: cannot check — --only takes ids like 3.2, not {sorted(only)}")
         return 2
     previous = signal.signal(signal.SIGTERM, _terminate)
     try:
-        problems = check(args.change, args.base, only)
+        problems = check(args.change, args.base, only, quick=args.quick)
     except Stop as stop:
         print(f"plan: cannot check — {stop}")
         return 2

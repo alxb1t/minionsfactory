@@ -5,7 +5,7 @@ The green gate vouches for more pytest `Verify:` lines, the check judges in grou
 ## Progress
 
 - [x] 1 — The green gate vouches more · hard
-- [ ] 2 — Cheap first, and `--quick` · hard
+- [x] 2 — Cheap first, and `--quick` · hard
 - [ ] 3 — The phase check collects · hard
 - [ ] 4 — The fixer's check, and a clean file with a card not closed · hard
 - [ ] 5 — The words · moderate
@@ -25,15 +25,15 @@ With the gate green at the tree, `plan_check.py` leaves a pytest `Verify:` that 
 
 The check judges in the groups of [D2](design.md#d2), a failed group ends it, and `--quick` runs the quick group alone ([D3](design.md#d3)).
 
-- [ ] 2.1 **HALT CHECK** `plan_check.py` still collects a bare pytest through `collecting`, called only on a green record.
+- [x] 2.1 **HALT CHECK** `plan_check.py` still collects a bare pytest through `collecting`, called only on a green record.
   Verify: `git grep -q -e "^def collecting" -- skills/mf-converge/scripts/plan_check.py` exits `0`.
-- [ ] 2.2 In `skills/mf-converge/scripts/plan_check.py` add `is_make(argv)`, `runs_tests(argv)` for a pytest with no `--collect-only`, `wants_collection(command)` for a pytest run whose `Verify:` expects exit 0 and no more, and `collected_none(name, command)` returning `plan: <sub-task> — `<command>` collected no test`.
+- [x] 2.2 In `skills/mf-converge/scripts/plan_check.py` add `is_make(argv)`, `runs_tests(argv)` for a pytest with no `--collect-only`, `wants_collection(command)` for a pytest run whose `Verify:` expects exit 0 and no more, and `collected_none(name, command)` returning `plan: <sub-task> — `<command>` collected no test`.
   Verify: `git grep -n -e "^def wants_collection" -- skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 2.3 In `skills/mf-converge/scripts/plan_check.py` make `check_verifies` take the keyword `quick: bool = False` and run the quick group, then the long group. The quick group is one `schedule` of the commands that are no pytest run and no `make`, then the collections, results kept by tree but the collections not; a failed collection is the line of `collected_none`, any line ends the check, and `quick` returns there. The long group runs the pytest runs and the `make` commands, the vouched left unrun. `collecting` no longer waits for `gate_green()`.
+- [x] 2.3 In `skills/mf-converge/scripts/plan_check.py` make `check_verifies` take the keyword `quick: bool = False` and run the quick group, then the long group. The quick group is one `schedule` of the commands that are no pytest run and no `make`, then the collections, results kept by tree but the collections not; a failed collection is the line of `collected_none`, any line ends the check, and `quick` returns there. The long group runs the pytest runs and the `make` commands, the vouched left unrun. `collecting` no longer waits for `gate_green()`.
   Verify: `git grep -n -e "quick: bool" -- skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 2.4 In `skills/mf-converge/scripts/plan_check.py` make `check` return the lines of `check_boxes`, `check_names`, `check_tests` and `check_corpus` alone, the reads group, when it holds any, before `check_verifies`; with `only` it calls `check_verifies` alone. Make `main` take `--quick`, pass it to `check`, and refuse it beside `--only`: print `plan: cannot check — --quick and --only are alone`, exit 2.
+- [x] 2.4 In `skills/mf-converge/scripts/plan_check.py` make `check` return the lines of `check_boxes`, `check_names`, `check_tests` and `check_corpus` alone, the reads group, when it holds any, before `check_verifies`; with `only` it calls `check_verifies` alone. Make `main` take `--quick`, pass it to `check`, and refuse it beside `--only`: print `plan: cannot check — --quick and --only are alone`, exit 2.
   Verify: `git grep -n -e "--quick" -- skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 2.5 In `tests/test_plan_check.py` add `test_a_failed_group_ends_the_check_before_the_next`, `test_a_quick_check_runs_no_pytest_and_no_make` and `test_a_collection_that_finds_no_test_is_a_line`, each over a stub `pytest` that logs its calls, and `test_quick_and_only_exit_2`. Turn each pin of `test_a_green_gate_record_passes_a_bare_pytest` whose command collects no test, a missing path or node, a `[` id, `-k gone`, `-m gone`, `-c other.ini <file>` and a file holding no test among them: it now prints `collected no test` and runs no `pytest`.
+- [x] 2.5 In `tests/test_plan_check.py` add `test_a_failed_group_ends_the_check_before_the_next`, `test_a_quick_check_runs_no_pytest_and_no_make` and `test_a_collection_that_finds_no_test_is_a_line`, each over a stub `pytest` that logs its calls, and `test_quick_and_only_exit_2`. Turn each pin of `test_a_green_gate_record_passes_a_bare_pytest` whose command collects no test, a missing path or node, a `[` id, `-k gone`, `-m gone`, `-c other.ini <file>` and a file holding no test among them: it now prints `collected no test` and runs no `pytest`.
   Verify: `uv run pytest tests/test_plan_check.py -q` exits `0`.
 
 ## 3 — The phase check collects

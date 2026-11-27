@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - With the gate green at the tree, `plan_check.py` leaves a pytest `Verify:` that expects exit 0 unrun also with `-n` or `--numprocesses` and `-k` and their values, once its collection finds a test: the plans write them, and the gate's run proved the suite (0157-ship-speed, phase 1).
+- `plan_check.py` judges in groups — the reads, then the cheap commands and each pytest `Verify:`'s collection, then the pytest and `make` runs — and a failed group ends the check, so a failure known in a second waits for no long run. A collection that finds no test is the line `collected no test`, green record or not (0157-ship-speed, phase 2).
+- `plan_check.py --quick` runs the cheap group alone, no pytest test and no `make`, for the conductor's phase check and the fixer; beside `--only` it exits 2 (0157-ship-speed, phase 2).
 
 ## [0.126.0] - 2026-11-27
 
