@@ -33,6 +33,7 @@ import conduct_load
 import mflib.claim
 import mflib.debtfile
 import mflib.findings
+import mflib.kept
 import mflib.modelsfile
 import mflib.queue
 import mflib.statefile
@@ -6907,14 +6908,13 @@ def test_a_request_at_a_runs_close_starts_the_next_run(
 
     # A home folder that refuses the lock removes the claim and starts none.
     names["_start_run"] = start
-    kept = Path.home() / ".mf-ship-origin"
-    kept.rename(tmp_path / "kept-aside")
-    kept.write_text("")
+    queue.rename(tmp_path / "queue-aside")
+    queue.write_text("")
     assert run().endswith(
         "the home folder refuses the queue: File exists; run it outside a sandbox\n"
     )
-    kept.unlink()
-    (tmp_path / "kept-aside").rename(kept)
+    queue.unlink()
+    (tmp_path / "queue-aside").rename(queue)
     assert starts == [(root, "claude")]
 
     # A run that fails before it reads the queue starts no next run.
@@ -12967,7 +12967,11 @@ def test_a_refused_home_folder_still_pushes(
     # Where the home folder refuses the file, a run still reads its own `origin`.
     root, _ = _with_origin(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    monkeypatch.setenv("HOME", str(tmp_path / "absent"))
+
+    def refused(primary: Path, urls: object) -> None:
+        raise FileNotFoundError(2, "No such file or directory")
+
+    monkeypatch.setattr(mflib.kept, "keep_origin", refused)
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert conduct["_kept_origin"](root) is None
     refusal = " · run · unkept — No such file or directory"
@@ -15353,8 +15357,8 @@ def test_a_run_marks_itself_live(
         other.kill()
         other.wait()
 
-    shutil.rmtree(mark.parent.parent)
-    mark.parent.parent.write_text("")
+    shutil.rmtree(mark.parent)
+    mark.parent.write_text("")
     run()
     assert seen[-1] is None
 
