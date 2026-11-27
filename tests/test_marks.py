@@ -384,6 +384,10 @@ def test_text_writers_give_each_mark_its_form() -> None:
     assert marks.halt_text("close", "gate", "red\n  x", "abc") == (
         "sub-task: close\nstop: gate\nevidence: red x\nhead: abc\n"
     )
+    # A line past the width is cut, so the reader's bound is never reached.
+    long = marks.halt_text("close", "gate", "x" * (marks.BOUND + 1), "abc")
+    assert long.splitlines()[2] == "evidence: " + "x" * marks.EVIDENCE_WIDTH
+    assert len(long) < marks.BOUND
     assert marks.diagnosis_text(_CHANGE, "verify: halt") == (
         f"# {_CHANGE} — rescue diagnosis\n\nhalt: verify: halt\nsub-task: none\n"
         "cause: a Verify: changed since the cut\n"

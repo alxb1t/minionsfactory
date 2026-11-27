@@ -560,9 +560,12 @@ rates each phase `moderate` or `hard`; a moderate one runs on `[build.moderate]`
 
 **Round 1's fix pass takes the pickup with its blockers, and a pickup fix that commits nothing gets no check. The fixer
 records how the code now builds a decision in a `Fix note` closing its entry, which the run reads as no decision change.
-`plan_check.py` re-runs each ticked `Verify:` in parallel, passes a bare `pytest` on the gate's green record and
-keeps results by tree, and finds unticked boxes, removed names the plan still claims and the base's tests gone, at the
-build's close, which the conductor's `close` runs, and after each fix. The build runs it at each phase through `--only`: the phase's `**HALT CHECK**` sub-tasks
+`plan_check.py` re-runs each ticked `Verify:` in parallel, passes a `pytest` on the gate's green record, with `-n` and
+`-k` among its options, and keeps results by tree, and finds unticked boxes, removed names the plan still claims and the
+base's tests gone, at the build's close, which the conductor's `close` runs, and after each fix. It judges in groups,
+the reads, the quick commands and the long runs, and a failed group ends it; `plan_check.py --quick` runs the quick
+group alone. The conductor runs `--quick` after each phase but the last, and the fixer runs it before its commit. The
+build runs it at each phase through `--only`: the phase's `**HALT CHECK**` sub-tasks
 first, then each other sub-task's `Verify:`. `make corpus` runs the readers of run data over the repo's own, outside the gate. The
 Markdown readers parse with `markdown-it-py`. Plan reviews run on Sonnet 5.5 · high; the cut's default model is Sonnet
 5.5 · high.**
@@ -596,7 +599,8 @@ pre-fills the line in `mf-plan` and the cut; `conduct.py` reads `models.toml` al
 thread; `conduct.py converge` runs it by hand, and `skills/mf-converge/SKILL.md` is its front. The checkers, the fixer and the
 verify workers are the only LLMs, each a fresh process the run starts, one log each; the gate, the check scripts and a card's
 **Still true?** command run under the sandbox runner. A script goes on where it can: one retry, one rewrite worker, one more fix
-pass; only the environment, a loop outcome, a red gate and a security card halt. The fixer runs on `fix=`'s model always.
+pass; only the environment, a loop outcome, a red gate, a security card and a clean file still malformed after its one
+rewrite worker halt. A findings file that says clean beside a blocking card not closed gets that rewrite worker. The fixer runs on `fix=`'s model always.
 Its status log is written through `skills/mflib/statuslog.py`, and its findings files are read and written through
 `skills/mflib/findings.py`.**
 

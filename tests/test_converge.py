@@ -3053,6 +3053,88 @@ def test_changes_requested_with_no_card_gets_a_rewrite(host: Host) -> None:
     ]
 
 
+_CLEAN_OPEN = (
+    "conformance.md is malformed: verdict is clean beside a blocking card not closed,"
+    " card R1 fixed"
+)
+
+
+def test_a_clean_file_with_a_card_not_closed_gets_a_rewrite(host: Host) -> None:
+    converge = _converge()
+    path = host.folder() / "conformance.md"
+    path.parent.mkdir(parents=True)
+
+    def read(card: str, **keys: object) -> str | None:
+        body = f"## Summary\n\nJudged.\n\n{card}"
+        path.write_text(findings("conformance", _head(host), body=body, **keys))
+        return converge["read_findings"](path, "conformance").malformed
+
+    fixed = _card("R1 blocking", status="fixed")
+    assert read(fixed) == _CLEAN_OPEN
+    assert read(fixed, open_blocking=1) is None
+    assert read(fixed, verdict="changes-requested") is None
+    assert read(_card("R1 nit", status="fixed")) is None
+    assert read(_card("R1 blocking", status="verified")) is None
+    assert read(_card("R1 blocking", status="accepted")) is None
+    path.unlink()
+
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+    host.answers["converge-verify-conformance-r2"] = _twice(
+        answer(host, "conformance", fixed, round=2),
+        answer(host, "conformance", _card("R1 blocking", status="verified"), round=2),
+    )
+
+    assert run(host) == 0
+
+    assert [station for station, *_ in host.fixed] == ["converge-fix-r1"]
+    written = events(host)
+    assert f"round 2 · fan-out — rewrite — conformance: {_CLEAN_OPEN}" in written
+    assert written[-2:] == [
+        "round 2 · debt — none",
+        "round 2 · done — converged in 2 rounds · 0 cards to debt",
+    ]
+    station, _, _, told = host.checks[-1]
+    assert station == "converge-verify-conformance-r2"
+    assert f": {_CLEAN_OPEN}.\n" in told
+    assert "the first word of that card's Status line, `verified` or" in told
+    # An amend card's `wontfix` stays: the rewrite worker has no fix diff to close it.
+    assert "A card with `Amend: yes` keeps its `wontfix`, never `verified`" in told
+
+
+@pytest.mark.parametrize("then", ["fixed", "broken"])
+def test_a_clean_file_still_mismatched_halts(host: Host, then: str) -> None:
+    host.answers["converge-conformance-r1"] = answer(
+        host, "conformance", _card("R1 blocking"), blocking=1
+    )
+    fixed = answer(host, "conformance", _card("R1 blocking", status="fixed"), round=2)
+    broken = answer(
+        host,
+        "conformance",
+        _card("R1 blocking", status="verified"),
+        round=2,
+        inconclusive=None,
+    )
+    host.answers["converge-verify-conformance-r2"] = _twice(
+        fixed, fixed if then == "fixed" else broken
+    )
+
+    assert run(host) == 1
+
+    last = events(host)[-1]
+    now = {
+        "fixed": _CLEAN_OPEN.partition(": ")[2],
+        "broken": "inconclusive is missing",
+    }[then]
+    assert last == (
+        "round 2 · halt — conformance: rewrite left conformance.md malformed —"
+        f" card R1 fixed; {now} · head {_head(host)}"
+    )
+    assert "cap reached" not in last
+    assert [station for station, *_ in host.fixed] == ["converge-fix-r1"]
+
+
 def test_the_report_names_the_verdicts(
     host: Host, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -3789,7 +3871,7 @@ def test_debt_pin_write(host: Host, monkeypatch: pytest.MonkeyPatch) -> None:
     filed = _card("R1 nit", size=_DESIGN)
     body = (
         filed
-        + _card("R2 blocking", status="fixed")
+        + _card("R2 blocking", status="verified")
         + _card("R3 nit", size=_DESIGN, status="verified")
     )
     host.write("conformance", findings("conformance", head, body=body))

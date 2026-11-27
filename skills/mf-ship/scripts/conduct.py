@@ -5159,6 +5159,19 @@ class Run:
         _halt_build(self.primary, change, tree, "repair", "gate", evidence)
         return True, "gate red after the repair"
 
+    def quick_built(self, version: Version, tree: Path, phase: str) -> str | None:
+        """Run the quick plan check after phase `phase`; return why it fails, or None.
+
+        A failure writes `build.halt` as the phase's. Why: 0157-ship-speed design D4.
+        """
+        change = version.change
+        if (evidence := _quick_plan(self.primary, change, tree)) is None:
+            return None
+        _halt_build(
+            self.primary, change, tree, f"phase {phase}", "plan check", evidence
+        )
+        return f"plan check: {evidence}"
+
     def close_build(self, version: Version, tree: Path, simplified: bool) -> str | None:
         """Run `close`, after a simplify worker marking its head; return why it fails.
 
@@ -5749,14 +5762,16 @@ class Run:
                 merged = version.tree if stage == "integrate" else None
                 if reason is None and staged is not None and merged is not None:
                     reason = _settle_kept(merged, staged)
-                # The conductor gates the build, and closes it. Why: 0144-gate-outside
-                # design D4, D5.
+                # The conductor gates the build, checks the plan between phases, and
+                # closes it. Why: 0144-gate-outside design D4, D5; 0157 design D4.
                 if reason is None and phase == "close":
                     reason = self.close_build(version, cwd, simplified=not amended)
                 elif reason is None and numbered and _unticked(cwd, change) is None:
                     going, reason = self.gate_built(version, cwd, models)
                     if not going:
                         return None
+                elif reason is None and numbered:
+                    reason = self.quick_built(version, cwd, str(phase))
                 held = None if reason is None else self.held(version, stage, cwd)
                 tree = version.tree
                 spent = "" if held is None else self.rescued(change, held, tree)
@@ -8804,6 +8819,17 @@ def _close_plan(
     text = mflib.marks.plan_check_body(base, output)
     _write_state(primary, change, mflib.marks.PLAN_CHECK, text)
     return None if code == 0 else f"plan_check.py exit {code} · {_last(output)}"
+
+
+def _quick_plan(primary: Path, change: str, tree: Path) -> str | None:
+    """Run `plan_check.py --quick` from the close's base; return why it fails, or None.
+
+    Why: 0157-ship-speed design D4.
+    """
+    base = _close_base(primary, change, tree)
+    argv_ = [sys.executable, str(PLAN_CHECK), "--change", change, "--base", base]
+    code, output = _boxed(primary, tree, [*argv_, "--quick"])
+    return None if code == 0 else f"plan_check.py --quick exit {code} · {_last(output)}"
 
 
 def _simplify_commit(tree: Path, change: str, base: str) -> str | None:

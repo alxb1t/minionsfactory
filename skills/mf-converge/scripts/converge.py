@@ -64,12 +64,25 @@ PLACEHOLDER = re.compile(r"\{(\w+)\}")
 FALLBACK = "fallback: codex usage limit"
 FAILED = "fallback: codex failed"
 NO_OPEN_CARD = "verdict is changes-requested with no open card"
+CLEAN_OPEN = "verdict is clean beside a blocking card not closed"
 REWRITE = (
     "role: {role}\nchange: {change}\nround: {round}\n\n"
     "Your findings file {findings} breaks the findings file contract of"
     " `references/worker.md` of the installed `mf-converge` skill: {why}.\n"
     "Rewrite that file to the contract. Keep its verdict, each card's id, grade,"
     " fields and Status; judge nothing anew. Edit no other file.\n"
+)
+# why: 0157-ship-speed design D6
+REWRITE_CLOSE = (
+    "role: {role}\nchange: {change}\nround: {round}\n\n"
+    "Your findings file {findings} breaks the findings file contract of"
+    " `references/worker.md` of the installed `mf-converge` skill: {why}.\n"
+    "Set what you meant: the first word of that card's Status line, `verified` or"
+    " `accepted` when it is closed, or the file's verdict, `changes-requested`, when"
+    " it is not. A card with `Amend: yes` keeps its `wontfix`, never `verified` or"
+    " `accepted`, till an amend settles it: when it is the card, write"
+    " `changes-requested`. Keep each other card's id, grade, fields and Status. Edit"
+    " no other file.\n"
 )
 # The debt lock's wait, in seconds. Why: design D5.
 LOCK_WAIT = 600
@@ -608,6 +621,10 @@ def read_findings(path: Path, role: str) -> Verdict | None:
         # why: passes are judged first, so a conformance file whose passes ran short
         # is never rewritten clean
         return Verdict(role, malformed=f"{name} is malformed: {NO_OPEN_CARD}")
+    shut = verdict.verdict == "clean" and verdict.open_blocking == 0
+    if shut and (card := next(iter(blockers({role: verdict})), None)):
+        why = f"{CLEAN_OPEN}, card {card.id} {card.status or 'unmarked'}"
+        return Verdict(role, malformed=f"{name} is malformed: {why}")
     return verdict
 
 
@@ -691,15 +708,16 @@ def verdicts(
 def rewrite(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | None:
     """Run one rewrite worker on `role`'s malformed file; return the file read again.
 
-    It repeats the role's last station. Still malformed, the role reads clean at
-    `HEAD` with no card, and the debt write cards the file. Why: design D5.
+    It repeats the role's last station. Still malformed, the role reads clean with no
+    card and the debt cards the file; after `CLEAN_OPEN` it halts: 0157 design D6.
     """
     station, effort = context.stations.get(
         role, (f"converge-{role}-r{context.round}", None)
     )
     path = context.folder / f"{role}.md"
     stamp(context, f"fan-out — rewrite — {role}: {why}")
-    told = REWRITE.format(
+    closing = CLEAN_OPEN in why
+    told = (REWRITE_CLOSE if closing else REWRITE).format(
         role=role, change=context.change, round=context.round, findings=path, why=why
     )
     seconds = remaining(context)
@@ -710,6 +728,10 @@ def rewrite(context: Context, role: str, frozen: Freeze, why: str) -> Verdict | 
     counted(context, frozen, [role], pickup="-pickup-" in station)
     again = read_findings(path, role)
     if again is not None and again.malformed is not None:
+        if closing:
+            first = why.partition(f"{CLEAN_OPEN}, ")[2]
+            now = again.malformed.partition(": ")[2]
+            raise Halt(f"{role}: rewrite left {path.name} malformed — {first}; {now}")
         if again.malformed.endswith(NO_OPEN_CARD):
             cleared(context, role)
         return Verdict(role, "clean", head(context), context.round)

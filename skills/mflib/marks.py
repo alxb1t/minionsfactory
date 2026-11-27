@@ -33,6 +33,7 @@ REPLAN = "replan.mark"
 PLAN_CHECK = "plan-check.txt"
 GATE_RED = "gate.red"
 BOUND = 65536
+EVIDENCE_WIDTH = 2000
 NOTES_BOUND = 1048576
 RELEASE_KEYS = ("tag", "version", "gate", "head")
 _HEAD = re.compile(r"[0-9a-f]{7,40}")
@@ -278,7 +279,7 @@ def halt_text(sub_task: str, stop: str, evidence: str, head: str) -> str:
 
     e.g. evidence "red\n  x" → the line "evidence: red x"
     """
-    said = " ".join(evidence.split())
+    said = " ".join(evidence.split())[:EVIDENCE_WIDTH]
     return f"sub-task: {sub_task}\nstop: {stop}\nevidence: {said}\nhead: {head}\n"
 
 

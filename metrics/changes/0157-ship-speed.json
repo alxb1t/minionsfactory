@@ -1,0 +1,231 @@
+{
+  "change": "0157-ship-speed",
+  "version": "v0.127",
+  "base": "ac9b3452",
+  "analyzed": "28d6deda",
+  "measured_on": "local",
+  "collected_at": "2026-11-27T14:16:15+02:00",
+  "mf_version": "v0.126.0",
+  "executor": "unidentified",
+  "model": "unidentified",
+  "values": {
+    "converge-reading-set": {
+      "value": 4860
+    },
+    "converge-conformance-reading-set": {
+      "value": 6445
+    },
+    "converge-adversarial-reading-set": {
+      "value": 9746
+    },
+    "shared-context": {
+      "value": 19718
+    },
+    "rule-ids": {
+      "value": 64
+    },
+    "tests-collected": {
+      "value": 2110
+    },
+    "gate-seconds": {
+      "value": 596
+    },
+    "largest-module-lines": {
+      "value": 18487
+    },
+    "modules-over-1000-lines": {
+      "value": 21
+    },
+    "complex-functions": {
+      "value": 34
+    },
+    "suppressions": {
+      "value": 57
+    },
+    "test-to-code-lines": {
+      "value": 1.95
+    },
+    "python-lines": {
+      "value": 89200
+    },
+    "dependencies": {
+      "value": 2
+    },
+    "dev-dependencies": {
+      "value": 9
+    },
+    "test-seconds": {
+      "value": 590.49
+    },
+    "slowest-test-seconds": {
+      "value": 110.74
+    },
+    "test-seconds-summed": {
+      "value": 3843.2
+    },
+    "slow-tests": {
+      "value": 164
+    },
+    "total-coverage": {
+      "value": 99.25
+    },
+    "hedge-words": {
+      "value": 2
+    },
+    "long-sentences": {
+      "value": 123
+    },
+    "broken-references": {
+      "value": 0
+    },
+    "commits-without-trailer": {
+      "value": 0
+    },
+    "minions-files-tracked": {
+      "value": 0
+    },
+    "amends": {
+      "value": 0
+    },
+    "open-backlog-cards": {
+      "value": 4
+    },
+    "diff-lines": {
+      "value": 1440
+    },
+    "diff-files": {
+      "value": 19
+    },
+    "lead-minutes": {
+      "value": 106.2
+    },
+    "build-minutes": {
+      "value": 51.0
+    },
+    "converge-minutes": {
+      "value": 30.6
+    },
+    "catch-up-minutes": {
+      "value": 0.0
+    },
+    "integrate-minutes": {
+      "value": 0.0
+    },
+    "wait-minutes": {
+      "value": 0.0
+    },
+    "after-wait-minutes": {
+      "value": 0.0
+    },
+    "converge-rounds": {
+      "value": 1
+    },
+    "blockers-round-1": {
+      "value": 0
+    },
+    "grants": {
+      "value": 0
+    },
+    "amend-rounds": {
+      "value": 0
+    },
+    "halts-build": {
+      "value": 0
+    },
+    "halts-converge": {
+      "value": 0
+    },
+    "halts-integrate": {
+      "value": 0
+    },
+    "halts-release": {
+      "value": 0
+    },
+    "rescues-fixed": {
+      "value": 0
+    },
+    "rescues-diagnosed": {
+      "value": 0
+    },
+    "rescues-decided": {
+      "value": 0
+    },
+    "supervisor-decided": {
+      "value": 0
+    },
+    "build-commits": {
+      "value": 7
+    },
+    "fix-commits": {
+      "value": 1
+    },
+    "cost-usd": {
+      "value": 13.85
+    },
+    "cost-usd-build": {
+      "value": 9.8
+    },
+    "cost-usd-converge": {
+      "value": 4.05
+    },
+    "cost-usd-catch-up": {
+      "value": 0
+    },
+    "cost-usd-integrate": {
+      "value": 0
+    },
+    "tokens": {
+      "value": 38883250
+    },
+    "tokens-build": {
+      "value": 24332460
+    },
+    "tokens-converge": {
+      "value": 14550790
+    },
+    "tokens-catch-up": {
+      "value": 0
+    },
+    "tokens-integrate": {
+      "value": 0
+    },
+    "codex-window-5h": {
+      "status": "unavailable",
+      "why": "no mf.quota line in a Codex log"
+    },
+    "codex-window-week": {
+      "status": "unavailable",
+      "why": "no mf.quota line in a Codex log"
+    },
+    "cost-per-changed-line": {
+      "value": 0.0096
+    },
+    "conformance-confirmed": {
+      "value": 2
+    },
+    "adversarial-confirmed": {
+      "value": 1
+    },
+    "conformance-refuted": {
+      "value": 6
+    },
+    "adversarial-refuted": {
+      "value": 6
+    },
+    "conformance-tokens-per-confirmed": {
+      "value": 2234670
+    },
+    "adversarial-tokens-per-confirmed": {
+      "value": 6523105
+    },
+    "escapes": {
+      "value": 1
+    },
+    "debt-added": {
+      "value": 1
+    },
+    "debt-paid": {
+      "value": 0
+    }
+  }
+}

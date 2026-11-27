@@ -114,7 +114,9 @@ declares a check satisfied satisfies nothing, and is itself reportable.
 ## Not clean
 
 `converge.py` reads each findings file by its fields, and halts on one that is not clean: conformance's `passes` short.
-It sends a malformed file to one rewrite worker, then to the debt, and halts on no count.
+It sends a malformed file to one rewrite worker, then to the debt, and halts on no count. A file that says clean beside
+a blocking card neither `verified` nor `accepted` is malformed too: its rewrite worker sets the card's Status or the
+verdict, and a file still malformed after it halts.
 
 **This round's freeze** is the first freeze in round 1 and the fix's re-freeze after it, never round 1's once
 superseded: a verify round over a one-file fix is stamped one file, and converge judges its cards, not a count. A station that resolved zero

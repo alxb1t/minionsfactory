@@ -4262,6 +4262,118 @@ def test_close_writes_build_done_with_head_and_simplify(
     assert not (_marks(root) / "build.closing").exists()
 
 
+def test_quick_built_fails_a_phase_whose_earlier_search_no_longer_holds(
+    tmp_path: Path,
+) -> None:
+    # Why: 0157-ship-speed design D4.
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    search = "`git grep -q -e marker -- a.txt` exits `0`"
+    progress = (
+        "- [x] 1 — One\n- [x] 2 — Two\n- [ ] 3 — Three\n\n"
+        f"## 1 — One\n\n- [x] 1.1 Mark.\n  Verify: {search}.\n"
+    )
+    tree = _version(root, "0001-todo", progress)
+    _commit(tree, {"a.txt": "marker\n"}, "phase 1")
+    run = conduct["Run"](root, "claude")
+    version = conduct["Version"]("0001-todo", tree)
+    assert run.quick_built(version, tree, "2") is None
+    assert not (_marks(root) / "build.halt").exists()
+
+    _commit(tree, {"a.txt": "gone\n"}, "phase 2")
+    said = run.quick_built(version, tree, "2")
+
+    assert said is not None
+    assert said.startswith("plan check: plan_check.py --quick exit 1 · plan: 1.1 — ")
+    keys = _halt_keys(root)
+    assert (keys["sub-task"], keys["stop"]) == ("phase 2", "plan check")
+    assert keys["evidence"] == said.removeprefix("plan check: ")
+    assert keys["head"] == _git(tree, "rev-parse", "HEAD")
+
+
+def _quick_advance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fails: str | None = None
+) -> tuple[list[str], str | None]:
+    """Build three phases through `advance` with no worker; return its calls and answer.
+
+    The check of `fails`, a spawn's phase label, fails; the quick plan check logs.
+    """
+    conduct = _conduct()
+    tmp_path.mkdir()
+    root = _primary(tmp_path)
+    phases = ("1 — One", "2 — Two", "3 — Three")
+    tree = _version(root, "0001-todo", "".join(f"- [ ] {p}\n" for p in phases))
+    run = conduct["Run"](root, "claude")
+    calls: list[str] = []
+    script = iter(
+        [
+            *(("build", f"phase {p[0]} unticked") for p in phases),
+            ("converge", "unfinished"),
+        ]
+    )
+
+    def spawn(*_: Any, phase: str | None = None, **__: Any) -> list[str]:  # noqa: ANN401
+        calls.append(f"spawn {phase}")
+        if phase is not None and phase.startswith("phase "):
+            done = int(phase.removeprefix("phase "))
+            boxes = "".join(
+                f"- [{'x' if n <= done else ' '}] {p}\n"
+                for n, p in enumerate(phases, 1)
+            )
+            tasks = "openspec/changes/0001-todo/tasks.md"
+            _commit(tree, {tasks: f"## Progress\n\n{boxes}"}, phase)
+        return []
+
+    def quick(primary: Path, change: str, where: Path) -> None:
+        calls.append(f"quick · next {conduct['_unticked'](where, change)[0]}")
+
+    def gate_built(*_: Any) -> tuple[bool, None]:  # noqa: ANN401
+        calls.append("gate")
+        return True, None
+
+    def checked(*_: Any, phase: str | None = None, **__: Any) -> str | None:  # noqa: ANN401
+        return "red" if f"phase {phase}" == fails else None
+
+    module = conduct["Run"].advance.__globals__
+    monkeypatch.setitem(module, "check", checked)
+    monkeypatch.setitem(module, "_quick_plan", quick)
+    run.stage = lambda version: next(script)
+    run.planned_models = lambda change, station: ("model", None, None)
+    run.workers = lambda change: {}
+    run.spawn = spawn
+    run.gate_built = gate_built
+    run.close_build = lambda *_, **__: calls.append("close")
+    run.rescue = lambda *_: False
+    run.supervise = lambda *_: False
+
+    answer = run.advance(conduct["Version"]("0001-todo", tree), ("converge",))
+    halts = [("0001-todo", "build check fail — red")] if fails else []
+    assert run.halts == halts, run.halts
+    return calls, answer
+
+
+def test_a_build_runs_the_quick_plan_check_after_every_phase_but_the_last(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Why: 0157-ship-speed design D4.
+    calls, answer = _quick_advance(tmp_path / "built", monkeypatch)
+    assert answer == "converge"
+    assert calls == [
+        "spawn phase 1",
+        "quick · next 2",
+        "spawn phase 2",
+        "quick · next 3",
+        "spawn phase 3",
+        "gate",
+        "spawn close",
+        "close",
+    ]
+    # A phase whose check failed gets no quick plan check.
+    calls, answer = _quick_advance(tmp_path / "failed", monkeypatch, "phase 1")
+    assert answer is None
+    assert calls == ["spawn phase 1"]
+
+
 def _run_ok(root: Path, monkeypatch: pytest.MonkeyPatch, code: int = 0) -> list[str]:
     """Run `conduct.py run` in `root`, asserting its exit; return the run log."""
     said = _main(
