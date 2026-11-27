@@ -33,6 +33,7 @@ import conduct_load
 import mflib.claim
 import mflib.debtfile
 import mflib.findings
+import mflib.kept
 import mflib.modelsfile
 import mflib.queue
 import mflib.statefile
@@ -6907,14 +6908,13 @@ def test_a_request_at_a_runs_close_starts_the_next_run(
 
     # A home folder that refuses the lock removes the claim and starts none.
     names["_start_run"] = start
-    kept = Path.home() / ".mf-ship-origin"
-    kept.rename(tmp_path / "kept-aside")
-    kept.write_text("")
+    queue.rename(tmp_path / "queue-aside")
+    queue.write_text("")
     assert run().endswith(
         "the home folder refuses the queue: File exists; run it outside a sandbox\n"
     )
-    kept.unlink()
-    (tmp_path / "kept-aside").rename(kept)
+    queue.unlink()
+    (tmp_path / "queue-aside").rename(queue)
     assert starts == [(root, "claude")]
 
     # A run that fails before it reads the queue starts no next run.
@@ -11119,8 +11119,9 @@ def test_the_scratch_stands_outside_the_worktree(
         patch.setenv("HOME", str(tmp_path / "absent"))
         with conduct["_scratch"]() as scratch:
             assert Path(scratch).is_dir()
-        conduct["_keep_origin"](root)
-        assert conduct["_kept_origin"](root) is None
+        # The kept folder is made with its parents. Why: 0159-kept design D8.
+        assert conduct["_keep_origin"](root) is None
+        assert conduct["_kept_origin"](root) == conduct["_urls"](root)
 
 
 def test_the_scratch_folder_is_named_by_its_prefix() -> None:
@@ -12550,7 +12551,7 @@ def test_a_forged_release_on_an_older_default_is_not_pushed(
     named.unlink()
     assert run() == 0
     assert "refs/tags/v0.31.0" in _git(root, "ls-remote", "--tags", "origin")
-    assert named.read_text() == "main"
+    assert named.read_text() == "main\n"
     assert _calls(calls) == []
 
 
@@ -12959,17 +12960,39 @@ def test_the_kept_urls_stand_past_a_repoint(
 
 @pytest.mark.slow
 def test_a_refused_home_folder_still_pushes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
     fake()
     # Where the home folder refuses the file, a run still reads its own `origin`.
     root, _ = _with_origin(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
-    monkeypatch.setenv("HOME", str(tmp_path / "absent"))
+
+    # The refusal is the file system's at the kept origin's write alone: a whole
+    # refused home halts the run on its queue, before any keep.
+    write = mflib.statefile.write
+    name = layout.kept_file(root).name
+
+    def refused(
+        path: Path,
+        text: str,
+        *,
+        refuse_link: bool = False,
+        folder: int | None = None,
+        mode: int = 0o644,
+    ) -> None:
+        if path.name == name:
+            raise mflib.statefile.WriteFailed(
+                "create", PermissionError(13, "Permission denied")
+            )
+        write(path, text, refuse_link=refuse_link, folder=folder, mode=mode)
+
+    monkeypatch.setattr(mflib.statefile, "write", refused)
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert conduct["_kept_origin"](root) is None
-    refusal = " · run · unkept — No such file or directory"
+    refusal = " · run · unkept — Permission denied"
     assert sum(line.endswith(refusal) for line in _log(root)) == 1
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
@@ -15352,8 +15375,8 @@ def test_a_run_marks_itself_live(
         other.kill()
         other.wait()
 
-    shutil.rmtree(mark.parent.parent)
-    mark.parent.parent.write_text("")
+    shutil.rmtree(mark.parent)
+    mark.parent.write_text("")
     run()
     assert seen[-1] is None
 

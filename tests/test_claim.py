@@ -215,7 +215,7 @@ def shipped(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
         def handled(self) -> None:
             return None
 
-    pin = {"holder": lambda mark: None, "move": lambda mark: None}
+    pin = {"move": lambda mark: None}
     for name, value in {
         "preconditions": lambda cwd, executor: cwd,
         "_cap": lambda: None,

@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.claim
 import mflib.debtfile
 import mflib.findings
+import mflib.kept
 import mflib.layout
 import mflib.marks
 import mflib.modelsfile
@@ -509,9 +510,8 @@ def primary_of(cwd: Path) -> Path:
             f" run it as uv run --script {Path(__file__)}",
         )
     primary = mflib.layout.primary_of(Path(done.stdout.strip()).resolve())
-    if (
-        not cwd.resolve().is_relative_to(primary)
-        and not mflib.layout.kept_file(primary).is_file()
+    if not cwd.resolve().is_relative_to(primary) and not mflib.kept.origin_stands(
+        primary
     ):
         raise Stop(
             1,
@@ -1834,24 +1834,25 @@ def _urls(primary: Path) -> Urls:
 
 def _record_release(primary: Path, change: str, head: str) -> None:
     """Record `head` as the change's in the release ledger, over an older entry."""
-    folder = mflib.layout.released_dir(primary)
-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-    entry = folder / change
-    entry.unlink(missing_ok=True)
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
-    with os.fdopen(os.open(entry, flags, 0o600), "w") as file:
-        file.write(f"{head}\n")
+    mflib.kept.record_release(primary, change, head)
 
 
-def _ledger_entries(primary: Path) -> list[Path]:
-    """Return the release ledger's entry files."""
-    folder = mflib.layout.released_dir(primary)
-    return list(folder.iterdir()) if folder.is_dir() else []
+def _skipped(name: str) -> None:
+    """Say on stderr that the ledger entry `name` is no commit id."""
+    print(f"conduct: ledger — {name} is no commit id: skipped", file=sys.stderr)
 
 
-def _ledger_heads(primary: Path) -> set[str]:
-    """Return the heads the release ledger holds: each entry's first line."""
-    return {entry.read_text().partition("\n")[0] for entry in _ledger_entries(primary)}
+def _ledger_heads(
+    primary: Path, *, on_bad: Callable[[str], None] = _skipped
+) -> set[str]:
+    """Return the heads the release ledger holds; `on_bad` takes each entry with none.
+
+    Why: 0159-kept design D10.
+    """
+    heads = mflib.kept.release_heads(primary)
+    for name in heads.bad:
+        on_bad(name)
+    return heads.heads
 
 
 def _close_releases(primary: Path, base: str) -> None:
@@ -1860,19 +1861,22 @@ def _close_releases(primary: Path, base: str) -> None:
     This is cleanup alone: the push check independently excludes landed heads.
     Read ancestry in the clean scratch repo. Why: 0053-sandbox-patch design D2.
     """
-    for entry in _ledger_entries(primary):
-        head = entry.read_text().partition("\n")[0]
-        if _history_ancestor(primary, head, base):
-            entry.unlink()
+    mflib.kept.close_releases(
+        primary, lambda head: _history_ancestor(primary, head, base)
+    )
+
+
+def _unkept(error: OSError) -> str:
+    """Return why a kept file was not written: its `strerror`, else the cause's type.
+
+    e.g. `Unwritten` of a bare `OSError()` → "OSError"
+    """
+    return error.strerror or type(getattr(error, "cause", error)).__name__
 
 
 def _kept_origin(primary: Path) -> Urls | None:
     """Return the URLs a run kept for `primary`, or None before its first."""
-    file = mflib.layout.kept_file(primary)
-    if not file.is_file():
-        return None
-    fetch, push = json.loads(file.read_text())
-    return fetch, push
+    return mflib.kept.origin(primary)
 
 
 def _keep_origin(primary: Path) -> str | None:
@@ -1880,61 +1884,46 @@ def _keep_origin(primary: Path) -> str | None:
 
     Why: 0053-sandbox-patch design D2.
     """
-    file = mflib.layout.kept_file(primary)
     urls = _urls(primary)
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
     try:
-        file.parent.mkdir(mode=0o700, exist_ok=True)
-        with os.fdopen(os.open(file, flags, 0o600), "w") as kept:
-            json.dump(urls, kept)
-    except FileExistsError:
-        pass
+        mflib.kept.keep_origin(primary, urls)
     except OSError as error:
-        return error.strerror or type(error).__name__
+        return _unkept(error)
     fetch = (_kept_origin(primary) or ([], []))[0]
-    named = mflib.layout.default_file(primary)
     try:
-        name = _origin_head(primary, fetch[0]) if fetch and not named.exists() else None
+        unnamed = bool(fetch) and not mflib.kept.default_stands(primary)
+        name = _origin_head(primary, fetch[0]) if unnamed else None
         if name is not None:
-            with os.fdopen(os.open(named, flags, 0o600), "w") as kept:
-                kept.write(name)
-    except (FileExistsError, Stop):
+            mflib.kept.keep_default(primary, name)
+    except Stop:
         pass
     except OSError as error:
-        return error.strerror or type(error).__name__
+        return _unkept(error)
     return None
 
 
 def _kept_default(primary: Path) -> str:
     """Return the default branch's name a run kept, else the one git names."""
-    named = mflib.layout.default_file(primary)
-    return named.read_text() if named.is_file() else default_branch(primary)
+    kept = mflib.kept.default(primary)
+    return default_branch(primary) if kept is None else kept
 
 
 def _keep_base(primary: Path, sha: str) -> str | None:
     """Keep `sha` as the offline base, over an older one; return why it could not.
 
-    Owner-only, through a temp file and `os.replace`. Where the home folder refuses
-    it, this process is itself in a sandbox, and nothing is kept.
+    Where the home folder refuses it, this process is itself in a sandbox, and
+    nothing is kept.
     """
-    file = mflib.layout.pushed_file(primary)
     try:
-        file.parent.mkdir(mode=0o700, exist_ok=True)
-        fd, temp = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}-")
-        with os.fdopen(fd, "w") as kept:
-            kept.write(f"{sha}\n")
-        os.replace(temp, file)
+        mflib.kept.keep_base(primary, sha)
     except OSError as error:
-        return error.strerror or type(error).__name__
+        return _unkept(error)
     return None
 
 
 def _offline_base(primary: Path) -> str | None:
     """Return the offline base's sha, or None when none stands."""
-    file = mflib.layout.pushed_file(primary)
-    if not file.is_file():
-        return None
-    return file.read_text().strip() or None
+    return mflib.kept.base(primary)
 
 
 def _origin_head(primary: Path, url: str) -> str | None:
@@ -1959,7 +1948,7 @@ def _push_default(primary: Path, url: str) -> str:
     """
     name = _origin_head(primary, url)
     file = mflib.layout.default_file(primary)
-    kept = file.read_text() if file.is_file() else None
+    kept = mflib.kept.default(primary)
     if kept is not None and name != kept:
         remedy = (
             f"a person decides, then removes ~/{mflib.layout.KEPT_ORIGINS}/{file.name}"
@@ -1982,7 +1971,7 @@ def _refuse_origin(primary: Path) -> Urls:
     """Return `_urls`; stop with 1 unless a remote call can run only its own git."""
     _refuse_config_commands(primary)
     fetch, push = _urls(primary)
-    if _kept_origin(primary) not in (None, (fetch, push)):
+    if mflib.kept.origin(primary) not in (None, (fetch, push)):
         raise Stop(
             1,
             "conduct: halt — the repo's git config points origin away from the URLs a"
@@ -2008,7 +1997,7 @@ def _read_url(primary: Path, first_read: bool) -> str | None:
     Why: 0052-security-hardening design D9.
     """
     fetch, _ = _refuse_origin(primary)
-    readable = first_read or mflib.layout.kept_file(primary).is_file()
+    readable = first_read or mflib.kept.origin_stands(primary)
     return fetch[0] if fetch and readable else None
 
 
@@ -2345,6 +2334,8 @@ def _foreign_commit(
     default: str,
     tip: str | None = None,
     tags: dict[str, tuple[str, str]] | None = None,
+    *,
+    on_bad: Callable[[str], None] = _skipped,
 ) -> list[str]:
     """Return the `default` branch's first-parent release merges past raw `base`.
 
@@ -2355,7 +2346,7 @@ def _foreign_commit(
     tags = _release_tags(primary) if tags is None else tags
     heads = {
         head
-        for head in _ledger_heads(primary)
+        for head in _ledger_heads(primary, on_bad=on_bad)
         if not _history_ancestor(primary, head, base)
     }
     commits = _history(primary, "rev-list", "--first-parent", f"{base}..{tip}").split()
@@ -2369,14 +2360,19 @@ def _foreign_commit(
 
 
 def _local_releases(
-    primary: Path, base: str, default: str, push_tags: bool = True
+    primary: Path,
+    base: str,
+    default: str,
+    push_tags: bool = True,
+    *,
+    on_bad: Callable[[str], None] = _skipped,
 ) -> list[str]:
     """Return `default` and the tags of its release merges past raw `base`, or none.
 
     `push_tags` false names no tag. Why: 0132-cloud-run design D1.
     """
     tags = _release_tags(primary)
-    commits = _foreign_commit(primary, base, default, tags=tags)
+    commits = _foreign_commit(primary, base, default, tags=tags, on_bad=on_bad)
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
     named = [tag for tag, (_, commit) in tags.items() if commit in released]
     return [default, *(named if push_tags else [])] if commits else []
@@ -2415,6 +2411,8 @@ def _unpushed(
     push_tags: bool = True,
     start: bool = False,
     notes: list[str] | None = None,
+    *,
+    on_bad: Callable[[str], None] = _skipped,
 ) -> list[tuple[str, str]]:
     """Return each `(ref, sha)` to push; `push_tags` false names no tag.
 
@@ -2437,7 +2435,7 @@ def _unpushed(
         tracking = f"refs/remotes/origin/{default}"
         if _maybe(primary, "rev-parse", "-q", "--verify", tracking) is None:
             raise Stop(1, f"conduct: halt — origin has no {default}: push it by hand")
-        commits = _foreign_commit(primary, tracking, default)
+        commits = _foreign_commit(primary, tracking, default, on_bad=on_bad)
         return [(f"refs/heads/{default}", commits[0])] if commits else []
     held = {
         ref: sha
@@ -2465,7 +2463,7 @@ def _unpushed(
             notes += [f"made {tag}" for tag in _make_tags(primary, base)]
     tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary)
-    commits = _foreign_commit(primary, base, default, tip, tags)
+    commits = _foreign_commit(primary, base, default, tip, tags, on_bad=on_bad)
     found = [(f"refs/heads/{default}", tip)] if commits else []
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
     if not push_tags:
@@ -2490,7 +2488,7 @@ def _unread(primary: Path) -> bool:
     """
     return (
         "origin" in _git(primary, "remote").split()
-        and not mflib.layout.kept_file(primary).is_file()
+        and not mflib.kept.origin_stands(primary)
         and any(
             TAG.fullmatch(tag)
             for tag in _git(primary, "tag", "--merged", default_branch(primary)).split()
@@ -2533,8 +2531,8 @@ def check_probe(scratch: Path, mark: Path | None) -> str | None:
     A `mark` gone or written fails, naming its executor: `probe-codex-41` → `codex`.
     `check probe` has no mark, and skips it. Why: 0053-sandbox-patch design D1.
     """
-    executor = mark.name.split("-")[1] if mark is not None else "the worker"
-    if mark is not None and (not mark.is_file() or mark.stat().st_size):
+    executor = mflib.kept.probe_executor(mark) if mark is not None else "the worker"
+    if mark is not None and not mflib.kept.probe_untouched(mark):
         return f"{executor} wrote outside its reach: it runs unsandboxed"
     arch = scratch / ".arch"
     if arch.is_symlink() or arch.is_file():
@@ -4320,25 +4318,8 @@ def _clear(active: Path) -> None:
 
 
 def _pin() -> dict[str, Any]:
-    """Return `pin.py`'s namespace: the live marks, the links, the quiet move."""
+    """Return `pin.py`'s namespace: the links and the quiet move."""
     return runpy.run_path(str(PIN))
-
-
-def _mark_live(pin: dict[str, Any], primary: Path) -> Path | None:
-    """Write this run's live mark, holding its pid; return it, or None if not written.
-
-    Why: 0068-pinned-release design D2.
-    """
-    mark = mflib.layout.live_mark(primary)
-    if pin["holder"](mark) not in (None, os.getpid(), os.getppid()):
-        return None
-    try:
-        mark.parent.parent.mkdir(mode=0o700, exist_ok=True)
-        mark.parent.mkdir(mode=0o700, exist_ok=True)
-        mark.write_text(f"{os.getpid()}\n")
-    except OSError:
-        return None
-    return mark
 
 
 def _record_repo(primary: Path) -> None:
@@ -4347,23 +4328,7 @@ def _record_repo(primary: Path) -> None:
     The review metrics read it; no worker writes there. A home folder that refuses
     it records nothing. Why: 0100-worker-diet design C1, D12.
     """
-    path = mflib.layout.repos_file()
-    line = str(primary.resolve())
-    try:
-        path.parent.mkdir(mode=0o700, exist_ok=True)
-        if path.is_file() and line in path.read_text(errors="replace").splitlines():
-            return
-        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW
-        with os.fdopen(os.open(path, flags, 0o600), "a") as file:
-            file.write(f"{line}\n")
-    except OSError:
-        return
-
-
-def _unmark(pin: dict[str, Any], mark: Path | None) -> None:
-    """Remove this run's live mark, when it still holds this run's pid."""
-    if mark and pin["holder"](mark) == os.getpid():
-        mark.unlink()
+    mflib.kept.record_repo(primary)
 
 
 def _unlinked(executor: str) -> None:
@@ -4767,9 +4732,12 @@ class Run:
                     base,
                     _kept_default(self.primary),
                     push_tags=self.tags,
+                    on_bad=self.ledger_bad,
                 )
             else:
-                unpushed = _unpushed(self.primary, push_tags=self.tags)
+                unpushed = _unpushed(
+                    self.primary, push_tags=self.tags, on_bad=self.ledger_bad
+                )
                 names = [ref.split("/", 2)[2] for ref, _ in unpushed]
         except Stop:
             return ""
@@ -4778,6 +4746,13 @@ class Run:
     def waited(self, why: str) -> None:
         """Log a push that waits on `origin`."""
         self.log.event("run", "push", f"waiting: {why}")
+
+    def ledger_bad(self, name: str) -> None:
+        """Log that the ledger entry `name` is no commit id.
+
+        Why: 0159-kept design D10.
+        """
+        self.log.event("run", "ledger", f"{name} is no commit id: skipped")
 
     def spawn(
         self,
@@ -5637,7 +5612,12 @@ class Run:
                 if stage == "integrate" and _has_origin(self.primary):
                     default = default_branch(self.primary)
                     base = _offline_base(self.primary) if self.offline else None
-                    _foreign_commit(self.primary, base or f"origin/{default}", default)
+                    _foreign_commit(
+                        self.primary,
+                        base or f"origin/{default}",
+                        default,
+                        on_bad=self.ledger_bad,
+                    )
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
@@ -6847,9 +6827,7 @@ class Run:
         mark = mflib.layout.probe_mark(executor, os.getpid())
         try:
             try:
-                mark.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                mark.unlink(missing_ok=True)
-                os.close(os.open(mark, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+                mflib.kept.make_probe_mark(executor, os.getpid())
             except OSError as error:
                 self.halt(
                     who, f"{station} — cannot write the probe mark: {error.strerror}"
@@ -6897,7 +6875,7 @@ class Run:
                 self.probed.add(executor)
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
-            mark.unlink(missing_ok=True)
+            mflib.kept.remove_probe_mark(mark)
 
     def probe_checker(
         self,
@@ -6977,6 +6955,7 @@ class Run:
                     push_tags=self.tags,
                     start=self.fresh,
                     notes=notes,
+                    on_bad=self.ledger_bad,
                 )
             except Unreachable as down:
                 self.waited(str(down))
@@ -6998,7 +6977,9 @@ class Run:
                     "conduct: halt — cannot read origin, and no offline base: a person"
                     " runs conduct.py anchor",
                 )
-            _foreign_commit(self.primary, base, _kept_default(self.primary))
+            _foreign_commit(
+                self.primary, base, _kept_default(self.primary), on_bad=self.ledger_bad
+            )
         except Stop as stop:
             self.halt("run", str(stop))
             return False
@@ -7346,7 +7327,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     Why: 0068-pinned-release design D2 and D3; 0082-cut-station design D2.
     """
     pin = _pin()
-    mark = _mark_live(pin, primary_of(cwd))
+    mark = mflib.kept.mark_live(primary_of(cwd), os.getpid(), os.getppid())
     try:
         primary = preconditions(cwd, executor)
         cap = _cap()
@@ -7364,8 +7345,8 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         active = mflib.layout.claim_file(primary)
         if _claim(active) == "stale":
             _clear(active)
-    except Stop:
-        _unmark(pin, mark)
+    except (Stop, mflib.kept.Broken):
+        mflib.kept.unmark(mark, os.getpid())
         raise
     if detach:
         print(f"run: started · pid {_detach(primary, executor).pid}")
@@ -7373,12 +7354,12 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
     try:
         mflib.claim.take(active)
     except FileExistsError:
-        _unmark(pin, mark)
+        mflib.kept.unmark(mark, os.getpid())
         raise Stop(
             2, "run: cannot run — a run is live: .minions/runs/active exists"
         ) from None
     except OSError as error:
-        _unmark(pin, mark)
+        mflib.kept.unmark(mark, os.getpid())
         raise Stop(
             2, f"run: cannot run — .minions/runs/active: {error.strerror}"
         ) from None
@@ -7393,7 +7374,10 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
         except Exception as error:  # noqa: BLE001
+            held, conductor.log.held = conductor.log.held, None
             try:
+                for event in held or []:
+                    conductor.log.event(*event)
                 conductor.log.event(
                     "run",
                     "halt",
@@ -7401,7 +7385,8 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
                 )
             except OSError as unwritten:
                 raise _unwritable(conductor.log.path, unwritten) from None
-            code = 1
+            # why: 0159-kept design D7
+            code = 2 if isinstance(error, mflib.kept.Broken) else 1
         seen = conductor.handled()
         ended = "done" if code == 0 else "halt"
         print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
@@ -7415,7 +7400,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
                 ):
                     print(f"run: {why}")
         finally:
-            _unmark(pin, mark)
+            mflib.kept.unmark(mark, os.getpid())
             _close(primary, active, executor, seen)
 
 
@@ -8374,13 +8359,8 @@ def approve_gate(cwd: Path, change: str, hashed: str) -> str:
         raise Stop(2, f"approve-gate: cannot run — no version worktree holds {change}")
     if not SHA256.fullmatch(hashed):
         raise Stop(1, f"approve-gate: refused — not the hash a halt names: {hashed}")
-    entry = mflib.layout.gate_approval(primary, change)
     try:
-        entry.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        entry.unlink(missing_ok=True)
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
-        with os.fdopen(os.open(entry, flags, 0o600), "w") as file:
-            file.write(f"{hashed}\n")
+        mflib.kept.approve(primary, change, hashed)
     except OSError as error:
         raise Stop(
             2,
@@ -8399,12 +8379,11 @@ def anchor(cwd: Path, yes: str | None) -> str:
     _refuse_config_commands(primary)
     if _claim(mflib.layout.claim_file(primary)) == "live":
         raise Stop(2, "anchor: cannot run — a run is live: .minions/runs/active exists")
-    file = mflib.layout.pushed_file(primary)
-    if file.is_file():
+    if mflib.kept.base_stands(primary):
         raise Stop(
             2,
             f"anchor: cannot run — an offline base stands:"
-            f" ~/{mflib.layout.KEPT_ORIGINS}/{file.name}",
+            f" ~/{mflib.layout.KEPT_ORIGINS}/{mflib.layout.pushed_file(primary).name}",
         )
     default = _kept_default(primary)
     tracking = f"origin/{default}"
@@ -9267,6 +9246,9 @@ def main(argv_: list[str] | None = None) -> int:
     except Stop as stop:
         print(stop)
         return stop.code
+    except mflib.kept.Broken as broken:
+        print(f"conduct: cannot run — {broken}")
+        return 2
     return 0
 
 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.129.0] - 2026-11-27
+
+Gate: local 7m33s · CI not read under mf-ship · 0.128.0: local 7m38s · CI not read under mf-ship
+
+- `tests/test_kept_pins.py` pins the kept files as the conductor, `pin.py` and `gate_check.py` write, read, list and remove them: the ledger, the kept origin, `.default`, the offline base, the probe and live marks, `repos` and the approval, each broken shape on today's side. The module move that follows changes no assert (0159-kept, phase 1).
+- `skills/mflib/kept.py` writes, reads, lists and removes each kept file as its copy in the conductor, `pin.py` and `gate_check.py` does today, with `tests/test_kept.py`'s unit and round-trip cases. No script calls it yet; the stations move onto it next (0159-kept, phase 2).
+- The conductor, `pin.py` and `gate_check.py` write and read the kept files through `skills/mflib/kept.py`; `_ledger_entries`, `_mark_live` and `_unmark` go, and `pin.py` no longer loads the conductor for the kept origin. No assert changes (0159-kept, phase 3).
+- A kept file is read through no link, without blocking and bounded: a broken kept origin, `.default` or offline base stops the command, exit 2, naming the file; a broken approval approves nothing; a ledger entry that is no commit id is named and skipped; a broken live mark or `repos` reads as none. Writes are staged at 0600, and the kept origin and `.default` are written once (0159-kept, phase 4).
+- `.default` is now written with a newline and read stripped. An older pinned conductor reads the new file as a moved default and halts its pushes: pins only move forward (0159-kept, phase 4).
+- D51, D55, the threat model and the recipes say the kept files go through `skills/mflib/kept.py`: an unreadable kept file stops the command, a non-commit ledger entry authorizes nothing, an unreadable live mark reads as none (0159-kept, phase 5).
+- `test_broken_run_releases_the_held_events_before_the_halt` covers the replay of the run log's held events when `ship` raises a `Broken`, so the gate's diff coverage holds (0159-kept, phase 6).
+
 ## [0.128.0] - 2026-11-27
 
 Gate: local 7m38s · CI not read under mf-ship · 0.127.0: local 9m56s · CI not read under mf-ship

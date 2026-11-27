@@ -507,6 +507,19 @@ def test_a_staged_tree_is_checked(tmp_path: Path) -> None:
     assert "\n+echo c" in quoted.stdout
 
 
+def test_a_bad_byte_approves_nothing(tmp_path: Path) -> None:
+    names = runpy.run_path(str(_SCRIPT))
+    names["approval"].__globals__["_primary"] = lambda: tmp_path
+    digest = hashlib.sha256(str(tmp_path.resolve()).encode()).hexdigest()[:16]
+    entry = Path.home() / ".mf-ship-origin" / f"{digest}.gate" / _CHANGE
+    entry.parent.mkdir(parents=True)
+    entry.write_bytes(b"\xff\xfe\n")
+
+    assert names["approval"](_CHANGE) is None
+    entry.write_text("ab\n")
+    assert names["approval"](_CHANGE) == "ab"
+
+
 @pytest.mark.slow
 def test_an_approval_passes_until_the_diff_moves(tmp_path: Path) -> None:
     root, home = tmp_path / "repo", tmp_path / "home"
