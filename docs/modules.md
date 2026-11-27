@@ -46,9 +46,9 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-converge/scripts/stamp.py` | station | statuslog.py |
 | `skills/mf-cut-change/scripts/awake.py` | station | layout.py, platform.py |
 | `skills/mf-cut-change/scripts/cut_check.py` | station | cut_pre.py, gate_check.py, plan_check.py, verify_check.py |
-| `skills/mf-cut-change/scripts/cut_context.py` | station | brief_check.py, bundle.py, debtfile.py, facts.py, layout.py |
-| `skills/mf-cut-change/scripts/cut_pre.py` | station | layout.py |
-| `skills/mf-cut-change/scripts/facts.py` | station | brief_check.py |
+| `skills/mf-cut-change/scripts/cut_context.py` | station | brief_check.py, bundle.py, debtfile.py, facts.py, layout.py, statefile.py |
+| `skills/mf-cut-change/scripts/cut_pre.py` | station | layout.py, statefile.py |
+| `skills/mf-cut-change/scripts/facts.py` | station | brief_check.py, statefile.py |
 | `skills/mf-cut-change/scripts/verify_check.py` | station | cut_pre.py, plan_check.py |
 | `skills/mf-integrate/scripts/integrate.py` | station | findings.py, layout.py, marks.py |
 | `skills/mf-plan/scripts/brief_check.py` | station | conduct.py, layout.py, modelsfile.py, verify_check.py |

@@ -9,8 +9,10 @@ Exit 0 no halt · 1 a halt · 2 unrunnable. Why: 0106-cut-scripts design D5.
 """
 
 import argparse
+import contextlib
 import os
 import re
+import stat
 import subprocess
 import sys
 from collections.abc import Callable
@@ -18,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
+import mflib.statefile
 
 TIMEOUT_SECONDS = 60
 CHANGE_ID = re.compile(r"(\d+)-[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -163,12 +166,40 @@ def check_gate(change: str, unattended: bool) -> str | None:
     return None if commands else "`make -n gate` prints no command: the recipe is empty"
 
 
+def _cuts_folder() -> tuple[int | None, str | None]:
+    """Return a descriptor on `.minions/cuts` and no reason, or none and why not.
+
+    A missing folder holds no reservation: no descriptor, no reason. A link at
+    `.minions` or `cuts` gives the reason `<part>: <error>`, naming it.
+    """
+    parts = (mflib.layout.MINIONS, mflib.layout.CUTS)
+    try:
+        return mflib.statefile.open_folder(_primary(), *parts), None
+    except FileNotFoundError:
+        return None, None
+    except OSError as error:
+        return None, f"{error.filename}: {error.strerror}"
+
+
 def check_reserved(change: str, unattended: bool) -> str | None:
     """Return why the reservation is wrong, or None.
 
     By hand it must not stand; unattended it must, as the run made it under its lock.
+    A link or a folder at the reservation is wrong, named.
     """
-    stands = mflib.layout.cut_reservation(_primary(), change).exists()
+    fd, why = _cuts_folder()
+    if why:
+        return why
+    stands = False
+    if fd is not None:
+        try:
+            with contextlib.suppress(FileNotFoundError):
+                held = os.stat(change, dir_fd=fd, follow_symlinks=False)
+                if not stat.S_ISREG(held.st_mode):
+                    return f"{change} is a link or a folder in .minions/cuts/"
+                stands = True
+        finally:
+            os.close(fd)
     if unattended and not stands:
         return f"{change} has no reservation in .minions/cuts/"
     if stands and not unattended:
@@ -185,13 +216,18 @@ def check_id(change: str, unattended: bool) -> str | None:
     The others: each change and archived change on the default branch and on each open
     version, and each other reservation. Why: 0106-cut-scripts design D5.
     """
+    fd, why = _cuts_folder()
+    if why:
+        return why
     default = default_branch()
     taken = _held(default)
     for branch in open_versions(default):
         taken += _held(branch)
-    cuts = mflib.layout.cut_reservation(_primary(), change).parent
-    if cuts.is_dir():
-        taken += [_number(p.name) for p in cuts.iterdir() if p.name != change]
+    if fd is not None:
+        try:
+            taken += [_number(name) for name in os.listdir(fd) if name != change]
+        finally:
+            os.close(fd)
     if (top := max(taken, default=0)) >= _number(change):
         return f"the number is not above {top}, one that is taken"
     return None

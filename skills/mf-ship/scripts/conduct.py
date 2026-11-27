@@ -3132,7 +3132,8 @@ def _granted(runs: Path, change: str, take: bool) -> bool:
     Why: 0067-rescue design D7.
     """
     try:
-        fd = os.open(runs / "grants", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        fd = os.open(runs / mflib.layout.GRANTS, flags)
     except OSError:
         return False
     try:
@@ -6310,7 +6311,7 @@ class Run:
             folder.mkdir(mode=0o700, exist_ok=True)
             (folder / change).write_text(f"{entry['brief']}\n")
             # The entry goes last, so a reservation that cannot go keeps it to halt.
-            _remove_in(mflib.layout.run_dir(primary), "cuts", name=change)
+            _remove_in(mflib.layout.run_dir(primary), mflib.layout.CUTS, name=change)
             (mflib.layout.queue_cuts(primary) / change).unlink()
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
@@ -7189,7 +7190,7 @@ class Run:
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         # A worker may link the folder elsewhere: a link lists nothing.
-        standing = _entries(mflib.layout.run_dir(self.primary) / "grants", empty=False)
+        standing = _entries(mflib.layout.grants_dir(self.primary), empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
         release = _pin()["describe"]()
         awake = (
@@ -8109,7 +8110,7 @@ def _next_id(primary: Path) -> int:
     branches = _git(primary, "branch", "--list", "[0-9]*", "--format=%(refname:short)")
     names = [
         *branches.split(),
-        *_entries(mflib.layout.run_dir(primary) / "cuts", empty=False),
+        *_entries(mflib.layout.cuts_dir(primary), empty=False),
     ]
     names += _cuts(primary)
     for rev in [default, *branches.split()]:
@@ -8181,7 +8182,7 @@ def cut(
             mflib.modelsfile.write(primary, change, models)
         except mflib.statefile.WriteFailed as error:
             raise _unwritten(change, error) from None
-        fd = _folder_fd(mflib.layout.run_dir(primary), "cuts")
+        fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CUTS)
         try:
             flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
             os.close(os.open(change, flags, 0o644, dir_fd=fd))
@@ -8355,9 +8356,18 @@ def grant(cwd: Path, change: str, executor: str) -> int:
             )
         if not live:
             preconditions(cwd, executor)
-        grants = mflib.layout.run_dir(primary) / "grants"
-        grants.mkdir(parents=True, exist_ok=True)
-        (grants / change).touch()
+        parts = (mflib.layout.MINIONS, mflib.layout.GRANTS)
+        try:
+            fd = _folder_fd(primary, *parts)
+        except OSError as error:
+            raise Stop(
+                2, f"grant: cannot run — {'/'.join(parts)}: {error.strerror}"
+            ) from None
+        try:
+            flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
+            os.close(os.open(change, flags, 0o644, dir_fd=fd))
+        finally:
+            os.close(fd)
         if not live:
             pid = _start_run(primary, executor)
             print(f"grant: recorded · run started · pid {pid}")

@@ -5,7 +5,7 @@ Pin today's opens and the riders, move the riders, move the roots, say what is t
 ## Progress
 
 - [x] 1 — Pin the roots and the riders · moderate
-- [ ] 2 — The riders · moderate
+- [x] 2 — The riders · moderate
 - [ ] 3 — The root · hard
 - [ ] 4 — The record · moderate
 
@@ -26,21 +26,21 @@ Pin today's opens and the riders, move the riders, move the roots, say what is t
 
 ## 2 — The riders
 
-- [ ] 2.1 In `skills/mflib/layout.py` add `RUNS`, `CUTS` and `GRANTS` beside `MINIONS` and `CHANGES`, and `cuts_dir(primary)` and `def grants_dir(primary)`; build `runs_dir` and `cut_reservation` on them. In `tests/test_layout.py` check each name against its hand-spelled path.
+- [x] 2.1 In `skills/mflib/layout.py` add `RUNS`, `CUTS` and `GRANTS` beside `MINIONS` and `CHANGES`, and `cuts_dir(primary)` and `def grants_dir(primary)`; build `runs_dir` and `cut_reservation` on them. In `tests/test_layout.py` check each name against its hand-spelled path.
   Verify: `git grep -q -F "def grants_dir" -- skills/mflib/layout.py` exits `0`.
-- [ ] 2.2 In `skills/mf-ship/scripts/conduct.py` make `Run.cutting`, `_next_id`, `cut`, `_granted`, `Run.ship` and `grant` drop the literals `"cuts"` and `"grants"` and call `mflib.layout` for the names, per [D6](design.md#d6).
+- [x] 2.2 In `skills/mf-ship/scripts/conduct.py` make `Run.cutting`, `_next_id`, `cut`, `_granted`, `Run.ship` and `grant` drop the literals `"cuts"` and `"grants"` and call `mflib.layout` for the names, per [D6](design.md#d6).
   Verify: `git grep -n -e '"cuts"' -e '"grants"' -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 2.3 In `skills/mf-converge/scripts/gate_run.py` drop `path.read_text()` from `read_record` for `mflib.statefile.read_bytes` and a strict decode: a link or a bad byte gives `{}`. Turn the pins of 1.4 to that.
+- [x] 2.3 In `skills/mf-converge/scripts/gate_run.py` drop `path.read_text()` from `read_record` for `mflib.statefile.read_bytes` and a strict decode: a link or a bad byte gives `{}`. Turn the pins of 1.4 to that.
   Verify: `git grep -n -F "path.read_text()" -- skills/mf-converge/scripts/gate_run.py` prints nothing.
-- [ ] 2.4 In `skills/mflib/statefile.py` add `write_or_say(path, text) -> str | None`: the staged write refusing a link, its failure as the line `<path> is a link` or `<path>: <reason>`, else `None`. Make `write` in `bundle.py` and in `open_cards.py` call it and raise their own `Stop`, dropping their `ELOOP` test and the `errno` import `bundle.py` then leaves unused. Add its cases to `tests/test_statefile.py`.
+- [x] 2.4 In `skills/mflib/statefile.py` add `write_or_say(path, text) -> str | None`: the staged write refusing a link, its failure as the line `<path> is a link` or `<path>: <reason>`, else `None`. Make `write` in `bundle.py` and in `open_cards.py` call it and raise their own `Stop`, dropping their `ELOOP` test and the `errno` import `bundle.py` then leaves unused. Add its cases to `tests/test_statefile.py`.
   Verify: `git grep -n ELOOP -- skills/mf-converge/scripts/bundle.py skills/mf-converge/scripts/open_cards.py` prints nothing.
-- [ ] 2.5 In `skills/mf-cut-change/scripts/facts.py` write and append `cut-notes.md` through `mflib.statefile`, an append as a read and a staged write that refuses a link; load `mflib.statefile` after the seed line its folder fixes. In `skills/mf-cut-change/scripts/cut_context.py` write `context.md` through the staged write, its refusal of a link still saying `is a link`, and add a case to `tests/test_cut_context.py`: a hard link at `context.md` keeps the other name's text. In `docs/modules.md` add `statefile.py` to the rows of `facts.py` and `cut_context.py`. Turn the pins of 1.5 to the refusal.
+- [x] 2.5 In `skills/mf-cut-change/scripts/facts.py` write and append `cut-notes.md` through `mflib.statefile`, an append as a read and a staged write that refuses a link; load `mflib.statefile` after the seed line its folder fixes. In `skills/mf-cut-change/scripts/cut_context.py` write `context.md` through the staged write, its refusal of a link still saying `is a link`, and add a case to `tests/test_cut_context.py`: a hard link at `context.md` keeps the other name's text. In `docs/modules.md` add `statefile.py` to the rows of `facts.py` and `cut_context.py`. Turn the pins of 1.5 to the refusal.
   Verify: `uv run pytest tests/test_cut_context.py tests/test_facts.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.6 In `skills/mf-ship/scripts/conduct.py` make `grant` open its folder through `_folder_fd` with the primary as root and `mflib.layout.MINIONS` and `mflib.layout.GRANTS` as parts, and create the grant in it with `O_NOFOLLOW`: no `mkdir` or `touch` of a plain path. Turn the grant case of 1.2 to the refusal, asserting the stop and the unchanged target and no message.
+- [x] 2.6 In `skills/mf-ship/scripts/conduct.py` make `grant` open its folder through `_folder_fd` with the primary as root and `mflib.layout.MINIONS` and `mflib.layout.GRANTS` as parts, and create the grant in it with `O_NOFOLLOW`: no `mkdir` or `touch` of a plain path. Turn the grant case of 1.2 to the refusal, asserting the stop and the unchanged target and no message.
   Verify: `uv run pytest tests/test_conduct.py -n auto -q` exits `0`.
-- [ ] 2.7 In `skills/mf-cut-change/scripts/cut_pre.py` read the reservations through `mflib.statefile.open_folder` with the primary as root and `mflib.layout.MINIONS` and `mflib.layout.CUTS` as parts: a missing folder holds none, and a link at `.minions` or `cuts/` fails both checks, naming it. `check_reserved` takes a regular file by `lstat` through the descriptor, and a link or a folder there fails naming it; `check_id` lists through it. Add `statefile.py` to its row of `docs/modules.md`. Turn the pins of 1.6, and add cases to `tests/test_cut_pre.py`: a missing `cuts/` holds none, and a link at `cuts/` and a link at `.minions` each fail both checks.
+- [x] 2.7 In `skills/mf-cut-change/scripts/cut_pre.py` read the reservations through `mflib.statefile.open_folder` with the primary as root and `mflib.layout.MINIONS` and `mflib.layout.CUTS` as parts: a missing folder holds none, and a link at `.minions` or `cuts/` fails both checks, naming it. `check_reserved` takes a regular file by `lstat` through the descriptor, and a link or a folder there fails naming it; `check_id` lists through it. Add `statefile.py` to its row of `docs/modules.md`. Turn the pins of 1.6, and add cases to `tests/test_cut_pre.py`: a missing `cuts/` holds none, and a link at `cuts/` and a link at `.minions` each fail both checks.
   Verify: `uv run pytest tests/test_cut_pre.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.8 In `skills/mf-converge/scripts/converge.py` drop the literals `.with_suffix(".open.md")` in `open_cards` and `{each}.open.md` in the verify prompt, and name the page through `mflib.layout.open_name`.
+- [x] 2.8 In `skills/mf-converge/scripts/converge.py` drop the literals `.with_suffix(".open.md")` in `open_cards` and `{each}.open.md` in the verify prompt, and name the page through `mflib.layout.open_name`.
   Verify: `git grep -n -F -e 'with_suffix(".open.md")' -e '{each}.open.md' -- skills/mf-converge/scripts/converge.py` prints nothing.
 
 ## 3 — The root

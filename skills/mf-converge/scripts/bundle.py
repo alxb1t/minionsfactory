@@ -10,7 +10,6 @@ Why: 0094-lighter-converge design D5; 0100-worker-diet design D7;
 
 import argparse
 import difflib
-import errno
 import re
 import sys
 from pathlib import Path
@@ -169,12 +168,8 @@ def bundle(change: str, root: Path = Path()) -> tuple[str, int, int]:
 
 def write(path: Path, text: str) -> None:
     """Replace `path` with `text` through a staged file; a link is refused."""
-    try:
-        mflib.statefile.write(path, text, refuse_link=True)
-    except mflib.statefile.WriteFailed as failed:
-        if failed.error.errno == errno.ELOOP:
-            raise Stop(f"{path} is a link") from failed
-        raise Stop(f"{path}: {failed.error.strerror}") from failed
+    if said := mflib.statefile.write_or_say(path, text):
+        raise Stop(said)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -323,21 +323,27 @@ def test_case_e_a_staged_record_that_cannot_be_made_is_named(
     assert capsys.readouterr().out.startswith(f"gate: green — unrecorded, {said} · ")
 
 
-def test_read_record_reads_through_a_link(tmp_path: Path) -> None:
+def test_read_record_reads_a_link_as_none(tmp_path: Path) -> None:
     kept = tmp_path / "kept"
     kept.write_text("dry: d\nseconds: 7\n")
     record = tmp_path / "tree"
     record.symlink_to(kept)
 
-    assert gate_run.read_record(record) == {"dry": "d", "seconds": "7"}
+    assert gate_run.read_record(record) == {}
 
 
-def test_read_record_raises_on_a_byte_that_is_not_utf8(tmp_path: Path) -> None:
+def test_read_record_reads_a_byte_that_is_not_utf8_as_none(tmp_path: Path) -> None:
     record = tmp_path / "tree"
     record.write_bytes(b"dry: \xff\n")
 
-    with pytest.raises(UnicodeDecodeError):
-        gate_run.read_record(record)
+    assert gate_run.read_record(record) == {}
+
+
+def test_read_record_reads_a_regular_file(tmp_path: Path) -> None:
+    record = tmp_path / "tree"
+    record.write_text("dry: d\nseconds: 7\n")
+
+    assert gate_run.read_record(record) == {"dry": "d", "seconds": "7"}
 
 
 def test_records_go_under_the_primary_run_directory(tmp_path: Path) -> None:

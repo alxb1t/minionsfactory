@@ -1186,7 +1186,7 @@ def open_cards(context: Context, role: str) -> None:
     """Write `<role>.open.md`, the cards a verify judges; one it cannot read halts."""
     findings = context.folder / f"{role}.md"
     try:
-        OPEN_CARDS["open_page"](findings, findings.with_suffix(".open.md"))
+        OPEN_CARDS["open_page"](findings, context.folder / mflib.layout.open_name(role))
     except OPEN_CARDS["Stop"] as stop:
         raise Halt(f"open cards: cannot read — {stop}") from stop
 
@@ -2065,7 +2065,7 @@ def verify_prompt(context: Context, frozen: Freeze, role: str, roles: list[str])
         range=f"{frozen.base}..{frozen.head}",
         patch=folder / "diff.patch",
         evidence=folder / "evidence.md",
-        open=" and ".join(str(folder / f"{each}.open.md") for each in roles),
+        open=" and ".join(str(folder / mflib.layout.open_name(each)) for each in roles),
         findings=" and ".join(str(folder / f"{each}.md") for each in roles),
     )
 

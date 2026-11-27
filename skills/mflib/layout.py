@@ -14,6 +14,9 @@ SCRATCH_PREFIX = ".mf-ship-remote-"
 SKILLS = {"claude": ".claude/skills", "codex": ".agents/skills"}
 MINIONS = ".minions"
 CHANGES = "changes"
+RUNS = "runs"
+CUTS = "cuts"
+GRANTS = "grants"
 STATUS_LOG = "status_log.md"
 MODELS = "models.toml"
 # Each old-layout path of a change, by its name in the change's folder.
@@ -120,7 +123,7 @@ def findings_file(primary: Path, change: str, role: str) -> Path:
 
 def runs_dir(primary: Path) -> Path:
     """Return the folder of the runs' logs and their claim."""
-    return run_dir(primary) / "runs"
+    return run_dir(primary) / RUNS
 
 
 def claim_file(primary: Path) -> Path:
@@ -156,12 +159,28 @@ def gate_dir(primary: Path) -> Path:
     return run_dir(primary) / "gate"
 
 
+def cuts_dir(primary: Path) -> Path:
+    """Return the folder of the cuts' reservations.
+
+    e.g. <primary> → <primary>/.minions/cuts
+    """
+    return run_dir(primary) / CUTS
+
+
+def grants_dir(primary: Path) -> Path:
+    """Return the folder of a person's grants.
+
+    e.g. <primary> → <primary>/.minions/grants
+    """
+    return run_dir(primary) / GRANTS
+
+
 def cut_reservation(primary: Path, change: str) -> Path:
     """Return the file that reserves a change's id for its cut.
 
     e.g. "0001-todo" → <primary>/.minions/cuts/0001-todo
     """
-    return run_dir(primary) / "cuts" / change
+    return cuts_dir(primary) / change
 
 
 def metrics_page(primary: Path, change: str) -> Path:

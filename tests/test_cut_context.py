@@ -505,6 +505,25 @@ def test_a_pack_that_cannot_be_written_exits_2(
     assert "facts.txt" in exits_2(str(brief), "0116-cut-diet")
 
 
+def test_a_pack_leaves_the_other_name_of_a_hard_linked_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    brief = _pack_repo(root)
+    monkeypatch.chdir(root)
+    _runner(monkeypatch)
+    folder = root.resolve() / ".minions" / "changes" / "0116-cut-diet"
+    folder.mkdir(parents=True)
+    other = root / "other.md"
+    other.write_text("kept\n")
+    (folder / "context.md").hardlink_to(other)
+
+    assert cut_context.main([str(brief), "0116-cut-diet"]) == 0
+
+    assert other.read_text() == "kept\n"
+    assert "# Cut diet" in (folder / "context.md").read_text()
+
+
 def test_the_script_runs_as_a_program(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     brief = _pack_repo(root)

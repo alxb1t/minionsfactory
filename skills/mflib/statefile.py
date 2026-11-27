@@ -71,6 +71,20 @@ def write(
         raise WriteFailed(step, error) from error
 
 
+def write_or_say(path: Path, text: str) -> str | None:
+    """Replace `path` with `text` through a staged write refusing a link; say a failure.
+
+    e.g. a link at "a.md" → "a.md is a link"; a full disk → "a.md: No space left"
+    """
+    try:
+        write(path, text, refuse_link=True)
+    except WriteFailed as failed:
+        if failed.error.errno == errno.ELOOP:
+            return f"{path} is a link"
+        return f"{path}: {failed.error.strerror}"
+    return None
+
+
 def _regular(
     path: Path | str, flags: int, folder: int | None, *, one_name: bool = False
 ) -> int:

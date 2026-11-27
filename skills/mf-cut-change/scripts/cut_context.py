@@ -21,6 +21,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.debtfile
 import mflib.layout
+import mflib.statefile
 
 SCRIPTS = Path(__file__).resolve().parent
 # The runner is a constant so a test swaps it for the interpreter.
@@ -425,13 +426,9 @@ def _mkdir(folder: Path) -> None:
 
 
 def _write(path: Path, text: str) -> None:
-    """Write `text` to `path`; a link or an unwritable path stops with exit 2."""
-    if path.is_symlink():
-        raise Stop(2, f"cut_context: cannot write — {path} is a link")
-    try:
-        path.write_text(text)
-    except OSError as error:
-        raise Stop(2, f"cut_context: cannot write — {path}: {error.strerror}") from None
+    """Write `text` to `path` staged; a link or an unwritable path stops with exit 2."""
+    if said := mflib.statefile.write_or_say(path, text):
+        raise Stop(2, f"cut_context: cannot write — {said}")
 
 
 def pack(brief: Path, change: str) -> int:

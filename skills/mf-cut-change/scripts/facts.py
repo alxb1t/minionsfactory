@@ -16,6 +16,9 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.statefile
+
 # The runner is a constant so a test swaps it for the interpreter.
 RUNNER = ("uv", "run", "--script")
 BRIEF_CHECK = (
@@ -303,18 +306,21 @@ def string_lines(text: str) -> list[str]:
 def write_notes(notes: Path, lines: list[str], fresh: bool) -> None:
     """Write the notes' `- ` lines: afresh under the title, or appended to the file.
 
-    The title is `# <id> — cut notes`, `<id>` the file's folder name.
+    The title is `# <id> — cut notes`, `<id>` the file's folder name. A link at
+    `notes` stops the run, the file it names unchanged.
     """
     body = "".join(f"- {line}\n" for line in lines)
     title = f"# {notes.resolve().parent.name} — cut notes\n\n"
-    try:
-        if fresh:
-            notes.write_text(title + body)
-        else:
-            with notes.open("a") as handle:
-                handle.write(body)
-    except OSError as error:
-        raise Stop(2, f"facts: cannot place — {notes}: {error.strerror}") from None
+    kept = title
+    if not fresh:
+        try:
+            kept = mflib.statefile.read(notes)
+        except FileNotFoundError:
+            kept = ""
+        except OSError as error:
+            raise Stop(2, f"facts: cannot place — {notes}: {error.strerror}") from None
+    if said := mflib.statefile.write_or_say(notes, kept + body):
+        raise Stop(2, f"facts: cannot place — {said}")
 
 
 def run_readers(

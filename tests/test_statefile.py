@@ -116,6 +116,32 @@ def test_refuse_link_true_writes_a_missing_target(tmp_path: Path) -> None:
     assert target.read_text() == _TEXT
 
 
+def test_write_or_say_writes_and_says_nothing(tmp_path: Path) -> None:
+    target = tmp_path / "state.md"
+
+    assert statefile.write_or_say(target, _TEXT) is None
+    assert target.read_text() == _TEXT
+
+
+def test_write_or_say_names_a_link(tmp_path: Path) -> None:
+    target = tmp_path / "state.md"
+    outside = tmp_path / "outside"
+    outside.write_text(_OLD)
+    target.symlink_to(outside)
+
+    assert statefile.write_or_say(target, _TEXT) == f"{target} is a link"
+    assert outside.read_text() == _OLD
+
+
+def test_write_or_say_gives_another_failure_its_reason(tmp_path: Path) -> None:
+    parent = tmp_path / "parent"
+    parent.write_text(_OLD)
+
+    said = statefile.write_or_say(parent / "state.md", _TEXT)
+
+    assert said == f"{parent / 'state.md'}: {os.strerror(errno.ENOTDIR)}"
+
+
 def test_refuse_link_false_replaces_a_link_at_the_target(tmp_path: Path) -> None:
     target = tmp_path / "state.md"
     outside = tmp_path / "outside"

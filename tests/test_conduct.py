@@ -18249,8 +18249,10 @@ def test_a_cut_reservation_follows_a_link_at_minions(tmp_path: Path) -> None:
     assert not os.path.lexists(outside / "cuts" / "0001-a")
 
 
-def test_a_grant_follows_a_link_at_minions(
-    tmp_path: Path, fake: Callable[..., Path]
+def test_a_grant_is_refused_at_a_link_at_minions(
+    tmp_path: Path,
+    fake: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     conduct = _conduct()
     fake("grant-halts")
@@ -18268,7 +18270,11 @@ def test_a_grant_follows_a_link_at_minions(
 
     conduct["grant"].__globals__["_start_run"] = spy
 
-    assert conduct["grant"](root, "0001-todo", "claude") == 0
+    with pytest.raises(conduct["Stop"]) as stop:
+        conduct["grant"](root, "0001-todo", "claude")
 
-    assert (outside / "grants" / "0001-todo").is_file()
-    assert started == [(root, "claude")]
+    assert stop.value.code == 2
+    assert str(stop.value).startswith("grant: cannot run — .minions/grants: ")
+    assert not (outside / "grants").exists()
+    assert started == []
+    assert capsys.readouterr().out == ""

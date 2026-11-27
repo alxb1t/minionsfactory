@@ -64,6 +64,8 @@ def test_layout_findings_file_is_in_the_change_folder(tmp_path: Path) -> None:
     ("name", "spelled"),
     [
         (layout.runs_dir, ".minions/runs"),
+        (layout.cuts_dir, ".minions/cuts"),
+        (layout.grants_dir, ".minions/grants"),
         (layout.claim_file, ".minions/runs/active"),
         (layout.debt_file, ".minions/debt.md"),
         (layout.debt_lock, ".minions/debt.lock"),
@@ -71,7 +73,17 @@ def test_layout_findings_file_is_in_the_change_folder(tmp_path: Path) -> None:
         (layout.backlog_lock, ".minions/backlog.lock"),
         (layout.gate_dir, ".minions/gate"),
     ],
-    ids=["runs", "claim", "debt", "debt-lock", "backlog", "backlog-lock", "gate"],
+    ids=[
+        "runs",
+        "cuts",
+        "grants",
+        "claim",
+        "debt",
+        "debt-lock",
+        "backlog",
+        "backlog-lock",
+        "gate",
+    ],
 )
 def test_a_generic_entry_is_its_spelled_path(
     tmp_path: Path, name: Callable[[Path], Path], spelled: str
