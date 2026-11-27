@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-release" / "scripts" / "next_tag.py"
 
@@ -36,6 +38,7 @@ def _assert_next(root: Path, minor: str, patch: str) -> None:
     assert _next(root, "patch").stdout == f"{patch}\n"
 
 
+@pytest.mark.slow
 def test_next_tag_follows_the_bump(tmp_path: Path) -> None:
     assert _next(tmp_path, "minor").returncode == 2
 
@@ -57,6 +60,7 @@ def test_next_tag_follows_the_bump(tmp_path: Path) -> None:
     assert _next(tmp_path, "major").returncode == 2
 
 
+@pytest.mark.slow
 def test_a_stray_local_tag_is_no_base(tmp_path: Path) -> None:
     _git(tmp_path, "init", "-q", "-b", "main")
     _git(tmp_path, "commit", "-q", "--allow-empty", "-m", "base")

@@ -62,6 +62,7 @@ def _record(root: Path) -> Path:
     return root / ".minions" / "gate" / _git(root, "write-tree")
 
 
+@pytest.mark.slow
 def test_a_green_run_is_recorded_and_reused_on_the_same_tree(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log)
@@ -104,6 +105,7 @@ def test_a_record_holds_under_inherited_make_flags(
     assert _runs(log) == 1
 
 
+@pytest.mark.slow
 def test_a_record_is_not_reused_across_inherited_make_overrides(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -118,6 +120,7 @@ def test_a_record_is_not_reused_across_inherited_make_overrides(
     assert _runs(log) == 2
 
 
+@pytest.mark.slow
 def test_a_red_run_records_nothing(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log, recipe="false")
@@ -129,6 +132,7 @@ def test_a_red_run_records_nothing(tmp_path: Path) -> None:
     assert not _record(root).exists()
 
 
+@pytest.mark.slow
 def test_a_gate_past_its_limit_is_red(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -183,6 +187,7 @@ def test_a_gate_runs_without_the_venv_and_quiet_when_green(tmp_path: Path) -> No
     assert lines[-1].startswith("gate: red — exit 2 · ")
 
 
+@pytest.mark.slow
 def test_reuse_is_refused_on_a_dirty_tree(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log)
@@ -204,6 +209,7 @@ def test_reuse_is_refused_on_a_dirty_tree(tmp_path: Path) -> None:
     assert _runs(log) == 3
 
 
+@pytest.mark.slow
 def test_a_gate_that_changes_what_it_ran_on_records_nothing(tmp_path: Path) -> None:
     mode = "$(shell cat .minions/mode 2>/dev/null)"
     cases = {
@@ -222,6 +228,7 @@ def test_a_gate_that_changes_what_it_ran_on_records_nothing(tmp_path: Path) -> N
         assert not _record(root).exists(), name
 
 
+@pytest.mark.slow
 def test_reuse_is_refused_on_another_tree(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log)
@@ -233,6 +240,7 @@ def test_reuse_is_refused_on_another_tree(tmp_path: Path) -> None:
     assert _runs(log) == 2
 
 
+@pytest.mark.slow
 def test_reuse_is_refused_on_a_changed_dry_run(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log)
@@ -243,6 +251,7 @@ def test_reuse_is_refused_on_a_changed_dry_run(tmp_path: Path) -> None:
     assert _gate(root, mode="b").stdout.startswith("gate: reused — ")
 
 
+@pytest.mark.slow
 def test_fresh_runs_whatever_stands_and_records(tmp_path: Path) -> None:
     root, log = tmp_path / "repo", tmp_path / "runs.log"
     _repo(root, log)
@@ -346,6 +355,7 @@ def test_read_record_reads_a_regular_file(tmp_path: Path) -> None:
     assert gate_run.read_record(record) == {"dry": "d", "seconds": "7"}
 
 
+@pytest.mark.slow
 def test_records_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     primary, worktree = tmp_path / "primary", tmp_path / "v0.2_x"
     log = tmp_path / "runs.log"

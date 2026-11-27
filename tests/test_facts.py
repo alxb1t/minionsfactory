@@ -466,6 +466,7 @@ def test_the_notes_file_is_written_and_appended(
     ]
 
 
+@pytest.mark.slow
 def test_what_cannot_be_read_exits_2(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

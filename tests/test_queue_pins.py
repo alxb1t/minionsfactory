@@ -783,6 +783,7 @@ def test_halted_after_follows_the_chain_and_matches_the_text_whole() -> None:
     assert halted(loop, "0001-a") == ["0002-b"]
 
 
+@pytest.mark.slow
 def test_next_id_is_one_above_every_number_the_repo_its_branches_and_the_queue_hold(
     tmp_path: Path,
 ) -> None:
@@ -816,6 +817,7 @@ def _briefed(tmp_path: Path, *slugs: str) -> tuple[dict[str, Any], Path, Path]:
     return conduct, root, brief
 
 
+@pytest.mark.slow
 def test_cut_reserves_the_id_then_writes_its_entry_under_the_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -863,6 +865,7 @@ def test_cut_reserves_the_id_then_writes_its_entry_under_the_lock(
     assert (second["bump"], second["model"], second["effort"]) == ("patch", None, "low")
 
 
+@pytest.mark.slow
 def test_cut_refuses_an_after_that_names_no_open_version_or_queued_cut(
     tmp_path: Path,
 ) -> None:
@@ -1102,6 +1105,7 @@ def test_take_requests_holds_a_cut_the_cap_leaves_no_room_for(tmp_path: Path) ->
     threads["0002-v"].join()
 
 
+@pytest.mark.slow
 def test_wait_cut_writes_its_reason_last_under_the_lock_and_skips_what_it_must(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1487,6 +1491,7 @@ def _lock_is_free(conduct: dict[str, Any], root: Path) -> bool:
     return taken.wait(5)
 
 
+@pytest.mark.slow
 def test_a_failed_entry_write_in_cut_stops_it_and_removes_the_reservation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

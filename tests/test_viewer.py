@@ -192,6 +192,7 @@ def test_main_dispatches_its_commands(
         main(["project", str(tmp_path)])
 
 
+@pytest.mark.slow
 def test_a_version_shows_its_phases_with_the_trees_ticks(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     tasks = (
@@ -359,6 +360,7 @@ def test_a_running_gate_is_the_versions_last_line(tmp_path: Path) -> None:
     assert not running(["10:00:00 · 0001-a · check — gate · started"])["0001-a"]
 
 
+@pytest.mark.slow
 def test_a_stale_claim_shows_no_running_gate(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     _version(root, "0001-a", "- [ ] 1 — One\n")
@@ -529,6 +531,7 @@ def test_a_version_that_raises_is_unread_alone(tmp_path: Path) -> None:
     assert shown["0002-b"]["unread"] is None
 
 
+@pytest.mark.slow
 def test_converge_shows_its_round_cap_blockers_and_each_role(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     for change in ("0001-a", "0002-b", "0003-c"):
@@ -726,6 +729,7 @@ def _kinds(root: Path, until: str) -> list[str]:
     return [row["kind"] for row in _tree(root)["for_you"]]
 
 
+@pytest.mark.slow
 def test_the_only_options_print_liveness_and_the_fingerprint(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -764,6 +768,7 @@ def test_the_fingerprint_changes_when_a_change_folders_file_is_written(
     assert not (root / ".minions" / "runs").exists()
 
 
+@pytest.mark.slow
 def test_the_fingerprint_changes_when_a_cut_is_queued(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     first = _tree(root, "fingerprint")["fingerprint"]
@@ -784,6 +789,7 @@ def _snapshot(top: Path) -> dict[str, tuple[int, int]]:
     return found
 
 
+@pytest.mark.slow
 def test_the_projector_writes_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -876,6 +882,7 @@ def test_a_bad_config_exits_2_naming_it(
         assert str(config) in capsys.readouterr().err
 
 
+@pytest.mark.slow
 def test_a_project_read_past_its_bound_is_killed(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     _version(root, "0001-a", "- [ ] 1 — One\n")

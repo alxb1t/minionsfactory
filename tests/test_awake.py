@@ -117,6 +117,7 @@ def _wait(done: Callable[[], bool]) -> None:
     assert done()
 
 
+@pytest.mark.slow
 def test_a_cut_holds_the_machine_awake_by_change_id(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

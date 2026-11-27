@@ -359,6 +359,7 @@ def _cite_in_two_tasks(root: Path) -> None:
         ("K6", _cite_in_two_tasks),
     ],
 )
+@pytest.mark.slow
 def test_each_mechanical_row_fails_by_name(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -426,6 +427,7 @@ def test_a_bump_that_differs_from_the_given_one_fails(
     assert code == 1
 
 
+@pytest.mark.slow
 def test_person_phase_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -461,6 +463,7 @@ def test_person_phase_is_refused(
     assert "I14" in _halted_rows(root, monkeypatch, capsys)
 
 
+@pytest.mark.slow
 def test_a_change_with_no_delta_holds_skip_specs_and_a_keep_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -490,6 +493,7 @@ def test_a_missing_artifact_fails_i2(
     assert code == 1
 
 
+@pytest.mark.slow
 def test_a_dependencies_table_is_read(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -520,6 +524,7 @@ def test_an_npm_row_in_the_dependencies_table_is_read(
     assert _halted(_run(root, monkeypatch, capsys)[1]) == []
 
 
+@pytest.mark.slow
 def test_i4_names_each_defect_of_the_tasks_shape(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -569,6 +574,7 @@ def test_i4_names_each_defect_of_the_tasks_shape(
     assert "sub-task 1.1 sits outside its `## … —` section" in why
 
 
+@pytest.mark.slow
 def test_a_ritual_is_each_station_the_build_owns(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -593,6 +599,7 @@ def test_a_ritual_is_each_station_the_build_owns(
     assert _halted(_run(root, monkeypatch, capsys)[1]) == ["I12"]
 
 
+@pytest.mark.slow
 def test_the_folded_checks_report_their_failures(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -670,6 +677,7 @@ def test_what_cannot_be_checked_exits_2(
     assert lines == ["cut_check: cannot check — openspec is not on PATH"]
 
 
+@pytest.mark.slow
 def test_a_script_that_cannot_run_exits_2(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -869,6 +877,7 @@ def test_a_check_with_a_stray_backtick_names_no_command() -> None:
     assert cut_check._commands(plan["subtasks"](stray)[0].text, plan) == []
 
 
+@pytest.mark.slow
 def test_k1_and_k2_read_each_side_of_the_record(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -893,6 +902,7 @@ def test_k1_and_k2_read_each_side_of_the_record(
     assert _halted(_run(root, monkeypatch, capsys)[1]) == ["K2"]
 
 
+@pytest.mark.slow
 def test_k5_reads_the_step_and_the_constant_of_the_one_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -940,6 +950,7 @@ def _halted_rows(
     return _halted(_run(root, monkeypatch, capsys)[1])
 
 
+@pytest.mark.slow
 def test_removed_name_in_design_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -967,6 +978,7 @@ def test_removed_name_in_design_is_refused(
     assert _halted_rows(root, monkeypatch, capsys) == []
 
 
+@pytest.mark.slow
 def test_removed_name_with_a_removal_word_holds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -989,6 +1001,7 @@ def test_removed_name_with_a_removal_word_holds(
     assert _halted_rows(root, monkeypatch, capsys) == []
 
 
+@pytest.mark.slow
 def test_removed_name_in_a_diff_block_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1013,6 +1026,7 @@ def test_removed_name_in_a_diff_block_is_refused(
     assert "`_old_name`" not in text
 
 
+@pytest.mark.slow
 def test_first_word_on_path_holds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1050,6 +1064,7 @@ def test_v7_passes_over_a_command_i19_refuses(
     assert cut_check.row_v7(change, plan, set()) == "1.1: `nosuchtool` names nothing"
 
 
+@pytest.mark.slow
 def test_first_word_of_the_tree_holds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1115,6 +1130,7 @@ def test_kexpr_naming_a_head_test_holds(
     assert _halted_rows(root, monkeypatch, capsys) == []
 
 
+@pytest.mark.slow
 def test_kexpr_naming_a_planned_test_holds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1146,6 +1162,7 @@ def test_kexpr_naming_a_planned_test_holds(
     assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
 
 
+@pytest.mark.slow
 def test_kexpr_naming_a_module_of_a_directory_holds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1166,6 +1183,7 @@ def test_kexpr_naming_a_module_of_a_directory_holds(
     assert _halted_rows(root, monkeypatch, capsys) == ["V8"]
 
 
+@pytest.mark.slow
 def test_kexpr_naming_nothing_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

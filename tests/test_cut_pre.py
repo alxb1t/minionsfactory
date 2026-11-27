@@ -96,6 +96,7 @@ def _run(
     return code, capsys.readouterr().out.splitlines()
 
 
+@pytest.mark.slow
 def test_every_precondition_holds_by_hand(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

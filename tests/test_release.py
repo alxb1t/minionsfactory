@@ -255,6 +255,7 @@ def _dead_release(repo: Repo) -> None:
     (repo.run_folder / "release.pre").write_text("tag: v9.9.9\n")
 
 
+@pytest.mark.slow
 def test_pre_restores_a_dead_releases_derived_work(repo: Repo) -> None:
     _dead_release(repo)
     code, lines = repo.pre("--run")
@@ -286,6 +287,7 @@ def test_pre_restore_removes_a_stale_flag_and_an_untracked_spec(repo: Repo) -> N
     assert repo.git("status", "--porcelain") == ""
 
 
+@pytest.mark.slow
 def test_a_run_pre_saves_a_persons_edit_and_untracked_file_before_it_restores(
     repo: Repo,
 ) -> None:
@@ -412,6 +414,7 @@ _FINDINGS = {
 
 
 @pytest.mark.parametrize("name", _FINDINGS)
+@pytest.mark.slow
 def test_pre_halts_on_each_failed_precondition_of_the_findings(
     repo: Repo, name: str
 ) -> None:
@@ -434,6 +437,7 @@ def test_pre_halts_on_each_failed_precondition_of_the_findings(
     ],
     ids=["no-findings", "by-plan"],
 )
+@pytest.mark.slow
 def test_pre_reads_a_skipped_converge(
     repo: Repo, models: str | None, line: str
 ) -> None:
@@ -444,6 +448,7 @@ def test_pre_reads_a_skipped_converge(
     assert not any(text.startswith("release: ok — conformance") for text in lines)
 
 
+@pytest.mark.slow
 def test_pre_reads_a_skipped_checker(repo: Repo) -> None:
     repo.judge("adversarial", _findings_text("adversarial", repo.head, mode="skipped"))
     code, lines = repo.pre()
@@ -452,6 +457,7 @@ def test_pre_reads_a_skipped_checker(repo: Repo) -> None:
     assert "release: ok — conformance: clean" in lines
 
 
+@pytest.mark.slow
 def test_pre_prints_the_tag_and_writes_the_mark(repo: Repo) -> None:
     code, lines = repo.pre()
     assert code == 0
@@ -475,6 +481,7 @@ def test_pre_prints_the_tag_and_writes_the_mark(repo: Repo) -> None:
     assert mark == f"tag: v0.2.0\nversion: v0.2\ngate: 41\nhead: {repo.head}\n"
 
 
+@pytest.mark.slow
 def test_pre_names_a_patch_release_by_its_whole_version(repo: Repo) -> None:
     repo.put(f"{FOLDER}/proposal.md", "---\nbump: patch\n---\n\n# todo\n")
     repo.settle()
@@ -498,6 +505,7 @@ def test_pre_halts_on_a_bad_bump(repo: Repo, front: str, named: str) -> None:
     )
 
 
+@pytest.mark.slow
 def test_pre_halts_on_an_existing_tag(repo: Repo) -> None:
     repo.git("tag", "v0.2.0")
     code, lines = repo.pre()
@@ -556,6 +564,7 @@ _TREE: dict[str, tuple[Callable[[Repo], None], str]] = {
 
 
 @pytest.mark.parametrize("name", _TREE)
+@pytest.mark.slow
 def test_pre_halts_on_each_failed_precondition_of_the_tree(
     repo: Repo, name: str
 ) -> None:
@@ -567,6 +576,7 @@ def test_pre_halts_on_each_failed_precondition_of_the_tree(
     assert not (repo.run_folder / "release.pre").exists()
 
 
+@pytest.mark.slow
 def test_pre_passes_an_after_id_archived_at_head(repo: Repo) -> None:
     repo.put(
         f"{FOLDER}/proposal.md",
@@ -618,6 +628,7 @@ _CANNOT = {
 
 
 @pytest.mark.parametrize("name", _CANNOT)
+@pytest.mark.slow
 def test_pre_cannot_run_when_a_script_or_file_fails(repo: Repo, name: str) -> None:
     mutate, said = _CANNOT[name]
     mutate(repo)
@@ -626,6 +637,7 @@ def test_pre_cannot_run_when_a_script_or_file_fails(repo: Repo, name: str) -> No
     assert lines[-1].startswith(said)
 
 
+@pytest.mark.slow
 def test_pre_cannot_run_when_the_mark_cannot_be_written(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -663,6 +675,7 @@ def _untouched(repo: Repo, head: str) -> None:
     assert repo.git("tag", "--list", "v0.2.0") == ""
 
 
+@pytest.mark.slow
 def test_finish_takes_the_workers_paths(repo: Repo) -> None:
     repo.ready()
     repo.put("openspec/specs/todo/spec.md", "# todo\n")
@@ -688,6 +701,7 @@ def test_finish_takes_the_workers_paths(repo: Repo) -> None:
     ],
     ids=["python-file", "rename"],
 )
+@pytest.mark.slow
 def test_finish_halts_on_a_python_file(
     repo: Repo, change: Callable[[Repo], object], said: str
 ) -> None:
@@ -744,6 +758,7 @@ _MARKS = {
 
 
 @pytest.mark.parametrize("name", _MARKS)
+@pytest.mark.slow
 def test_finish_halts_without_the_mark(repo: Repo, name: str) -> None:
     change, want, said = _MARKS[name]
     change(repo)
@@ -757,6 +772,7 @@ def test_finish_halts_without_the_mark(repo: Repo, name: str) -> None:
     _untouched(repo, head)
 
 
+@pytest.mark.slow
 def test_finish_archives_the_change_and_writes_its_version(repo: Repo) -> None:
     repo.ready()
     code, lines = repo.finish()
@@ -781,6 +797,7 @@ def test_finish_archives_the_change_and_writes_its_version(repo: Repo) -> None:
     ],
     ids=["no-bump", "no-unreleased"],
 )
+@pytest.mark.slow
 def test_finish_halts_on_a_file_the_worker_broke(
     repo: Repo, path: str, text: str, said: str
 ) -> None:
@@ -792,6 +809,7 @@ def test_finish_halts_on_a_file_the_worker_broke(
     _untouched(repo, head)
 
 
+@pytest.mark.slow
 def test_finish_cannot_run_on_a_linked_changelog(repo: Repo) -> None:
     repo.ready()
     (repo.root / "CHANGELOG.md").unlink()
@@ -801,6 +819,7 @@ def test_finish_cannot_run_on_a_linked_changelog(repo: Repo) -> None:
     assert lines[-1].startswith("release: cannot run — CHANGELOG.md cannot be read: ")
 
 
+@pytest.mark.slow
 def test_finish_cannot_run_when_a_file_cannot_be_written(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -822,6 +841,7 @@ def _today() -> str:
     return date.today().isoformat()
 
 
+@pytest.mark.slow
 def test_finish_cuts_the_changelog_heading(repo: Repo) -> None:
     repo.ready()
     code, _ = repo.finish()
@@ -856,6 +876,7 @@ _RUNS = [
 ]
 
 
+@pytest.mark.slow
 def test_finish_writes_the_gate_line(repo: Repo) -> None:
     runs = [
         dict(
@@ -898,6 +919,7 @@ def test_finish_writes_the_gate_line(repo: Repo) -> None:
     ],
     ids=["no-origin", "gh-fails", "junk", "no-run", "a-run-with-no-times", "no-gh"],
 )
+@pytest.mark.slow
 def test_finish_writes_ci_none_when_gh_fails(repo: Repo, body: str | None) -> None:
     if body is not None:
         _gh(repo, body)
@@ -908,6 +930,7 @@ def test_finish_writes_ci_none_when_gh_fails(repo: Repo, body: str | None) -> No
     assert _gate_line(repo) == "Gate: local 0m41s · CI none · 0.1.0: none"
 
 
+@pytest.mark.slow
 def test_finish_writes_ci_not_read_under_a_run(repo: Repo) -> None:
     _gh(repo, "raise SystemExit('gh must not run under a run')\n")
     repo.ready()
@@ -929,6 +952,7 @@ def test_finish_writes_ci_not_read_under_a_run(repo: Repo) -> None:
     ],
     ids=["copied", "first-release"],
 )
+@pytest.mark.slow
 def test_finish_copies_the_previous_gate_line(
     repo: Repo, previous: str, line: str
 ) -> None:
@@ -948,6 +972,7 @@ PYPROJECT = (
 )
 
 
+@pytest.mark.slow
 def test_finish_bumps_the_version_file_and_its_lock(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -968,6 +993,7 @@ def test_finish_bumps_the_version_file_and_its_lock(
     assert {"pyproject.toml", "uv.lock"} <= set(_shown(repo))
 
 
+@pytest.mark.slow
 def test_finish_bumps_a_version_file_with_no_lock(repo: Repo) -> None:
     repo.put("pyproject.toml", PYPROJECT)
     repo.settle()
@@ -978,6 +1004,7 @@ def test_finish_bumps_a_version_file_with_no_lock(repo: Repo) -> None:
     assert not (repo.root / "uv.lock").exists()
 
 
+@pytest.mark.slow
 def test_finish_halts_when_uv_lock_fails(repo: Repo) -> None:
     repo.put("pyproject.toml", PYPROJECT)
     repo.put("uv.lock", "version = 1\n")
@@ -1007,6 +1034,7 @@ def _npm(data: object) -> str:
 
 
 @pytest.mark.parametrize("locked", [True, False], ids=["with-lock", "no-lock"])
+@pytest.mark.slow
 def test_finish_bumps_package_json_and_its_lock(repo: Repo, locked: bool) -> None:
     repo.put("package.json", _npm(PACKAGE))
     if locked:
@@ -1033,6 +1061,7 @@ def test_finish_bumps_package_json_and_its_lock(repo: Repo, locked: bool) -> Non
     [None, "[tool.ruff]\nline-length = 88\n", '[project]\nname = "todo"\n'],
     ids=["no-file", "no-project", "no-version"],
 )
+@pytest.mark.slow
 def test_finish_records_none_for_no_version_file(
     repo: Repo, pyproject: str | None
 ) -> None:
@@ -1062,6 +1091,7 @@ def test_finish_records_none_for_no_version_file(
     ],
     ids=["text-level", "bool-level", "no-version", "no-root", "junk", "package-list"],
 )
+@pytest.mark.slow
 def test_finish_halts_on_a_lock_of_another_shape(
     repo: Repo, package: str, lock: str, named: str
 ) -> None:
@@ -1083,6 +1113,7 @@ CATALOGUE = (
 DATA = f"metrics/changes/{CHANGE}.json"
 
 
+@pytest.mark.slow
 def test_finish_collects_the_metrics(repo: Repo) -> None:
     repo.put("metrics/catalogue.toml", CATALOGUE)
     repo.settle()
@@ -1097,6 +1128,7 @@ def test_finish_collects_the_metrics(repo: Repo) -> None:
     assert DATA in _shown(repo)
 
 
+@pytest.mark.slow
 def test_finish_records_none_for_no_catalogue(repo: Repo) -> None:
     repo.ready()
     code, lines = repo.finish()
@@ -1130,6 +1162,7 @@ _WRITES = (
     ],
     ids=["stale-version", "collect-fails", "junk"],
 )
+@pytest.mark.slow
 def test_finish_halts_on_a_stale_metrics_version(
     repo: Repo, body: str, want: int, said: str
 ) -> None:
@@ -1143,6 +1176,7 @@ def test_finish_halts_on_a_stale_metrics_version(
     _untouched(repo, head)
 
 
+@pytest.mark.slow
 def test_finish_halts_on_a_red_gate(repo: Repo) -> None:
     repo.ready()
     head = repo.head
@@ -1169,6 +1203,7 @@ def test_finish_halts_on_a_red_gate(repo: Repo) -> None:
     ],
     ids=["unstaged", "untracked"],
 )
+@pytest.mark.slow
 def test_finish_halts_on_an_unstaged_change_after_the_gate(
     repo: Repo, touch: str, said: str
 ) -> None:
@@ -1191,6 +1226,7 @@ def _host_config_off(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
 
 
+@pytest.mark.slow
 def test_finish_halts_on_a_tree_dirty_after_the_commit(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1205,6 +1241,7 @@ def test_finish_halts_on_a_tree_dirty_after_the_commit(
     assert repo.git("tag", "--list", "v0.2.0") == ""
 
 
+@pytest.mark.slow
 def test_finish_commits_once_and_tags(repo: Repo) -> None:
     repo.ready()
     head = repo.head
@@ -1240,6 +1277,7 @@ def test_finish_commits_once_and_tags(repo: Repo) -> None:
     ],
     ids=["no-findings", "by-plan", "a-skipped-checker"],
 )
+@pytest.mark.slow
 def test_finish_states_a_skipped_converge_in_the_body(
     repo: Repo, change: Callable[[Repo], object], body: str
 ) -> None:
@@ -1264,6 +1302,7 @@ _GUARDS: dict[str, tuple[Callable[[Repo], None], str]] = {
 
 @pytest.mark.parametrize("run", [True, False], ids=["run", "by-hand"])
 @pytest.mark.parametrize("guard", _GUARDS)
+@pytest.mark.slow
 def test_finish_under_run_signs_nothing_and_runs_no_hook(
     repo: Repo, monkeypatch: pytest.MonkeyPatch, guard: str, run: bool
 ) -> None:
@@ -1295,6 +1334,7 @@ def _paying(repo: Repo, front: str, debt: str | None = DEBT) -> None:
 
 
 @pytest.mark.parametrize("key", ["debt", "backlog"])
+@pytest.mark.slow
 def test_finish_clears_the_paid_cards(repo: Repo, key: str) -> None:
     _paying(repo, f"{key}: [0000·R1, 0000·R1]\n")
     repo.ready()
@@ -1307,6 +1347,7 @@ def test_finish_clears_the_paid_cards(repo: Repo, key: str) -> None:
     assert not (repo.root / ".minions" / "debt.lock").exists()
 
 
+@pytest.mark.slow
 def test_finish_reports_an_unknown_card(repo: Repo) -> None:
     _paying(repo, "debt: [0000·R9]\n")
     repo.ready()
@@ -1317,6 +1358,7 @@ def test_finish_reports_an_unknown_card(repo: Repo) -> None:
 
 
 @pytest.mark.parametrize("front", ["after: []\n", "debt: []\n"], ids=["none", "empty"])
+@pytest.mark.slow
 def test_finish_records_debt_none(repo: Repo, front: str) -> None:
     _paying(repo, front)
     repo.ready()
@@ -1325,6 +1367,7 @@ def test_finish_records_debt_none(repo: Repo, front: str) -> None:
     assert "release: ok — debt: none" in lines
 
 
+@pytest.mark.slow
 def test_finish_halts_on_an_old_backlog_file(repo: Repo) -> None:
     _paying(repo, "debt: [0000·R1]\n", None)
     (repo.root / ".minions" / "backlog.md").write_text(DEBT)
@@ -1365,6 +1408,7 @@ def _linked_debt(repo: Repo) -> None:
     ],
     ids=["held", "link", "write-fails"],
 )
+@pytest.mark.slow
 def test_finish_halts_when_the_debt_cannot_be_cleared(
     repo: Repo,
     monkeypatch: pytest.MonkeyPatch,
@@ -1388,6 +1432,7 @@ def test_finish_halts_when_the_debt_cannot_be_cleared(
     assert (code, lines[-1]) == (want, said)
 
 
+@pytest.mark.slow
 def test_finish_stops_on_the_flag(repo: Repo) -> None:
     repo.ready()
     (repo.run_folder / "release.flag").write_text("README.md states v0.1\n")
@@ -1433,6 +1478,7 @@ def _cut_release(repo: Repo) -> str:
 
 
 @pytest.mark.parametrize("held", ["tag", "tracking", "neither"])
+@pytest.mark.slow
 def test_a_hand_run_reads_origin_itself(repo: Repo, held: str) -> None:
     _origin(repo)
     sha = _orphan(repo)
@@ -1449,6 +1495,7 @@ def test_a_hand_run_reads_origin_itself(repo: Repo, held: str) -> None:
 
 
 @pytest.mark.parametrize("case", ["unreadable", "a-run-gives-none"])
+@pytest.mark.slow
 def test_an_unreadable_origin_cannot_run(repo: Repo, case: str) -> None:
     _orphan(repo)
     if case == "unreadable":
@@ -1465,6 +1512,7 @@ def test_an_unreadable_origin_cannot_run(repo: Repo, case: str) -> None:
     assert not (repo.run_folder / "release.pre").exists()
 
 
+@pytest.mark.slow
 def test_no_origin_is_free(repo: Repo) -> None:
     _orphan(repo)
     code, lines = repo.pre()
@@ -1499,6 +1547,7 @@ def _conducted(repo: Repo) -> tuple[int, list[str]]:
 
 
 @pytest.mark.parametrize("step", _STEPS)
+@pytest.mark.slow
 def test_a_second_finish_after_a_death_at_each_step_ends_the_same(
     repo: Repo, monkeypatch: pytest.MonkeyPatch, step: str
 ) -> None:
@@ -1532,6 +1581,7 @@ def test_a_second_finish_after_a_death_at_each_step_ends_the_same(
     assert repo.git("status", "--porcelain") == ""
 
 
+@pytest.mark.slow
 def test_finish_at_a_release_commit_tags_a_missing_tag(repo: Repo) -> None:
     _cut_release(repo)
     repo.git("tag", "-d", "v0.2.0")
@@ -1545,6 +1595,7 @@ def test_finish_at_a_release_commit_tags_a_missing_tag(repo: Repo) -> None:
     assert "release: ok — tag · v0.2.0 is on HEAD" in lines
 
 
+@pytest.mark.slow
 def test_finish_at_a_release_commit_runs_the_gate_before_tagging(repo: Repo) -> None:
     _cut_release(repo)
     repo.git("tag", "-d", "v0.2.0")
@@ -1560,6 +1611,7 @@ def test_finish_at_a_release_commit_runs_the_gate_before_tagging(repo: Repo) -> 
     assert repo.git("tag", "--list", "v0.2.0") == ""
 
 
+@pytest.mark.slow
 def test_finish_at_a_release_commit_halts_on_a_dirty_tree(repo: Repo) -> None:
     _cut_release(repo)
     repo.git("tag", "-d", "v0.2.0")
@@ -1575,6 +1627,7 @@ def _forged(repo: Repo, path: str, subject: str = "chore(release): v0.2.0") -> N
     repo.commit(subject)
 
 
+@pytest.mark.slow
 def test_a_release_commit_with_a_code_path_halts(repo: Repo) -> None:
     repo.ready()
     repo.put("README.md", "# readme\n")
@@ -1586,6 +1639,7 @@ def test_a_release_commit_with_a_code_path_halts(repo: Repo) -> None:
     assert repo.git("tag", "--list", "v0.2.0") == ""
 
 
+@pytest.mark.slow
 def test_a_release_commit_whose_parent_is_not_the_marks_head_halts(
     repo: Repo,
 ) -> None:
@@ -1602,6 +1656,7 @@ def test_a_release_commit_whose_parent_is_not_the_marks_head_halts(
     assert repo.git("tag", "--list", "v0.2.0") == ""
 
 
+@pytest.mark.slow
 def test_a_release_commit_without_the_mark_halts(repo: Repo) -> None:
     _cut_release(repo)
     repo.git("tag", "-d", "v0.2.0")
@@ -1614,6 +1669,7 @@ def test_a_release_commit_without_the_mark_halts(repo: Repo) -> None:
     assert repo.git("tag", "--list", "v0.2.0") == ""
 
 
+@pytest.mark.slow
 def test_pre_passes_an_own_tag(repo: Repo) -> None:
     _orphan(repo)
     code, lines = repo.pre(*FREE)
@@ -1622,6 +1678,7 @@ def test_pre_passes_an_own_tag(repo: Repo) -> None:
 
 
 @pytest.mark.parametrize("at", ["the-cut", "a-resume"])
+@pytest.mark.slow
 def test_a_tag_on_an_orphan_commit_is_moved(repo: Repo, at: str) -> None:
     if at == "the-cut":
         sha = _orphan(repo)
@@ -1638,6 +1695,7 @@ def test_a_tag_on_an_orphan_commit_is_moved(repo: Repo, at: str) -> None:
     assert repo.git("cat-file", "-t", "v0.2.0").strip() == "tag"
 
 
+@pytest.mark.slow
 def test_a_tag_origin_holds_halts(repo: Repo) -> None:
     head = repo.head
     sha = _orphan(repo)
@@ -1652,6 +1710,7 @@ def test_a_tag_origin_holds_halts(repo: Repo) -> None:
     assert _tagged_on(repo) == sha
 
 
+@pytest.mark.slow
 def test_a_tag_the_default_branch_holds_halts(repo: Repo) -> None:
     head = repo.head
     repo.ready()
@@ -1665,6 +1724,7 @@ def test_a_tag_the_default_branch_holds_halts(repo: Repo) -> None:
 
 
 @pytest.mark.parametrize("tagged", [True, False], ids=["tagged", "untagged"])
+@pytest.mark.slow
 def test_a_stranded_release_is_dropped(repo: Repo, tagged: bool) -> None:
     head = _cut_release(repo)
     if not tagged:
@@ -1693,6 +1753,7 @@ def test_a_stranded_release_is_dropped(repo: Repo, tagged: bool) -> None:
     ],
     ids=["tag-elsewhere", "dirty"],
 )
+@pytest.mark.slow
 def test_a_stranded_release_past_a_failed_bound_halts(
     repo: Repo, bound: str, said: str
 ) -> None:
@@ -1710,6 +1771,7 @@ def test_a_stranded_release_past_a_failed_bound_halts(
     assert (repo.run_folder / "release.pre").exists()
 
 
+@pytest.mark.slow
 def test_a_release_the_default_branch_holds_is_not_dropped(repo: Repo) -> None:
     _cut_release(repo)
     head = repo.head
@@ -1726,6 +1788,7 @@ def test_a_release_the_default_branch_holds_is_not_dropped(repo: Repo) -> None:
 
 
 @pytest.mark.parametrize("origin", ["given", "read"])
+@pytest.mark.slow
 def test_a_release_origin_holds_is_not_dropped(repo: Repo, origin: str) -> None:
     _cut_release(repo)
     head = repo.head
@@ -1744,6 +1807,7 @@ def test_a_release_origin_holds_is_not_dropped(repo: Repo, origin: str) -> None:
     assert _tagged_on(repo) == head
 
 
+@pytest.mark.slow
 def test_pre_reads_a_release_commit_as_a_resume(repo: Repo) -> None:
     head = _cut_release(repo)
     mark = (repo.run_folder / "release.pre").read_text()
@@ -1767,6 +1831,7 @@ def test_pre_reads_a_release_commit_as_a_resume(repo: Repo) -> None:
     assert (repo.run_folder / "release.flag").exists()
 
 
+@pytest.mark.slow
 def test_pre_at_a_release_commit_restores_nothing(repo: Repo) -> None:
     _cut_release(repo)
     repo.put("openspec/specs/todo/spec.md", "# todo\n")
@@ -1808,6 +1873,7 @@ def _forge_tag(repo: Repo) -> str:
     [_forge_code, _forge_parent, _forge_no_mark, _forge_tag],
     ids=["code-path", "another-parent", "no-mark", "another-tag"],
 )
+@pytest.mark.slow
 def test_pre_halts_on_a_forged_release_commit(
     repo: Repo, forge: Callable[[Repo], str]
 ) -> None:
@@ -1840,6 +1906,7 @@ def _linked(repo: Repo, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tree
 
 
+@pytest.mark.slow
 def test_merge_merges_with_its_trailer_and_the_trees_are_equal(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1861,6 +1928,7 @@ def test_merge_merges_with_its_trailer_and_the_trees_are_equal(
     assert repo.git("branch", "--show-current").strip() == "main"
 
 
+@pytest.mark.slow
 def test_merge_halts_on_an_untagged_branch(repo: Repo) -> None:
     before = _main_at(repo)
     then = f" — run release.py finish {CHANGE}"
@@ -1876,6 +1944,7 @@ def test_merge_halts_on_an_untagged_branch(repo: Repo) -> None:
     assert _main_at(repo) == before
 
 
+@pytest.mark.slow
 def test_merge_halts_when_the_default_branch_moved(repo: Repo) -> None:
     _cut_release(repo)
     _moved(repo)
@@ -1889,6 +1958,7 @@ def test_merge_halts_when_the_default_branch_moved(repo: Repo) -> None:
     assert _main_at(repo) == before
 
 
+@pytest.mark.slow
 def test_merge_halts_on_a_dirty_primary(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1901,6 +1971,7 @@ def test_merge_halts_on_a_dirty_primary(
     assert _main_at(repo) == before
 
 
+@pytest.mark.slow
 def test_merge_halts_on_a_primary_off_the_default_branch(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1913,6 +1984,7 @@ def test_merge_halts_on_a_primary_off_the_default_branch(
     assert _main_at(repo) == before
 
 
+@pytest.mark.slow
 def test_merge_halts_while_the_flag_stands(repo: Repo) -> None:
     _cut_release(repo)
     flag = repo.run_folder / "release.flag"
@@ -1929,6 +2001,7 @@ def test_merge_halts_while_the_flag_stands(repo: Repo) -> None:
     assert _merge(repo)[1][-1] == MERGED
 
 
+@pytest.mark.slow
 def test_merge_switches_a_primary_that_is_this_checkout(repo: Repo) -> None:
     _cut_release(repo)
     release = repo.head
@@ -1938,6 +2011,7 @@ def test_merge_switches_a_primary_that_is_this_checkout(repo: Repo) -> None:
     assert repo.git("rev-list", "--parents", "-n", "1", "main").split()[2] == release
 
 
+@pytest.mark.slow
 def test_merge_halts_when_the_merged_tree_differs(
     repo: Repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

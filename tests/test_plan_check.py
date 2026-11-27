@@ -522,6 +522,7 @@ def _calls(log: Path) -> list[str]:
     return sorted(log.read_text().splitlines()) if log.exists() else []
 
 
+@pytest.mark.slow
 def test_a_failed_group_ends_the_check_before_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -555,6 +556,7 @@ def test_a_failed_group_ends_the_check_before_the_next(
     assert _calls(log) == [suite, f"{suite} --collect-only -q", "sh"]
 
 
+@pytest.mark.slow
 def test_a_quick_check_runs_no_pytest_and_no_make(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -598,6 +600,7 @@ def _timing_out(monkeypatch: pytest.MonkeyPatch, *texts: str) -> None:
     monkeypatch.setattr(plan_check, "run", run)
 
 
+@pytest.mark.slow
 def test_a_timed_out_line_of_the_quick_group_leaves_the_long_group_judged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -620,6 +623,7 @@ def test_a_timed_out_line_of_the_quick_group_leaves_the_long_group_judged(
     assert suite in _calls(log)
 
 
+@pytest.mark.slow
 def test_a_timed_out_or_failed_collection_says_why(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -644,6 +648,7 @@ def test_a_timed_out_or_failed_collection_says_why(
     assert any(line.startswith("  | ") and "test_bad.py" in line for line in out[2:])
 
 
+@pytest.mark.slow
 def test_a_collection_that_finds_no_test_is_a_line(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -721,6 +726,7 @@ def test_a_script_file_that_reads_git_is_keyed_by_head() -> None:
         assert plan_check.keyed(text, "abc") == f"{text}\nabc"
 
 
+@pytest.mark.slow
 def test_a_wrapped_git_command_is_not_reused_once_a_branch_moves(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -778,6 +784,7 @@ def test_the_gate_vouches_only_for_tests_it_discovers(
     assert not plan_check.gate_discovers("tests/test_mod.py", root)
 
 
+@pytest.mark.slow
 def test_a_timed_out_command_does_not_wait_on_an_escaped_childs_pipe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -916,6 +923,7 @@ def test_a_pytest_with_n_takes_every_slot(monkeypatch: pytest.MonkeyPatch) -> No
         assert plan_check.weight(argv) == 1
 
 
+@pytest.mark.slow
 def test_a_timed_out_command_loses_its_process_group(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1075,6 +1083,7 @@ def test_exits_names_the_exit_a_command_must_have(tmp_path: Path) -> None:
         assert plan_check.bare_pytest(pytest_command, tmp_path) is vouched
 
 
+@pytest.mark.slow
 def test_commands_run_side_by_side_and_print_in_task_order(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1123,6 +1132,7 @@ def test_commands_run_side_by_side_and_print_in_task_order(
     assert lines[-2:] == ["start pytest -n 2", "end pytest -n 2"]
 
 
+@pytest.mark.slow
 def test_a_command_starts_under_the_load_or_when_none_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1162,6 +1172,7 @@ def test_a_command_starts_under_the_load_or_when_none_runs(
     assert plan_check.load_average() == 0.0
 
 
+@pytest.mark.slow
 def test_a_waiting_command_rereads_the_load_each_second(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1181,6 +1192,7 @@ def test_a_waiting_command_rereads_the_load_each_second(
     assert len(reads) > 2
 
 
+@pytest.mark.slow
 def test_a_verify_timeout_line_sets_the_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1284,6 +1296,7 @@ def test_only_runs_the_named_sub_tasks(
     )
 
 
+@pytest.mark.slow
 def test_what_the_plan_check_cannot_read_exits_2(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

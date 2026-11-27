@@ -110,6 +110,7 @@ def _facts_brief(root: Path, *lines: str) -> Path:
     return brief
 
 
+@pytest.mark.slow
 def test_a_fact_is_listed_with_its_state_and_lines(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -427,6 +428,7 @@ def _pack_repo(root: Path) -> Path:
     return brief
 
 
+@pytest.mark.slow
 def test_the_pack_and_the_notes_are_written_and_exit_by_the_facts(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -464,6 +466,7 @@ def test_the_pack_and_the_notes_are_written_and_exit_by_the_facts(
     )
 
 
+@pytest.mark.slow
 def test_a_pack_that_cannot_be_written_exits_2(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -524,6 +527,7 @@ def test_a_pack_leaves_the_other_name_of_a_hard_linked_context(
     assert "# Cut diet" in (folder / "context.md").read_text()
 
 
+@pytest.mark.slow
 def test_the_script_runs_as_a_program(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     brief = _pack_repo(root)
@@ -705,6 +709,7 @@ def test_the_design_scaffold_numbers_the_decisions_and_lists_the_packages(
     )
 
 
+@pytest.mark.slow
 def test_the_tasks_scaffold_lists_each_phase(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -732,6 +737,7 @@ def test_the_tasks_scaffold_lists_each_phase(
         assert (stop.value.code, said in str(stop.value)) == (1, True)
 
 
+@pytest.mark.slow
 def test_the_scaffold_refuses_a_file_that_exists(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

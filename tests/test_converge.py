@@ -924,6 +924,7 @@ def _front_holds(host: Host, role: str, **keys: object) -> None:
     }
 
 
+@pytest.mark.slow
 def test_a_miscounted_file_is_stamped_clean(host: Host) -> None:
     more = {f"src/b{n}.py": f"B = {n}\n" for n in range(3)}
     _commit(host.tree, more, "feat(0001-a): more")
@@ -943,6 +944,7 @@ def test_a_miscounted_file_is_stamped_clean(host: Host) -> None:
     assert events(host)[3] == _verdicts("conformance")
 
 
+@pytest.mark.slow
 def test_a_file_with_no_count_keys_is_stamped(host: Host) -> None:
     def bare(head: str) -> None:
         text = findings("adversarial", head, round=None, files=None, commits=None)
@@ -956,6 +958,7 @@ def test_a_file_with_no_count_keys_is_stamped(host: Host) -> None:
     assert events(host)[4] == _verdicts("adversarial")
 
 
+@pytest.mark.slow
 def test_a_verify_round_is_stamped_with_the_fixs_head_and_the_round(
     host: Host,
 ) -> None:
@@ -980,6 +983,7 @@ def test_a_verify_round_is_stamped_with_the_fixs_head_and_the_round(
     )
 
 
+@pytest.mark.slow
 def test_a_pickup_check_is_stamped_and_keeps_its_round(host: Host) -> None:
     first = _head(host)
     host.answers["converge-conformance-r1"] = answer(
@@ -1150,6 +1154,7 @@ def test_a_clean_round_converges_with_no_fix(host: Host) -> None:
     ]
 
 
+@pytest.mark.slow
 def test_a_skipped_checker_is_a_stub(host: Host) -> None:
     head = _git(host.tree, "rev-parse", "HEAD")
     skips = {**_WORKERS, "adversarial": "skip"}
@@ -1308,6 +1313,7 @@ def test_a_blocker_is_fixed_verified_and_cleared(host: Host) -> None:
     assert last.endswith(f"s; its group was killed · head {_head(host)}")
 
 
+@pytest.mark.slow
 def test_a_red_gate_after_a_fix_gets_one_more_pass_then_the_cap(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", _card("R1 blocking"), blocking=1
@@ -1342,6 +1348,7 @@ def test_a_red_gate_after_a_fix_gets_one_more_pass_then_the_cap(host: Host) -> N
     )
 
 
+@pytest.mark.slow
 def test_converge_logs_each_gate_with_its_seconds(host: Host) -> None:
     # Why: 0148-run-fields design D4.
     host.answers["converge-conformance-r1"] = answer(
@@ -1383,6 +1390,7 @@ def test_a_reused_gate_record_is_logged_as_a_pass(host: Host) -> None:
     assert not any("start" in detail for detail in details)
 
 
+@pytest.mark.slow
 def test_the_cap_halts_with_the_open_blockers(host: Host) -> None:
     security = _card("S1 high", category="security")
     for station in (
@@ -1436,6 +1444,7 @@ def test_the_cap_halts_with_the_open_blockers(host: Host) -> None:
     assert events(host)[-1] == written[-1]
 
 
+@pytest.mark.slow
 def test_an_accepted_blocker_converges_and_a_critical_one_blocks(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", _card("R1 blocking", status="accepted")
@@ -1528,6 +1537,7 @@ def test_plan_check_left_halts_amend_needed(host: Host) -> None:
     )
 
 
+@pytest.mark.slow
 def test_a_timeout_alone_sends_nothing_back(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", _card("R1 blocking"), blocking=1
@@ -1557,6 +1567,7 @@ def test_a_timeout_alone_sends_nothing_back(host: Host) -> None:
     assert written[-1].startswith("round 2 · done — converged in 2 rounds")
 
 
+@pytest.mark.slow
 def test_round_one_pickup_rides_with_the_fix(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host,
@@ -1731,6 +1742,7 @@ def _plant(host: Host, *lines: str, mark: str | None = None) -> None:
     )
 
 
+@pytest.mark.slow
 def test_a_granted_round_goes_one_past_the_cap(host: Host) -> None:
     first = _head(host)
     blocker = answer(host, "conformance", _card("R1 blocking"), blocking=1, round=3)
@@ -2298,6 +2310,7 @@ _RESUMED: dict[str, tuple[list[str], list[str]]] = {
 
 
 @pytest.mark.parametrize("case", list(_RESUMED))
+@pytest.mark.slow
 def test_a_run_resumes_from_its_status_log(host: Host, case: str) -> None:
     planted = _resumed(host, case)
     names, stations = _RESUMED[case]
@@ -2680,6 +2693,7 @@ def test_a_codex_fixer_runs_through_host_fix_and_halts_at_a_limit(host: Host) ->
     assert host.fixed == []
 
 
+@pytest.mark.slow
 def test_a_claude_fixers_prompt_names_its_attribution(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", _card("R1 blocking"), blocking=1
@@ -2744,6 +2758,7 @@ def _found_r1(host: Host) -> None:
     answer(host, "conformance", _card("R1 blocking"), blocking=1)(_head(host))
 
 
+@pytest.mark.slow
 def test_a_trailer_naming_no_card_of_the_findings_is_refused(host: Host) -> None:
     _seeded(host)
     _found_r1(host)
@@ -2785,6 +2800,7 @@ def test_a_fix_commit_editing_the_delta_without_the_trailer_halts(host: Host) ->
     )
 
 
+@pytest.mark.slow
 def test_a_fix_commit_editing_a_decisions_body_is_taken(host: Host) -> None:
     _seeded(host)
     _found_r1(host)
@@ -2806,6 +2822,7 @@ def test_a_fix_commit_editing_a_decisions_body_is_taken(host: Host) -> None:
     )
 
 
+@pytest.mark.slow
 def test_a_fix_commit_editing_the_decisions_table_halts(host: Host) -> None:
     _seeded(host)
     for edited, what in (
@@ -2820,6 +2837,7 @@ def test_a_fix_commit_editing_the_decisions_table_halts(host: Host) -> None:
         _git(host.tree, "reset", "-q", "--hard", "HEAD^")
 
 
+@pytest.mark.slow
 def test_a_fix_note_alone_needs_no_trailer(host: Host) -> None:
     _seeded(host)
     note = "It holds.\nFix note (2026-11-09, R1): the rule holds at the call.\n"
@@ -2833,6 +2851,7 @@ def test_a_fix_note_alone_needs_no_trailer(host: Host) -> None:
     assert _plan_text(host, {"src/a.py": "A = 3\n"}, _NO_TRAILER) is None
 
 
+@pytest.mark.slow
 def test_a_security_card_of_high_is_left_to_the_halt(host: Host) -> None:
     _seeded(host)
     message = _PLAN_TEXT.replace("Plan-text: R1", "Plan-text: R1, S1")
@@ -2928,6 +2947,7 @@ def test_a_killed_fixers_commit_is_read_on_the_resume(host: Host) -> None:
     )
 
 
+@pytest.mark.slow
 def test_a_verify_round_reads_a_plan_text_edit(host: Host) -> None:
     _seeded(host)
     host.answers["converge-conformance-r1"] = answer(
@@ -2963,6 +2983,7 @@ def _twice(
     return write
 
 
+@pytest.mark.slow
 def test_a_malformed_file_gets_a_rewrite_then_a_debt_card(host: Host) -> None:
     broken = answer(host, "conformance", inconclusive=None)
     host.answers["converge-conformance-r1"] = _twice(
@@ -3032,6 +3053,7 @@ def test_changes_requested_with_nits_alone_counts_clean(host: Host) -> None:
     assert events(host)[3] == _verdicts("conformance", verdict="changes-requested")
 
 
+@pytest.mark.slow
 def test_changes_requested_with_no_card_gets_a_rewrite(host: Host) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", verdict="changes-requested"
@@ -3059,6 +3081,7 @@ _CLEAN_OPEN = (
 )
 
 
+@pytest.mark.slow
 def test_a_clean_file_with_a_card_not_closed_gets_a_rewrite(host: Host) -> None:
     converge = _converge()
     path = host.folder() / "conformance.md"
@@ -3104,6 +3127,7 @@ def test_a_clean_file_with_a_card_not_closed_gets_a_rewrite(host: Host) -> None:
 
 
 @pytest.mark.parametrize("then", ["fixed", "broken"])
+@pytest.mark.slow
 def test_a_clean_file_still_mismatched_halts(host: Host, then: str) -> None:
     host.answers["converge-conformance-r1"] = answer(
         host, "conformance", _card("R1 blocking"), blocking=1
@@ -3135,6 +3159,7 @@ def test_a_clean_file_still_mismatched_halts(host: Host, then: str) -> None:
     assert [station for station, *_ in host.fixed] == ["converge-fix-r1"]
 
 
+@pytest.mark.slow
 def test_the_report_names_the_verdicts(
     host: Host, capsys: pytest.CaptureFixture[str]
 ) -> None:

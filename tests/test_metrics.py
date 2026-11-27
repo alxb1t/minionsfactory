@@ -117,6 +117,7 @@ def test_collect_writes_a_value_per_metric(
     }
 
 
+@pytest.mark.slow
 def test_a_failing_metric_is_unavailable_with_its_reason(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

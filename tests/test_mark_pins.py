@@ -193,6 +193,7 @@ def _built(root: Path, change: str = _CHANGE) -> str | None:
     return _conduct()["_built_head"](root, change)
 
 
+@pytest.mark.slow
 def test_case_d_the_built_head_refuses_what_it_does_not_hold(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
@@ -234,6 +235,7 @@ def _side(tree: Path, name: str, path: str) -> str:
     return name
 
 
+@pytest.mark.slow
 def test_case_d_a_side_merge_and_an_octopus_merge_refuse_the_built_head(
     tmp_path: Path,
 ) -> None:
@@ -360,6 +362,7 @@ def test_case_h_build_halt_keys(tmp_path: Path) -> None:
     assert head
 
 
+@pytest.mark.slow
 def test_case_h_the_checks_and_held_name_the_sub_task(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
@@ -412,6 +415,7 @@ _NOTE = (
 )
 
 
+@pytest.mark.slow
 def test_case_m_merge_in_writes_the_note_and_leaves_the_merge_open(
     tmp_path: Path,
 ) -> None:
@@ -434,6 +438,7 @@ def test_case_m_merge_in_writes_the_note_and_leaves_the_merge_open(
     assert _git(tree, "rev-parse", "HEAD") == head
 
 
+@pytest.mark.slow
 def test_case_m_the_note_stays_under_the_bound_its_reader_holds(tmp_path: Path) -> None:
     conduct = _conduct()
     _, tree, run, moved = _merging(conduct, tmp_path)
@@ -448,6 +453,7 @@ def test_case_m_the_note_stays_under_the_bound_its_reader_holds(tmp_path: Path) 
     assert note.endswith("more requirements moved: read the merge's diff.\n")
 
 
+@pytest.mark.slow
 def test_case_m_a_failed_write_stops_the_version_with_code_1(tmp_path: Path) -> None:
     conduct = _conduct()
     root, tree, run, _ = _merging(conduct, tmp_path)
@@ -479,6 +485,7 @@ _INTEGRATE = (
 )
 
 
+@pytest.mark.slow
 def test_case_m_the_settling_tests_stand_the_note_by_is_file(tmp_path: Path) -> None:
     conduct = _conduct()
     root, tree, run, _ = _merging(conduct, tmp_path)
@@ -766,6 +773,7 @@ def test_case_t_mtime_is_the_lstat_time_of_a_regular_file_alone(
             mark.unlink()
 
 
+@pytest.mark.slow
 def test_case_t_opened_keeps_the_settled_time_and_settled_passes_a_new_one(
     tmp_path: Path,
 ) -> None:
@@ -954,6 +962,7 @@ def _amends(root: Path, tree: Path, text: str) -> bool:
     return _conduct()["_amended_since_simplify"](root, _CHANGE, tree)
 
 
+@pytest.mark.slow
 def test_case_x_the_amends_test_passes_amends_of_the_change_directory_alone(
     tmp_path: Path,
 ) -> None:
@@ -987,6 +996,7 @@ def test_case_x_the_amends_test_passes_amends_of_the_change_directory_alone(
     assert not _amends(root, tree, f"head: {head}\n")
 
 
+@pytest.mark.slow
 def test_case_x_the_amends_test_resolves_the_head_it_names(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
@@ -1141,6 +1151,7 @@ def _gated(
     return evidence, dropped, len(runs)
 
 
+@pytest.mark.slow
 def test_case_a_a_red_gate_drops_the_simplify_commit_but_for_a_fault_not_its_own(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1432,6 +1443,7 @@ def _ticked(root: Path, tree: Path, stage: str, phase: str | None, done: bool) -
         (_folder(root) / "build.done").write_text(f"head: {head}\n")
 
 
+@pytest.mark.slow
 def test_loop_a_closed_build_is_not_closed_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1452,6 +1464,7 @@ def test_loop_a_closed_build_is_not_closed_again(
     assert calls == ["spawn build phase 1 · stacked"]
 
 
+@pytest.mark.slow
 def test_loop_an_open_build_is_closed_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1603,6 +1616,7 @@ _FLAG = (
 )
 
 
+@pytest.mark.slow
 def test_case_e_finish_and_merge_halt_on_a_flag_of_any_shape(repo: Repo) -> None:
     _cut_release(repo)
     flag = repo.run_folder / "release.flag"
@@ -1619,6 +1633,7 @@ def test_case_e_finish_and_merge_halt_on_a_flag_of_any_shape(repo: Repo) -> None
             flag.unlink()
 
 
+@pytest.mark.slow
 def test_case_e_a_release_subject_with_more_after_it_is_no_release_commit(
     repo: Repo,
 ) -> None:
@@ -1630,6 +1645,7 @@ def test_case_e_a_release_subject_with_more_after_it_is_no_release_commit(
     assert repo.git("tag", "--list", "v0.2.0") == ""
 
 
+@pytest.mark.slow
 def test_case_e_a_drop_with_no_flag_removes_the_mark(repo: Repo) -> None:
     _cut_release(repo)
     _moved(repo)
@@ -1639,6 +1655,7 @@ def test_case_e_a_drop_with_no_flag_removes_the_mark(repo: Repo) -> None:
     assert not (repo.run_folder / "release.pre").exists()
 
 
+@pytest.mark.slow
 def test_case_e_a_restore_of_a_clean_tree_saves_no_patch(repo: Repo) -> None:
     repo.ready()
     flag = repo.run_folder / "release.flag"
@@ -1666,6 +1683,7 @@ def _dirty(repo: Repo) -> None:
     (repo.root / "BIN.md").write_bytes(b"\x00\x01\xff\xfe binary\n")
 
 
+@pytest.mark.slow
 def test_case_e_save_numbers_past_a_folder_and_keeps_a_binary_file(
     repo: Repo,
 ) -> None:
@@ -1681,6 +1699,7 @@ def test_case_e_save_numbers_past_a_folder_and_keeps_a_binary_file(
     assert "GIT binary patch" in patch
 
 
+@pytest.mark.slow
 def test_case_e_save_replaces_a_dangling_link(repo: Repo) -> None:
     _dirty(repo)
     repo.run_folder.mkdir(parents=True, exist_ok=True)
@@ -1734,6 +1753,7 @@ def test_case_o_release_held_stands_as_a_file_an_empty_file_or_a_link_to_one(
         _clear(mark)
 
 
+@pytest.mark.slow
 def test_case_o_release_flag_stands_in_every_shape(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
@@ -1864,6 +1884,7 @@ def test_pin_readers_follow_a_link_and_read_a_file_whole(tmp_path: Path) -> None
             _clear(mark)
 
 
+@pytest.mark.slow
 def test_pin_stands_of_the_stop_marks_are_is_file(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
@@ -2098,6 +2119,7 @@ def test_pin_head_forms_of_build_done(tmp_path: Path) -> None:
         assert conduct["mflib"].marks.done_head(root, _CHANGE) == done, label
 
 
+@pytest.mark.slow
 def test_pin_head_forms_of_build_simplified(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     tree = _version(root, _CHANGE, "- [x] 1 — One\n")
@@ -2121,6 +2143,7 @@ def test_pin_head_forms_of_build_simplified(tmp_path: Path) -> None:
         assert _conduct()["mflib"].marks.simplified_head(root, _CHANGE) == word, label
 
 
+@pytest.mark.slow
 def test_pin_head_forms_of_integrate_red(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)

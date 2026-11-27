@@ -94,6 +94,7 @@ def test_an_unchanged_gate_passes(tmp_path: Path) -> None:
     assert not exports.exists() or not any(exports.iterdir())
 
 
+@pytest.mark.slow
 def test_gate_check_halts_on_an_old_layout(tmp_path: Path) -> None:
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
     old = tmp_path / ".minions" / "models" / f"{_CHANGE}.toml"
@@ -121,6 +122,7 @@ def test_gate_check_halts_on_an_old_layout(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.slow
 def test_gate_check_halts_on_each_old_entry_alone(tmp_path: Path) -> None:
     base = _branch(tmp_path, {"Makefile": _GATE}, _UNPLANNED, {"README.md": "x\n"})
     for old in {**ENTRIES, **ROLES, **LOG}:
@@ -339,6 +341,7 @@ def test_a_sub_make_weakened_on_the_branch_halts(tmp_path: Path) -> None:
     assert not _halted(result, added), result.stdout
 
 
+@pytest.mark.slow
 def test_a_halt_lists_every_unquoted_line(tmp_path: Path) -> None:
     gate = f".PHONY: gate browsers drift derive\n{_GATE}"
     branch = {"Makefile": f".PHONY: gate browsers drift derive setup\nsetup:\n{_GATE}"}
@@ -374,6 +377,7 @@ def test_a_planned_change_that_drops_a_line_halts(tmp_path: Path) -> None:
     assert "\n-echo b" in result.stdout
 
 
+@pytest.mark.slow
 def test_a_planned_dash_the_task_does_not_quote_halts(tmp_path: Path) -> None:
     branch = {"Makefile": "gate:\n\techo a\n\t-echo b\n"}
     base = _branch(tmp_path, {"Makefile": _GATE}, _planned(), branch)
@@ -433,6 +437,7 @@ def test_a_planned_change_the_task_quotes_passes(tmp_path: Path) -> None:
     assert "\n-echo b\n+echo c\n" in result.stdout
 
 
+@pytest.mark.slow
 def test_a_dry_run_failing_in_an_export_exits_2(tmp_path: Path) -> None:
     files = {"Makefile": f"include .env\n{_GATE}", ".env": "KEY = x\n"}
     base = _branch(tmp_path, files, _UNPLANNED, {"README.md": "x\n"})
@@ -465,6 +470,7 @@ def test_no_single_cut_commit_halts(tmp_path: Path) -> None:
     assert result.stdout.startswith("gate: halt — no single cut commit")
 
 
+@pytest.mark.slow
 def test_exports_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     primary, worktree = tmp_path / "primary", tmp_path / "v0.2_x"
     log = tmp_path / "pwd.log"
@@ -481,6 +487,7 @@ def test_exports_go_under_the_primary_run_directory(tmp_path: Path) -> None:
     assert not exports.exists() and not (worktree / ".minions").exists()
 
 
+@pytest.mark.slow
 def test_a_staged_tree_is_checked(tmp_path: Path) -> None:
     tasks = _planned(" It adds `echo c`.")
     base = _branch(tmp_path, {"Makefile": _GATE}, tasks, {"README.md": "x\n"})
@@ -650,6 +657,7 @@ def test_an_edited_verify_halts(tmp_path: Path) -> None:
     assert verify("--base", base).returncode == 2
 
 
+@pytest.mark.slow
 def test_a_bare_makefile_task_fails_the_plan_check(tmp_path: Path) -> None:
     prose = (
         '- [ ] 1.6 In `Makefile`, the `gate`\'s `pytest` line takes `-m "not e2e"`.\n'

@@ -567,6 +567,7 @@ _LEAVER = (
 )
 
 
+@pytest.mark.slow
 def test_a_child_that_leaves_the_group_holding_the_pipe_returns_after_the_deadline(
     tmp_path: Path, fake_sandbox_exec: Path
 ) -> None:
@@ -903,6 +904,7 @@ def test_a_secret_read_is_denied(
         assert "machine" not in text
 
 
+@pytest.mark.slow
 def test_a_network_connect_is_denied(tmp_path: Path, real_sandbox: None) -> None:
     trees = _trees(tmp_path)
     with socket.socket() as listener:
@@ -946,6 +948,7 @@ def _host_socket() -> Iterator[tuple[socket.socket, str]]:
         shutil.rmtree(folder)
 
 
+@pytest.mark.slow
 def test_a_host_socket_is_out_of_reach(tmp_path: Path, real_sandbox: None) -> None:
     trees = _trees(tmp_path)
     out = io.StringIO()
