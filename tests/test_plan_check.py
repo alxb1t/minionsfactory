@@ -434,6 +434,51 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     assert check() == (1, ran)
 
 
+def test_a_green_record_vouches_n_and_k_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    collect = (
+        f'case "$*" in *--collect-only*) exec {sys.executable} -m pytest "$@";; esac'
+    )
+    (stub / "pytest").write_text(f"#!/bin/sh\n{collect}\nexit 3\n")
+    (stub / "pytest").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stub}{os.pathsep}{os.environ['PATH']}")
+    file, other = "tests/test_here.py", "tests/test_other.py"
+    (root / file).write_text("def test_a():\n    pass\n")
+    (root / other).write_text("def test_b():\n    pass\n")
+    (root / "Makefile").write_text("gate:\n\t@true\n")
+    vouched = (
+        f"{file} -k test_a",
+        f"-n 2 {file}",
+        f"--numprocesses=2 {file}",
+        f"{file} {other} -n auto",
+    )
+    ran = (f"{file} -k gone", f"{file} -m gone", f"-c other.ini {file}")
+    _commit_tasks(
+        root,
+        *(
+            f"- [x] 1.{n} Suite.\n  Verify: `pytest -q {named}`.\n"
+            for n, named in enumerate((*vouched, *ran), start=1)
+        ),
+    )
+    loaded = plan_check.gate()
+    loaded["write_record"](
+        loaded["records"]() / loaded["settled_tree"](), loaded["dry_run"](), 1
+    )
+    code = plan_check.main(["--change", _CHANGE, "--base", base])
+    assert (code, capsys.readouterr().out.splitlines()) == (
+        1,
+        [
+            f"plan: 1.{n} — `pytest -q {named}` exited 3"
+            for n, named in enumerate(ran, start=len(vouched) + 1)
+        ],
+    )
+
+
 def test_a_command_naming_a_revision_is_keyed_by_head() -> None:
     for text in (
         "git rev-parse --verify HEAD",

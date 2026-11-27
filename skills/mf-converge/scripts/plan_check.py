@@ -35,6 +35,9 @@ DRAIN_SECONDS = 5
 CPUS = os.cpu_count() or 1
 RUNNING: set[subprocess.Popen[str]] = set()
 PROCESSES = re.compile(r"-n(\d+|auto|logical)?|--numprocesses(=.*)?")
+WORKERS = re.compile(r"\d+|auto|logical")
+GLUED_WORKERS = re.compile(r"(?:-n|--numprocesses=)(?:\d+|auto|logical)")
+VALUED = frozenset({"-n", "--numprocesses", "-k"})
 TEST_MODULE = re.compile(r"test_.*\.py|.*_test\.py")
 EXCLUDES = re.compile(r"collect_ignore|pytest_ignore_collect")
 QUIET_OPTIONS = frozenset({"-q", "-qq", "-v", "-vv", "-x", "-s"})
@@ -523,11 +526,28 @@ def _vouched(word: str, root: Path) -> bool:
     )
 
 
+def _vouched_words(words: list[str], root: Path) -> bool:
+    """Return whether every word after the pytest prefix keeps the gate's proof.
+
+    `-n` or `--numprocesses` with its value, glued or apart, and `-k` with the next
+    word are vouched, per 0157-ship-speed design D1. e.g. ["-n", "auto"] → True
+    """
+    rest = iter(words)
+    for word in rest:
+        if word in VALUED:
+            value = next(rest, None)
+            if value is None or (word != "-k" and not WORKERS.fullmatch(value)):
+                return False
+        elif not (GLUED_WORKERS.fullmatch(word) or _vouched(word, root)):
+            return False
+    return True
+
+
 def bare_pytest(command: Command, root: Path) -> bool:
     """Return whether a pytest command's `Verify:` says it exits 0 and no more.
 
-    Only a quiet option or an operand that exists follows the prefix: a selection
-    or any other option runs, so a green gate vouches for the rest.
+    A quiet option, an operand that exists, `-n` and `-k` follow the prefix, per
+    `_vouched_words`: any other option runs, so a green gate vouches for the rest.
     """
     argv = tokens(command.text)
     return (
@@ -535,9 +555,7 @@ def bare_pytest(command: Command, root: Path) -> bool:
         and command.exits in (None, 0)
         and command.count is None
         and not command.nothing
-        and all(
-            _vouched(word, root) for word in argv[1 if argv[0] == "pytest" else 3 :]
-        )
+        and _vouched_words(argv[1 if argv[0] == "pytest" else 3 :], root)
     )
 
 

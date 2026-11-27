@@ -4,7 +4,7 @@ The green gate vouches for more pytest `Verify:` lines, the check judges in grou
 
 ## Progress
 
-- [ ] 1 — The green gate vouches more · hard
+- [x] 1 — The green gate vouches more · hard
 - [ ] 2 — Cheap first, and `--quick` · hard
 - [ ] 3 — The phase check collects · hard
 - [ ] 4 — The fixer's check, and a clean file with a card not closed · hard
@@ -14,11 +14,11 @@ The green gate vouches for more pytest `Verify:` lines, the check judges in grou
 
 With the gate green at the tree, `plan_check.py` leaves a pytest `Verify:` that expects exit 0 unrun also with `-n` or `--numprocesses` and `-k` and their values ([D1](design.md#d1)).
 
-- [ ] 1.1 **HALT CHECK** `skills/mf-converge/scripts/plan_check.py` still holds its quiet options in `QUIET_OPTIONS`, the only words it vouches beside test modules.
+- [x] 1.1 **HALT CHECK** `skills/mf-converge/scripts/plan_check.py` still holds its quiet options in `QUIET_OPTIONS`, the only words it vouches beside test modules.
   Verify: `git grep -q -e "^QUIET_OPTIONS" -- skills/mf-converge/scripts/plan_check.py` exits `0`.
-- [ ] 1.2 In `skills/mf-converge/scripts/plan_check.py` add `_vouched_words(words, root)` and call it from `bare_pytest` in place of the per-word `_vouched` loop: `-n` and `--numprocesses` take a value of digits, `auto` or `logical`, glued or apart; `-k` takes the next word; every other word goes to `_vouched`.
+- [x] 1.2 In `skills/mf-converge/scripts/plan_check.py` add `_vouched_words(words, root)` and call it from `bare_pytest` in place of the per-word `_vouched` loop: `-n` and `--numprocesses` take a value of digits, `auto` or `logical`, glued or apart; `-k` takes the next word; every other word goes to `_vouched`.
   Verify: `git grep -n -e "^def _vouched_words" -- skills/mf-converge/scripts/plan_check.py` prints a line.
-- [ ] 1.3 In `tests/test_plan_check.py` add `test_a_green_record_vouches_n_and_k_options`, over a stub `pytest` of its own that answers `--collect-only` with the real one and exits 3 otherwise: on a green record `pytest -q <file> -k test_a`, `pytest -q -n 2 <file>`, `pytest -q --numprocesses=2 <file>` and a case of `<file>` and `<other>`, both test files, with `-n auto` pass unrun; `-k gone`, `-m gone` and `-c other.ini <file>` run and exit 3.
+- [x] 1.3 In `tests/test_plan_check.py` add `test_a_green_record_vouches_n_and_k_options`, over a stub `pytest` of its own that answers `--collect-only` with the real one and exits 3 otherwise: on a green record `pytest -q <file> -k test_a`, `pytest -q -n 2 <file>`, `pytest -q --numprocesses=2 <file>` and a case of `<file>` and `<other>`, both test files, with `-n auto` pass unrun; `-k gone`, `-m gone` and `-c other.ini <file>` run and exit 3.
   Verify: `uv run pytest tests/test_plan_check.py -q -k test_a_green_record_vouches_n_and_k_options` exits `0`.
 
 ## 2 — Cheap first, and `--quick`

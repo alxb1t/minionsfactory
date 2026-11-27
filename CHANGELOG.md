@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- With the gate green at the tree, `plan_check.py` leaves a pytest `Verify:` that expects exit 0 unrun also with `-n` or `--numprocesses` and `-k` and their values, once its collection finds a test: the plans write them, and the gate's run proved the suite (0157-ship-speed, phase 1).
+
 ## [0.126.0] - 2026-11-27
 
 Gate: local 9m35s · CI not read under mf-ship · 0.125.0: local 7m48s · CI not read under mf-ship
