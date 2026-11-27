@@ -8,7 +8,7 @@ The green gate vouches for more pytest `Verify:` lines, the check judges in grou
 - [x] 2 — Cheap first, and `--quick` · hard
 - [x] 3 — The phase check collects · hard
 - [x] 4 — The fixer's check, and a clean file with a card not closed · hard
-- [ ] 5 — The words · moderate
+- [x] 5 — The words · moderate
 
 ## 1 — The green gate vouches more
 
@@ -66,7 +66,7 @@ The fixer runs `--quick` ([D5](design.md#d5)), and a clean file beside a blockin
 
 The record says what the code now does ([D1](design.md#d1) to [D6](design.md#d6)).
 
-- [ ] 5.1 In `docs/decisions.md` edit D74 where it lives: a green record vouches a pytest with `-n` and `-k`, the check judges in groups and has `--quick`, the conductor runs it after each phase but the last, and the fixer runs it. Edit D78: a clean file beside a blocking card not closed gets its one rewrite worker, then a halt.
+- [x] 5.1 In `docs/decisions.md` edit D74 where it lives: a green record vouches a pytest with `-n` and `-k`, the check judges in groups and has `--quick`, the conductor runs it after each phase but the last, and the fixer runs it. Edit D78: a clean file beside a blocking card not closed gets its one rewrite worker, then a halt.
   Verify: `git grep -n -e "plan_check.py --quick" -- docs/decisions.md` prints a line.
-- [ ] 5.2 In `skills/mf-converge/references/verify.md` say a card's Status is the first word of its Status line, as `verified — <note>`, and a worker sets that word.
+- [x] 5.2 In `skills/mf-converge/references/verify.md` say a card's Status is the first word of its Status line, as `verified — <note>`, and a worker sets that word.
   Verify: `git grep -n -e "first word" -- skills/mf-converge/references/verify.md` prints a line.

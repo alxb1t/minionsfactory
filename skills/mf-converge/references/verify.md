@@ -71,6 +71,8 @@ skipped gives you neither file: its findings file is a stub, `mode: skipped`, wh
 - **Conformance also runs** its stale-claim, test-cost and coverage-trace passes over the fix diff, by
   [the passes table](worker.md#conformance-and-adversarial) and [the rules for tests](worker.md#rules-for-tests), so a
   fix's new test is judged like the build's. The unplanned-file pass leaves out a file changed only by a commit the status log names as a fix's, whose files stand on its cards: a fix's files stand on no task.
+- **A card's Status is the first word of its Status line**, as `verified — <note>`: set that word, `verified`,
+  `accepted` or `open`, and write the note after it.
 - **Rewrite the frontmatter's** `reviewed`, `open_blocking`, `verdict` and conformance's `passes` for the fix diff;
   converge stamps the rest, per [the fields converge reads](worker.md#the-findings-file-contract). Append each transition to
   `## Resolution log` as one line naming its card, `- <YYYY-MM-DD> · <id> <from> → <to>`:
