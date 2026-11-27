@@ -1347,11 +1347,13 @@ def _restamp(runs: Path, change: str, buried: str) -> int:
     e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
     Why: card 0109·S1; 0136-status-log design D7.
     """
-    log = mflib.layout.status_log(runs.parent, change)
+    primary = runs.parent
+    log = mflib.layout.status_log(primary, change)
     found = re.search(r"· (round \d+) · done\b", buried)
     event = f"{found[1] if found else 'round 1'} · done — re-stamped by the run"
     try:
-        fd = mflib.statefile.folder(runs, mflib.layout.CHANGES, change)
+        parts = (mflib.layout.MINIONS, mflib.layout.CHANGES, change)
+        fd = mflib.statefile.folder(primary, *parts)
     except OSError as error:
         print(f"stamp: cannot stamp — {log}: {error.strerror}")
         return 2
@@ -5002,11 +5004,12 @@ class Run:
         spawned = f"{station}{named} · model {model or 'default'}{shown}{other}"
         self.log.event(who, "spawn", f"{spawned}{_load_tail()}")
         if who == "run":
-            out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
+            parts = (mflib.layout.MINIONS, mflib.layout.RUNS, self.log.stamp)
+            out, sink = _free_log(self.primary, parts, f"run_{station}")
         else:
-            parts = (mflib.layout.CHANGES, who, "logs")
+            parts = (mflib.layout.MINIONS, mflib.layout.CHANGES, who, "logs")
             name = f"{self.log.stamp}-{station}"
-            out, sink = _free_log(mflib.layout.run_dir(self.primary), parts, name)
+            out, sink = _free_log(self.primary, parts, name)
         with self.guard:
             self.outs[who, station] = out
         if executor == "codex":
@@ -6311,7 +6314,8 @@ class Run:
             folder.mkdir(mode=0o700, exist_ok=True)
             (folder / change).write_text(f"{entry['brief']}\n")
             # The entry goes last, so a reservation that cannot go keeps it to halt.
-            _remove_in(mflib.layout.run_dir(primary), mflib.layout.CUTS, name=change)
+            cuts = (mflib.layout.MINIONS, mflib.layout.CUTS)
+            _remove_in(primary, *cuts, name=change)
             (mflib.layout.queue_cuts(primary) / change).unlink()
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
@@ -7121,7 +7125,7 @@ class Run:
         ]
         for change, files in sorted(found.items()):
             folder = mflib.layout.change_dir(self.primary, change)
-            links = [*olds, folder.parent, folder, folder / "logs"]
+            links = [minions, *olds, folder.parent, folder, folder / "logs"]
             for link in [*links, *(old for old, _ in files)]:
                 if link.is_symlink():
                     named = link.relative_to(self.primary)
@@ -7145,9 +7149,8 @@ class Run:
         for change, files in sorted(found.items()):
             for old, new in files:
                 where, _, name = new.rpartition("/")
-                fd = _folder_fd(
-                    minions, mflib.layout.CHANGES, change, *([where] if where else [])
-                )
+                held = (mflib.layout.CHANGES, change, *([where] if where else []))
+                fd = _folder_fd(self.primary, mflib.layout.MINIONS, *held)
                 try:
                     if old.is_dir():
                         os.rename(old, name, dst_dir_fd=fd)
@@ -8182,7 +8185,7 @@ def cut(
             mflib.modelsfile.write(primary, change, models)
         except mflib.statefile.WriteFailed as error:
             raise _unwritten(change, error) from None
-        fd = _folder_fd(mflib.layout.run_dir(primary), mflib.layout.CUTS)
+        fd = _folder_fd(primary, mflib.layout.MINIONS, mflib.layout.CUTS)
         try:
             flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
             os.close(os.open(change, flags, 0o644, dir_fd=fd))

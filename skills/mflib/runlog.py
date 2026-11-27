@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from . import statefile
+from . import layout, statefile
 
 STOPPED = "stopped by the person"
 # why: the plan's skipped converge logs `converge skipped — plan`, the spec's words;
@@ -192,13 +192,19 @@ def verify(log: Path) -> str | None:
     return None
 
 
+def _runs_fd(runs: Path) -> int:
+    """Return a descriptor on the runs folder, made, `.minions` read as no link."""
+    root, parts = layout.beneath(runs)
+    return statefile.folder(root, *parts)
+
+
 def stop(runs: Path) -> Path | None:
     """Append the stop to the newest run log; return that log, or None with none.
 
     A link, a hard link or a pipe at the log raises `OSError`, and nothing is written.
     """
     if (log := newest(runs)) is not None:
-        folder = statefile.folder(runs)
+        folder = _runs_fd(runs)
         try:
             stopped = f"{line('run', 'halt', STOPPED)}\n"
             statefile.append(log.name, stopped, folder, one_name=True)
@@ -219,7 +225,7 @@ class RunLog:
         self.lock = threading.Lock()
         self.held: list[tuple[str, str, str]] | None = None
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-        folder = statefile.folder(runs)
+        folder = _runs_fd(runs)
         try:
             for n in itertools.count(1):
                 self.stamp = stamp if n == 1 else f"{stamp}-{n}"
@@ -246,7 +252,7 @@ class RunLog:
             self.held.append((who, event, detail))
             return
         with self.lock:
-            folder = statefile.folder(self.runs)
+            folder = _runs_fd(self.runs)
             try:
                 text = f"{line(who, event, detail)}\n"
                 statefile.append(self.path.name, text, folder, one_name=True)

@@ -6,7 +6,7 @@ Pin today's opens and the riders, move the riders, move the roots, say what is t
 
 - [x] 1 — Pin the roots and the riders · moderate
 - [x] 2 — The riders · moderate
-- [ ] 3 — The root · hard
+- [x] 3 — The root · hard
 - [ ] 4 — The record · moderate
 
 ## 1 — Pin the roots and the riders
@@ -45,29 +45,29 @@ Pin today's opens and the riders, move the riders, move the roots, say what is t
 
 ## 3 — The root
 
-- [ ] 3.1 **HALT CHECK** `skills/mf-release/scripts/release.py` opens no folder itself, per [D4](design.md#d4): it needs no edit.
+- [x] 3.1 **HALT CHECK** `skills/mf-release/scripts/release.py` opens no folder itself, per [D4](design.md#d4): it needs no edit.
   Verify: `git grep -n -e "statefile.folder" -e "open_folder" -- skills/mf-release/scripts/release.py` exits `1`.
-- [ ] 3.2 In `skills/mflib/layout.py` add `def beneath(path)`, per [D2](design.md#d2): the root and the parts to open that folder, the nearest `.minions` ancestor taken; with none, the path itself and no parts. Add its cases to `tests/test_layout.py`: a path below `.minions`, one with none, one with a nested `.minions`.
+- [x] 3.2 In `skills/mflib/layout.py` add `def beneath(path)`, per [D2](design.md#d2): the root and the parts to open that folder, the nearest `.minions` ancestor taken; with none, the path itself and no parts. Add its cases to `tests/test_layout.py`: a path below `.minions`, one with none, one with a nested `.minions`.
   Verify: `git grep -q -F "def beneath" -- skills/mflib/layout.py` exits `0`.
-- [ ] 3.3 In `skills/mflib/marks.py` make `_folder` and `read` open from `primary`, with `layout.MINIONS` the first part, in place of `layout.run_dir(primary)` as root. In `skills/mflib/modelsfile.py` do the same in `load` and `write`.
+- [x] 3.3 In `skills/mflib/marks.py` make `_folder` and `read` open from `primary`, with `layout.MINIONS` the first part, in place of `layout.run_dir(primary)` as root. In `skills/mflib/modelsfile.py` do the same in `load` and `write`.
   Verify: `git grep -n -e "folder(layout.run_dir" -- skills/mflib/marks.py skills/mflib/modelsfile.py` prints nothing.
-- [ ] 3.4 In `skills/mflib/findings.py` open `_staged`'s folder through `layout.beneath(folder.parent)` with `folder.name` as the last part, and add `layout.py` to the row of `findings.py` in `docs/modules.md`.
+- [x] 3.4 In `skills/mflib/findings.py` open `_staged`'s folder through `layout.beneath(folder.parent)` with `folder.name` as the last part, and add `layout.py` to the row of `findings.py` in `docs/modules.md`.
   Verify: `git grep -n -e "folder(folder.parent" -- skills/mflib/findings.py` prints nothing.
-- [ ] 3.5 In `skills/mflib/claim.py` open `active.parent` in `_open`, `take` and `remove` through `layout.beneath`, `_open` adding `active.name` as its last part, and add `layout.py` to the row of `claim.py` in `docs/modules.md`.
+- [x] 3.5 In `skills/mflib/claim.py` open `active.parent` in `_open`, `take` and `remove` through `layout.beneath`, `_open` adding `active.name` as its last part, and add `layout.py` to the row of `claim.py` in `docs/modules.md`.
   Verify: `git grep -n -e "folder(active.parent" -- skills/mflib/claim.py` prints nothing.
-- [ ] 3.6 In `skills/mflib/runlog.py` open the runs folder in `stop`, `RunLog.__init__` and `RunLog.event` through `layout.beneath`, and add `layout.py` to its row of `docs/modules.md`.
+- [x] 3.6 In `skills/mflib/runlog.py` open the runs folder in `stop`, `RunLog.__init__` and `RunLog.event` through `layout.beneath`, and add `layout.py` to its row of `docs/modules.md`.
   Verify: `git grep -n -e "folder(runs)" -e "folder(self.runs)" -- skills/mflib/runlog.py` prints nothing.
-- [ ] 3.7 In `skills/mf-ship/scripts/conduct.py` make `_restamp` open from `runs.parent` as root with `mflib.layout.MINIONS` as the first part, dropping `statefile.folder(runs` for it.
+- [x] 3.7 In `skills/mf-ship/scripts/conduct.py` make `_restamp` open from `runs.parent` as root with `mflib.layout.MINIONS` as the first part, dropping `statefile.folder(runs` for it.
   Verify: `git grep -n -F "statefile.folder(runs" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.8 In `skills/mf-ship/scripts/conduct.py` make the calls of `_free_log` in `Run.worker` pass `self.primary` as root: the run's own log with parts `mflib.layout.MINIONS`, `mflib.layout.RUNS` and the stamp, a version's worker log with `mflib.layout.MINIONS` before `CHANGES`.
+- [x] 3.8 In `skills/mf-ship/scripts/conduct.py` make the calls of `_free_log` in `Run.worker` pass `self.primary` as root: the run's own log with parts `mflib.layout.MINIONS`, `mflib.layout.RUNS` and the stamp, a version's worker log with `mflib.layout.MINIONS` before `CHANGES`.
   Verify: `git grep -n -e "_free_log(self.runs" -e "_free_log(mflib.layout.run_dir" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.9 In `skills/mf-ship/scripts/conduct.py` make the `_folder_fd` calls of `Run.migrate_layout` and `cut`, and the `_remove_in` call of `Run.cutting`, pass the primary as root and `mflib.layout.MINIONS` as the first part; add `minions` to `migrate_layout`'s list of links to refuse. Keep the name `_folder_fd`, and leave `_fresh_tmp`, `sandboxed`, `_scratch_folder`, `_fetch_npm` and `_hide_marks`, per [D3](design.md#d3).
+- [x] 3.9 In `skills/mf-ship/scripts/conduct.py` make the `_folder_fd` calls of `Run.migrate_layout` and `cut`, and the `_remove_in` call of `Run.cutting`, pass the primary as root and `mflib.layout.MINIONS` as the first part; add `minions` to `migrate_layout`'s list of links to refuse. Keep the name `_folder_fd`, and leave `_fresh_tmp`, `sandboxed`, `_scratch_folder`, `_fetch_npm` and `_hide_marks`, per [D3](design.md#d3).
   Verify: `git grep -n -e "_folder_fd(mflib.layout.run_dir" -e "_remove_in(mflib.layout.run_dir" -e "minions, mflib.layout.CHANGES" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.10 In `skills/mf-converge/scripts/converge.py` make `_change_folder` open from the primary with `mflib.layout.MINIONS` as the first part, in place of `run_dir` as root.
+- [x] 3.10 In `skills/mf-converge/scripts/converge.py` make `_change_folder` open from the primary with `mflib.layout.MINIONS` as the first part, in place of `run_dir` as root.
   Verify: `git grep -n -e "folder(run_dir" -- skills/mf-converge/scripts/converge.py` prints nothing.
-- [ ] 3.11 Turn each case of 1.1, 1.2 and 1.3 but the grant's from "lands in the target" to "is refused, the target unchanged"; the pins of the sites [D3](design.md#d3) keeps stand.
+- [x] 3.11 Turn each case of 1.1, 1.2 and 1.3 but the grant's from "lands in the target" to "is refused, the target unchanged"; the pins of the sites [D3](design.md#d3) keeps stand.
   Verify: `uv run pytest tests/test_statefile.py tests/test_conduct.py tests/test_converge.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 3.12 Check that no opener of the home passes the run directory as root.
+- [x] 3.12 Check that no opener of the home passes the run directory as root.
   Verify: `git grep -n -e "folder(layout.run_dir" -e "folder(run_dir" -e "folder(runs" -e "folder(self.runs" -e "_free_log(self.runs" -- skills` prints nothing.
 
 ## 4 — The record

@@ -63,6 +63,19 @@ def run_dir(primary: Path) -> Path:
     return primary / MINIONS
 
 
+def beneath(path: Path) -> tuple[Path, tuple[str, ...]]:
+    """Return the root and the parts to open `path` from, at its nearest `.minions`.
+
+    e.g. <p>/.minions/runs → (<p>, (".minions", "runs")); <p>/tmp → (<p>/tmp, ())
+    Why: 0155-roots design D2.
+    """
+    parts = path.parts
+    for at in reversed(range(len(parts))):
+        if parts[at] == MINIONS:
+            return Path(*parts[:at]), parts[at:]
+    return path, ()
+
+
 def change_dir(primary: Path, change: str) -> Path:
     """Return the change's folder in the run directory.
 

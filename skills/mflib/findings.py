@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import statefile
+from . import layout, statefile
 
 BLOCKS = {"conformance": ("blocking",), "adversarial": ("critical", "high")}
 # A blocking adversarial card of none of these categories is a security one.
@@ -334,8 +334,9 @@ def _staged(folder: Path, name: str, edit: Callable[[str], str | None]) -> bool:
     Staged as `<name>.tmp` at mode 0600 and renamed over it: 0138-findings design D12.
     False when a read or the write failed; True when it wrote, or `edit` left it.
     """
+    root, parts = layout.beneath(folder.parent)
     try:
-        fd = statefile.folder(folder.parent, folder.name)
+        fd = statefile.folder(root, *parts, folder.name)
         try:
             text = statefile.read(name, folder=fd)
             if (done := edit(text)) is not None:

@@ -9661,20 +9661,19 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert not list(scratch.iterdir())
     assert (outside / "kept.txt").read_text() == "x\n"
 
-    # A link at `.minions`, which a worker hides from git, halts the run: its
-    # target's `tmp` keeps its file. Why: 0084-ship-fixes-2's delta.
+    # A link at `.minions`, which a worker hides from git, stops the run at its
+    # claim: its target's `tmp` keeps its file and its `runs/` gains nothing.
+    # Why: 0084-ship-fixes-2's delta; 0155-roots design D1.
     minions, aside = root / ".minions", tmp_path / "aside"
     minions.rename(aside)
     minions.symlink_to(aside)
     (root / ".git" / "info" / "exclude").write_text(".minions\n")
     (aside / "tmp" / "kept.txt").write_text("x\n")
-    assert run() == 1
+    listed = sorted(path.name for path in (aside / "runs").iterdir())
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        run()
     assert (aside / "tmp" / "kept.txt").read_text() == "x\n"
-    linked = (
-        " · run · halt — .minions is a link: a person settles what it names"
-        " · cause run\n"
-    )
-    assert any(linked in log.read_text() for log in (aside / "runs").glob("*.md"))
+    assert sorted(path.name for path in (aside / "runs").iterdir()) == listed
 
 
 @pytest.mark.slow
@@ -18190,63 +18189,81 @@ def _linked_minions(root: Path) -> Path:
     return outside
 
 
-def test_a_restamp_follows_a_link_at_minions(tmp_path: Path) -> None:
+def _swap_minions(root: Path) -> Path:
+    """Move `root`'s `.minions` outside it and leave a link there; return the folder."""
+    outside = root.parent / "outside"
+    (root / ".minions").rename(outside)
+    (root / ".minions").symlink_to(outside)
+    return outside
+
+
+def test_a_restamp_is_refused_at_a_link_at_minions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     restamp = _conduct()["_restamp"]
     root = _primary(tmp_path)
     outside = _linked_minions(root)
     log = outside / "changes" / "0001-todo" / "status_log.md"
     log.parent.mkdir(parents=True)
     buried = "10:00:00 · round 1 · done — ok"
-    log.write_text(f"# t\n\n## Run 1 — d\n10:01:00 · round 1 · debt — d\n{buried}\n")
+    text = f"# t\n\n## Run 1 — d\n10:01:00 · round 1 · debt — d\n{buried}\n"
+    log.write_text(text)
 
-    assert restamp(root / ".minions", "0001-todo", buried) == 0
+    assert restamp(root / ".minions", "0001-todo", buried) == 2
 
-    assert "round 1 · done — re-stamped by the run" in log.read_text()
+    assert capsys.readouterr().out.startswith("stamp: cannot stamp — ")
+    assert log.read_text() == text
 
 
-def test_a_free_log_follows_a_link_at_minions(tmp_path: Path) -> None:
+def test_a_free_log_is_refused_at_a_link_at_minions(tmp_path: Path) -> None:
     free_log = _conduct()["_free_log"]
     root = _primary(tmp_path)
     outside = _linked_minions(root)
 
-    path, fd = free_log(root / ".minions", ("changes", "0001-todo", "logs"), "build")
-    os.close(fd)
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        free_log(root, (".minions", "changes", "0001-todo", "logs"), "build")
 
-    assert path == root / ".minions" / "changes" / "0001-todo" / "logs" / "build.log"
-    assert (outside / "changes" / "0001-todo" / "logs" / "build.log").is_file()
+    assert list(outside.iterdir()) == []
 
 
-def test_migrate_layout_follows_a_link_at_minions(
+def test_migrate_layout_is_refused_at_a_link_at_minions(
     tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
     conduct = _conduct()
     fake()
     root = _primary(tmp_path)
-    outside = _linked_minions(root)
     conductor = conduct["Run"](root, "claude")
+    outside = _swap_minions(root)
     planted = plant_old(outside, "0001-todo", "build/{}.done")
 
-    assert conductor.migrate_layout() is None
+    assert conductor.migrate_layout() == (
+        ".minions is a link: a person settles what it names"
+    )
 
-    assert (outside / "changes" / "0001-todo" / "build.done").read_text() == "old\n"
-    assert not os.path.lexists(planted)
+    assert planted.read_text() == "old\n"
+    assert not (outside / "changes").exists()
 
 
-def test_a_cut_reservation_follows_a_link_at_minions(tmp_path: Path) -> None:
+def test_a_cut_reservation_is_refused_at_a_link_at_minions(tmp_path: Path) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
-    outside = _linked_minions(root)
     brief = tmp_path / "brief.md"
     brief.write_text("# brief\n")
     _queued(conduct, root, "0001-a", brief)
     conductor, _, _ = _landing(conduct, root)
-    # The cut check's own box refuses a linked `.minions`; this pin is the removal.
-    conductor.checked_cut = lambda change, entry, tree: (None, None)
-    assert (outside / "cuts" / "0001-a").is_file()
+    swapped: list[Path] = []
 
-    assert conductor.cutting("0001-a") is None
+    # The cut check's own box refuses a linked `.minions`: the link comes after it.
+    def checked(change: str, entry: object, tree: Path) -> tuple[None, None]:
+        swapped.append(_swap_minions(root))
+        return None, None
 
-    assert not os.path.lexists(outside / "cuts" / "0001-a")
+    conductor.checked_cut = checked
+
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        conductor.cutting("0001-a")
+
+    assert (swapped[0] / "cuts" / "0001-a").is_file()
 
 
 def test_a_grant_is_refused_at_a_link_at_minions(
@@ -18257,24 +18274,32 @@ def test_a_grant_is_refused_at_a_link_at_minions(
     conduct = _conduct()
     fake("grant-halts")
     root = _primary(tmp_path)
-    outside = _linked_minions(root)
     tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
     head = _git(tree, "rev-parse", "HEAD")
     _done(root, "0001-todo", head)
     _cards(root, "0001-todo", head, "a design change")
     started: list[tuple[Path, str]] = []
+    swapped: list[Path] = []
+    real = conduct["grant"].__globals__["preconditions"]
 
     def spy(primary: Path, executor: str) -> int:
         started.append((primary, executor))
         return 4242
 
+    # The stage's reads refuse a linked `.minions`: the link comes after them.
+    def checked(cwd: Path, executor: str) -> object:
+        held = real(cwd, executor)
+        swapped.append(_swap_minions(root))
+        return held
+
     conduct["grant"].__globals__["_start_run"] = spy
+    conduct["grant"].__globals__["preconditions"] = checked
 
     with pytest.raises(conduct["Stop"]) as stop:
         conduct["grant"](root, "0001-todo", "claude")
 
     assert stop.value.code == 2
     assert str(stop.value).startswith("grant: cannot run — .minions/grants: ")
-    assert not (outside / "grants").exists()
+    assert not (swapped[0] / "grants").exists()
     assert started == []
     assert capsys.readouterr().out == ""

@@ -103,6 +103,23 @@ def test_a_metrics_page_is_the_changes_html(tmp_path: Path) -> None:
     )
 
 
+def test_beneath_splits_a_path_below_minions(tmp_path: Path) -> None:
+    assert layout.beneath(layout.runs_dir(tmp_path)) == (tmp_path, (".minions", "runs"))
+
+
+def test_beneath_gives_a_path_with_no_minions_itself(tmp_path: Path) -> None:
+    assert layout.beneath(tmp_path / "runs") == (tmp_path / "runs", ())
+
+
+def test_beneath_takes_the_nearest_minions(tmp_path: Path) -> None:
+    inner = tmp_path / ".minions" / "a"
+
+    assert layout.beneath(inner / ".minions" / "runs") == (
+        inner,
+        (".minions", "runs"),
+    )
+
+
 def test_a_path_follows_the_primary_it_is_given(tmp_path: Path) -> None:
     assert layout.run_dir(tmp_path / "a") != layout.run_dir(tmp_path / "b")
 

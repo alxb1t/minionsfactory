@@ -279,9 +279,9 @@ def _change_folder(context: Context) -> Iterator[int]:
 
     Why: card 0109·S1; 0136-status-log design D7.
     """
-    run_dir = mflib.layout.run_dir(Path(context.host.primary))
+    parts = (mflib.layout.MINIONS, mflib.layout.CHANGES, context.change)
     try:
-        fd = mflib.statefile.folder(run_dir, mflib.layout.CHANGES, context.change)
+        fd = mflib.statefile.folder(Path(context.host.primary), *parts)
     except OSError:
         raise Cannot(
             f"converge: cannot run — {context.log} cannot be stamped"

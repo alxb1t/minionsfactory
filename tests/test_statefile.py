@@ -493,23 +493,27 @@ def _linked_home(tmp_path: Path) -> tuple[Path, Path]:
     return primary, outside
 
 
-def test_marks_follows_a_link_at_minions(tmp_path: Path) -> None:
+def test_marks_refuses_a_link_at_minions(tmp_path: Path) -> None:
     primary, outside = _linked_home(tmp_path)
 
-    marks.write(primary, _CHANGE, marks.BUILD_DONE, _TEXT)
+    with pytest.raises(marks.Unwritten):
+        marks.write(primary, _CHANGE, marks.BUILD_DONE, _TEXT)
 
-    assert (outside / "changes" / _CHANGE / marks.BUILD_DONE).read_text() == _TEXT
+    assert list(outside.iterdir()) == []
 
 
-def test_modelsfile_follows_a_link_at_minions(tmp_path: Path) -> None:
+def test_modelsfile_refuses_a_link_at_minions(tmp_path: Path) -> None:
     primary, outside = _linked_home(tmp_path)
 
-    modelsfile.write(primary, _CHANGE, _TEXT)
+    with pytest.raises(statefile.WriteFailed):
+        modelsfile.write(primary, _CHANGE, _TEXT)
+    with pytest.raises(modelsfile.Broken, match="its folder cannot be opened"):
+        modelsfile.load(primary, _CHANGE)
 
-    assert (outside / "changes" / _CHANGE / layout.MODELS).read_text() == _TEXT
+    assert list(outside.iterdir()) == []
 
 
-def test_findings_follows_a_link_at_minions(tmp_path: Path) -> None:
+def test_findings_refuses_a_link_at_minions(tmp_path: Path) -> None:
     primary, outside = _linked_home(tmp_path)
     held = outside / "changes" / _CHANGE
     held.mkdir(parents=True)
@@ -517,25 +521,38 @@ def test_findings_follows_a_link_at_minions(tmp_path: Path) -> None:
 
     findings.stamp(layout.change_dir(primary, _CHANGE), "conformance.md", "m", 5)
 
-    stamped = (held / "conformance.md").read_text()
-    assert stamped == "---\nmodel: m\ntokens: 5\n---\nbody\n"
+    assert (held / "conformance.md").read_text() == "---\nmodel: x\n---\nbody\n"
 
 
-def test_claim_follows_a_link_at_minions(tmp_path: Path) -> None:
+def test_claim_refuses_a_link_at_minions(tmp_path: Path) -> None:
     primary, outside = _linked_home(tmp_path)
 
-    claim.take(layout.claim_file(primary))
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        claim.take(layout.claim_file(primary))
 
-    assert (outside / "runs" / "active").is_dir()
+    assert list(outside.iterdir()) == []
 
 
-def test_runlog_follows_a_link_at_minions(tmp_path: Path) -> None:
+def test_runlog_refuses_a_link_at_minions(tmp_path: Path) -> None:
     primary, outside = _linked_home(tmp_path)
     log = outside / "runs" / "20261101-100000.md"
     log.parent.mkdir()
-    log.write_text(f"{runlog.title('20261101-100000')}\n\n")
+    title = f"{runlog.title('20261101-100000')}\n\n"
+    log.write_text(title)
 
-    stopped = runlog.stop(layout.runs_dir(primary))
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        runlog.stop(layout.runs_dir(primary))
 
-    assert stopped == layout.runs_dir(primary) / log.name
-    assert log.read_text().endswith(f" · run · halt — {runlog.STOPPED}\n")
+    assert log.read_text() == title
+
+
+def test_runlog_refuses_a_link_at_runs(tmp_path: Path) -> None:
+    primary, outside = tmp_path / "primary", tmp_path / "outside"
+    (primary / layout.MINIONS).mkdir(parents=True)
+    outside.mkdir()
+    layout.runs_dir(primary).symlink_to(outside)
+
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        runlog.RunLog(layout.runs_dir(primary), "20261101-100000")
+
+    assert list(outside.iterdir()) == []
