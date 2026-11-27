@@ -122,6 +122,20 @@ def test_origin_keep_with_a_file_at_the_kept_folder_writes_nothing(p: Path) -> N
     assert layout.kept_dir().read_text() == "x\n"
 
 
+def test_origin_keep_of_urls_over_the_bound_raises_unwritten_and_keeps_nothing(
+    p: Path,
+) -> None:
+    long: kept.Urls = ([], ["https://example.invalid/" + "a" * kept.BOUND])
+
+    with pytest.raises(kept.Unwritten) as raised:
+        kept.keep_origin(p, long)
+
+    assert raised.value.strerror == f"it is over {kept.BOUND} bytes"
+    assert raised.value.filename == str(layout.kept_file(p))
+    assert not layout.kept_file(p).exists()
+    assert kept.origin(p) is None
+
+
 def test_origin_keep_in_a_folder_it_cannot_write_raises_unwritten(p: Path) -> None:
     folder = _kept()
 
@@ -326,6 +340,17 @@ def test_ledger_entries_are_none_with_a_file_at_the_folder(p: Path) -> None:
     layout.released_dir(p).write_text("x\n")
 
     assert kept.release_entries(p) == []
+
+
+def test_ledger_entries_are_none_with_a_link_at_the_folder(p: Path) -> None:
+    _kept()
+    target = layout.kept_dir().parent / "elsewhere"
+    target.mkdir()
+    (target / "0001-a").write_text(f"{_H}\n")
+    layout.released_dir(p).symlink_to(target)
+
+    assert kept.release_entries(p) == []
+    assert kept.release_heads(p) == kept.Heads(set(), [])
 
 
 def test_ledger_entries_list_every_name_of_the_folder(p: Path) -> None:

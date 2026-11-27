@@ -202,9 +202,14 @@ def origin_stands(primary: Path) -> bool:
 def keep_origin(primary: Path, urls: Urls) -> None:
     """Keep `urls` as `primary`'s origin, once: a name that stands is left.
 
+    Text over `BOUND` bytes is `Unwritten`, as `origin` could not read it back.
     Why: 0053-sandbox-patch design D2.
     """
-    _once(layout.kept_file(primary), json.dumps(urls))
+    file = layout.kept_file(primary)
+    text = json.dumps(urls)
+    if len(text.encode()) > BOUND:
+        raise Unwritten(file, OSError(errno.EFBIG, f"it is over {BOUND} bytes"))
+    _once(file, text)
 
 
 def default(primary: Path) -> str | None:
@@ -257,9 +262,19 @@ def record_release(primary: Path, change: str, head: str) -> None:
 
 
 def release_entries(primary: Path) -> list[Path]:
-    """Return every name in the release ledger's folder; none with no folder."""
+    """Return every name in the release ledger's folder; none with no folder.
+
+    A folder that cannot be opened, a link among them, lists none.
+    """
     folder = layout.released_dir(primary)
-    return list(folder.iterdir()) if folder.is_dir() else []
+    try:
+        fd = statefile.open_folder(layout.kept_dir(), folder.name)
+    except OSError:
+        return []
+    try:
+        return [folder / name for name in os.listdir(fd)]
+    finally:
+        os.close(fd)
 
 
 def _head(entry: Path) -> str | None:

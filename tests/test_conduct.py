@@ -12960,7 +12960,9 @@ def test_the_kept_urls_stand_past_a_repoint(
 
 @pytest.mark.slow
 def test_a_refused_home_folder_still_pushes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
     fake()
@@ -12968,13 +12970,22 @@ def test_a_refused_home_folder_still_pushes(
     root, _ = _with_origin(tmp_path)
     _version(root, "0001-todo", "- [ ] 1 — Todo\n")
 
-    def refused(primary: Path, urls: object) -> None:
-        raise FileNotFoundError(2, "No such file or directory")
+    # The refusal is the file system's at the kept origin's write alone: a whole
+    # refused home halts the run on its queue, before any keep.
+    write = mflib.statefile.write
+    name = layout.kept_file(root).name
 
-    monkeypatch.setattr(mflib.kept, "keep_origin", refused)
+    def refused(path: Path, text: str, *, folder: int | None, mode: int) -> None:
+        if path.name == name:
+            raise mflib.statefile.WriteFailed(
+                "create", PermissionError(13, "Permission denied")
+            )
+        write(path, text, folder=folder, mode=mode)
+
+    monkeypatch.setattr(mflib.statefile, "write", refused)
     assert _run_claude(conduct, root, monkeypatch) == 0
     assert conduct["_kept_origin"](root) is None
-    refusal = " · run · unkept — No such file or directory"
+    refusal = " · run · unkept — Permission denied"
     assert sum(line.endswith(refusal) for line in _log(root)) == 1
     assert "refs/tags/v0.1.0" in _git(root, "ls-remote", "--tags", "origin")
 
