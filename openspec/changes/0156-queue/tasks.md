@@ -4,7 +4,7 @@ Pin the queue as it is, move it into `skills/mflib/queue.py`, send the conductor
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
@@ -14,23 +14,23 @@ Pin the queue as it is, move it into `skills/mflib/queue.py`, send the conductor
 
 Cases of the series' queue mutation run, written again at `HEAD`, each green as the code stands and red on the change its comment names. No case starts a worker ([D9](design.md#d9)).
 
-- [ ] 1.1 **HALT CHECK** The conductor still holds the writer the stations phase deletes.
+- [x] 1.1 **HALT CHECK** The conductor still holds the writer the stations phase deletes.
   Verify: `git grep -q -e "^def _write_cut" -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 1.2 Create `tests/test_queue_pins.py` with its docstring, its helpers and the cases of `_queue_lock`, of the list and read of `_cuts` and of `_write_cut`, the first being `test_queue_lock_blocks_a_second_taker`. Plant a file, an empty file, a bad byte, a file over its bound, a link, a dangling link, a folder and a FIFO at an entry. A FIFO is read in a child process and its case carries the `slow` marker.
+- [x] 1.2 Create `tests/test_queue_pins.py` with its docstring, its helpers and the cases of `_queue_lock`, of the list and read of `_cuts` and of `_write_cut`, the first being `test_queue_lock_blocks_a_second_taker`. Plant a file, an empty file, a bad byte, a file over its bound, a link, a dangling link, a folder and a FIFO at an entry. A FIFO is read in a child process and its case carries the `slow` marker.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_queue_lock_blocks_a_second_taker` exits `0`.
-- [ ] 1.3 Add to `tests/test_queue_pins.py` the cases of `_brief_of`, `_merge_tried`, the `briefs` write of `Run.cutting` and the `supervised` write of `Run.supervise`, the first being `test_a_record_is_stripped_and_a_prefix_is_no_try`: an empty record reads as none.
+- [x] 1.3 Add to `tests/test_queue_pins.py` the cases of `_brief_of`, `_merge_tried`, the `briefs` write of `Run.cutting` and the `supervised` write of `Run.supervise`, the first being `test_a_record_is_stripped_and_a_prefix_is_no_try`: an empty record reads as none.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_a_record_is_stripped_and_a_prefix_is_no_try` exits `0`.
-- [ ] 1.4 Add to `tests/test_queue_pins.py` the cases of `_requests`, `_requested` and `_request`, the first being `test_requests_unlinks_a_link_and_leaves_its_target`: the names come back as a set, a subfolder is left, a linked folder reads as none, only a regular file counts, the folder is made with its parents.
+- [x] 1.4 Add to `tests/test_queue_pins.py` the cases of `_requests`, `_requested` and `_request`, the first being `test_requests_unlinks_a_link_and_leaves_its_target`: the names come back as a set, a subfolder is left, a linked folder reads as none, only a regular file counts, the folder is made with its parents.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_requests_unlinks_a_link_and_leaves_its_target` exits `0`.
-- [ ] 1.5 Add to `tests/test_queue_pins.py` the cases of `_cut_line`, `_halted_after`, `_next_id`, `cut`, `rejoin` and `grant`, the first being `test_rejoin_clears_the_chain_in_name_order`: the entry's key order, the lock around each write, an unreadable entry refused by `rejoin`, `all` asked when no change is named.
+- [x] 1.5 Add to `tests/test_queue_pins.py` the cases of `_cut_line`, `_halted_after`, `_next_id`, `cut`, `rejoin` and `grant`, the first being `test_rejoin_clears_the_chain_in_name_order`: the entry's key order, the lock around each write, an unreadable entry refused by `rejoin`, `all` asked when no change is named.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_rejoin_clears_the_chain_in_name_order` exits `0`.
-- [ ] 1.6 Add to `tests/test_queue_pins.py` the run-level cases of `Run.cutting`, `Run.cut_halted`, `Run.wait_cut`, `Run.unwait`, `Run.take_requests`, `Run.in_flight` and `_close`, the first being `test_take_requests_reads_the_entries_again_when_a_request_stands`. Each runs over a fake worker that starts none.
+- [x] 1.6 Add to `tests/test_queue_pins.py` the run-level cases of `Run.cutting`, `Run.cut_halted`, `Run.wait_cut`, `Run.unwait`, `Run.take_requests`, `Run.in_flight` and `_close`, the first being `test_take_requests_reads_the_entries_again_when_a_request_stands`. Each runs over a fake worker that starts none.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_take_requests_reads_the_entries_again_when_a_request_stands` exits `0`.
-- [ ] 1.7 Add to `tests/test_queue_pins.py` the pins of what no mutant reaches, the first being `test_a_fifo_at_an_entry_reads_in_a_child`: a link, a hard link, a folder, a bad byte, a file over its bound, a wrong type and a deep JSON at an entry; the same shapes at `briefs/<id>`, `supervised/<id>` and a request; a link at the `cuts` folder and at the `rejoin` folder.
+- [x] 1.7 Add to `tests/test_queue_pins.py` the pins of what no mutant reaches, the first being `test_a_fifo_at_an_entry_reads_in_a_child`: a link, a hard link, a folder, a bad byte, a file over its bound, a wrong type and a deep JSON at an entry; the same shapes at `briefs/<id>`, `supervised/<id>` and a request; a link at the `cuts` folder and at the `rejoin` folder.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_a_fifo_at_an_entry_reads_in_a_child` exits `0`.
-- [ ] 1.8 Add to `tests/test_queue_pins.py` the pins of a failed write in `cut`, `rejoin`, `cut_halted`, `wait_cut`, `unwait`, the writes of `briefs` and `supervised`, and a request, the first being `test_a_failed_entry_write_in_cut_leaves_the_reservation`; each form of `waits`, null, empty and text; the cut halt's text written and matched.
+- [x] 1.8 Add to `tests/test_queue_pins.py` the pins of a failed write in `cut`, `rejoin`, `cut_halted`, `wait_cut`, `unwait`, the writes of `briefs` and `supervised`, and a request, the first being `test_a_failed_entry_write_in_cut_leaves_the_reservation`; each form of `waits`, null, empty and text; the cut halt's text written and matched.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_a_failed_entry_write_in_cut_leaves_the_reservation` exits `0`.
-- [ ] 1.9 Run each case once under the change its comment names, by hand, and restore the file. No source file stays changed.
+- [x] 1.9 Run each case once under the change its comment names, by hand, and restore the file. No source file stays changed.
   Verify: `git status --porcelain -- skills` prints nothing.
 
 ## 2 — The module

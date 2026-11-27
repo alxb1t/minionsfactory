@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Tests pin, green on today's code, what the queue's lock, entries, `briefs` and `supervised` records and rejoin requests do for each shape at a name, a link at the `cuts` and `rejoin` folders, and a failed write in `cut`, `rejoin` and the run's writes. The moves of the next phases turn them (0156-queue, phase 1).
+
 ## [0.125.0] - 2026-11-27
 
 Gate: local 7m48s · CI not read under mf-ship · 0.124.0: local 8m6s · CI not read under mf-ship
