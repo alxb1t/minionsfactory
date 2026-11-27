@@ -599,8 +599,8 @@ pre-fills the line in `mf-plan` and the cut; `conduct.py` reads `models.toml` al
 thread; `conduct.py converge` runs it by hand, and `skills/mf-converge/SKILL.md` is its front. The checkers, the fixer and the
 verify workers are the only LLMs, each a fresh process the run starts, one log each; the gate, the check scripts and a card's
 **Still true?** command run under the sandbox runner. A script goes on where it can: one retry, one rewrite worker, one more fix
-pass; only the environment, a loop outcome, a red gate and a security card halt. A findings file that says clean beside a
-blocking card not closed gets its one rewrite worker, then a halt. The fixer runs on `fix=`'s model always.
+pass; only the environment, a loop outcome, a red gate, a security card and a clean file still malformed after its one
+rewrite worker halt. A findings file that says clean beside a blocking card not closed gets that rewrite worker. The fixer runs on `fix=`'s model always.
 Its status log is written through `skills/mflib/statuslog.py`, and its findings files are read and written through
 `skills/mflib/findings.py`.**
 

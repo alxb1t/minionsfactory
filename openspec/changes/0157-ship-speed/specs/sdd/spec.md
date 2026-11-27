@@ -49,11 +49,13 @@ alone with what the `Verify:` says, keeping its stderr apart, and SHALL show the
 `skills/mf-cut-change/scripts/verify_check.py` SHALL read a `Verify:`'s commands through this script's parser, loaded
 from it, and keep no parser of its own.
 
-It SHALL judge in groups, and a group that fails SHALL print its lines and end the check before the next group starts. The
+It SHALL judge in groups, and a group that fails SHALL print its lines and end the check before the next group starts, a group
+whose only lines say `timed out` ending nothing, as such a line is no finding. The
 **reads** group comes first: the unticked boxes, the removed names, the base's tests and the corpus cases, which run no command. The
 **quick** group follows: every `Verify:` command that is no `pytest` run and no `make`, a `pytest` with `--collect-only` included, and the collection —
-the command with `--collect-only -q` appended — of each `pytest` `Verify:` that says it exits 0 and no more, a collection that exits
-non-zero or finds no test printing `plan: <sub-task> — `<command>` collected no test`. The **long** group is last: the `pytest` and `make`
+the command with `--collect-only -q` appended — of each `pytest` `Verify:` that says it exits 0 and no more, a collection that timed out printing
+`timed out`, one that exits non-zero or finds no test printing `plan: <sub-task> — `<command>` collected no test`, and one that
+exits 2 with its first lines of output. The **long** group is last: the `pytest` and `make`
 commands, each a `pytest` the gate's green record vouches for left unrun. The commands of the quick group start before its
 collections, and none of them waits behind a command of the long group. With `--only` the reads group is empty.
 

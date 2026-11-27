@@ -438,6 +438,7 @@ def test_a_green_gate_record_passes_a_bare_pytest(
     assert check() == (1, ran)
 
 
+@pytest.mark.slow
 def test_a_green_record_vouches_n_and_k_options(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -583,6 +584,64 @@ def test_a_quick_check_runs_no_pytest_and_no_make(
     log.unlink()
     assert quick("git grep -q -e _kept -- src") == (0, ["plan: clean"])
     assert _calls(log) == [f"{suite} --collect-only -q"]
+
+
+def _timing_out(monkeypatch: pytest.MonkeyPatch, *texts: str) -> None:
+    """Make each named command time out, the rest run as they do."""
+    real = plan_check.run
+
+    def run(text: str, root: Path, limit: float | None = None) -> plan_check.Result:
+        if text in texts:
+            return plan_check.Result(-1, "", True)
+        return real(text, root, limit)
+
+    monkeypatch.setattr(plan_check, "run", run)
+
+
+def test_a_timed_out_line_of_the_quick_group_leaves_the_long_group_judged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    log = _logging_stubs(tmp_path, monkeypatch)
+    suite = "pytest -q tests/test_mod.py"
+    _tasks(
+        root,
+        _ONE,
+        "- [x] 1.1 Slow.\n  Verify: `sleep 5`.\n",
+        f"- [x] 1.2 Suite.\n  Verify: `{suite}`.\n",
+    )
+    _timing_out(monkeypatch, "sleep 5")
+    code = plan_check.main(["--change", _CHANGE, "--base", base])
+    assert (code, capsys.readouterr().out.splitlines()) == (
+        1,
+        ["plan: 1.1 — `sleep 5` timed out", f"plan: 1.2 — `{suite}` exited 3"],
+    )
+    assert suite in _calls(log)
+
+
+def test_a_timed_out_or_failed_collection_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "repo"
+    base = _repo(root, monkeypatch)
+    suite, broken = "pytest -q tests/test_mod.py", "pytest -q tests/test_bad.py"
+    (root / "tests" / "test_bad.py").write_text("import not_a_module_here\n")
+    _tasks(
+        root,
+        _ONE,
+        f"- [x] 1.1 Suite.\n  Verify: `{suite}`.\n",
+        f"- [x] 1.2 Broken.\n  Verify: `{broken}`.\n",
+    )
+    _timing_out(monkeypatch, f"{suite} --collect-only -q")
+    code = plan_check.main(["--change", _CHANGE, "--base", base])
+    out = capsys.readouterr().out.splitlines()
+    assert code == 1
+    assert out[:2] == [
+        f"plan: 1.1 — `{suite}` timed out",
+        f"plan: 1.2 — `{broken}` collected no test",
+    ]
+    assert any(line.startswith("  | ") and "test_bad.py" in line for line in out[2:])
 
 
 def test_a_collection_that_finds_no_test_is_a_line(

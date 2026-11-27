@@ -374,9 +374,22 @@ def report(name: str, command: Command, result: Result) -> list[str]:
     return [f"plan: {name} — `{command.text}` {verdict}", *shown]
 
 
-def collected_none(name: str, command: Command) -> str:
-    """Return the line of a pytest run whose collection finds no test."""
-    return f"plan: {name} — `{command.text}` collected no test"
+def collected_none(name: str, command: Command, result: Result) -> list[str]:
+    """Return the lines of a pytest run whose collection finds no test.
+
+    A timeout says `timed out`; an exit 2, an import error, shows its output.
+    """
+    if result.timed_out:
+        return [f"plan: {name} — `{command.text}` timed out"]
+    line = f"plan: {name} — `{command.text}` collected no test"
+    if result.code != 2:
+        return [line]
+    shown = [
+        f"  | {each}"
+        for text in (result.output, result.stderr)
+        for each in text.splitlines()[:SHOWN]
+    ]
+    return [line, *shown]
 
 
 def passed(command: Command, code: int, stdout: str) -> bool:
@@ -687,8 +700,14 @@ def check_verifies(
         if command.text not in long:
             problems += report(name, command, found[command.text])
         elif wants_collection(command) and command.text not in collected:
-            problems.append(collected_none(name, command))
-    if problems or quick:
+            problems += collected_none(
+                name, command, found[command.text + COLLECT_ONLY]
+            )
+    # why: a `timed out` line is no finding, so the long group is still judged
+    ended = any(
+        p.startswith("plan: ") and not p.endswith(" timed out") for p in problems
+    )
+    if ended or quick:
         return problems
     vouched = collected if green else set()
     pending = [

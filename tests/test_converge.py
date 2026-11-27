@@ -3099,6 +3099,8 @@ def test_a_clean_file_with_a_card_not_closed_gets_a_rewrite(host: Host) -> None:
     assert station == "converge-verify-conformance-r2"
     assert f": {_CLEAN_OPEN}.\n" in told
     assert "the first word of that card's Status line, `verified` or" in told
+    # An amend card's `wontfix` stays: the rewrite worker has no fix diff to close it.
+    assert "A card with `Amend: yes` keeps its `wontfix`, never `verified`" in told
 
 
 @pytest.mark.parametrize("then", ["fixed", "broken"])

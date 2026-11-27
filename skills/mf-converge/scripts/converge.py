@@ -79,8 +79,10 @@ REWRITE_CLOSE = (
     " `references/worker.md` of the installed `mf-converge` skill: {why}.\n"
     "Set what you meant: the first word of that card's Status line, `verified` or"
     " `accepted` when it is closed, or the file's verdict, `changes-requested`, when"
-    " it is not. Keep each other card's id, grade, fields and Status. Edit no other"
-    " file.\n"
+    " it is not. A card with `Amend: yes` keeps its `wontfix`, never `verified` or"
+    " `accepted`, till an amend settles it: when it is the card, write"
+    " `changes-requested`. Keep each other card's id, grade, fields and Status. Edit"
+    " no other file.\n"
 )
 # The debt lock's wait, in seconds. Why: design D5.
 LOCK_WAIT = 600
