@@ -1701,8 +1701,8 @@ SHALL each halt their version.
 Each halt SHALL be logged when it happens, and each block as `blocked — by <id>`. A run with a halt or a block SHALL
 close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and exit 1. `conduct.py report` SHALL print every
 `halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
-outside git and the run directory, except the claim, `origin`'s URLs, the offline base, the release ledger and a person's gate approval
-in the home folder: a re-run derives every stage again and continues. A halt SHALL need
+outside git and the run directory, except the claim, `origin`'s URLs, the offline base, the release ledger, a person's gate approval,
+the queue's entries, its `briefs` and `supervised` records and the rejoin requests in the home folder: a re-run derives every stage again and continues. A halt SHALL need
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted on anything but
 `.minions/debt.lock`, or an older `.minions/backlog.lock`, a release whose
 base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
@@ -6917,3 +6917,52 @@ The gate's record, `.minions/gate/<name>`, SHALL be read through no link, and a 
 #### Scenario: A cuts folder that is a link
 - **WHEN** `.minions/cuts` is a link and the cut's check runs
 - **THEN** the check fails, and lists nothing through the link
+
+### Requirement: The queue is read and written through one module
+
+`skills/mflib/queue.py` SHALL be the one home of the queue in the home folder: the entries of `cuts/`, the records `briefs/<id>` and `supervised/<id>`, the rejoin requests under `rejoin/`, the queue lock, and the text of a cut halt, `after <name> is cut-halted`. An entry SHALL be one typed record: `bump`, `brief`, `executor`, `after` and `halt` required, `model` and `effort` required as a string or null, `halt` a string or null, `after` a list of strings, and `dependencies`, `models`, `beside` and `waits` optional, each of its type; a value of a wrong type SHALL make the entry unreadable. `waits` SHALL be a wait when it is a non-empty string, to the conductor and to the viewer alike.
+
+A read of an entry, `briefs/<id>` or `supervised/<id>` SHALL follow no link, SHALL not block, SHALL take a regular file alone, SHALL be bounded — 262,144 bytes an entry, 65,536 a record — and SHALL decode strictly. An entry that is a link, a FIFO, a folder, over its bound, of a wrong type, a bad byte, JSON too deep, no object or short of a required key SHALL be the unreadable entry: a halt to `status` and the viewer, refused by `rejoin`, skipped by the takers, its name still a live change to a worker's reach. A record that fails its read SHALL read as none. A write of an entry or a record SHALL be staged, mode 0600, and follow no link, and a write of an entry over its bound SHALL be refused.
+
+A rejoin request SHALL be an empty file made by its name under the `rejoin` folder's descriptor, the folder and the name followed through no link. A name in that folder that is no change id and not `all` SHALL be removed and ignored. A failed queue write in `conduct.py cut` and in `conduct.py rejoin` SHALL stop the command with exit 2, naming the file, and `cut` SHALL remove the reservation it made; in a run it SHALL stay the halt it is.
+
+#### Scenario: A link at an entry is the unreadable entry
+- **WHEN** an entry in `cuts/` is a link to a valid entry
+- **THEN** `conduct.py status` shows that cut as halted on `the queue entry is unreadable`
+- **AND** `conduct.py rejoin` of it exits 2 and the takers skip it
+
+#### Scenario: A FIFO blocks no read
+- **WHEN** `cuts/<id>`, `briefs/<id>` or `supervised/<id>` is a FIFO
+- **THEN** the read returns at once, the entry unreadable and each record none
+
+#### Scenario: A wrong type is unreadable
+- **WHEN** an entry holds `after` as a string, or `halt` as `0`
+- **THEN** the entry is unreadable
+
+#### Scenario: An empty wait is no wait
+- **WHEN** an entry's `waits` is null or an empty string
+- **THEN** `status`, the viewer and the run's `unwait` read it as no wait
+
+#### Scenario: A deep JSON is unreadable
+- **WHEN** an entry holds JSON nested past the parser's depth
+- **THEN** the read returns the unreadable entry and raises nothing
+
+#### Scenario: An entry over its bound is refused
+- **WHEN** an entry to write is over 262,144 bytes
+- **THEN** the write refuses it and leaves the entry that stands
+
+#### Scenario: A request through a link
+- **WHEN** the `rejoin` folder is a link, or a link stands at a request's name
+- **THEN** the request is written through neither, and `conduct.py rejoin` stops, exit 2, naming the file
+
+#### Scenario: A stray name in the request folder
+- **WHEN** a file named `x.tmp` stands in `rejoin/` and the run takes its requests
+- **THEN** the file is removed and no version is requested for it
+
+#### Scenario: A failed write stops cut
+- **WHEN** the queue entry of `conduct.py cut` cannot be written
+- **THEN** the command exits 2, naming the file, and `.minions/cuts/<id>` is removed
+
+#### Scenario: A failed write stops rejoin
+- **WHEN** `conduct.py rejoin` cannot write an entry it clears
+- **THEN** the command exits 2, naming the file, and the entries it cleared before stay cleared
