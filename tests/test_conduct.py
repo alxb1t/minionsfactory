@@ -12975,12 +12975,19 @@ def test_a_refused_home_folder_still_pushes(
     write = mflib.statefile.write
     name = layout.kept_file(root).name
 
-    def refused(path: Path, text: str, *, folder: int | None, mode: int) -> None:
+    def refused(
+        path: Path,
+        text: str,
+        *,
+        refuse_link: bool = False,
+        folder: int | None = None,
+        mode: int = 0o644,
+    ) -> None:
         if path.name == name:
             raise mflib.statefile.WriteFailed(
                 "create", PermissionError(13, "Permission denied")
             )
-        write(path, text, folder=folder, mode=mode)
+        write(path, text, refuse_link=refuse_link, folder=folder, mode=mode)
 
     monkeypatch.setattr(mflib.statefile, "write", refused)
     assert _run_claude(conduct, root, monkeypatch) == 0
