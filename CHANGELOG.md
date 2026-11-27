@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Tests pin, green on today's code, what the queue's lock, entries, `briefs` and `supervised` records and rejoin requests do for each shape at a name, a link at the `cuts` and `rejoin` folders, and a failed write in `cut`, `rejoin` and the run's writes. The moves of the next phases turn them (0156-queue, phase 1).
 - `skills/mflib/queue.py` holds the queue's typed entry, its lock, entries, requests and `briefs` and `supervised` records, each behaving as the conductor's copy does; no script calls it yet. `statefile.folder` takes a `mode`, and `statefile.touch` makes a file by its name through no link (0156-queue, phase 2).
+- The conductor reads, writes, lists and removes the queue's entries, takes its lock, makes and takes its requests, and writes its `briefs` and `supervised` records through `skills/mflib/queue.py`. `_write_cut`, `_requested`, `_merge_tried` and `CUT_KEYS` are gone, and no assert changed (0156-queue, phase 3).
 
 ## [0.125.0] - 2026-11-27
 

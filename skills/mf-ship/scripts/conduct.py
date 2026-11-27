@@ -12,7 +12,6 @@ import codecs
 import collections
 import contextlib
 import errno
-import fcntl
 import functools
 import hashlib
 import html
@@ -51,6 +50,7 @@ import mflib.layout
 import mflib.marks
 import mflib.modelsfile
 import mflib.platform
+import mflib.queue
 import mflib.runlog
 import mflib.statefile
 import mflib.statuslog
@@ -112,7 +112,6 @@ DECISIONS = "docs/decisions.md"
 GATE_FILES = ("Makefile", "*.mk", "AGENTS.md", "CODING_STANDARDS.md", "CONTRIBUTING.md")
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CHANGE_ID = re.compile(rf"(\d+)-({SLUG.pattern})")
-CUT_KEYS = frozenset({"bump", "brief", "after", "executor", "model", "effort", "halt"})
 DEPENDENCIES = "## Dependencies"
 INLINE_HEADING = re.compile(r"<h[1-6](?:[\s/>]|$)", re.IGNORECASE)
 BLOCK_HEADING = re.compile(r"<h[12](?:[\s/>]|$)", re.IGNORECASE)
@@ -5298,7 +5297,7 @@ class Run:
                     not stage_of(self.primary, version, self.skips_of(version.change))[
                         1
                     ].startswith("semantic conflict")
-                    or _merge_tried(
+                    or mflib.queue.merge_tried(
                         self.primary,
                         change,
                         _git(tree, "rev-parse", "MERGE_HEAD").strip(),
@@ -5314,9 +5313,7 @@ class Run:
         start = _opened(self.primary, tree, change) if integrating else None
         if start is not None:
             with _queue_lock(self.primary):
-                folder = mflib.layout.queue_supervised(self.primary)
-                folder.mkdir(mode=0o700, exist_ok=True)
-                (folder / change).write_text(f"{start.merge}\n")
+                mflib.queue.write_supervised(self.primary, change, start.merge)
         before = start.head if start else _git(tree, "rev-parse", "HEAD").strip()
         prompt = _supervise_prompt(self.primary, change, replan)
         sha = None
@@ -6262,7 +6259,7 @@ class Run:
         for named in entry["after"]:
             while (queued := _cuts(self.primary).get(named)) is not None:
                 if queued.get("halt") is not None or self.stopped(named):
-                    return f"after {named} is cut-halted", False
+                    return mflib.queue.halted_text(named), False
                 time.sleep(REJOIN_POLL)
         primary = self.primary
         tree = (self.worktrees / change).resolve()
@@ -6310,13 +6307,11 @@ class Run:
         if failed is not None:
             return failed
         with _queue_lock(primary):
-            folder = mflib.layout.queue_briefs(primary)
-            folder.mkdir(mode=0o700, exist_ok=True)
-            (folder / change).write_text(f"{entry['brief']}\n")
+            mflib.queue.write_brief(primary, change, entry["brief"])
             # The entry goes last, so a reservation that cannot go keeps it to halt.
             cuts = (mflib.layout.MINIONS, mflib.layout.CUTS)
             _remove_in(primary, *cuts, name=change)
-            (mflib.layout.queue_cuts(primary) / change).unlink()
+            mflib.queue.remove(primary, change)
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
         return None
@@ -6402,7 +6397,7 @@ class Run:
         """
         with _queue_lock(self.primary):
             if (entry := _cuts(self.primary).get(change)) is not None:
-                _write_cut(self.primary, change, {**entry, "halt": reason})
+                mflib.queue.write(self.primary, change, {**entry, "halt": reason})
         if not logged:
             self.halt(change, f"cut-halted — {reason}")
 
@@ -6583,7 +6578,7 @@ class Run:
         with _queue_lock(self.primary):
             current = _cuts(self.primary).get(change)
             if current is not None and current["halt"] is None:
-                _write_cut(self.primary, change, {**current, "waits": reason})
+                mflib.queue.write(self.primary, change, {**current, "waits": reason})
 
     def unwait(self, change: str, entry: dict[str, Any]) -> None:
         """Drop a cut from the waiting ones, and its reason from its entry.
@@ -6598,7 +6593,7 @@ class Run:
             current = _cuts(self.primary).get(change)
             if current is not None and "waits" in current:
                 kept = {key: value for key, value in current.items() if key != "waits"}
-                _write_cut(self.primary, change, kept)
+                mflib.queue.write(self.primary, change, kept)
 
     def take_cut(
         self, change: str, entry: dict[str, Any], threads: dict[str, threading.Thread]
@@ -7462,7 +7457,7 @@ def _close(primary: Path, active: Path, executor: str, seen: set[str] | None) ->
                 entry["halt"] is None and change not in seen
                 for change, entry in _cuts(primary).items()
             )
-            if not (unread or _requested(mflib.layout.queue_dir(primary))):
+            if not (unread or mflib.queue.requested(mflib.layout.queue_dir(primary))):
                 return
             pid = _start_run(primary, executor)
     except mflib.claim.Refused as refused:
@@ -7574,24 +7569,8 @@ def _brief_of(primary: Path, change: str) -> str | None:
     The record stands in the home queue, where no worker writes; a version cut by
     hand has none. Why: 0090-supervisor-merge design D1.
     """
-    try:
-        named = (mflib.layout.queue_briefs(primary) / change).read_text().strip()
-    except (OSError, UnicodeDecodeError):
-        return None
+    named = mflib.queue.brief(primary, change)
     return named if named and Path(named).is_file() else None
-
-
-def _merge_tried(primary: Path, change: str, merge: str) -> bool:
-    """Return whether a supervisor was spawned on `change`'s open merge `merge`.
-
-    The record stands in the home queue, where no worker writes, so the try holds
-    across runs. Why: 0090-supervisor-merge design D2.
-    """
-    try:
-        record = mflib.layout.queue_supervised(primary) / change
-        return record.read_text().strip() == merge
-    except (OSError, UnicodeDecodeError):
-        return False
 
 
 def _supervise_prompt(primary: Path, change: str, replan: bool = False) -> str:
@@ -7611,43 +7590,24 @@ def _queue_lock(primary: Path) -> Iterator[None]:
 
     Why: 0082-cut-station design D2.
     """
-    lock = mflib.layout.queue_lock(primary)
     try:
-        for folder in (lock.parent.parent, lock.parent):
-            folder.mkdir(mode=0o700, exist_ok=True)
-        fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    except OSError as error:
+        with mflib.queue.lock(primary):
+            yield
+    except mflib.queue.Refused as error:
         raise Stop(
             2,
             f"conduct: cannot run — the home folder refuses the queue:"
             f" {error.strerror}; run it outside a sandbox",
         ) from None
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        yield
-    finally:
-        os.close(fd)
 
 
 def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     """Return each queued cut's entry by its id, in id order.
 
-    An entry that is no JSON object, or lacks one of `CUT_KEYS`, holds only its halt.
+    An entry that lacks a key of `mflib.queue.REQUIRED` holds only its halt.
     e.g. {"0003-a": {"bump": "minor", …, "halt": None}}
     """
-    folder = mflib.layout.queue_cuts(primary)
-    found: dict[str, dict[str, Any]] = {}
-    for name in _entries(folder, empty=False):
-        if not CHANGE_ID.fullmatch(name):
-            continue
-        try:
-            entry = json.loads((folder / name).read_text())
-        except (OSError, ValueError):
-            entry = None
-        if not isinstance(entry, dict) or not entry.keys() >= CUT_KEYS:
-            entry = {"halt": "the queue entry is unreadable"}
-        found[name] = entry
-    return found
+    return mflib.queue.entries(primary)
 
 
 @functools.cache
@@ -8105,16 +8065,6 @@ def _unwritten(change: str, error: mflib.statefile.WriteFailed) -> Stop:
     )
 
 
-def _write_cut(primary: Path, change: str, entry: dict[str, Any]) -> None:
-    """Write a queued cut's entry whole: to a temporary name, then moved in."""
-    folder = mflib.layout.queue_cuts(primary)
-    folder.mkdir(mode=0o700, exist_ok=True)
-    fd, temp = tempfile.mkstemp(dir=folder, prefix=".")
-    with os.fdopen(fd, "w") as file:
-        json.dump(entry, file)
-    os.replace(temp, folder / change)
-
-
 def _next_id(primary: Path) -> int:
     """Return one above every change number the repo, its branches or the queue hold.
 
@@ -8215,7 +8165,7 @@ def cut(
         }
         if "beside" in linked:
             entry["beside"] = linked["beside"]
-        _write_cut(primary, change, entry)
+        mflib.queue.write(primary, change, entry)
         if live:
             return f"cut: queued {change} · the live run takes it{cap}"
         try:
@@ -8230,26 +8180,7 @@ def _requests(queue: Path) -> set[str]:
 
     Why: 0063-rejoin design D2.
     """
-    return set(_entries(queue / "rejoin", empty=True))
-
-
-def _requested(queue: Path) -> bool:
-    """Return whether `queue`'s rejoin folder holds a request: a regular file.
-
-    Read through the folder's descriptor, as `_requests` deletes, following no link.
-    """
-    try:
-        fd = os.open(queue / "rejoin", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    except OSError:
-        return False
-    try:
-        return any(
-            stat.S_ISREG(os.lstat(name, dir_fd=fd).st_mode) for name in os.listdir(fd)
-        )
-    except OSError:
-        return False
-    finally:
-        os.close(fd)
+    return mflib.queue.requests(queue)
 
 
 def _halted_after(cuts: dict[str, dict[str, Any]], change: str) -> list[str]:
@@ -8262,7 +8193,7 @@ def _halted_after(cuts: dict[str, dict[str, Any]], change: str) -> list[str]:
         found += [
             other
             for other, entry in cuts.items()
-            if entry.get("halt") == f"after {name} is cut-halted" and other not in found
+            if entry.get("halt") == mflib.queue.halted_text(name) and other not in found
         ]
     return sorted(found[1:])
 
@@ -8277,7 +8208,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     with _queue_lock(primary):
         live = _claim(mflib.layout.claim_file(primary)) == "live"
         if change is not None and (entry := _cuts(primary).get(change)) is not None:
-            if not entry.keys() >= CUT_KEYS:
+            if not entry.keys() >= mflib.queue.REQUIRED:
                 name = mflib.layout.queue_cuts(primary) / change
                 raise Stop(
                     2,
@@ -8307,7 +8238,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
             cuts = _cuts(primary)
             named = [change, *_halted_after(cuts, change)]
             for name in named:
-                _write_cut(
+                mflib.queue.write(
                     primary,
                     name,
                     {**(entry if name == change else cuts[name]), "halt": None},
@@ -8334,9 +8265,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
 
 def _request(primary: Path, name: str) -> None:
     """Write the rejoin request `name` for the live run, in the home folder's queue."""
-    folder = mflib.layout.queue_rejoin(primary)
-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-    (folder / name).touch()
+    mflib.queue.request(primary, name)
 
 
 def grant(cwd: Path, change: str, executor: str) -> int:

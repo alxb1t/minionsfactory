@@ -6,7 +6,7 @@ Pin the queue as it is, move it into `skills/mflib/queue.py`, send the conductor
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The stations · moderate
+- [x] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
 
@@ -60,24 +60,24 @@ Cases of the series' queue mutation run, written again at `HEAD`, each green as 
 
 The conductor's sites call the module. No assert changes; a test changes only the line by which it reaches a name, and the line by which it plants an entry ([D8](design.md#d8), [D10](design.md#d10)).
 
-- [ ] 3.1 **HALT CHECK** The module stands with its entry, request and record functions.
+- [x] 3.1 **HALT CHECK** The module stands with its entry, request and record functions.
   Verify: `git grep -q -e "^def merge_tried" -e "^def requested" -e "^def write" -- skills/mflib/queue.py` exits `0`.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` add `import mflib.queue` after `import mflib.platform`, make `_cuts` return `mflib.queue.entries(primary)`, send each writer of an entry to `mflib.queue.write` and the entry's unlink in `Run.cutting` to `mflib.queue.remove`, and send the key test of `rejoin` and the docstring of `_cuts` to `mflib.queue.REQUIRED`.
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` add `import mflib.queue` after `import mflib.platform`, make `_cuts` return `mflib.queue.entries(primary)`, send each writer of an entry to `mflib.queue.write` and the entry's unlink in `Run.cutting` to `mflib.queue.remove`, and send the key test of `rejoin` and the docstring of `_cuts` to `mflib.queue.REQUIRED`.
   Delete `_write_cut` and `CUT_KEYS`.
   Verify: `git grep -n -e "^def _write_cut" -e "CUT_KEYS" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.3 In `skills/mf-ship/scripts/conduct.py` make `_queue_lock` enter `mflib.queue.lock` and raise the `Stop` of today's words on `mflib.queue.Refused`.
+- [x] 3.3 In `skills/mf-ship/scripts/conduct.py` make `_queue_lock` enter `mflib.queue.lock` and raise the `Stop` of today's words on `mflib.queue.Refused`.
   Verify: `git grep -n -e "fcntl.flock" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py` make `_requests` and `_request` call `mflib.queue.requests` and `mflib.queue.request`, and send `_close` to `mflib.queue.requested`.
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py` make `_requests` and `_request` call `mflib.queue.requests` and `mflib.queue.request`, and send `_close` to `mflib.queue.requested`.
   Delete `_requested`.
   Verify: `git grep -n -e "^def _requested" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.5 In `skills/mf-ship/scripts/conduct.py` make `_brief_of` call `mflib.queue.brief` and keep its `is_file` test; send the `briefs` write of `Run.cutting` to `mflib.queue.write_brief`, the `supervised` write of `Run.supervise` to `mflib.queue.write_supervised`, and its test of a tried merge to `mflib.queue.merge_tried`.
+- [x] 3.5 In `skills/mf-ship/scripts/conduct.py` make `_brief_of` call `mflib.queue.brief` and keep its `is_file` test; send the `briefs` write of `Run.cutting` to `mflib.queue.write_brief`, the `supervised` write of `Run.supervise` to `mflib.queue.write_supervised`, and its test of a tried merge to `mflib.queue.merge_tried`.
   Delete `_merge_tried`.
   Verify: `git grep -n -e "^def _merge_tried" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.6 In `skills/mf-ship/scripts/conduct.py` write the halt `after <name> is cut-halted` through `mflib.queue.halted_text` in `Run.cutting`, and match it through the same function in `_halted_after`.
+- [x] 3.6 In `skills/mf-ship/scripts/conduct.py` write the halt `after <name> is cut-halted` through `mflib.queue.halted_text` in `Run.cutting`, and match it through the same function in `_halted_after`.
   Verify: `git grep -n -e "queue.halted_text" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.7 Change the line by which each test reaches a moved name, in `tests/test_conduct.py`, `tests/test_claim.py`, `tests/test_viewer.py` and `tests/test_modelsfile.py`, and the line by which each plants an entry; `tests/test_queue_pins.py` takes the module's names the same way. A patch of a moved name goes on `mflib.queue` through `monkeypatch`. No assert changes.
+- [x] 3.7 Change the line by which each test reaches a moved name, in `tests/test_conduct.py`, `tests/test_claim.py`, `tests/test_viewer.py` and `tests/test_modelsfile.py`, and the line by which each plants an entry; `tests/test_queue_pins.py` takes the module's names the same way. A patch of a moved name goes on `mflib.queue` through `monkeypatch`. No assert changes.
   Verify: `uv run pytest tests/test_conduct.py tests/test_claim.py tests/test_viewer.py tests/test_modelsfile.py tests/test_queue_pins.py -n auto -q` exits `0`.
-- [ ] 3.8 Add `queue.py` to the conductor's `names` cell in `docs/modules.md`, after `platform.py`.
+- [x] 3.8 Add `queue.py` to the conductor's `names` cell in `docs/modules.md`, after `platform.py`.
   Verify: `uv run pytest tests/test_structure.py -n auto -q` exits `0`.
 
 ## 4 — The fix

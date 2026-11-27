@@ -12,7 +12,7 @@ import subprocess
 import sys
 import threading
 import types
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +20,7 @@ import pytest
 from conduct_load import conduct as _conduct
 from fake_worker import _commit, _git
 from mflib import layout
+from mflib import queue as mfqueue
 from test_conduct import (
     _MODELS,
     _claimed,
@@ -47,7 +48,8 @@ _CHILD = (
     "import json, runpy, sys\n"
     "from pathlib import Path\n"
     "names = runpy.run_path(sys.argv[1])\n"
-    "print(json.dumps(names[sys.argv[3]](Path(sys.argv[2]), *sys.argv[4:])))\n"
+    "read = names.get(sys.argv[3]) or getattr(names['mflib'].queue, sys.argv[3])\n"
+    "print(json.dumps(read(Path(sys.argv[2]), *sys.argv[4:])))\n"
 )
 
 
@@ -73,7 +75,7 @@ def _cuts(root: Path) -> dict[str, dict[str, Any]]:
 
 def _write(root: Path, change: str, entry: dict[str, Any]) -> None:
     """Write `entry` as the conductor writes a queued cut's."""
-    _conduct()["_write_cut"](root, change, entry)
+    mfqueue.write(root, change, entry)
 
 
 def _folder(root: Path, name: str) -> Path:
@@ -418,7 +420,7 @@ def test_write_cut_fails_on_a_folder_at_the_name_and_lists_no_stray(
 
 def test_a_record_is_stripped_and_a_prefix_is_no_try(tmp_path: Path) -> None:
     root = _primary(tmp_path)
-    tried = _conduct()["_merge_tried"]
+    tried = mfqueue.merge_tried
     record = _folder(root, "supervised") / "0001-a"
     assert not tried(root, "0001-a", "abc")
     record.write_text("abc\n")
@@ -621,12 +623,12 @@ def test_requests_reads_a_linked_folder_as_none_and_leaves_its_files(
     conduct = _conduct()
     # mutant: drop `os.O_NOFOLLOW` from `_entries`
     assert conduct["_requests"](queue) == set()
-    assert not conduct["_requested"](queue)
+    assert not mfqueue.requested(queue)
     assert os.listdir(aside) == ["0001-a"]
     folder.unlink()
     folder.write_text("a file")
     assert conduct["_requests"](queue) == set()
-    assert not conduct["_requested"](queue)
+    assert not mfqueue.requested(queue)
 
 
 def test_requested_counts_a_regular_file_alone_and_unlinks_nothing(
@@ -634,7 +636,7 @@ def test_requested_counts_a_regular_file_alone_and_unlinks_nothing(
 ) -> None:
     root = _primary(tmp_path)
     queue = layout.queue_dir(root)
-    requested = _conduct()["_requested"]
+    requested = mfqueue.requested
     assert not requested(queue)
     folder = _folder(root, "rejoin")
     assert not requested(queue)
@@ -679,12 +681,16 @@ def test_request_makes_the_folder_with_its_parents_and_the_file_empty(
     assert _conduct()["_requests"](layout.queue_dir(root)) == {"0001-a", "all"}
 
 
+_MOVED = {"_write_cut": "write"}
+
+
 def _traced(
-    conduct: dict[str, Any], *wrapped: str
+    conduct: dict[str, Any], monkeypatch: pytest.MonkeyPatch, *wrapped: str
 ) -> list[tuple[str, tuple[Any, ...], bool]]:
     """Wrap the conductor's functions `wrapped` and its queue lock; return the log.
 
-    A call logs its name, its arguments and whether the queue lock was held.
+    A call logs its name, its arguments and whether the queue lock was held. A name
+    in `_MOVED` is wrapped on `mflib.queue` and logs under the key.
     """
     names = conduct["main"].__globals__
     held = [0]
@@ -701,13 +707,17 @@ def _traced(
                 held[0] -= 1
 
     def wrap(name: str) -> None:
-        real = names[name]
+        home = name in _MOVED
+        real = getattr(mfqueue, _MOVED[name]) if home else names[name]
 
         def call(*args: object, **kwargs: object) -> object:
             log.append((name, args, held[0] > 0))
             return real(*args, **kwargs)
 
-        names[name] = call
+        if home:
+            monkeypatch.setattr(mfqueue, _MOVED[name], call)
+        else:
+            names[name] = call
 
     names["_queue_lock"] = lock
     for name in wrapped:
@@ -805,10 +815,10 @@ def _briefed(tmp_path: Path, *slugs: str) -> tuple[dict[str, Any], Path, Path]:
 
 
 def test_cut_reserves_the_id_then_writes_its_entry_under_the_lock(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct, root, brief = _briefed(tmp_path, "a", "b")
-    log = _traced(conduct, "_write_cut")
+    log = _traced(conduct, monkeypatch, "_write_cut")
     umask = os.umask(0o022)
     try:
         said = conduct["cut"](
@@ -867,7 +877,9 @@ def test_cut_refuses_an_after_that_names_no_open_version_or_queued_cut(
     assert not (root / ".minions" / "cuts").exists()
 
 
-def test_rejoin_clears_the_chain_in_name_order(tmp_path: Path) -> None:
+def test_rejoin_clears_the_chain_in_name_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
     brief = _queued(root)
@@ -885,7 +897,7 @@ def test_rejoin_clears_the_chain_in_name_order(tmp_path: Path) -> None:
     for name, entry in entries.items():
         _write(root, name, entry)
     _claimed(conduct, root)
-    log = _traced(conduct, "_write_cut", "_request")
+    log = _traced(conduct, monkeypatch, "_write_cut", "_request")
 
     said = conduct["rejoin"](root, "0001-a")
 
@@ -929,7 +941,7 @@ def test_rejoin_refuses_an_unreadable_entry_and_leaves_it(tmp_path: Path) -> Non
 
 
 def test_rejoin_asks_all_when_no_change_is_named_and_names_what_it_cannot(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
@@ -937,7 +949,7 @@ def test_rejoin_asks_all_when_no_change_is_named_and_names_what_it_cannot(
     with pytest.raises(stop, match="rejoin: no run is live — run /mf-ship"):
         conduct["rejoin"](root, None)
     _claimed(conduct, root)
-    log = _traced(conduct, "_request")
+    log = _traced(conduct, monkeypatch, "_request")
     assert conduct["rejoin"](root, None) == "rejoin: requested every halted version"
     assert [(args[1], held) for _, args, held in log] == [("all", True)]
     assert os.listdir(layout.queue_rejoin(root)) == ["all"]
@@ -950,7 +962,9 @@ def test_rejoin_asks_all_when_no_change_is_named_and_names_what_it_cannot(
 
 
 def test_grant_writes_a_request_under_the_lock_when_a_run_is_live(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     conduct = _conduct()
     root = _primary(tmp_path)
@@ -959,7 +973,7 @@ def test_grant_writes_a_request_under_the_lock_when_a_run_is_live(
     names = conduct["main"].__globals__
     stage = ("converge-halted", "cap reached: x")
     names["stage_of"] = lambda *_, **__: stage
-    log = _traced(conduct, "_request")
+    log = _traced(conduct, monkeypatch, "_request")
     started: list[Path] = []
     names["_start_run"] = lambda primary, executor: started.append(primary) or 4242
 
@@ -1087,7 +1101,7 @@ def test_take_requests_holds_a_cut_the_cap_leaves_no_room_for(tmp_path: Path) ->
 
 
 def test_wait_cut_writes_its_reason_last_under_the_lock_and_skips_what_it_must(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct, root, run, _ = _polling(tmp_path, "0003-a", "0004-b")
     _halt_entry(root, "0004-b", "a halt")
@@ -1095,7 +1109,7 @@ def test_wait_cut_writes_its_reason_last_under_the_lock_and_skips_what_it_must(
     gate = threading.Event()
     threads = {"0002-v": threading.Thread(target=gate.wait, daemon=True)}
     threads["0002-v"].start()
-    log = _traced(conduct, "_write_cut")
+    log = _traced(conduct, monkeypatch, "_write_cut")
 
     run.wait_cut("0003-a", threads)
     run.wait_cut("0003-a", threads)
@@ -1117,14 +1131,14 @@ def test_wait_cut_writes_its_reason_last_under_the_lock_and_skips_what_it_must(
 
 
 def test_unwait_drops_the_reason_in_place_and_takes_no_lock_for_none(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct, root, run, _ = _polling(tmp_path, "0003-a", "0004-b")
     waits = {"waits": "1 in flight, cap 1"}
     held = {**_cuts(root)["0003-a"], **waits}
     _write(root, "0003-a", held)
     run.waiting["0003-a"] = "1 in flight, cap 1"
-    log = _traced(conduct, "_write_cut")
+    log = _traced(conduct, monkeypatch, "_write_cut")
 
     run.unwait("0003-a", held)
     kept = {key: value for key, value in held.items() if key != "waits"}
@@ -1147,11 +1161,11 @@ def test_unwait_drops_the_reason_in_place_and_takes_no_lock_for_none(
 
 
 def test_unwait_writes_nothing_for_an_entry_gone_or_one_that_lost_its_reason(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct, root, run, _ = _polling(tmp_path, "0003-a")
     held = {**_cuts(root)["0003-a"], "waits": "x"}
-    log = _traced(conduct, "_write_cut")
+    log = _traced(conduct, monkeypatch, "_write_cut")
     run.unwait("0003-a", held)
     assert log == []
     (layout.queue_cuts(root) / "0003-a").unlink()
@@ -1161,11 +1175,11 @@ def test_unwait_writes_nothing_for_an_entry_gone_or_one_that_lost_its_reason(
 
 
 def test_cut_halted_writes_the_halt_under_the_lock_and_logs_it_unless_spawn_did(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct, root, run, _ = _polling(tmp_path, "0003-a")
     before = _cuts(root)["0003-a"]
-    log = _traced(conduct, "_write_cut")
+    log = _traced(conduct, monkeypatch, "_write_cut")
 
     run.cut_halted("0003-a", "the cutter died", True)
     entry = _cuts(root)["0003-a"]
@@ -1226,12 +1240,14 @@ def _closing(tmp_path: Path) -> tuple[dict[str, Any], Path, Path]:
 
 
 def test_close_starts_a_run_for_an_unread_cut_or_a_request_and_none_else(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     conduct, root, active = _closing(tmp_path)
     brief = _queued(root)
     conduct["main"].__globals__["_start_run"] = lambda primary, executor: 4242
-    log = _traced(conduct, "_start_run")
+    log = _traced(conduct, monkeypatch, "_start_run")
 
     def closed(seen: set[str] | None) -> str:
         active.mkdir(exist_ok=True)
@@ -1274,7 +1290,7 @@ def test_a_fifo_at_an_entry_reads_in_a_child(tmp_path: Path) -> None:
     reads = (
         ("_cuts", layout.queue_cuts(root) / "0001-a", ()),
         ("_brief_of", layout.queue_briefs(root) / "0001-a", ("0001-a",)),
-        ("_merge_tried", layout.queue_supervised(root) / "0001-a", ("0001-a", "abc")),
+        ("merge_tried", layout.queue_supervised(root) / "0001-a", ("0001-a", "abc")),
     )
     for name, path, args in reads:
         # The read of a record no pipe stands at answers, in the child.
@@ -1328,10 +1344,11 @@ def test_a_record_is_read_by_its_path_whatever_stands_there(tmp_path: Path) -> N
     brief = tmp_path / "brief.md"
     brief.write_text("# brief\n")
     conduct = _conduct()
-    for folder, text, read, expected in (
+    records: list[tuple[str, str, Callable[..., object], tuple[object, object]]] = [
         ("briefs", f"{brief}\n", conduct["_brief_of"], (str(brief), None)),
-        ("supervised", "abc\n", conduct["_merge_tried"], (True, False)),
-    ):
+        ("supervised", "abc\n", mfqueue.merge_tried, (True, False)),
+    ]
+    for folder, text, read, expected in records:
         path = _folder(root, folder) / "0001-a"
         args = ("abc",) if folder == "supervised" else ()
         followed, refused = expected
@@ -1383,7 +1400,7 @@ def test_a_hard_link_is_a_request_and_unlinking_it_leaves_the_other_name(
     other.write_text("x\n")
     os.link(other, folder / "0001-a")
     conduct = _conduct()
-    assert conduct["_requested"](queue)
+    assert mfqueue.requested(queue)
     assert conduct["_requests"](queue) == {"0001-a"}
     assert other.read_text() == "x\n"
 
