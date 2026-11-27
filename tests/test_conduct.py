@@ -11119,8 +11119,9 @@ def test_the_scratch_stands_outside_the_worktree(
         patch.setenv("HOME", str(tmp_path / "absent"))
         with conduct["_scratch"]() as scratch:
             assert Path(scratch).is_dir()
-        conduct["_keep_origin"](root)
-        assert conduct["_kept_origin"](root) is None
+        # The kept folder is made with its parents. Why: 0159-kept design D8.
+        assert conduct["_keep_origin"](root) is None
+        assert conduct["_kept_origin"](root) == conduct["_urls"](root)
 
 
 def test_the_scratch_folder_is_named_by_its_prefix() -> None:
@@ -12550,7 +12551,7 @@ def test_a_forged_release_on_an_older_default_is_not_pushed(
     named.unlink()
     assert run() == 0
     assert "refs/tags/v0.31.0" in _git(root, "ls-remote", "--tags", "origin")
-    assert named.read_text() == "main"
+    assert named.read_text() == "main\n"
     assert _calls(calls) == []
 
 

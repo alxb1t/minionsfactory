@@ -1837,9 +1837,22 @@ def _record_release(primary: Path, change: str, head: str) -> None:
     mflib.kept.record_release(primary, change, head)
 
 
-def _ledger_heads(primary: Path) -> set[str]:
-    """Return the heads the release ledger holds."""
-    return mflib.kept.release_heads(primary).heads
+def _skipped(name: str) -> None:
+    """Say on stderr that the ledger entry `name` is no commit id."""
+    print(f"conduct: ledger — {name} is no commit id: skipped", file=sys.stderr)
+
+
+def _ledger_heads(
+    primary: Path, *, on_bad: Callable[[str], None] = _skipped
+) -> set[str]:
+    """Return the heads the release ledger holds; `on_bad` takes each entry with none.
+
+    Why: 0159-kept design D10.
+    """
+    heads = mflib.kept.release_heads(primary)
+    for name in heads.bad:
+        on_bad(name)
+    return heads.heads
 
 
 def _close_releases(primary: Path, base: str) -> None:
@@ -2321,6 +2334,8 @@ def _foreign_commit(
     default: str,
     tip: str | None = None,
     tags: dict[str, tuple[str, str]] | None = None,
+    *,
+    on_bad: Callable[[str], None] = _skipped,
 ) -> list[str]:
     """Return the `default` branch's first-parent release merges past raw `base`.
 
@@ -2331,7 +2346,7 @@ def _foreign_commit(
     tags = _release_tags(primary) if tags is None else tags
     heads = {
         head
-        for head in _ledger_heads(primary)
+        for head in _ledger_heads(primary, on_bad=on_bad)
         if not _history_ancestor(primary, head, base)
     }
     commits = _history(primary, "rev-list", "--first-parent", f"{base}..{tip}").split()
@@ -2345,14 +2360,19 @@ def _foreign_commit(
 
 
 def _local_releases(
-    primary: Path, base: str, default: str, push_tags: bool = True
+    primary: Path,
+    base: str,
+    default: str,
+    push_tags: bool = True,
+    *,
+    on_bad: Callable[[str], None] = _skipped,
 ) -> list[str]:
     """Return `default` and the tags of its release merges past raw `base`, or none.
 
     `push_tags` false names no tag. Why: 0132-cloud-run design D1.
     """
     tags = _release_tags(primary)
-    commits = _foreign_commit(primary, base, default, tags=tags)
+    commits = _foreign_commit(primary, base, default, tags=tags, on_bad=on_bad)
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
     named = [tag for tag, (_, commit) in tags.items() if commit in released]
     return [default, *(named if push_tags else [])] if commits else []
@@ -2391,6 +2411,8 @@ def _unpushed(
     push_tags: bool = True,
     start: bool = False,
     notes: list[str] | None = None,
+    *,
+    on_bad: Callable[[str], None] = _skipped,
 ) -> list[tuple[str, str]]:
     """Return each `(ref, sha)` to push; `push_tags` false names no tag.
 
@@ -2413,7 +2435,7 @@ def _unpushed(
         tracking = f"refs/remotes/origin/{default}"
         if _maybe(primary, "rev-parse", "-q", "--verify", tracking) is None:
             raise Stop(1, f"conduct: halt — origin has no {default}: push it by hand")
-        commits = _foreign_commit(primary, tracking, default)
+        commits = _foreign_commit(primary, tracking, default, on_bad=on_bad)
         return [(f"refs/heads/{default}", commits[0])] if commits else []
     held = {
         ref: sha
@@ -2441,7 +2463,7 @@ def _unpushed(
             notes += [f"made {tag}" for tag in _make_tags(primary, base)]
     tip = _git(primary, "rev-parse", f"refs/heads/{default}").strip()
     tags = _release_tags(primary)
-    commits = _foreign_commit(primary, base, default, tip, tags)
+    commits = _foreign_commit(primary, base, default, tip, tags, on_bad=on_bad)
     found = [(f"refs/heads/{default}", tip)] if commits else []
     released = {_history(primary, "rev-parse", f"{sha}^2") for sha in commits}
     if not push_tags:
@@ -4710,9 +4732,12 @@ class Run:
                     base,
                     _kept_default(self.primary),
                     push_tags=self.tags,
+                    on_bad=self.ledger_bad,
                 )
             else:
-                unpushed = _unpushed(self.primary, push_tags=self.tags)
+                unpushed = _unpushed(
+                    self.primary, push_tags=self.tags, on_bad=self.ledger_bad
+                )
                 names = [ref.split("/", 2)[2] for ref, _ in unpushed]
         except Stop:
             return ""
@@ -4721,6 +4746,13 @@ class Run:
     def waited(self, why: str) -> None:
         """Log a push that waits on `origin`."""
         self.log.event("run", "push", f"waiting: {why}")
+
+    def ledger_bad(self, name: str) -> None:
+        """Log that the ledger entry `name` is no commit id.
+
+        Why: 0159-kept design D10.
+        """
+        self.log.event("run", "ledger", f"{name} is no commit id: skipped")
 
     def spawn(
         self,
@@ -5580,7 +5612,12 @@ class Run:
                 if stage == "integrate" and _has_origin(self.primary):
                     default = default_branch(self.primary)
                     base = _offline_base(self.primary) if self.offline else None
-                    _foreign_commit(self.primary, base or f"origin/{default}", default)
+                    _foreign_commit(
+                        self.primary,
+                        base or f"origin/{default}",
+                        default,
+                        on_bad=self.ledger_bad,
+                    )
                 cwd = self.primary if stage == "integrate" else version.tree
                 if cwd is None:
                     self.halt(version.change, f"{version.change} has no worktree")
@@ -6918,6 +6955,7 @@ class Run:
                     push_tags=self.tags,
                     start=self.fresh,
                     notes=notes,
+                    on_bad=self.ledger_bad,
                 )
             except Unreachable as down:
                 self.waited(str(down))
@@ -6939,7 +6977,9 @@ class Run:
                     "conduct: halt — cannot read origin, and no offline base: a person"
                     " runs conduct.py anchor",
                 )
-            _foreign_commit(self.primary, base, _kept_default(self.primary))
+            _foreign_commit(
+                self.primary, base, _kept_default(self.primary), on_bad=self.ledger_bad
+            )
         except Stop as stop:
             self.halt("run", str(stop))
             return False
@@ -7305,7 +7345,7 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         active = mflib.layout.claim_file(primary)
         if _claim(active) == "stale":
             _clear(active)
-    except Stop:
+    except (Stop, mflib.kept.Broken):
         mflib.kept.unmark(mark, os.getpid())
         raise
     if detach:
@@ -7334,7 +7374,10 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
             code = conductor.ship()
         # why: a conductor failure is logged as the run's halt, never a traceback.
         except Exception as error:  # noqa: BLE001
+            held, conductor.log.held = conductor.log.held, None
             try:
+                for event in held or []:
+                    conductor.log.event(*event)
                 conductor.log.event(
                     "run",
                     "halt",
@@ -7342,7 +7385,8 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
                 )
             except OSError as unwritten:
                 raise _unwritable(conductor.log.path, unwritten) from None
-            code = 1
+            # why: 0159-kept design D7
+            code = 2 if isinstance(error, mflib.kept.Broken) else 1
         seen = conductor.handled()
         ended = "done" if code == 0 else "halt"
         print(f"run: {ended} · .minions/runs/{conductor.log.stamp}.md")
@@ -9202,6 +9246,9 @@ def main(argv_: list[str] | None = None) -> int:
     except Stop as stop:
         print(stop)
         return stop.code
+    except mflib.kept.Broken as broken:
+        print(f"conduct: cannot run — {broken}")
+        return 2
     return 0
 
 

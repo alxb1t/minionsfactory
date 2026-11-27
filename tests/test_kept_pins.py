@@ -12,7 +12,6 @@ import runpy
 import stat
 import subprocess
 import sys
-import tempfile
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -178,16 +177,6 @@ def _ask(code: str, *args: str) -> object:
     return json.loads(done.stdout)
 
 
-def _hangs(code: str, *args: str) -> bool:
-    """Return whether `code` in a child is still running after 4 s, and kill it."""
-    command = [sys.executable, "-c", code, *args]
-    try:
-        subprocess.run(command, capture_output=True, text=True, timeout=4, check=True)
-    except subprocess.TimeoutExpired:
-        return True
-    return False
-
-
 def test_the_kept_folder_lies_under_the_home(home: Path) -> None:
     assert layout.kept_dir() == home / ".mf-ship-origin"
     assert layout.kept_dir().is_relative_to(home)
@@ -200,7 +189,7 @@ def test_ledger_records_one_entry_in_a_folder_of_0700(
         c["_record_release"](p, "0001-a", _H)
 
     folder = layout.released_dir(p)
-    assert _modes(home / ".mf-ship-origin") == 0o755
+    assert _modes(home / ".mf-ship-origin") == 0o700
     assert _modes(folder) == 0o700
     assert [entry.name for entry in folder.iterdir()] == ["0001-a"]
     assert _modes(folder / "0001-a") == 0o600
@@ -257,7 +246,7 @@ def test_ledger_entries_lists_every_name_of_the_folder(
     ]
 
 
-def test_ledger_heads_are_each_entrys_first_line(c: dict[str, Any], p: Path) -> None:
+def test_ledger_heads_are_each_entrys_commit_id(c: dict[str, Any], p: Path) -> None:
     assert c["_ledger_heads"](p) == set()
     folder = layout.released_dir(p)
     folder.mkdir(parents=True)
@@ -266,10 +255,12 @@ def test_ledger_heads_are_each_entrys_first_line(c: dict[str, Any], p: Path) -> 
         ("e2", "h2 \n"),
         ("e3", "h3"),
         ("e4", ""),
+        ("e5", f"{_H}\n"),
+        ("e6", f" {_S} \n"),
     ):
         (folder / name).write_text(text)
 
-    assert c["_ledger_heads"](p) == {"h1", "h2 ", "h3", ""}
+    assert c["_ledger_heads"](p) == {_H, _S}
 
 
 @pytest.mark.slow
@@ -292,9 +283,7 @@ def test_ledger_close_removes_the_entries_that_landed(
     assert (folder / "release-v0.3.0").read_text() == kept
 
 
-def test_ledger_close_reads_the_first_line_of_an_entry(
-    c: dict[str, Any], p: Path
-) -> None:
+def test_ledger_close_leaves_an_entry_of_two_lines(c: dict[str, Any], p: Path) -> None:
     _released(p, "v0.1.0")
     folder = layout.released_dir(p)
     head = (folder / "release-v0.1.0").read_text().strip()
@@ -302,6 +291,9 @@ def test_ledger_close_reads_the_first_line_of_an_entry(
 
     c["_close_releases"](p, _git(p, "rev-parse", "main").strip())
 
+    assert [entry.name for entry in folder.iterdir()] == ["release-v0.1.0"]
+    (folder / "release-v0.1.0").write_text(f"{head}\n")
+    c["_close_releases"](p, _git(p, "rev-parse", "main").strip())
     assert list(folder.iterdir()) == []
 
 
@@ -375,13 +367,12 @@ def test_origin_kept_reads_the_two_lists(c: dict[str, Any], p: Path) -> None:
     assert c["_kept_origin"](p) == (["u1"], ["u2", "u3"])
 
 
-def test_origin_kept_reads_none_for_a_folder_at_its_name(
-    c: dict[str, Any], p: Path
-) -> None:
+def test_origin_kept_stops_on_a_folder_at_its_name(c: dict[str, Any], p: Path) -> None:
     _kept()
     layout.kept_file(p).mkdir()
 
-    assert c["_kept_origin"](p) is None
+    with pytest.raises(mflib.kept.Broken, match=f"{layout.kept_file(p).name} cannot"):
+        c["_kept_origin"](p)
 
 
 def test_origin_keep_writes_the_urls_and_the_default_branch(
@@ -400,7 +391,7 @@ def test_origin_keep_writes_the_urls_and_the_default_branch(
     assert json.loads(kept.read_text()) == [[str(origin)], [pushed]]
     named = layout.default_file(p)
     assert _modes(named) == 0o600
-    assert named.read_text() == "main"
+    assert named.read_text() == "main\n"
 
 
 def test_origin_keep_leaves_a_standing_file_and_a_standing_default(
@@ -426,7 +417,7 @@ def test_origin_keep_writes_a_default_that_was_removed(
 
     assert c["_keep_origin"](p) is None
 
-    assert layout.default_file(p).read_text() == "main"
+    assert layout.default_file(p).read_text() == "main\n"
 
 
 def test_origin_keep_with_no_origin_keeps_two_empty_lists(
@@ -477,6 +468,8 @@ def test_origin_keep_leaves_what_stands_at_the_default(
 
     assert named.is_symlink() == (shape == "dangling")
     assert named.is_dir() == (shape == "folder")
+    with pytest.raises(mflib.kept.Broken, match=f"{named.name} cannot be read"):
+        c["_kept_default"](p)
 
 
 def test_origin_keep_names_why_a_refused_folder_cannot_be_written(
@@ -501,11 +494,16 @@ def test_origin_keep_names_why_only_the_default_cannot_be_written(
         assert c["_keep_origin"](p) == "Permission denied"
 
 
+def _staged(file: Path) -> Path:
+    """Return the name a staged write of `file` opens, under its folder."""
+    return Path(f"{file.name}.tmp")
+
+
 def test_origin_keep_names_a_bare_oserror_by_its_type(
     c: dict[str, Any], p: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _with_origin(tmp_path, p)
-    _failing(monkeypatch, layout.kept_file(p))
+    _failing(monkeypatch, _staged(layout.kept_file(p)))
     assert c["_keep_origin"](p) == "OSError"
 
 
@@ -513,7 +511,7 @@ def test_origin_keep_names_a_bare_oserror_of_the_default_by_its_type(
     c: dict[str, Any], p: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _with_origin(tmp_path, p)
-    _failing(monkeypatch, layout.default_file(p))
+    _failing(monkeypatch, _staged(layout.default_file(p)))
     assert c["_keep_origin"](p) == "OSError"
 
 
@@ -527,23 +525,24 @@ def test_origin_default_is_the_name_git_gives_with_no_file(
 
 
 @pytest.mark.parametrize("text", ["dev\n", "dev"])
-def test_origin_default_reads_the_file_unstripped(
+def test_origin_default_reads_the_file_stripped(
     c: dict[str, Any], p: Path, text: str
 ) -> None:
     _kept()
     layout.default_file(p).write_text(text)
 
-    assert c["_kept_default"](p) == text
+    assert c["_kept_default"](p) == "dev"
 
 
-def test_origin_default_reads_git_name_for_a_folder_at_its_name(
+def test_origin_default_stops_on_a_folder_at_its_name(
     c: dict[str, Any], p: Path
 ) -> None:
     _git(p, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
     _kept()
     layout.default_file(p).mkdir()
 
-    assert c["_kept_default"](p) == "trunk"
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a file$"):
+        c["_kept_default"](p)
 
 
 def test_base_keep_writes_the_sha_at_0600_in_a_folder_of_0700(
@@ -574,7 +573,7 @@ def test_base_keep_replaces_an_older_base_and_leaves_the_folder_mode(
     assert [entry.name for entry in kept.iterdir()] == [file.name]
 
 
-def test_base_keep_with_a_full_folder_at_its_name_leaves_its_temp_file(
+def test_base_keep_with_a_full_folder_at_its_name_leaves_no_staged_file(
     c: dict[str, Any], p: Path
 ) -> None:
     file = layout.pushed_file(p)
@@ -585,9 +584,7 @@ def test_base_keep_with_a_full_folder_at_its_name_leaves_its_temp_file(
     why = c["_keep_base"](p, _S)
 
     assert why in {"Is a directory", "File exists", "Directory not empty"}
-    left = [entry.name for entry in file.parent.iterdir() if entry != file]
-    assert len(left) == 1
-    assert left[0].startswith(f".{file.name}-")
+    assert [entry.name for entry in file.parent.iterdir()] == [file.name]
 
 
 def test_base_keep_names_why_a_refused_folder_cannot_be_written(
@@ -608,10 +605,7 @@ def test_base_keep_with_a_file_at_the_kept_folder_names_it(
 def test_base_keep_names_a_bare_oserror_by_its_type(
     c: dict[str, Any], p: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def refuse(*_: object, **__: object) -> tuple[int, str]:
-        raise OSError
-
-    monkeypatch.setattr(tempfile, "mkstemp", refuse)
+    _failing(monkeypatch, _staged(layout.pushed_file(p)))
 
     assert c["_keep_base"](p, _S) == "OSError"
 
@@ -625,7 +619,6 @@ def test_base_offline_reads_none_with_no_file(c: dict[str, Any], p: Path) -> Non
     [
         (f"{_S}\n", _S),
         (f"  {_S}  \n\n", _S),
-        ("abc\ndef\n", "abc\ndef"),
         ("", None),
         ("  \n\t\n", None),
     ],
@@ -639,13 +632,20 @@ def test_base_offline_reads_the_stripped_text(
     assert c["_offline_base"](p) == base
 
 
-def test_base_offline_reads_none_for_a_folder_at_its_name(
-    c: dict[str, Any], p: Path
-) -> None:
+def test_base_offline_stops_on_what_is_no_commit_id(c: dict[str, Any], p: Path) -> None:
+    _kept()
+    layout.pushed_file(p).write_text("abc\ndef\n")
+
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a commit id$"):
+        c["_offline_base"](p)
+
+
+def test_base_offline_stops_on_a_folder_at_its_name(c: dict[str, Any], p: Path) -> None:
     _kept()
     layout.pushed_file(p).mkdir()
 
-    assert c["_offline_base"](p) is None
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a file$"):
+        c["_offline_base"](p)
 
 
 def _stop(c: dict[str, Any], call: Callable[[], object]) -> tuple[int, str]:
@@ -653,6 +653,12 @@ def _stop(c: dict[str, Any], call: Callable[[], object]) -> tuple[int, str]:
     with pytest.raises(c["Stop"]) as stopped:
         call()
     return stopped.value.code, str(stopped.value)
+
+
+def _run_main(c: dict[str, Any], cwd: Path, *argv: str) -> int:
+    """Return the exit of the conductor's command `argv`, run in `cwd`."""
+    with contextlib.chdir(cwd):
+        return int(c["main"](list(argv)))
 
 
 def _remedy(p: Path, name: str) -> str:
@@ -669,9 +675,11 @@ def test_remote_push_default_is_the_branch_origin_names(
     _kept()
     layout.default_file(p).write_text("main")
     assert c["_push_default"](p, str(origin)) == "main"
+    layout.default_file(p).write_text("main\n")
+    assert c["_push_default"](p, str(origin)) == "main"
 
 
-@pytest.mark.parametrize("kept", ["", "dev", "main\n"])
+@pytest.mark.parametrize("kept", ["", "dev"])
 def test_remote_push_default_halts_on_a_kept_name_that_differs(
     c: dict[str, Any], p: Path, tmp_path: Path, kept: str
 ) -> None:
@@ -713,14 +721,15 @@ def test_remote_push_default_halts_when_origin_names_no_branch(
     )
 
 
-def test_remote_push_default_reads_a_folder_at_the_default_as_none_kept(
+def test_remote_push_default_stops_on_a_folder_at_the_default(
     c: dict[str, Any], p: Path, tmp_path: Path
 ) -> None:
     origin = _with_origin(tmp_path, p)
     _kept()
     layout.default_file(p).mkdir()
 
-    assert c["_push_default"](p, str(origin)) == "main"
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a file$"):
+        c["_push_default"](p, str(origin))
 
 
 _FETCH = "https://example.invalid/a.git"
@@ -857,16 +866,17 @@ def test_remote_read_url_goes_to_the_kept_origin_only_after_a_first_read(
     assert c["_read_url"](p, False) == _FETCH
 
 
-def test_remote_read_url_reads_none_for_a_folder_at_the_kept_name(
-    c: dict[str, Any], p: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("first_read", [False, True])
+def test_remote_read_url_stops_on_a_folder_at_the_kept_name(
+    c: dict[str, Any], p: Path, monkeypatch: pytest.MonkeyPatch, first_read: bool
 ) -> None:
     monkeypatch.delenv("MF_SHIP_AGENT", raising=False)
     _network(p)
     _kept()
     layout.kept_file(p).mkdir()
 
-    assert c["_read_url"](p, False) is None
-    assert c["_read_url"](p, True) == _FETCH
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a file$"):
+        c["_read_url"](p, first_read)
 
 
 def test_remote_read_url_with_no_origin_is_none(c: dict[str, Any], p: Path) -> None:
@@ -1117,7 +1127,7 @@ def test_probe_run_halts_on_a_folder_that_refuses_the_mark(
     ]
 
 
-def test_probe_run_with_a_file_at_the_kept_folder_halts_and_raises(
+def test_probe_run_with_a_file_at_the_kept_folder_halts_and_raises_nothing(
     c: dict[str, Any], tmp_path: Path, fake: Callable[..., Path]
 ) -> None:
     fake("first-turn")
@@ -1125,10 +1135,10 @@ def test_probe_run_with_a_file_at_the_kept_folder_halts_and_raises(
     seen = _spied(conductor)
     layout.kept_dir().write_text("a file\n")
 
-    with pytest.raises(NotADirectoryError):
-        conductor.probe("claude")
+    conductor.probe("claude")
 
     assert seen == []
+    assert layout.kept_dir().read_text() == "a file\n"
     assert _halted(conductor) == ["probe — cannot write the probe mark: File exists"]
 
 
@@ -1323,15 +1333,15 @@ def test_repos_records_a_primary_a_longer_line_starts_with(
     assert layout.repos_file().read_text() == f"{p.resolve()}x\n{p.resolve()}\n"
 
 
-def test_repos_appends_to_a_list_with_a_bad_byte(c: dict[str, Any], p: Path) -> None:
+def test_repos_records_nothing_in_a_list_with_a_bad_byte(
+    c: dict[str, Any], p: Path
+) -> None:
     _kept()
     layout.repos_file().write_bytes(b"\xff\xfe\n")
 
     c["_record_repo"](p)
 
-    assert (
-        layout.repos_file().read_bytes() == b"\xff\xfe\n" + f"{p.resolve()}\n".encode()
-    )
+    assert layout.repos_file().read_bytes() == b"\xff\xfe\n"
 
 
 def test_repos_writes_nothing_through_a_dangling_link(
@@ -1480,7 +1490,7 @@ def test_approval_words_why_the_home_cannot_be_written(
 
     assert _stop(c, lambda: c["approve_gate"](p, _CHANGE, _HASH)) == (
         2,
-        f"{refused}Not a directory{_SANDBOX}",
+        f"{refused}File exists{_SANDBOX}",
     )
 
 
@@ -1571,16 +1581,19 @@ def test_anchor_words_why_the_home_cannot_be_written(
 
 @pytest.mark.slow
 def test_anchor_stops_on_a_folder_at_the_base(
-    c: dict[str, Any], p: Path, tmp_path: Path
+    c: dict[str, Any], p: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     tracked = _anchored(tmp_path, p)
     _kept()
     layout.pushed_file(p).mkdir()
 
-    code, text = _anchor(c, p, tracked)
-
-    assert code == 2
-    assert text.startswith("anchor: cannot write the offline base — ")
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a file$"):
+        c["anchor"](p, tracked)
+    assert _run_main(c, p, "anchor", "--yes", tracked) == 2
+    assert capsys.readouterr().out == (
+        f"conduct: cannot run — ~/.mf-ship-origin/{layout.pushed_file(p).name}"
+        " cannot be read: it is not a file\n"
+    )
 
 
 def test_anchor_stops_where_a_base_stands(
@@ -1685,13 +1698,12 @@ def test_approval_reads_none_for_an_entry_it_cannot_open(
         entry.chmod(0o600)
 
 
-def test_approval_raises_on_a_bad_byte(
+def test_approval_reads_none_for_a_bad_byte(
     gate_check: Callable[[str], str | None], p: Path
 ) -> None:
     _entry(p).write_bytes(b"\xff\xfe\n")
 
-    with pytest.raises(UnicodeDecodeError):
-        gate_check(_CHANGE)
+    assert gate_check(_CHANGE) is None
 
 
 def test_mixed_primary_of_a_tree_outside_the_primary_needs_a_kept_origin(
@@ -1705,7 +1717,8 @@ def test_mixed_primary_of_a_tree_outside_the_primary_needs_a_kept_origin(
     assert "no run kept its URLs" in text
     _kept()
     layout.kept_file(p).mkdir()
-    assert _stop(c, lambda: c["primary_of"](tree)) == (code, text)
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a file$"):
+        c["primary_of"](tree)
     layout.kept_file(p).rmdir()
     layout.kept_file(p).write_text("[[], []]")
 
@@ -1722,7 +1735,8 @@ def test_mixed_unread_waits_on_a_merged_tag_and_a_kept_file(
     assert c["_unread"](p) is True
     _kept()
     layout.kept_file(p).mkdir()
-    assert c["_unread"](p) is True
+    with pytest.raises(mflib.kept.Broken, match=r"it is not a file$"):
+        c["_unread"](p)
     layout.kept_file(p).rmdir()
     layout.kept_file(p).write_text("[[], []]")
     assert c["_unread"](p) is False
@@ -1922,14 +1936,17 @@ _URLS = '[["u1"], ["u2"]]'
 _PAIR = (["u1"], ["u2"])
 
 
+_BROKEN = mflib.kept.Broken
+
+
 @pytest.mark.parametrize(
     ("shape", "outcome"),
     [
-        ("link", _PAIR),
-        ("folder", None),
-        ("binary", UnicodeDecodeError),
-        ("empty", json.JSONDecodeError),
-        ("big", _PAIR),
+        ("link", _BROKEN),
+        ("folder", _BROKEN),
+        ("binary", _BROKEN),
+        ("empty", _BROKEN),
+        ("big", _BROKEN),
     ],
 )
 def test_shape_kept_origin_as_it_reads(
@@ -1944,9 +1961,9 @@ def test_shape_kept_origin_as_it_reads(
 @pytest.mark.parametrize(
     ("shape", "outcome"),
     [
-        ("link", "dev"),
-        ("folder", "main"),
-        ("binary", UnicodeDecodeError),
+        ("link", _BROKEN),
+        ("folder", _BROKEN),
+        ("binary", _BROKEN),
         ("empty", ""),
     ],
 )
@@ -1959,24 +1976,22 @@ def test_shape_default_as_it_reads(
     _reads(lambda: c["_kept_default"](p), outcome)
 
 
-def test_shape_default_over_its_bound_is_read_whole(c: dict[str, Any], p: Path) -> None:
+def test_shape_default_over_its_bound_stops(c: dict[str, Any], p: Path) -> None:
     _kept()
     _plant(layout.default_file(p), "big", "dev")
 
-    read = c["_kept_default"](p)
-
-    assert read.startswith("dev")
-    assert len(read) > _BOUND
+    with pytest.raises(_BROKEN, match=f"it is over {_BOUND} bytes$"):
+        c["_kept_default"](p)
 
 
 @pytest.mark.parametrize(
     ("shape", "outcome"),
     [
-        ("link", _S),
-        ("folder", None),
-        ("binary", UnicodeDecodeError),
+        ("link", _BROKEN),
+        ("folder", _BROKEN),
+        ("binary", _BROKEN),
         ("empty", None),
-        ("big", _S),
+        ("big", _BROKEN),
     ],
 )
 def test_shape_offline_base_as_it_reads(
@@ -1988,61 +2003,56 @@ def test_shape_offline_base_as_it_reads(
     _reads(lambda: c["_offline_base"](p), outcome)
 
 
-@pytest.mark.parametrize(
-    ("shape", "outcome"),
-    [
-        ("link", {_H}),
-        ("folder", IsADirectoryError),
-        ("binary", UnicodeDecodeError),
-        ("empty", {""}),
-        ("big", {_H}),
-    ],
-)
-def test_shape_ledger_entry_as_it_reads(
-    c: dict[str, Any], p: Path, shape: str, outcome: object
+@pytest.mark.parametrize("shape", ["link", "folder", "binary", "empty", "big"])
+def test_shape_ledger_entry_that_cannot_be_read_is_no_head(
+    c: dict[str, Any], p: Path, shape: str
 ) -> None:
     folder = layout.released_dir(p)
     folder.mkdir(parents=True)
     _plant(folder / "0001-a", shape, f"{_H}\n")
 
-    _reads(lambda: c["_ledger_heads"](p), outcome)
+    assert c["_ledger_heads"](p) == set()
+
+
+_STOPS_CHILD = (
+    "import json, runpy, sys\n"
+    "from pathlib import Path\n"
+    "names = runpy.run_path(sys.argv[1])\n"
+    "try:\n"
+    "    read = names[sys.argv[2]](Path(sys.argv[3]))\n"
+    "    print(json.dumps(sorted(read) if isinstance(read, set) else read))\n"
+    "except OSError as error:\n"
+    "    print(json.dumps(type(error).__name__))\n"
+)
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
     ("name", "where", "outcome"),
     [
-        ("_kept_origin", layout.kept_file, None),
-        ("_kept_default", layout.default_file, "main"),
-        ("_offline_base", layout.pushed_file, None),
+        ("_kept_origin", layout.kept_file, "Broken"),
+        ("_kept_default", layout.default_file, "Broken"),
+        ("_offline_base", layout.pushed_file, "Broken"),
+        ("_ledger_heads", lambda p: layout.released_dir(p) / "0001-a", []),
     ],
 )
-def test_shape_a_pipe_reads_as_no_file(
+def test_shape_a_pipe_is_read_at_once(
     p: Path, name: str, where: Callable[[Path], Path], outcome: object
 ) -> None:
-    _kept()
+    where(p).parent.mkdir(parents=True, exist_ok=True)
     os.mkfifo(where(p))
 
-    assert _ask(*_conductor(name, str(p))) == outcome
-
-
-@pytest.mark.slow
-def test_shape_a_pipe_at_a_ledger_entry_blocks_the_read(p: Path) -> None:
-    folder = layout.released_dir(p)
-    folder.mkdir(parents=True)
-    os.mkfifo(folder / "0001-a")
-
-    assert _hangs(*_conductor("_ledger_heads", str(p))) is True
+    assert _ask(_STOPS_CHILD, str(_SCRIPT), name, str(p)) == outcome
 
 
 @pytest.mark.parametrize(
     ("shape", "outcome"),
     [
-        ("link", _HASH),
+        ("link", None),
         ("folder", None),
-        ("binary", UnicodeDecodeError),
+        ("binary", None),
         ("empty", ""),
-        ("big", _HASH),
+        ("big", None),
     ],
 )
 def test_odd_approval_as_it_reads(
@@ -2059,41 +2069,30 @@ def test_odd_approval_as_it_reads(
 
 
 @pytest.mark.slow
-def test_odd_a_pipe_at_the_approval_blocks_the_read(p: Path) -> None:
+def test_odd_a_pipe_at_the_approval_approves_nothing_at_once(p: Path) -> None:
     folder = layout.gate_approval(p, _CHANGE).parent
     folder.mkdir(parents=True)
     os.mkfifo(folder / _CHANGE)
 
-    assert _hangs(_APPROVAL_CHILD, str(_GATE_CHECK), str(p), _CHANGE) is True
+    assert _ask(_APPROVAL_CHILD, str(_GATE_CHECK), str(p), _CHANGE) is None
 
 
-@pytest.mark.parametrize(
-    ("shape", "outcome"),
-    [
-        ("link", "this pid"),
-        ("folder", None),
-        ("binary", None),
-        ("empty", None),
-        ("big", "this pid"),
-    ],
-)
-def test_odd_live_mark_as_it_reads(
-    c: dict[str, Any], p: Path, shape: str, outcome: str | None
-) -> None:
+@pytest.mark.parametrize("shape", ["link", "folder", "binary", "empty", "big"])
+def test_odd_live_mark_reads_as_none(c: dict[str, Any], p: Path, shape: str) -> None:
     layout.live_dir().mkdir(parents=True)
     mark = layout.live_mark(p)
     _plant(mark, shape, f"{os.getpid()}\n")
 
-    assert c["_pin"]()["holder"](mark) == (os.getpid() if outcome else None)
+    assert c["_pin"]()["holder"](mark) is None
 
 
 @pytest.mark.slow
-def test_odd_a_pipe_at_the_live_mark_blocks_the_read(p: Path) -> None:
+def test_odd_a_pipe_at_the_live_mark_reads_as_none_at_once(p: Path) -> None:
     layout.live_dir().mkdir(parents=True)
     mark = layout.live_mark(p)
     os.mkfifo(mark)
 
-    assert _hangs(_HOLDER_CHILD, str(_SCRIPT), str(mark)) is True
+    assert _ask(_HOLDER_CHILD, str(_SCRIPT), str(mark)) is None
 
 
 def _listed(p: Path, shape: str) -> Path:
@@ -2124,14 +2123,14 @@ def test_odd_repos_records_nothing_for_a_folder_and_raises_nothing(
     assert repos.is_dir()
 
 
-def test_odd_repos_appends_to_a_list_with_a_bad_byte(
+def test_odd_repos_records_nothing_in_a_list_with_a_bad_byte(
     c: dict[str, Any], p: Path
 ) -> None:
     repos = _listed(p, "binary")
 
     c["_record_repo"](p)
 
-    assert repos.read_bytes() == b"\xff\xfe/elsewhere\n" + f"{p.resolve()}\n".encode()
+    assert repos.read_bytes() == b"\xff\xfe/elsewhere\n"
 
 
 def test_odd_repos_appends_to_an_empty_list(c: dict[str, Any], p: Path) -> None:
@@ -2142,28 +2141,29 @@ def test_odd_repos_appends_to_an_empty_list(c: dict[str, Any], p: Path) -> None:
     assert repos.read_text() == f"{p.resolve()}\n"
 
 
-def test_odd_repos_appends_to_a_list_over_its_bound(c: dict[str, Any], p: Path) -> None:
+def test_odd_repos_records_nothing_in_a_list_over_its_bound(
+    c: dict[str, Any], p: Path
+) -> None:
     repos = _listed(p, "big")
+    before = repos.read_text()
 
     c["_record_repo"](p)
 
-    text = repos.read_text()
-    assert len(text) > _REPOS_BOUND
-    assert text.startswith("/elsewhere")
-    assert text.endswith(f"{p.resolve()}\n")
+    assert repos.read_text() == before
 
 
 @pytest.mark.slow
-def test_odd_a_pipe_at_repos_blocks_the_append(p: Path) -> None:
-    _listed(p, "pipe")
+def test_odd_a_pipe_at_repos_takes_no_append_at_once(p: Path) -> None:
+    repos = _listed(p, "pipe")
 
-    assert _hangs(*_conductor("_record_repo", str(p))) is True
+    assert _ask(*_conductor("_record_repo", str(p))) is None
+    assert stat.S_ISFIFO(os.lstat(repos).st_mode)
 
 
 _FULL = OSError(errno.ENOSPC, "No space left on device")
 
 
-def test_write_a_failed_origin_write_leaves_a_half_written_file(
+def test_write_a_failed_origin_write_leaves_no_file(
     c: dict[str, Any], p: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _with_origin(tmp_path, p)
@@ -2171,12 +2171,11 @@ def test_write_a_failed_origin_write_leaves_a_half_written_file(
     def full(*_: object, **__: object) -> None:
         raise _FULL
 
-    monkeypatch.setattr(json, "dump", full)
+    monkeypatch.setattr(os, "replace", full)
 
     assert c["_keep_origin"](p) == "No space left on device"
 
-    assert layout.kept_file(p).is_file()
-    assert layout.kept_file(p).read_text() == ""
+    assert list(layout.kept_dir().iterdir()) == []
 
 
 class _Full:
@@ -2195,39 +2194,40 @@ class _Full:
         raise _FULL
 
 
-def test_write_a_failed_default_write_leaves_its_file(
+def test_write_a_failed_default_write_leaves_no_file(
     c: dict[str, Any], p: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _with_origin(tmp_path, p)
     opened = os.fdopen
     calls: list[int] = []
 
-    def second_is_full(fd: int, *args: Any, **more: Any) -> Any:  # noqa: ANN401
-        calls.append(fd)
-        return _Full(fd) if len(calls) == 2 else opened(fd, *args, **more)
+    def second_write_is_full(fd: int, mode: str = "r", **more: Any) -> Any:  # noqa: ANN401
+        if "w" in mode:
+            calls.append(fd)
+        if "w" in mode and len(calls) == 2:
+            return _Full(fd)
+        return opened(fd, mode, **more)
 
-    monkeypatch.setattr(os, "fdopen", second_is_full)
+    monkeypatch.setattr(os, "fdopen", second_write_is_full)
 
     assert c["_keep_origin"](p) == "No space left on device"
 
-    assert layout.default_file(p).is_file()
-    assert layout.default_file(p).read_text() == ""
+    assert [path.name for path in layout.kept_dir().iterdir()] == [
+        layout.kept_file(p).name
+    ]
 
 
-def test_write_a_failed_base_write_leaves_its_temp_file(
+def test_write_a_failed_base_write_leaves_no_staged_file(
     c: dict[str, Any], p: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def full(*_: object) -> None:
+    def full(*_: object, **__: object) -> None:
         raise _FULL
 
     monkeypatch.setattr(os, "replace", full)
 
     assert c["_keep_base"](p, _S) == "No space left on device"
 
-    file = layout.pushed_file(p)
-    assert not file.exists()
-    (left,) = file.parent.iterdir()
-    assert left.name.startswith(f".{file.name}-")
+    assert list(layout.pushed_file(p).parent.iterdir()) == []
 
 
 def test_write_a_live_link_at_the_default_skips_the_write(
@@ -2260,14 +2260,14 @@ def test_write_a_dangling_link_at_the_default_is_refused_and_not_followed(
     assert not (home / ".nowhere").exists()
 
 
-def test_write_the_default_has_no_newline(
+def test_write_the_default_ends_in_a_newline(
     c: dict[str, Any], p: Path, tmp_path: Path
 ) -> None:
     _with_origin(tmp_path, p)
 
     c["_keep_origin"](p)
 
-    assert layout.default_file(p).read_bytes() == b"main"
+    assert layout.default_file(p).read_bytes() == b"main\n"
 
 
 def _viewer_lists(p: Path) -> list[Path]:
@@ -2310,3 +2310,210 @@ def test_write_the_readers_of_repos_read_a_list_of_mode_0_as_none(
         assert reader(p) == []
     finally:
         repos.chmod(0o600)
+
+
+def _broken(where: Callable[[Path], Path], phrase: str) -> Callable[..., object]:
+    """Return a stand-in kept read that raises `Broken` for the file `where` names."""
+
+    def read(primary: Path, *_: object) -> object:
+        raise mflib.kept.Broken(where(primary), phrase)
+
+    return read
+
+
+def _halt_of(lines: list[str]) -> list[str]:
+    """Return the run's halt lines among the run log's `lines`."""
+    return [line for line in lines if line.startswith("run · halt — ")]
+
+
+def test_broken_main_words_a_kept_file_that_cannot_be_read_and_exits_2(
+    c: dict[str, Any],
+    p: Path,
+    fake: Callable[..., Path],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake()
+    broken = _broken(layout.kept_file, "it is not a file")
+    monkeypatch.setattr(c["mflib"].kept, "origin", broken)
+
+    assert _run_by_main(c, p, monkeypatch) == 2
+
+    said = (
+        f"conduct: cannot run — ~/.mf-ship-origin/{layout.kept_file(p).name}"
+        " cannot be read: it is not a file\n"
+    )
+    assert said in capsys.readouterr().out
+    assert not layout.live_mark(p).exists()
+
+
+@pytest.mark.slow
+def test_broken_run_logs_the_halt_naming_the_file_and_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    fake()
+    conduct = test_conduct._conduct()
+    root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    broken = _broken(layout.default_file, "it is not text")
+    monkeypatch.setattr(conduct["mflib"].kept, "default", broken)
+
+    lines = run(2)
+
+    named = layout.default_file(root).name
+    (halt,) = _halt_of(lines)
+    assert halt.startswith(
+        f"run · halt — conduct.py failed: ~/.mf-ship-origin/{named} cannot be read:"
+        " it is not text"
+    )
+    assert not layout.live_mark(root).exists()
+
+
+@pytest.mark.slow
+def test_broken_a_failure_that_is_no_kept_file_exits_1(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    fake()
+    conduct = test_conduct._conduct()
+    _, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
+
+    def fail(*_: object) -> None:
+        raise RuntimeError("the read failed")
+
+    monkeypatch.setattr(conduct["mflib"].kept, "default", fail)
+
+    (halt,) = _halt_of(run(1))
+    assert halt.startswith("run · halt — conduct.py failed: the read failed")
+
+
+def _bad_entry(p: Path, head: str | None = _H) -> Path:
+    """Write the ledger entry `0001-a`, no commit id, and `0002-b` holding `head`.
+
+    Return the first; a `head` of None writes no second entry.
+    """
+    folder = layout.released_dir(p)
+    folder.mkdir(parents=True, exist_ok=True)
+    if head is not None:
+        (folder / "0002-b").write_text(f"{head}\n")
+    (folder / "0001-a").write_text("abc\n")
+    return folder / "0001-a"
+
+
+def test_heads_the_ledger_names_each_entry_that_is_no_commit_id_on_stderr(
+    c: dict[str, Any], p: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    entry = _bad_entry(p)
+
+    assert c["_ledger_heads"](p) == {_H}
+
+    assert capsys.readouterr().err == (
+        "conduct: ledger — 0001-a is no commit id: skipped\n"
+    )
+    assert entry.read_text() == "abc\n"
+
+
+def test_heads_on_bad_takes_each_name_in_place_of_stderr(
+    c: dict[str, Any], p: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _bad_entry(p)
+    seen: list[str] = []
+
+    assert c["_ledger_heads"](p, on_bad=seen.append) == {_H}
+
+    assert seen == ["0001-a"]
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.slow
+def test_heads_each_reader_forwards_on_bad(
+    c: dict[str, Any],
+    p: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("MF_SHIP_AGENT", "a fake worker")
+    origin = _with_origin(tmp_path, p)
+    _bad_entry(p, None)
+    main = _git(p, "rev-parse", "main").strip()
+    seen: list[str] = []
+
+    c["_foreign_commit"](p, main, "main", on_bad=seen.append)
+    c["_local_releases"](p, main, "main", on_bad=seen.append)
+    c["_unpushed"](p, first_read=True, on_bad=seen.append)
+    _git(p, "update-ref", "refs/remotes/origin/main", main)
+    origin.rename(tmp_path / "origin.away")
+    c["_unpushed"](p, on_bad=seen.append)
+
+    assert seen == ["0001-a"] * 4
+    assert capsys.readouterr().err == ""
+
+
+def test_heads_a_run_logs_each_entry_that_is_no_commit_id(
+    c: dict[str, Any], tmp_path: Path
+) -> None:
+    conductor = _run_of(c, tmp_path)
+    root = conductor.primary
+    c["_keep_base"](root, _git(root, "rev-parse", "main").strip())
+    entry = _bad_entry(root, None)
+    conductor.offline = True
+
+    assert conductor.unpushed() == ""
+
+    log = conductor.log.path.read_text()
+    assert " · run · ledger — 0001-a is no commit id: skipped\n" in log
+    assert entry.read_text() == "abc\n"
+
+
+@pytest.mark.slow
+def test_stop_a_bad_byte_in_the_default_stops_run_with_exit_2_naming_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    fake()
+    conduct = test_conduct._conduct()
+    root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    _kept()
+    layout.default_file(root).write_bytes(b"\xff\n")
+
+    lines = run(2)
+
+    named = layout.default_file(root).name
+    (halt,) = _halt_of(lines)
+    assert f"~/.mf-ship-origin/{named} cannot be read: it is not text" in halt
+
+
+def test_stop_a_second_approve_gate_leaves_the_second_hash(
+    c: dict[str, Any], p: Path
+) -> None:
+    folder = _approved(p)
+
+    assert _run_main(c, p, "approve-gate", _CHANGE, "--yes", _HASH) == 0
+    assert _run_main(c, p, "approve-gate", _CHANGE, "--yes", _OTHER) == 0
+
+    assert (folder / _CHANGE).read_text() == f"{_OTHER}\n"
+    assert _modes(folder / _CHANGE) == 0o600
+
+
+def test_stop_a_second_keep_of_the_origin_leaves_the_standing_file(
+    c: dict[str, Any], p: Path, tmp_path: Path
+) -> None:
+    _with_origin(tmp_path, p)
+    assert c["_keep_origin"](p) is None
+    kept, named = layout.kept_file(p).read_text(), layout.default_file(p).read_text()
+    _git(p, "remote", "set-url", "origin", str(_bare(tmp_path, "other.git")))
+
+    assert c["_keep_origin"](p) is None
+
+    assert layout.kept_file(p).read_text() == kept
+    assert layout.default_file(p).read_text() == named
+
+
+def test_stop_a_bad_byte_in_the_live_mark_still_reads_as_none(
+    c: dict[str, Any], p: Path
+) -> None:
+    mark = layout.live_mark(p)
+    mark.parent.mkdir(parents=True)
+    mark.write_bytes(b"\xff\n")
+
+    assert c["_pin"]()["holder"](mark) is None
+    assert mflib.kept.mark_live(p, os.getpid(), os.getppid()) == mark
+    assert mark.read_text() == f"{os.getpid()}\n"
