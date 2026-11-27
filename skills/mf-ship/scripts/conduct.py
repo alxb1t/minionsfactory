@@ -6587,11 +6587,11 @@ class Run:
         Why: 0129-queue-cap design D5.
         """
         self.waiting.pop(change, None)
-        if "waits" not in entry:
+        if not mflib.queue.is_wait(entry):
             return
         with _queue_lock(self.primary):
             current = _cuts(self.primary).get(change)
-            if current is not None and "waits" in current:
+            if current is not None and mflib.queue.is_wait(current):
                 kept = {key: value for key, value in current.items() if key != "waits"}
                 mflib.queue.write(self.primary, change, kept)
 
@@ -7604,7 +7604,7 @@ def _queue_lock(primary: Path) -> Iterator[None]:
 def _cuts(primary: Path) -> dict[str, dict[str, Any]]:
     """Return each queued cut's entry by its id, in id order.
 
-    An entry that lacks a key of `mflib.queue.REQUIRED` holds only its halt.
+    An entry that cannot be read as an `mflib.queue.Entry` holds only its halt.
     e.g. {"0003-a": {"bump": "minor", …, "halt": None}}
     """
     return mflib.queue.entries(primary)
@@ -8065,6 +8065,26 @@ def _unwritten(change: str, error: mflib.statefile.WriteFailed) -> Stop:
     )
 
 
+@contextlib.contextmanager
+def _queue_stops(
+    command: str, primary: Path, reserved: str | None = None
+) -> Iterator[None]:
+    """Turn a failed queue write into `command`'s stop, exit 2, naming the file.
+
+    The cut's reservation `reserved` is removed first. Why: 0156-queue design D6.
+    """
+    try:
+        yield
+    except mflib.queue.Unwritten as error:
+        if reserved is not None:
+            _remove_in(primary, mflib.layout.MINIONS, mflib.layout.CUTS, name=reserved)
+        raise Stop(
+            2,
+            f"{command}: cannot run — {error.filename} cannot be written:"
+            f" {error.strerror}",
+        ) from None
+
+
 def _next_id(primary: Path) -> int:
     """Return one above every change number the repo, its branches or the queue hold.
 
@@ -8165,7 +8185,8 @@ def cut(
         }
         if "beside" in linked:
             entry["beside"] = linked["beside"]
-        mflib.queue.write(primary, change, entry)
+        with _queue_stops("cut", primary, change):
+            mflib.queue.write(primary, change, entry)
         if live:
             return f"cut: queued {change} · the live run takes it{cap}"
         try:
@@ -8205,7 +8226,7 @@ def rejoin(cwd: Path, change: str | None, yes: str | None = None) -> str:
     0091-cut-halts design D3; 0119-debt-paydown-3b design D8.
     """
     primary = primary_of(cwd)
-    with _queue_lock(primary):
+    with _queue_lock(primary), _queue_stops("rejoin", primary):
         live = _claim(mflib.layout.claim_file(primary)) == "live"
         if change is not None and (entry := _cuts(primary).get(change)) is not None:
             if not entry.keys() >= mflib.queue.REQUIRED:
@@ -8966,7 +8987,7 @@ def _cut_line(change: str, entry: dict[str, Any]) -> str:
     """
     if entry["halt"] is not None:
         return f"{change} · cut-halted — {entry['halt']}"
-    if "waits" in entry:
+    if mflib.queue.is_wait(entry):
         return f"{change} · cut — waits: {entry['waits']}"
     return f"{change} · cut"
 

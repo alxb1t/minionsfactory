@@ -1,6 +1,6 @@
 """Unit cases of `skills/mflib/queue.py`, each on a planted home queue.
 
-Why: 0156-queue design D1, D2, D5 and D7.
+Why: 0156-queue design D1 to D5 and D7.
 """
 
 import errno
@@ -210,21 +210,94 @@ def test_entries_map_a_folder_at_an_entry_to_the_unreadable_one(tmp_path: Path) 
     assert queue.entries(primary) == {_CHANGE: queue.UNREADABLE}
 
 
-def test_entries_follow_a_link_at_an_entry(tmp_path: Path) -> None:
+def test_entries_read_a_link_at_an_entry_as_the_unreadable_one(tmp_path: Path) -> None:
     primary = _primary(tmp_path)
     outside = tmp_path / "outside"
     outside.write_text(json.dumps(_ENTRY))
-    (_cuts(primary) / _CHANGE).symlink_to(outside)
+    entry = _cuts(primary) / _CHANGE
+    entry.symlink_to(outside)
 
+    assert queue.entries(primary) == {_CHANGE: queue.UNREADABLE}
+    entry.unlink()
+    entry.write_text(json.dumps(_ENTRY))
     assert queue.entries(primary) == {_CHANGE: _ENTRY}
 
 
-def test_entries_keep_a_value_of_the_wrong_type(tmp_path: Path) -> None:
+def test_entries_read_a_fifo_at_an_entry_as_the_unreadable_one(tmp_path: Path) -> None:
     primary = _primary(tmp_path)
-    wrong = {**_ENTRY, "after": "0002-b", "waits": None}
-    (_cuts(primary) / _CHANGE).write_text(json.dumps(wrong))
+    os.mkfifo(_cuts(primary) / _CHANGE)
 
-    assert queue.entries(primary) == {_CHANGE: wrong}
+    assert queue.entries(primary) == {_CHANGE: queue.UNREADABLE}
+
+
+def test_entries_read_an_entry_past_its_bound_as_the_unreadable_one(
+    tmp_path: Path,
+) -> None:
+    primary = _primary(tmp_path)
+    entry = _cuts(primary) / _CHANGE
+    text = json.dumps(_ENTRY)
+    entry.write_text(text + " " * (queue.BOUND_ENTRY - len(text)))
+    assert queue.entries(primary) == {_CHANGE: _ENTRY}
+    entry.write_text(text + " " * (queue.BOUND_ENTRY - len(text) + 1))
+
+    assert queue.entries(primary) == {_CHANGE: queue.UNREADABLE}
+
+
+@pytest.mark.parametrize("text", ["[" * 100000, '{"a":' * 100000], ids=["list", "map"])
+def test_entries_read_a_deep_json_as_the_unreadable_one(
+    tmp_path: Path, text: str
+) -> None:
+    primary = _primary(tmp_path)
+    (_cuts(primary) / _CHANGE).write_text(text)
+
+    assert queue.entries(primary) == {_CHANGE: queue.UNREADABLE}
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("bump", 5),
+        ("brief", None),
+        ("executor", ["claude"]),
+        ("after", "0002-b"),
+        ("after", [1]),
+        ("halt", 0),
+        ("model", 3),
+        ("effort", ["high"]),
+        ("dependencies", "x"),
+        ("dependencies", [["pypi", 1]]),
+        ("models", 7),
+        ("beside", [None]),
+        ("waits", None),
+        ("waits", 7),
+    ],
+)
+def test_entries_read_a_value_of_the_wrong_type_as_the_unreadable_one(
+    tmp_path: Path, key: str, value: object
+) -> None:
+    primary = _primary(tmp_path)
+    (_cuts(primary) / _CHANGE).write_text(json.dumps({**_ENTRY, key: value}))
+
+    assert queue.entries(primary) == {_CHANGE: queue.UNREADABLE}
+
+
+def test_entries_keep_a_null_where_the_record_takes_one_and_an_unknown_key(
+    tmp_path: Path,
+) -> None:
+    primary = _primary(tmp_path)
+    held = {**_ENTRY, "halt": "x", "model": "opus", "models": "[build]\n", "more": 1}
+    (_cuts(primary) / _CHANGE).write_text(json.dumps(held))
+
+    assert queue.entries(primary) == {_CHANGE: held}
+
+
+@pytest.mark.parametrize(
+    ("waits", "expected"),
+    [("1 in flight, cap 1", True), ("", False), (None, False), (7, False)],
+)
+def test_a_wait_is_a_non_empty_string(waits: object, expected: bool) -> None:
+    assert queue.is_wait({"waits": waits}) is expected
+    assert not queue.is_wait({})
 
 
 def test_entries_list_nothing_of_a_linked_missing_or_file_shaped_folder(
@@ -280,10 +353,30 @@ def test_a_write_makes_cuts_0700_and_its_entry_0600_in_compact_order(
 def test_a_write_makes_no_parent_of_cuts(tmp_path: Path) -> None:
     primary = _primary(tmp_path)
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(queue.Unwritten) as raised:
         queue.write(primary, _CHANGE, _ENTRY)
 
+    assert raised.value.errno == errno.ENOENT
+    assert raised.value.filename == str(layout.queue_cuts(primary) / _CHANGE)
     assert not layout.queue_dir(primary).exists()
+
+
+def test_a_write_refuses_an_entry_past_its_bound_and_leaves_the_one_that_stands(
+    tmp_path: Path,
+) -> None:
+    primary = _primary(tmp_path)
+    layout.queue_dir(primary).mkdir(parents=True)
+    queue.write(primary, _CHANGE, _ENTRY)
+    whole = len(json.dumps({**_ENTRY, "halt": ""}))
+    at_bound = {**_ENTRY, "halt": "x" * (queue.BOUND_ENTRY - whole)}
+    queue.write(primary, "0002-b", at_bound)
+
+    with pytest.raises(queue.Unwritten) as raised:
+        queue.write(primary, _CHANGE, {**at_bound, "halt": at_bound["halt"] + "x"})
+
+    assert raised.value.errno == errno.EFBIG
+    assert raised.value.filename == str(layout.queue_cuts(primary) / _CHANGE)
+    assert queue.entries(primary) == {_CHANGE: _ENTRY, "0002-b": at_bound}
 
 
 def test_a_write_replaces_a_link_at_the_entry_and_leaves_its_target(
@@ -302,36 +395,46 @@ def test_a_write_replaces_a_link_at_the_entry_and_leaves_its_target(
     assert outside.read_text() == "held"
 
 
-def test_a_write_goes_through_a_linked_cuts_folder(tmp_path: Path) -> None:
+@pytest.mark.parametrize("shape", ["link", "file"])
+def test_a_write_refuses_a_linked_or_file_shaped_cuts_folder(
+    tmp_path: Path, shape: str
+) -> None:
     primary = _primary(tmp_path)
     real = tmp_path / "real"
     real.mkdir()
     cuts = layout.queue_cuts(primary)
     cuts.parent.mkdir(parents=True)
-    cuts.symlink_to(real)
+    if shape == "link":
+        cuts.symlink_to(real)
+    else:
+        cuts.write_text("a file")
 
-    queue.write(primary, _CHANGE, _ENTRY)
+    with pytest.raises(queue.Unwritten) as raised:
+        queue.write(primary, _CHANGE, _ENTRY)
 
-    assert json.loads((real / _CHANGE).read_text()) == _ENTRY
+    assert raised.value.filename == str(cuts / _CHANGE)
+    assert os.listdir(real) == []
 
 
-def test_a_failed_write_raises_its_os_error_and_leaves_the_entry(
+def test_a_failed_write_raises_unwritten_and_leaves_the_entry_and_no_stray(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     primary = _primary(tmp_path)
     (_cuts(primary) / _CHANGE).write_text("held")
 
-    def full(source: object, target: object) -> None:
+    def full(source: object, target: object, **at: int) -> None:
         raise OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))
 
     monkeypatch.setattr(queue.os, "replace", full)
 
-    with pytest.raises(OSError, match="No space left") as raised:
+    with pytest.raises(queue.Unwritten, match="No space left") as raised:
         queue.write(primary, _CHANGE, _ENTRY)
 
     assert raised.value.errno == errno.ENOSPC
-    assert not isinstance(raised.value, queue.Unwritten)
+    assert raised.value.filename == str(layout.queue_cuts(primary) / _CHANGE)
+    assert raised.value.cause.errno == errno.ENOSPC
     assert (layout.queue_cuts(primary) / _CHANGE).read_text() == "held"
+    assert os.listdir(layout.queue_cuts(primary)) == [_CHANGE]
 
 
 def test_unwritten_is_an_os_error_that_names_its_file(tmp_path: Path) -> None:
@@ -380,10 +483,11 @@ def test_requests_unlink_a_link_and_a_stray_name_and_leave_a_subfolder(
     outside = tmp_path / "outside"
     outside.write_text("held")
     (folder / "0002-b").symlink_to(outside)
-    (folder / "stray.tmp").write_text("")
+    for stray in ("stray.tmp", "0001-a.tmp", ".0001-a", "ALL"):
+        (folder / stray).write_text("")
     (folder / "0003-c").mkdir()
 
-    assert queue.requests(layout.queue_dir(primary)) == {"0002-b", "stray.tmp"}
+    assert queue.requests(layout.queue_dir(primary)) == {"0002-b"}
     assert os.listdir(folder) == ["0003-c"]
     assert outside.read_text() == "held"
 
@@ -412,7 +516,9 @@ def test_a_request_makes_its_folder_with_parents_0700(tmp_path: Path) -> None:
     folder = layout.queue_rejoin(primary)
 
     assert _modes(folder) == 0o700
+    assert _modes(folder.parent) == 0o700
     assert (folder / _CHANGE).read_bytes() == b""
+    assert _modes(folder / _CHANGE) == 0o600
 
 
 def test_a_request_leaves_one_that_stands(tmp_path: Path) -> None:
@@ -426,16 +532,49 @@ def test_a_request_leaves_one_that_stands(tmp_path: Path) -> None:
     assert (folder / _CHANGE).read_text() == "held"
 
 
-def test_a_request_goes_through_a_link_at_its_name(tmp_path: Path) -> None:
+@pytest.mark.parametrize("shape", ["link", "fifo", "folder"])
+def test_a_request_refuses_what_is_no_file_at_its_name(
+    tmp_path: Path, shape: str
+) -> None:
     primary = _primary(tmp_path)
     folder = layout.queue_rejoin(primary)
     folder.mkdir(parents=True)
     outside = tmp_path / "outside"
-    (folder / _CHANGE).symlink_to(outside)
+    if shape == "link":
+        (folder / _CHANGE).symlink_to(outside)
+    elif shape == "fifo":
+        os.mkfifo(folder / _CHANGE)
+    else:
+        (folder / _CHANGE).mkdir()
 
-    queue.request(primary, _CHANGE)
+    with pytest.raises(queue.Unwritten) as raised:
+        queue.request(primary, _CHANGE)
 
-    assert outside.is_file()
+    assert raised.value.filename == str(folder / _CHANGE)
+    assert not outside.exists()
+    queue.request(primary, "0002-b")
+    assert (folder / "0002-b").is_file()
+
+
+@pytest.mark.parametrize("shape", ["link", "file"])
+def test_a_request_refuses_a_linked_or_file_shaped_folder(
+    tmp_path: Path, shape: str
+) -> None:
+    primary = _primary(tmp_path)
+    folder = layout.queue_rejoin(primary)
+    folder.parent.mkdir(parents=True)
+    real = tmp_path / "real"
+    real.mkdir()
+    if shape == "link":
+        folder.symlink_to(real)
+    else:
+        folder.write_text("a file")
+
+    with pytest.raises(queue.Unwritten) as raised:
+        queue.request(primary, _CHANGE)
+
+    assert raised.value.filename == str(folder / _CHANGE)
+    assert os.listdir(real) == []
 
 
 def test_requested_counts_a_regular_file_and_unlinks_nothing(tmp_path: Path) -> None:
@@ -447,11 +586,12 @@ def test_requested_counts_a_regular_file_and_unlinks_nothing(tmp_path: Path) -> 
     outside.write_text("")
     (folder / "0002-b").symlink_to(outside)
     (folder / "0003-c").mkdir()
+    (folder / "stray.tmp").write_text("")
     assert not queue.requested(home)
     (folder / _CHANGE).write_text("")
 
     assert queue.requested(home)
-    assert sorted(os.listdir(folder)) == [_CHANGE, "0002-b", "0003-c"]
+    assert sorted(os.listdir(folder)) == [_CHANGE, "0002-b", "0003-c", "stray.tmp"]
 
 
 def test_requested_reads_no_linked_or_missing_folder(tmp_path: Path) -> None:
@@ -554,9 +694,81 @@ def test_an_empty_or_bad_brief_record_reads_as_none(
 def test_a_record_write_makes_no_parent_of_its_folder(tmp_path: Path) -> None:
     primary = _primary(tmp_path)
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(queue.Unwritten) as brief:
         queue.write_brief(primary, _CHANGE, "/b/brief.md")
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(queue.Unwritten) as supervised:
         queue.write_supervised(primary, _CHANGE, _MERGE)
 
+    assert brief.value.errno == supervised.value.errno == errno.ENOENT
+    assert brief.value.filename == str(layout.queue_briefs(primary) / _CHANGE)
     assert not layout.queue_dir(primary).exists()
+
+
+def test_a_record_write_is_0600_and_replaces_a_link_leaving_its_target(
+    tmp_path: Path,
+) -> None:
+    primary = _primary(tmp_path)
+    outside = tmp_path / "outside"
+    outside.write_text("held")
+    for folder in (layout.queue_briefs(primary), layout.queue_supervised(primary)):
+        folder.mkdir(parents=True)
+        (folder / _CHANGE).symlink_to(outside)
+    umask = os.umask(0o022)
+    try:
+        queue.write_brief(primary, _CHANGE, "/b/brief.md")
+        queue.write_supervised(primary, _CHANGE, _MERGE)
+    finally:
+        os.umask(umask)
+
+    for folder in (layout.queue_briefs(primary), layout.queue_supervised(primary)):
+        assert not (folder / _CHANGE).is_symlink()
+        assert _modes(folder / _CHANGE) == 0o600
+        assert os.listdir(folder) == [_CHANGE]
+    assert queue.brief(primary, _CHANGE) == "/b/brief.md"
+    assert queue.merge_tried(primary, _CHANGE, _MERGE)
+    assert outside.read_text() == "held"
+
+
+@pytest.mark.parametrize("shape", ["link", "fifo", "folder", "long"])
+def test_a_record_that_is_no_file_or_past_its_bound_reads_as_none(
+    tmp_path: Path, shape: str
+) -> None:
+    primary = _primary(tmp_path)
+    outside = tmp_path / "outside"
+    outside.write_text(f"{_MERGE}\n")
+    for folder in (layout.queue_briefs(primary), layout.queue_supervised(primary)):
+        folder.mkdir(parents=True)
+        record = folder / _CHANGE
+        if shape == "link":
+            record.symlink_to(outside)
+        elif shape == "fifo":
+            os.mkfifo(record)
+        elif shape == "folder":
+            record.mkdir()
+        else:
+            record.write_text(_MERGE + " " * (queue.BOUND_RECORD - len(_MERGE) + 1))
+
+    assert queue.brief(primary, _CHANGE) is None
+    assert not queue.merge_tried(primary, _CHANGE, _MERGE)
+
+
+def test_a_record_at_its_bound_reads(tmp_path: Path) -> None:
+    primary = _primary(tmp_path)
+    folder = layout.queue_supervised(primary)
+    folder.mkdir(parents=True)
+    (folder / _CHANGE).write_text(_MERGE + " " * (queue.BOUND_RECORD - len(_MERGE)))
+
+    assert queue.merge_tried(primary, _CHANGE, _MERGE)
+
+
+def test_a_record_reads_as_none_through_a_linked_folder(tmp_path: Path) -> None:
+    primary = _primary(tmp_path)
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / _CHANGE).write_text(f"{_MERGE}\n")
+    layout.queue_dir(primary).mkdir(parents=True)
+    layout.queue_briefs(primary).symlink_to(real)
+    layout.queue_supervised(primary).symlink_to(real)
+
+    assert queue.brief(primary, _CHANGE) is None
+    assert not queue.merge_tried(primary, _CHANGE, _MERGE)

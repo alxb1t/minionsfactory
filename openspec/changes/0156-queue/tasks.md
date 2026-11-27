@@ -7,7 +7,7 @@ Pin the queue as it is, move it into `skills/mflib/queue.py`, send the conductor
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
 - [x] 3 — The stations · moderate
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 - [ ] 5 — The record · moderate
 
 ## 1 — The pin
@@ -84,24 +84,24 @@ The conductor's sites call the module. No assert changes; a test changes only th
 
 The module keeps one side. The cases and pins of the pin phase turn to it ([D3](design.md#d3) to [D6](design.md#d6)).
 
-- [ ] 4.1 **HALT CHECK** The module still reads each entry by path, so the cases of this phase turn a standing side.
+- [x] 4.1 **HALT CHECK** The module still reads each entry by path, so the cases of this phase turn a standing side.
   Verify: `git grep -q -e "^def entries" -- skills/mflib/queue.py` exits `0`.
-- [ ] 4.2 In `skills/mflib/queue.py` add `BOUND_ENTRY`, 262,144, and make `entries` read each entry through the descriptor `statefile.open_folder` gives on the `cuts` folder, with `statefile.read_bytes` asked one byte past the bound so a longer file is refused, a strict decode and a catch of `RecursionError`. Check each value against the record's types and map every broken shape to the unreadable entry. A linked, missing and file-shaped folder lists nothing. Turn the pins of a link, a FIFO, a folder, a file over its bound, a wrong type and a deep JSON.
+- [x] 4.2 In `skills/mflib/queue.py` add `BOUND_ENTRY`, 262,144, and make `entries` read each entry through the descriptor `statefile.open_folder` gives on the `cuts` folder, with `statefile.read_bytes` asked one byte past the bound so a longer file is refused, a strict decode and a catch of `RecursionError`. Check each value against the record's types and map every broken shape to the unreadable entry. A linked, missing and file-shaped folder lists nothing. Turn the pins of a link, a FIFO, a folder, a file over its bound, a wrong type and a deep JSON.
   Verify: `git grep -n -e "BOUND_ENTRY" -- skills/mflib/queue.py` prints a line, and `uv run pytest tests/test_queue.py tests/test_queue_pins.py -n auto -q` exits `0`.
-- [ ] 4.3 Turn each entry that `tests/test_conduct.py`, `tests/test_viewer.py` and `tests/test_modelsfile.py` plant by hand and the typed read turns away, to a typed entry. No assert changes.
+- [x] 4.3 Turn each entry that `tests/test_conduct.py`, `tests/test_viewer.py` and `tests/test_modelsfile.py` plant by hand and the typed read turns away, to a typed entry. No assert changes.
   Verify: `uv run pytest tests/test_conduct.py tests/test_viewer.py tests/test_modelsfile.py -n auto -q` exits `0`.
-- [ ] 4.4 In `skills/mflib/queue.py` add `BOUND_RECORD`, 65,536, and make `brief` and `merge_tried` read through the descriptor `statefile.open_folder` gives on their own folder, asked one byte past the bound, with a strict decode; a link, a FIFO, a folder and a longer file each read as none. Turn the pins of the `briefs` and `supervised` shapes.
+- [x] 4.4 In `skills/mflib/queue.py` add `BOUND_RECORD`, 65,536, and make `brief` and `merge_tried` read through the descriptor `statefile.open_folder` gives on their own folder, asked one byte past the bound, with a strict decode; a link, a FIFO, a folder and a longer file each read as none. Turn the pins of the `briefs` and `supervised` shapes.
   Verify: `git grep -n -e "BOUND_RECORD" -- skills/mflib/queue.py` prints a line, and `uv run pytest tests/test_queue.py tests/test_queue_pins.py -n auto -q` exits `0`.
-- [ ] 4.5 Add `def is_wait(entry)` to `skills/mflib/queue.py`, true for a non-empty string `waits`, and make `Run.unwait` and `_cut_line` of `skills/mf-ship/scripts/conduct.py` use it. Turn the pins of each form of `waits`, and add to `tests/test_viewer.py` the case of a null and an empty `waits`.
+- [x] 4.5 Add `def is_wait(entry)` to `skills/mflib/queue.py`, true for a non-empty string `waits`, and make `Run.unwait` and `_cut_line` of `skills/mf-ship/scripts/conduct.py` use it. Turn the pins of each form of `waits`, and add to `tests/test_viewer.py` the case of a null and an empty `waits`.
   Verify: `git grep -n -e "def is_wait" -- skills/mflib/queue.py` prints a line, and `uv run pytest tests/test_queue.py tests/test_queue_pins.py tests/test_viewer.py -n auto -q` exits `0`.
-- [ ] 4.6 In `skills/mflib/queue.py` make `write`, `write_brief` and `write_supervised` go through `statefile.write` mode 0600 under the folder's descriptor. `write` makes `cuts` alone, mode 0700 with no parents, then opens it through `statefile.open_folder`, so a linked `cuts` folder is a failed write. A link at a name gives way to the staged move, and an entry over its bound is refused. Raise `Unwritten` naming the file. Turn the pins of the write.
+- [x] 4.6 In `skills/mflib/queue.py` make `write`, `write_brief` and `write_supervised` go through `statefile.write` mode 0600 under the folder's descriptor. `write` makes `cuts` alone, mode 0700 with no parents, then opens it through `statefile.open_folder`, so a linked `cuts` folder is a failed write. A link at a name gives way to the staged move, and an entry over its bound is refused. Raise `Unwritten` naming the file. Turn the pins of the write.
   Verify: `git grep -n -e "statefile.write" -- skills/mflib/queue.py` prints a line, and `uv run pytest tests/test_queue.py tests/test_queue_pins.py -n auto -q` exits `0`.
-- [ ] 4.7 In `skills/mflib/queue.py` make `request` call `statefile.touch` under `statefile.folder` with mode 0700, no link followed, raising `Unwritten` on a failure. Make `requests` unlink a name that is no change id and not `all`, and return the rest. Make `requested` count a regular file so named. Turn the pins of the requests.
+- [x] 4.7 In `skills/mflib/queue.py` make `request` call `statefile.touch` under `statefile.folder` with mode 0700, no link followed, raising `Unwritten` on a failure. Make `requests` unlink a name that is no change id and not `all`, and return the rest. Make `requested` count a regular file so named. Turn the pins of the requests.
   Verify: `git grep -n -e "statefile.touch" -- skills/mflib/queue.py` prints a line, and `uv run pytest tests/test_queue.py tests/test_queue_pins.py -n auto -q` exits `0`.
-- [ ] 4.8 In `skills/mf-ship/scripts/conduct.py` turn `Unwritten` into `Stop(2, …)` naming the file in `cut` and `rejoin`, a failed request write included. `Run.cut_halted`, `Run.wait_cut`, `Run.unwait`, `Run.take_requests` and the writes of `briefs` and `supervised` let it rise as an `OSError` rose. Turn the pins of a failed write.
+- [x] 4.8 In `skills/mf-ship/scripts/conduct.py` turn `Unwritten` into `Stop(2, …)` naming the file in `cut` and `rejoin`, a failed request write included. `Run.cut_halted`, `Run.wait_cut`, `Run.unwait`, `Run.take_requests` and the writes of `briefs` and `supervised` let it rise as an `OSError` rose. Turn the pins of a failed write.
   Delete the reservation `cut` made, through `_remove_in`, before it raises.
   Verify: `git grep -n -e "queue.Unwritten" -- skills/mf-ship/scripts/conduct.py` prints a line, and `uv run pytest tests/test_queue_pins.py tests/test_conduct.py -n auto -q` exits `0`.
-- [ ] 4.9 Turn the cases of `tests/test_queue.py` that held today's side of the record, the lock and the list. Delete none.
+- [x] 4.9 Turn the cases of `tests/test_queue.py` that held today's side of the record, the lock and the list. Delete none.
   Verify: `uv run pytest tests/test_queue.py tests/test_statefile.py tests/test_structure.py -n auto -q` exits `0`.
 
 ## 5 — The record

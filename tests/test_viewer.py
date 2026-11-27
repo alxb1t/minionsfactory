@@ -33,7 +33,7 @@ _CUT = {
     "bump": "minor",
     "brief": "b",
     "after": [],
-    "executor": None,
+    "executor": "claude",
     "model": None,
     "effort": None,
     "halt": None,
@@ -113,7 +113,9 @@ def _halt(root: Path, change: str, tree: Path) -> None:
 
 
 def _queue(
-    root: Path, entries: dict[str, str | None], waits: dict[str, str] | None = None
+    root: Path,
+    entries: dict[str, str | None],
+    waits: dict[str, str | None] | None = None,
 ) -> None:
     """Queue a cut for each id, its halt the value, and `waits` for those it names."""
     folder = Path.home() / ".mf-ship-origin" / f"{layout.digest(root)}.queue" / "cuts"
@@ -705,6 +707,17 @@ def test_the_queue_shows_a_waiting_cut_as_queued(tmp_path: Path) -> None:
     ]
     assert [(row["kind"], row["id"]) for row in shown["for_you"]] == [
         ("cut halted", "0005-e")
+    ]
+
+
+def test_the_queue_shows_an_empty_or_null_waits_as_no_wait(tmp_path: Path) -> None:
+    root = _primary(tmp_path)
+    _queue(root, {"0003-c": None, "0004-d": None}, {"0003-c": "", "0004-d": None})
+    shown = _tree(root)
+    unreadable = "the queue entry is unreadable"
+    assert shown["queue"] == [
+        {"id": "0003-c", "state": "cut", "halt": None, "waits": ""},
+        {"id": "0004-d", "state": "cut halted", "halt": unreadable, "waits": None},
     ]
 
 

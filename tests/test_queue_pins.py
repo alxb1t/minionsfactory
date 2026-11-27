@@ -301,14 +301,15 @@ def test_cuts_reads_a_file_an_empty_file_a_bad_byte_and_a_big_file(
         ("file", _entry(brief)),
         ("empty", _UNREADABLE),
         ("binary", _UNREADABLE),
-        ("big", _entry(brief)),
+        ("big", _UNREADABLE),
     ):
         path.unlink(missing_ok=True)
         _plant(path, shape, text)
+        # mutant: drop the bound of the entry's read
         assert _cuts(root) == {"0001-a": expected}, shape
 
 
-def test_cuts_follows_a_link_and_reads_a_dangling_link_and_a_folder_as_unreadable(
+def test_cuts_reads_a_link_a_dangling_link_and_a_folder_as_unreadable(
     tmp_path: Path,
 ) -> None:
     root = _primary(tmp_path)
@@ -316,14 +317,14 @@ def test_cuts_follows_a_link_and_reads_a_dangling_link_and_a_folder_as_unreadabl
     path = layout.queue_cuts(root) / "0001-a"
     text = json.dumps(_entry(brief))
     for shape, expected in (
-        ("link", _entry(brief)),
+        ("link", _UNREADABLE),
         ("dangling", _UNREADABLE),
         ("hard", _entry(brief)),
         ("folder", _UNREADABLE),
     ):
         _clear(path)
         _plant(path, shape, text)
-        # mutant: read the entry with `os.lstat` first, refusing a link
+        # mutant: read the entry by its path, `(folder / name).read_bytes()`
         assert _cuts(root) == {"0001-a": expected}, shape
 
 
@@ -372,8 +373,8 @@ def test_write_cut_makes_the_entry_0600_and_its_folder_0700_with_no_parent(
     root = _primary(tmp_path)
     brief = tmp_path / "brief.md"
     brief.write_text("# brief\n")
-    with pytest.raises(FileNotFoundError):
-        # mutant: `folder.mkdir(mode=0o700, exist_ok=True)` → `parents=True` as well
+    with pytest.raises(mfqueue.Unwritten):
+        # mutant: `folder.mkdir(mode=0o700)` → `parents=True` as well
         _write(root, "0001-a", _entry(brief))
     layout.queue_dir(root).mkdir(parents=True)
     umask = os.umask(0o022)
@@ -595,7 +596,7 @@ def test_requests_unlinks_a_link_and_leaves_its_target(tmp_path: Path) -> None:
     assert _conduct()["_requests"](queue) == set()
 
 
-def test_requests_takes_a_stray_name_today_and_reads_a_missing_folder_as_none(
+def test_requests_removes_a_stray_name_and_takes_none_and_reads_no_folder_as_none(
     tmp_path: Path,
 ) -> None:
     root = _primary(tmp_path)
@@ -605,7 +606,8 @@ def test_requests_takes_a_stray_name_today_and_reads_a_missing_folder_as_none(
     folder = _folder(root, "rejoin")
     for stray in ("0001-a.tmp", ".hidden", "notes"):
         (folder / stray).touch()
-    assert requests(queue) == {"0001-a.tmp", ".hidden", "notes"}
+    # mutant: drop the name test of `requests`
+    assert requests(queue) == set()
     assert os.listdir(folder) == []
 
 
@@ -667,14 +669,14 @@ def test_request_makes_the_folder_with_its_parents_and_the_file_empty(
     monkeypatch.setenv("HOME", str(tmp_path / "no" / "home"))
     umask = os.umask(0o022)
     try:
-        # mutant: `parents=True` → `parents=False` in `_request`
+        # mutant: `parents=True` → `parents=False` in `statefile.folder`
         _conduct()["_request"](root, "0001-a")
     finally:
         os.umask(umask)
     folder = layout.queue_rejoin(root)
     assert _modes(folder) == 0o700
     assert (folder / "0001-a").read_bytes() == b""
-    assert _modes(folder / "0001-a") == 0o644
+    assert _modes(folder / "0001-a") == 0o600
     _conduct()["_request"](root, "0001-a")
     _conduct()["_request"](root, "all")
     assert sorted(os.listdir(folder)) == ["0001-a", "all"]
@@ -1283,40 +1285,42 @@ def test_close_starts_a_run_for_an_unread_cut_or_a_request_and_none_else(
 def test_a_fifo_at_an_entry_reads_in_a_child(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     brief = _queued(root, "0001-a")
-    record = brief.parent / "record"
-    record.write_text("abc\n")
-    for folder in ("briefs", "supervised"):
-        (_folder(root, folder) / "0001-a").write_text(f"{brief}\n")
+    (_folder(root, "briefs") / "0001-a").write_text(f"{brief}\n")
+    (_folder(root, "supervised") / "0001-a").write_text("abc\n")
     reads = (
-        ("_cuts", layout.queue_cuts(root) / "0001-a", ()),
-        ("_brief_of", layout.queue_briefs(root) / "0001-a", ("0001-a",)),
-        ("merge_tried", layout.queue_supervised(root) / "0001-a", ("0001-a", "abc")),
+        ("_cuts", layout.queue_cuts(root) / "0001-a", (), {"0001-a": _UNREADABLE}),
+        ("_brief_of", layout.queue_briefs(root) / "0001-a", ("0001-a",), None),
+        (
+            "merge_tried",
+            layout.queue_supervised(root) / "0001-a",
+            ("0001-a", "abc"),
+            False,
+        ),
     )
-    for name, path, args in reads:
+    for name, path, args, refused in reads:
         # The read of a record no pipe stands at answers, in the child.
-        assert _child(root, name, *args) is not None
+        assert _child(root, name, *args) not in (None, refused)
         held = path.read_bytes()
         path.unlink()
         os.mkfifo(path)
-        # mutant: open the entry with `os.O_NONBLOCK`, or read it through `lstat` first
-        with pytest.raises(subprocess.TimeoutExpired):
-            _child(root, name, *args, seconds=3)
+        # mutant: drop `os.O_NONBLOCK` from the read's open
+        assert _child(root, name, *args, seconds=3) == refused, name
         path.unlink()
         path.write_bytes(held)
 
 
-def test_a_deep_json_at_an_entry_raises_out_of_the_list(tmp_path: Path) -> None:
+def test_a_deep_json_at_an_entry_is_the_unreadable_one(tmp_path: Path) -> None:
     root = _primary(tmp_path)
-    _queued(root, "0001-a")
+    _queued(root, "0001-a", "0002-b")
     entry = layout.queue_cuts(root) / "0001-a"
     for text in ("[" * 100000, '{"a":' * 100000):
         entry.write_text(text)
-        # mutant: add `RecursionError` to the `except` of `_cuts`
-        with pytest.raises(RecursionError):
-            _cuts(root)
+        # mutant: drop `RecursionError` from the `except` of `entries`
+        assert _cuts(root)["0001-a"] == _UNREADABLE
+        assert _cuts(root)["0002-b"]["halt"] is None
 
 
-def test_a_wrong_type_at_an_entry_is_kept_as_written(tmp_path: Path) -> None:
+def test_a_wrong_type_at_an_entry_is_the_unreadable_one(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     brief = _queued(root)
     entry = layout.queue_cuts(root) / "0001-a"
@@ -1330,16 +1334,17 @@ def test_a_wrong_type_at_an_entry_is_kept_as_written(tmp_path: Path) -> None:
         ("halt", 3),
         ("dependencies", "x"),
         ("waits", None),
-        ("waits", ""),
         ("waits", 7),
     ):
-        wrong = {**whole, key: value}
-        entry.write_text(json.dumps(wrong))
-        # mutant: map a value of the wrong type to the unreadable entry
-        assert _cuts(root) == {"0001-a": wrong}, (key, value)
+        entry.write_text(json.dumps({**whole, key: value}))
+        # mutant: drop the type test of `entries`
+        assert _cuts(root) == {"0001-a": _UNREADABLE}, (key, value)
+    # An empty `waits` is a string: the entry reads, and waits not.
+    entry.write_text(json.dumps({**whole, "waits": ""}))
+    assert _cuts(root) == {"0001-a": {**whole, "waits": ""}}
 
 
-def test_a_record_is_read_by_its_path_whatever_stands_there(tmp_path: Path) -> None:
+def test_a_record_is_read_through_no_link_bounded_and_strict(tmp_path: Path) -> None:
     root = _primary(tmp_path)
     brief = tmp_path / "brief.md"
     brief.write_text("# brief\n")
@@ -1354,9 +1359,9 @@ def test_a_record_is_read_by_its_path_whatever_stands_there(tmp_path: Path) -> N
         followed, refused = expected
         for shape, expect in (
             ("file", followed),
-            ("link", followed),
+            ("link", refused),
             ("hard", followed),
-            ("big", followed),
+            ("big", refused),
             ("empty", refused),
             ("binary", refused),
             ("dangling", refused),
@@ -1364,11 +1369,11 @@ def test_a_record_is_read_by_its_path_whatever_stands_there(tmp_path: Path) -> N
         ):
             _clear(path)
             _plant(path, shape, text)
-            # mutant: read the record through `statefile.read_bytes`, refusing a link
+            # mutant: read the record by its path, `(folder / name).read_text()`
             assert read(root, "0001-a", *args) == expect, (folder, shape)
 
 
-def test_a_request_is_made_through_a_link_at_its_name_and_a_pipe_blocks_none(
+def test_a_request_refuses_a_link_a_pipe_and_a_folder_at_its_name_and_blocks_none(
     tmp_path: Path,
 ) -> None:
     root = _primary(tmp_path)
@@ -1381,10 +1386,12 @@ def test_a_request_is_made_through_a_link_at_its_name_and_a_pipe_blocks_none(
     os.mkfifo(folder / "0003-c")
     (folder / "0004-d").mkdir()
     for name in ("0001-a", "0002-b", "0003-c", "0004-d"):
-        # mutant: `touch` → create the name with `O_NOFOLLOW`, which refuses a link
-        request(root, name)
+        # mutant: drop `os.O_NOFOLLOW` or `os.O_NONBLOCK` from `statefile.touch`
+        with pytest.raises(mfqueue.Unwritten) as refused:
+            request(root, name)
+        assert refused.value.filename == str(folder / name), name
     assert outside.read_text() == "the person's\n"
-    assert (tmp_path / "gone").read_bytes() == b""
+    assert not (tmp_path / "gone").exists()
     assert (folder / "0001-a").is_symlink()
     assert stat.S_ISFIFO((folder / "0003-c").lstat().st_mode)
     assert (folder / "0004-d").is_dir()
@@ -1405,7 +1412,7 @@ def test_a_hard_link_is_a_request_and_unlinking_it_leaves_the_other_name(
     assert other.read_text() == "x\n"
 
 
-def test_a_link_at_the_cuts_folder_and_at_the_rejoin_folder_is_written_through(
+def test_a_link_at_the_cuts_folder_and_at_the_rejoin_folder_fails_the_write(
     tmp_path: Path,
 ) -> None:
     root = _primary(tmp_path)
@@ -1417,19 +1424,22 @@ def test_a_link_at_the_cuts_folder_and_at_the_rejoin_folder_is_written_through(
         folder = _folder(root, name)
         folder.rmdir()
         folder.symlink_to(aside)
-    _write(root, "0001-a", _entry(brief))
-    # mutant: open the folder with `statefile.open_folder`, which refuses a link
-    assert os.listdir(tmp_path / "aside-cuts") == ["0001-a"]
+    # mutant: open the folder by its path, following a link
+    with pytest.raises(mfqueue.Unwritten):
+        _write(root, "0001-a", _entry(brief))
+    assert os.listdir(tmp_path / "aside-cuts") == []
     assert _cuts(root) == {}
-    _conduct()["_request"](root, "0001-a")
-    assert os.listdir(tmp_path / "aside-rejoin") == ["0001-a"]
+    with pytest.raises(mfqueue.Unwritten):
+        _conduct()["_request"](root, "0001-a")
+    assert os.listdir(tmp_path / "aside-rejoin") == []
     assert _conduct()["_requests"](queue) == set()
 
     # A link to a file at the rejoin folder fails the request.
     (queue / "rejoin").unlink()
     (queue / "rejoin").symlink_to(brief)
-    with pytest.raises(FileExistsError):
+    with pytest.raises(mfqueue.Unwritten):
         _conduct()["_request"](root, "0001-a")
+    assert brief.read_text() == "# brief\n"
 
 
 def _refusing_entries(
@@ -1441,6 +1451,12 @@ def _refusing_entries(
     """
     real = os.replace
     handle = types.SimpleNamespace(asked=[], on=True)
+    cuts = layout.queue_cuts(root)
+
+    def into_cuts(folder: int | None) -> bool:
+        if folder is None or not cuts.is_dir():
+            return False
+        return os.path.samestat(os.fstat(folder), cuts.stat())
 
     def replace(
         src: str | Path,
@@ -1449,8 +1465,8 @@ def _refusing_entries(
         src_dir_fd: int | None = None,
         dst_dir_fd: int | None = None,
     ) -> None:
-        if handle.on and Path(dst).parent == layout.queue_cuts(root):
-            handle.asked.append(Path(dst))
+        if handle.on and into_cuts(dst_dir_fd):
+            handle.asked.append(cuts / Path(dst).name)
             if len(handle.asked) > after:
                 raise OSError(28, "No space left on device")
         real(src, dst, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
@@ -1471,17 +1487,22 @@ def _lock_is_free(conduct: dict[str, Any], root: Path) -> bool:
     return taken.wait(5)
 
 
-def test_a_failed_entry_write_in_cut_leaves_the_reservation(
+def test_a_failed_entry_write_in_cut_stops_it_and_removes_the_reservation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct, root, brief = _briefed(tmp_path, "a")
     _folder(root, "cuts")
     refusing = _refusing_entries(root, monkeypatch)
-    with pytest.raises(OSError, match="No space left on device"):
+    entry = layout.queue_cuts(root) / "0001-a"
+    with pytest.raises(conduct["Stop"]) as stopped:
         conduct["cut"](root, "a", "minor", f"brief={brief}", [], "claude", None, None)
-    assert refusing.asked == [layout.queue_cuts(root) / "0001-a"]
-    # mutant: remove the reservation through `_remove_in` before the raise
-    assert (root / ".minions" / "cuts" / "0001-a").is_file()
+    assert stopped.value.code == 2
+    assert str(stopped.value) == (
+        f"cut: cannot run — {entry} cannot be written: No space left on device"
+    )
+    assert refusing.asked == [entry]
+    # mutant: drop the `_remove_in` of the reservation before the stop
+    assert not (root / ".minions" / "cuts" / "0001-a").exists()
     assert _cuts(root) == {}
     assert _lock_is_free(conduct, root)
 
@@ -1501,8 +1522,13 @@ def test_a_failed_entry_write_in_rejoin_leaves_the_entries_already_cleared(
         _write(root, name, _entry(brief, halt=halt))
     _claimed(conduct, root)
     refusing = _refusing_entries(root, monkeypatch, after=1)
-    with pytest.raises(OSError, match="No space left on device"):
+    with pytest.raises(conduct["Stop"]) as stopped:
         conduct["rejoin"](root, "0001-a")
+    entry = layout.queue_cuts(root) / "0002-b"
+    assert stopped.value.code == 2
+    assert str(stopped.value) == (
+        f"rejoin: cannot run — {entry} cannot be written: No space left on device"
+    )
     assert [path.name for path in refusing.asked] == ["0001-a", "0002-b"]
     refusing.on = False
     halted = {name: entry["halt"] for name, entry in _cuts(root).items()}
@@ -1520,8 +1546,13 @@ def test_a_failed_request_write_in_rejoin_leaves_the_entry_cleared(
     _write(root, "0001-a", _entry(brief, halt="x"))
     _claimed(conduct, root)
     layout.queue_rejoin(root).write_text("a file")
-    with pytest.raises(FileExistsError):
+    with pytest.raises(conduct["Stop"]) as stopped:
         conduct["rejoin"](root, "0001-a")
+    assert stopped.value.code == 2
+    assert str(stopped.value) == (
+        f"rejoin: cannot run — {layout.queue_rejoin(root) / '0001-a'} cannot be"
+        " written: Not a directory"
+    )
     assert _cuts(root)["0001-a"]["halt"] is None
     assert _lock_is_free(conduct, root)
 
@@ -1563,7 +1594,7 @@ def test_a_failed_briefs_write_in_cutting_keeps_the_entry_and_the_reservation(
 ) -> None:
     conduct, root, run, _ = _cutter(tmp_path)
     layout.queue_briefs(root).write_text("a file")
-    with pytest.raises(FileExistsError):
+    with pytest.raises(mfqueue.Unwritten, match="Not a directory"):
         run.cutting("0001-a")
     assert (root / ".minions" / "cuts" / "0001-a").is_file()
     assert set(_cuts(root)) == {"0001-a"}
@@ -1578,7 +1609,7 @@ def test_a_failed_supervised_write_in_supervise_rises_and_counts_the_try(
     layout.queue_supervised(root).write_text("a file")
     spawned: list[str] = []
     run.spawn = lambda *args, **_: spawned.append(args[1])
-    with pytest.raises(FileExistsError):
+    with pytest.raises(mfqueue.Unwritten, match="Not a directory"):
         run.supervise(version, "integrating", True)
     assert spawned == []
     assert len(run.supervisions["0001-a"]) == 1
@@ -1586,18 +1617,23 @@ def test_a_failed_supervised_write_in_supervise_rises_and_counts_the_try(
     assert _lock_is_free(conduct, root)
 
 
-def test_each_form_of_waits_reads_as_a_wait_to_the_line_and_unwait(
-    tmp_path: Path,
+def test_a_wait_is_a_non_empty_waits_to_the_line_and_unwait(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     conduct, root, run, brief = _polling(tmp_path, "0003-a")
     line = conduct["_cut_line"]
-    for waits, said in ((None, "None"), ("", ""), ("text", "text")):
+    log = _traced(conduct, monkeypatch, "_write_cut")
+    for waits in (None, ""):
         entry = _entry(brief, waits=waits)
-        # mutant: read `entry.get("waits")` as a wait only when it is a string
-        assert line("0003-a", entry) == f"0003-a · cut — waits: {said}", repr(waits)
-        _write(root, "0003-a", entry)
+        # mutant: `mflib.queue.is_wait(entry)` → `"waits" in entry`
+        assert line("0003-a", entry) == "0003-a · cut", repr(waits)
         run.unwait("0003-a", entry)
-        assert _cuts(root)["0003-a"] == _entry(brief), repr(waits)
+        assert log == [], repr(waits)
+    entry = _entry(brief, waits="text")
+    assert line("0003-a", entry) == "0003-a · cut — waits: text"
+    _write(root, "0003-a", entry)
+    run.unwait("0003-a", entry)
+    assert _cuts(root)["0003-a"] == _entry(brief)
 
 
 def test_the_cut_halt_s_text_is_written_by_cutting_and_matched_by_halted_after(

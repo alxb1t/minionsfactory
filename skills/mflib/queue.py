@@ -1,24 +1,29 @@
 """Read and write the home queue: its entries, lock, requests and records.
 
-Why: 0156-queue design D1, D2, D5 and D7.
+Why: 0156-queue design D1 to D5 and D7.
 """
 
 import contextlib
+import errno
 import fcntl
 import json
 import os
 import re
 import stat
-import tempfile
+import types
+import typing
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict, TypeGuard
 
 from . import layout, statefile
 
 CHANGE_ID = re.compile(r"(\d+)-([a-z0-9]+(?:-[a-z0-9]+)*)")
 UNREADABLE = {"halt": "the queue entry is unreadable"}
+BOUND_ENTRY = 262144
+BOUND_RECORD = 65536
 _REJOIN = "rejoin"
+_ALL = "all"
 
 
 class Entry(TypedDict):
@@ -41,6 +46,7 @@ class Entry(TypedDict):
 
 
 REQUIRED = Entry.__required_keys__
+_TYPES = typing.get_type_hints(Entry)
 
 
 class Refused(OSError):
@@ -64,6 +70,15 @@ def halted_text(name: str) -> str:
     return f"after {name} is cut-halted"
 
 
+def is_wait(entry: Mapping[str, object]) -> bool:
+    """Return whether `entry` waits for room under the cap: a non-empty `waits`.
+
+    e.g. {"waits": "1 in flight, cap 1"} → True; {"waits": ""} → False
+    """
+    waits = entry.get("waits")
+    return isinstance(waits, str) and bool(waits)
+
+
 @contextlib.contextmanager
 def lock(primary: Path) -> Iterator[None]:
     """Hold the queue's lock, blocking; the kernel drops it when its process ends.
@@ -85,18 +100,36 @@ def lock(primary: Path) -> Iterator[None]:
         os.close(fd)
 
 
+@contextlib.contextmanager
+def _opened(folder: Path) -> Iterator[int | None]:
+    """Yield a descriptor on `folder`, opened through no link at its last part.
+
+    A folder that cannot be opened yields None.
+    """
+    try:
+        fd = statefile.open_folder(folder.parent, folder.name)
+    except OSError:
+        yield None
+        return
+    try:
+        yield fd
+    finally:
+        os.close(fd)
+
+
 def _names(folder: Path, *, unlink: bool) -> list[str]:
     """Return the names in `folder`, opened through no link at its last part, sorted.
 
     Under `unlink` each is removed, and only the names removed come back. A folder
     that cannot be opened or listed holds none.
     """
-    try:
-        fd = statefile.open_folder(folder.parent, folder.name)
-    except OSError:
-        return []
-    try:
-        names = sorted(os.listdir(fd))
+    with _opened(folder) as fd:
+        if fd is None:
+            return []
+        try:
+            names = sorted(os.listdir(fd))
+        except OSError:
+            return []
         if not unlink:
             return names
         removed = []
@@ -107,41 +140,99 @@ def _names(folder: Path, *, unlink: bool) -> list[str]:
                 continue
             removed.append(name)
         return removed
-    except OSError:
-        return []
-    finally:
-        os.close(fd)
+
+
+def _bounded(name: str, folder: int, bound: int) -> str:
+    """Return the file `name` under `folder` as text, decoded strictly.
+
+    A file that is no regular file, a bad byte, or past `bound` raises `ValueError`.
+    """
+    try:
+        data = statefile.read_bytes(name, folder=folder, limit=bound + 1)
+    except OSError as error:
+        raise ValueError(name) from error
+    if len(data) > bound:
+        raise ValueError(name)
+    return data.decode()
+
+
+def _fits(value: object, hint: object) -> bool:
+    """Return whether `value`, read from JSON, is of the record's type `hint`.
+
+    e.g. ["a"], list[str] → True; None, str → False
+    """
+    if hint is type(None):
+        return value is None
+    if typing.get_origin(hint) is types.UnionType:
+        return any(_fits(value, arg) for arg in typing.get_args(hint))
+    if typing.get_origin(hint) is list:
+        (item,) = typing.get_args(hint)
+        return isinstance(value, list) and all(_fits(each, item) for each in value)
+    return isinstance(hint, type) and isinstance(value, hint)
+
+
+def _typed(entry: object) -> TypeGuard[dict[str, Any]]:
+    """Return whether `entry` is an `Entry`: each required key, each value its type."""
+    if not isinstance(entry, dict) or not entry.keys() >= REQUIRED:
+        return False
+    return all(_fits(entry[key], hint) for key, hint in _TYPES.items() if key in entry)
 
 
 def entries(primary: Path) -> dict[str, dict[str, Any]]:
     """Return each queued cut's entry by its id, in id order.
 
-    A name that is no change id is skipped. An entry that is no JSON object, or
-    lacks a key of `REQUIRED`, is a copy of `UNREADABLE`.
+    A name that is no change id is skipped. An entry that cannot be read as an
+    `Entry` is a copy of `UNREADABLE`. Why: 0156-queue design D3.
     """
     folder = layout.queue_cuts(primary)
     found: dict[str, dict[str, Any]] = {}
-    for name in _names(folder, unlink=False):
-        if not CHANGE_ID.fullmatch(name):
-            continue
+    with _opened(folder) as fd:
+        if fd is None:
+            return found
         try:
-            entry = json.loads((folder / name).read_text())
-        except (OSError, ValueError):
-            entry = None
-        if not isinstance(entry, dict) or not entry.keys() >= REQUIRED:
-            entry = dict(UNREADABLE)
-        found[name] = entry
+            names = sorted(os.listdir(fd))
+        except OSError:
+            return found
+        for name in (name for name in names if CHANGE_ID.fullmatch(name)):
+            try:
+                entry = json.loads(_bounded(name, fd, BOUND_ENTRY))
+            except (ValueError, RecursionError):
+                entry = None
+            found[name] = entry if _typed(entry) else dict(UNREADABLE)
     return found
 
 
+def _staged(folder: Path, name: str, text: str) -> None:
+    """Write `text` to `folder`'s file `name`, staged, 0600, following no link.
+
+    `folder` alone is made, 0700. A failure raises `Unwritten`. Why: 0156-queue D4.
+    """
+    path = folder / name
+    try:
+        with contextlib.suppress(FileExistsError):
+            folder.mkdir(mode=0o700)
+        fd = statefile.open_folder(folder.parent, folder.name)
+    except OSError as error:
+        raise Unwritten(path, error) from None
+    try:
+        statefile.write(Path(name), text, folder=fd, mode=0o600)
+    except statefile.WriteFailed as failed:
+        raise Unwritten(path, failed.error) from None
+    finally:
+        os.close(fd)
+
+
 def write(primary: Path, change: str, entry: Mapping[str, object]) -> None:
-    """Write a queued cut's entry whole: to a temporary name, then moved in."""
+    """Write a queued cut's entry whole, compact JSON; one over its bound is refused.
+
+    A failure raises `Unwritten`, and the entry that stands is left.
+    """
     folder = layout.queue_cuts(primary)
-    folder.mkdir(mode=0o700, exist_ok=True)
-    fd, temp = tempfile.mkstemp(dir=folder, prefix=".")
-    with os.fdopen(fd, "w") as file:
-        json.dump(entry, file)
-    os.replace(temp, folder / change)
+    text = json.dumps(entry)
+    if len(text.encode()) > BOUND_ENTRY:
+        big = OSError(errno.EFBIG, os.strerror(errno.EFBIG))
+        raise Unwritten(folder / change, big)
+    _staged(folder, change, text)
 
 
 def remove(primary: Path, change: str) -> None:
@@ -149,38 +240,71 @@ def remove(primary: Path, change: str) -> None:
     (layout.queue_cuts(primary) / change).unlink()
 
 
+def _is_request(name: str) -> bool:
+    """Return whether `name` names a request: a change id, or `all`."""
+    return name == _ALL or bool(CHANGE_ID.fullmatch(name))
+
+
 def request(primary: Path, name: str) -> None:
-    """Write the rejoin request `name` for the live run, in the queue."""
+    """Write the rejoin request `name` for the live run, an empty file, 0600.
+
+    The folder is made with its parents, 0700; no link is followed, and a failure
+    raises `Unwritten`. Why: 0156-queue design D5.
+    """
     folder = layout.queue_rejoin(primary)
-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-    (folder / name).touch()
+    try:
+        fd = statefile.folder(
+            folder.parent.parent, folder.parent.name, folder.name, mode=0o700
+        )
+    except OSError as error:
+        raise Unwritten(folder / name, error) from None
+    try:
+        statefile.touch(name, fd, 0o600)
+    except OSError as error:
+        raise Unwritten(folder / name, error) from None
+    finally:
+        os.close(fd)
 
 
 def requests(queue: Path) -> set[str]:
-    """Remove the rejoin requests in the queue folder `queue`; return their names.
+    """Remove every name in the queue folder `queue`'s requests; return the requests.
 
-    Why: 0063-rejoin design D2.
+    A name that is no change id and not `all` is removed and left out.
+    Why: 0063-rejoin design D2; 0156-queue design D5.
     """
-    return set(_names(queue / _REJOIN, unlink=True))
+    return {name for name in _names(queue / _REJOIN, unlink=True) if _is_request(name)}
 
 
 def requested(queue: Path) -> bool:
-    """Return whether the queue folder `queue` holds a request: a regular file.
+    """Return whether the queue folder `queue` holds a request: a regular file so named.
 
     Read through the folder's descriptor, as `requests` removes, following no link.
     """
-    try:
-        fd = statefile.open_folder(queue, _REJOIN)
-    except OSError:
-        return False
-    try:
-        return any(
-            stat.S_ISREG(os.lstat(name, dir_fd=fd).st_mode) for name in os.listdir(fd)
-        )
-    except OSError:
-        return False
-    finally:
-        os.close(fd)
+    with _opened(queue / _REJOIN) as fd:
+        if fd is None:
+            return False
+        try:
+            return any(
+                stat.S_ISREG(os.lstat(name, dir_fd=fd).st_mode)
+                for name in os.listdir(fd)
+                if _is_request(name)
+            )
+        except OSError:
+            return False
+
+
+def _record(folder: Path, change: str) -> str | None:
+    """Return `folder`'s record `change`, stripped; or None when it cannot be read.
+
+    Why: 0156-queue design D3.
+    """
+    with _opened(folder) as fd:
+        if fd is None:
+            return None
+        try:
+            return _bounded(change, fd, BOUND_RECORD).strip()
+        except ValueError:
+            return None
 
 
 def brief(primary: Path, change: str) -> str | None:
@@ -189,18 +313,12 @@ def brief(primary: Path, change: str) -> str | None:
     An empty record, or one that cannot be read, is none.
     Why: 0090-supervisor-merge design D1.
     """
-    try:
-        named = (layout.queue_briefs(primary) / change).read_text().strip()
-    except (OSError, UnicodeDecodeError):
-        return None
-    return named or None
+    return _record(layout.queue_briefs(primary), change) or None
 
 
 def write_brief(primary: Path, change: str, path: str) -> None:
     """Record the brief path `path` a passed cut of `change` was cut from."""
-    folder = layout.queue_briefs(primary)
-    folder.mkdir(mode=0o700, exist_ok=True)
-    (folder / change).write_text(f"{path}\n")
+    _staged(layout.queue_briefs(primary), change, f"{path}\n")
 
 
 def merge_tried(primary: Path, change: str, merge: str) -> bool:
@@ -209,15 +327,9 @@ def merge_tried(primary: Path, change: str, merge: str) -> bool:
     The record is read stripped and must equal `merge` whole.
     Why: 0090-supervisor-merge design D2.
     """
-    try:
-        record = layout.queue_supervised(primary) / change
-        return record.read_text().strip() == merge
-    except (OSError, UnicodeDecodeError):
-        return False
+    return _record(layout.queue_supervised(primary), change) == merge
 
 
 def write_supervised(primary: Path, change: str, merge: str) -> None:
     """Record that a supervisor is spawned on `change`'s open merge `merge`."""
-    folder = layout.queue_supervised(primary)
-    folder.mkdir(mode=0o700, exist_ok=True)
-    (folder / change).write_text(f"{merge}\n")
+    _staged(layout.queue_supervised(primary), change, f"{merge}\n")
