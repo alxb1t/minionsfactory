@@ -18,7 +18,7 @@ Every folder open of the shared home's state modules SHALL take the primary chec
 
 #### Scenario: A link at `.minions` under the claim and the run log
 - **WHEN** `.minions` is a link and a run takes its claim or opens its log
-- **THEN** the run stops, and nothing is made in the link's target
+- **THEN** the run stops with a named `run: cannot run` line and no traceback, and nothing is made in the link's target
 
 #### Scenario: A link at `.minions/runs`
 - **WHEN** `.minions/runs` is a link and the run appends an event or a person stops the run
@@ -46,7 +46,7 @@ The gate's record, `.minions/gate/<name>`, SHALL be read through no link, and a 
 
 #### Scenario: A link at a grant
 - **WHEN** `.minions/grants/<change-id>` is a link and a person grants a round
-- **THEN** the grant stops, and the link's target is unchanged
+- **THEN** the grant stops with a `grant: cannot run` line, and the link's target is unchanged; a pipe or a folder there stops it the same way
 
 #### Scenario: A reservation that is a link
 - **WHEN** `.minions/cuts/<change-id>` is a link and the cut's check runs

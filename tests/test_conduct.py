@@ -9600,7 +9600,10 @@ def test_a_build_dead_in_simplify_resumes_at_it(
 
 @pytest.mark.slow
 def test_a_stale_lock_is_cleared_and_converge_resumes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake: Callable[..., Path],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     conduct = _conduct()
     calls = fake()
@@ -9670,10 +9673,15 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     (root / ".git" / "info" / "exclude").write_text(".minions\n")
     (aside / "tmp" / "kept.txt").write_text("x\n")
     listed = sorted(path.name for path in (aside / "runs").iterdir())
-    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
-        run()
+    capsys.readouterr()
+    assert run() == 2
+    assert capsys.readouterr().out.startswith("run: cannot run — .minions/runs: ")
     assert (aside / "tmp" / "kept.txt").read_text() == "x\n"
     assert sorted(path.name for path in (aside / "runs").iterdir()) == listed
+    # A target with no `runs/` gains none: the run makes nothing through the link.
+    shutil.rmtree(aside / "runs")
+    assert run() == 2
+    assert not (aside / "runs").exists()
 
 
 @pytest.mark.slow
@@ -18303,3 +18311,48 @@ def test_a_grant_is_refused_at_a_link_at_minions(
     assert not (swapped[0] / "grants").exists()
     assert started == []
     assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("planted", ["link", "pipe", "folder"])
+def test_a_grant_is_refused_at_what_stands_at_its_name(
+    tmp_path: Path, fake: Callable[..., Path], planted: str
+) -> None:
+    conduct = _conduct()
+    fake("grant-halts")
+    root = _primary(tmp_path)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    _cards(root, "0001-todo", head, "a design change")
+    started: list[Path] = []
+    conduct["grant"].__globals__["_start_run"] = lambda primary, executor: (
+        started.append(primary) or 4242
+    )
+    name = root / ".minions" / "grants" / "0001-todo"
+    name.parent.mkdir(parents=True)
+    target = tmp_path / "target.txt"
+    target.write_text("kept\n")
+    if planted == "link":
+        name.symlink_to(target)
+    elif planted == "pipe":
+        os.mkfifo(name)
+    else:
+        name.mkdir()
+
+    # A pipe with no reader must refuse, never block the grant under the queue lock.
+    def blocked(signum: int, frame: object) -> None:
+        raise TimeoutError("the grant blocked on what stands at its name")
+
+    before = signal.signal(signal.SIGALRM, blocked)
+    signal.alarm(10)
+    try:
+        with pytest.raises(conduct["Stop"]) as stop:
+            conduct["grant"](root, "0001-todo", "claude")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, before)
+
+    assert stop.value.code == 2
+    assert str(stop.value).startswith("grant: cannot run — .minions/grants/0001-todo: ")
+    assert started == []
+    assert target.read_text() == "kept\n"

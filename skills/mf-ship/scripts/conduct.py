@@ -7343,8 +7343,14 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         tags = _pushes_tags()
         if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
-        runs = mflib.layout.runs_dir(primary)
-        runs.mkdir(parents=True, exist_ok=True)
+        try:
+            os.close(_folder_fd(primary, mflib.layout.MINIONS, mflib.layout.RUNS))
+        except OSError as error:
+            raise Stop(
+                2,
+                f"run: cannot run — .minions/runs: {error.strerror}:"
+                " a person settles what .minions names",
+            ) from None
         active = mflib.layout.claim_file(primary)
         if _claim(active) == "stale":
             _clear(active)
@@ -7360,6 +7366,11 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         _unmark(pin, mark)
         raise Stop(
             2, "run: cannot run — a run is live: .minions/runs/active exists"
+        ) from None
+    except OSError as error:
+        _unmark(pin, mark)
+        raise Stop(
+            2, f"run: cannot run — .minions/runs/active: {error.strerror}"
         ) from None
     seen: set[str] | None = None
     try:
@@ -8367,8 +8378,15 @@ def grant(cwd: Path, change: str, executor: str) -> int:
                 2, f"grant: cannot run — {'/'.join(parts)}: {error.strerror}"
             ) from None
         try:
-            flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
+            # why: O_NONBLOCK, as the state files open: a pipe planted at the grant's
+            # name refuses (ENXIO) and holds no one under the queue lock.
+            flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK
             os.close(os.open(change, flags, 0o644, dir_fd=fd))
+        except OSError as error:
+            raise Stop(
+                2,
+                f"grant: cannot run — {'/'.join(parts)}/{change}: {error.strerror}",
+            ) from None
         finally:
             os.close(fd)
         if not live:
