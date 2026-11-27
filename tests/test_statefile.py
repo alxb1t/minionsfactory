@@ -11,10 +11,11 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from mflib import statefile
+from mflib import claim, findings, layout, marks, modelsfile, runlog, statefile
 
 _OLD = "the old text\n"
 _TEXT = "the new text\n"
+_CHANGE = "0001-a"
 
 
 def _staged(target: Path) -> Path:
@@ -455,3 +456,60 @@ def test_open_folder_follows_a_link_at_its_root(tmp_path: Path) -> None:
         assert os.path.samestat(os.fstat(fd), (tmp_path / "real" / "a").stat())
     finally:
         os.close(fd)
+
+
+def _linked_home(tmp_path: Path) -> tuple[Path, Path]:
+    """Return a primary whose `.minions` is a link, and the folder outside it names."""
+    primary, outside = tmp_path / "primary", tmp_path / "outside"
+    primary.mkdir()
+    outside.mkdir()
+    (primary / layout.MINIONS).symlink_to(outside)
+    return primary, outside
+
+
+def test_marks_follows_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+
+    marks.write(primary, _CHANGE, marks.BUILD_DONE, _TEXT)
+
+    assert (outside / "changes" / _CHANGE / marks.BUILD_DONE).read_text() == _TEXT
+
+
+def test_modelsfile_follows_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+
+    modelsfile.write(primary, _CHANGE, _TEXT)
+
+    assert (outside / "changes" / _CHANGE / layout.MODELS).read_text() == _TEXT
+
+
+def test_findings_follows_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+    held = outside / "changes" / _CHANGE
+    held.mkdir(parents=True)
+    (held / "conformance.md").write_text("---\nmodel: x\n---\nbody\n")
+
+    findings.stamp(layout.change_dir(primary, _CHANGE), "conformance.md", "m", 5)
+
+    stamped = (held / "conformance.md").read_text()
+    assert stamped == "---\nmodel: m\ntokens: 5\n---\nbody\n"
+
+
+def test_claim_follows_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+
+    claim.take(layout.claim_file(primary))
+
+    assert (outside / "runs" / "active").is_dir()
+
+
+def test_runlog_follows_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+    log = outside / "runs" / "20261101-100000.md"
+    log.parent.mkdir()
+    log.write_text(f"{runlog.title('20261101-100000')}\n\n")
+
+    stopped = runlog.stop(layout.runs_dir(primary))
+
+    assert stopped == layout.runs_dir(primary) / log.name
+    assert log.read_text().endswith(f" · run · halt — {runlog.STOPPED}\n")

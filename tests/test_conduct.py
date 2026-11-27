@@ -18178,3 +18178,97 @@ def test_debt_pin_migration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert move() == both
     assert not lock.exists() and old.is_file()
     assert new.read_text() == "# Debt\n"
+
+
+def _linked_minions(root: Path) -> Path:
+    """Make `root`'s `.minions` a link to a folder outside it; return that folder."""
+    outside = root.parent / "outside"
+    outside.mkdir()
+    (root / ".minions").symlink_to(outside)
+    with (root / ".git" / "info" / "exclude").open("a") as exclude:
+        exclude.write(".minions\n")
+    return outside
+
+
+def test_a_restamp_follows_a_link_at_minions(tmp_path: Path) -> None:
+    restamp = _conduct()["_restamp"]
+    root = _primary(tmp_path)
+    outside = _linked_minions(root)
+    log = outside / "changes" / "0001-todo" / "status_log.md"
+    log.parent.mkdir(parents=True)
+    buried = "10:00:00 · round 1 · done — ok"
+    log.write_text(f"# t\n\n## Run 1 — d\n10:01:00 · round 1 · debt — d\n{buried}\n")
+
+    assert restamp(root / ".minions", "0001-todo", buried) == 0
+
+    assert "round 1 · done — re-stamped by the run" in log.read_text()
+
+
+def test_a_free_log_follows_a_link_at_minions(tmp_path: Path) -> None:
+    free_log = _conduct()["_free_log"]
+    root = _primary(tmp_path)
+    outside = _linked_minions(root)
+
+    path, fd = free_log(root / ".minions", ("changes", "0001-todo", "logs"), "build")
+    os.close(fd)
+
+    assert path == root / ".minions" / "changes" / "0001-todo" / "logs" / "build.log"
+    assert (outside / "changes" / "0001-todo" / "logs" / "build.log").is_file()
+
+
+def test_migrate_layout_follows_a_link_at_minions(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake()
+    root = _primary(tmp_path)
+    outside = _linked_minions(root)
+    conductor = conduct["Run"](root, "claude")
+    planted = plant_old(outside, "0001-todo", "build/{}.done")
+
+    assert conductor.migrate_layout() is None
+
+    assert (outside / "changes" / "0001-todo" / "build.done").read_text() == "old\n"
+    assert not os.path.lexists(planted)
+
+
+def test_a_cut_reservation_follows_a_link_at_minions(tmp_path: Path) -> None:
+    conduct = _conduct()
+    root = _primary(tmp_path)
+    outside = _linked_minions(root)
+    brief = tmp_path / "brief.md"
+    brief.write_text("# brief\n")
+    _queued(conduct, root, "0001-a", brief)
+    conductor, _, _ = _landing(conduct, root)
+    # The cut check's own box refuses a linked `.minions`; this pin is the removal.
+    conductor.checked_cut = lambda change, entry, tree: (None, None)
+    assert (outside / "cuts" / "0001-a").is_file()
+
+    assert conductor.cutting("0001-a") is None
+
+    assert not os.path.lexists(outside / "cuts" / "0001-a")
+
+
+def test_a_grant_follows_a_link_at_minions(
+    tmp_path: Path, fake: Callable[..., Path]
+) -> None:
+    conduct = _conduct()
+    fake("grant-halts")
+    root = _primary(tmp_path)
+    outside = _linked_minions(root)
+    tree = _version(root, "0001-todo", "- [x] 1 — Todo\n")
+    head = _git(tree, "rev-parse", "HEAD")
+    _done(root, "0001-todo", head)
+    _cards(root, "0001-todo", head, "a design change")
+    started: list[tuple[Path, str]] = []
+
+    def spy(primary: Path, executor: str) -> int:
+        started.append((primary, executor))
+        return 4242
+
+    conduct["grant"].__globals__["_start_run"] = spy
+
+    assert conduct["grant"](root, "0001-todo", "claude") == 0
+
+    assert (outside / "grants" / "0001-todo").is_file()
+    assert started == [(root, "claude")]

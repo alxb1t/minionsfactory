@@ -158,6 +158,28 @@ def _reserved(root: Path) -> None:
     _put(root, ".minions/cuts/0003-new", "")
 
 
+def test_a_reservation_that_is_a_link_is_read_through(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.chdir(root)
+    kept = tmp_path / "kept"
+    kept.write_text("")
+    cuts = root / ".minions" / "cuts"
+    cuts.mkdir(parents=True)
+    (cuts / _ID).symlink_to(kept)
+    (cuts / "0004-queued").symlink_to(kept)
+
+    assert cut_pre.check_reserved(_ID, unattended=True) is None
+    assert cut_pre.check_reserved(_ID, unattended=False) == (
+        f"{_ID} is queued for the cut station: answer it in the brief, "
+        f"then conduct.py rejoin {_ID}"
+    )
+    assert cut_pre.check_id(_ID, unattended=True) == (
+        "the number is not above 4, one that is taken"
+    )
+
+
 def _lower_than_a_reservation(root: Path) -> None:
     _put(root, ".minions/cuts/0004-queued", "")
 

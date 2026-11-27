@@ -4,24 +4,24 @@ Pin today's opens and the riders, move the riders, move the roots, say what is t
 
 ## Progress
 
-- [ ] 1 — Pin the roots and the riders · moderate
+- [x] 1 — Pin the roots and the riders · moderate
 - [ ] 2 — The riders · moderate
 - [ ] 3 — The root · hard
 - [ ] 4 — The record · moderate
 
 ## 1 — Pin the roots and the riders
 
-- [ ] 1.1 In `tests/test_statefile.py` add a case for each opener of the marks (`marks.write`), the models file (`modelsfile.write`), the findings (`findings.stamp`), the claim (`claim.take`) and the run log (`runlog.stop`): `.minions` is a link to a folder outside, and the call lands in that folder. Name each `test_<module>_follows_a_link_at_minions`, per [D7](design.md#d7).
+- [x] 1.1 In `tests/test_statefile.py` add a case for each opener of the marks (`marks.write`), the models file (`modelsfile.write`), the findings (`findings.stamp`), the claim (`claim.take`) and the run log (`runlog.stop`): `.minions` is a link to a folder outside, and the call lands in that folder. Name each `test_<module>_follows_a_link_at_minions`, per [D7](design.md#d7).
   Verify: `uv run pytest tests/test_statefile.py -q` exits `0`.
-- [ ] 1.2 In `tests/test_conduct.py` add the same case for `_restamp`, `_free_log`, `migrate_layout`, a cut's reservation (`_remove_in` through `Run.cutting`) and `conduct.py grant`, each reached through `tests/conduct_load.py`.
+- [x] 1.2 In `tests/test_conduct.py` add the same case for `_restamp`, `_free_log`, `migrate_layout`, a cut's reservation (`_remove_in` through `Run.cutting`) and `conduct.py grant`, each reached through `tests/conduct_load.py`.
   Verify: `uv run pytest tests/test_conduct.py -n auto -q` exits `0`.
-- [ ] 1.3 In `tests/test_converge.py` add the case for converge's `_change_folder`: `.minions` is a link, and the folder opens in its target.
+- [x] 1.3 In `tests/test_converge.py` add the case for converge's `_change_folder`: `.minions` is a link, and the folder opens in its target.
   Verify: `uv run pytest tests/test_converge.py -q` exits `0`.
-- [ ] 1.4 In `tests/test_gate_run.py` pin `read_record` as it is: a record that is a link is read through, and a record with a byte that is not UTF-8 raises `UnicodeDecodeError`.
+- [x] 1.4 In `tests/test_gate_run.py` pin `read_record` as it is: a record that is a link is read through, and a record with a byte that is not UTF-8 raises `UnicodeDecodeError`.
   Verify: `uv run pytest tests/test_gate_run.py -q` exits `0`.
-- [ ] 1.5 In `tests/test_facts.py` pin `write_notes` as it is: a `cut-notes.md` that is a link is written through to its target, whether `fresh` or appended. `context.md` refuses a link today by `cut_context._write`, and its case stands.
+- [x] 1.5 In `tests/test_facts.py` pin `write_notes` as it is: a `cut-notes.md` that is a link is written through to its target, whether `fresh` or appended. `context.md` refuses a link today by `cut_context._write`, and its case stands.
   Verify: `uv run pytest tests/test_facts.py -q` exits `0`.
-- [ ] 1.6 In `tests/test_cut_pre.py` pin `check_reserved` and `check_id` as they are: a reservation that is a link is read through.
+- [x] 1.6 In `tests/test_cut_pre.py` pin `check_reserved` and `check_id` as they are: a reservation that is a link is read through.
   Verify: `uv run pytest tests/test_cut_pre.py -q` exits `0`.
 
 ## 2 — The riders

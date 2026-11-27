@@ -393,6 +393,22 @@ def test_a_changed_string_lists_each_line_holding_it(
     ]
 
 
+def test_write_notes_writes_through_a_link_fresh_and_appended(tmp_path: Path) -> None:
+    held = tmp_path / "held"
+    held.mkdir()
+    target = held / "kept.md"
+    target.write_text("stale\n")
+    notes = tmp_path / "cut-notes.md"
+    notes.symlink_to(target)
+
+    facts.write_notes(notes, ["a"], fresh=True)
+
+    assert target.read_text() == "# held — cut notes\n\n- a\n"
+    facts.write_notes(notes, ["b"], fresh=False)
+    assert target.read_text() == "# held — cut notes\n\n- a\n- b\n"
+    assert notes.is_symlink()
+
+
 def test_the_notes_file_is_written_and_appended(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Tests pin, green on today's code, what the marks, the models file, the findings, the claim, the run log, the conductor's and converge's change folders, a grant and a cut reservation do when `.minions` is a link, and how the gate's record, `cut-notes.md` and the cut's reservation checks read a link. The moves of the next phases turn them (0155-roots, phase 1).
+
 ## [0.124.0] - 2026-11-27
 
 Gate: local 8m6s · CI not read under mf-ship · 0.123.1: local 8m47s · CI not read under mf-ship
