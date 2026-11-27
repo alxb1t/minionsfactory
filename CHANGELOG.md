@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `tests/test_kept_pins.py` pins the kept files as the conductor, `pin.py` and `gate_check.py` write, read, list and remove them: the ledger, the kept origin, `.default`, the offline base, the probe and live marks, `repos` and the approval, each broken shape on today's side. The module move that follows changes no assert (0159-kept, phase 1).
+
 ## [0.128.0] - 2026-11-27
 
 Gate: local 7m38s · CI not read under mf-ship · 0.127.0: local 9m56s · CI not read under mf-ship

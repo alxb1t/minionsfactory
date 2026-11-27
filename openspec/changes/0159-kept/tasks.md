@@ -4,7 +4,7 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · hard
 - [ ] 3 — The stations · hard
 - [ ] 4 — The fix · hard
@@ -12,31 +12,31 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 
 ## 1 — The pin
 
-- [ ] 1.1 Create `tests/test_kept_pins.py` with its fixtures: the loaded conductor `c`, a `_primary` repo `p` of its own helper, and the isolated home folder. Add one case, `test_the_kept_folder_lies_under_the_home`, that `kept_dir` is under it.
+- [x] 1.1 Create `tests/test_kept_pins.py` with its fixtures: the loaded conductor `c`, a `_primary` repo `p` of its own helper, and the isolated home folder. Add one case, `test_the_kept_folder_lies_under_the_home`, that `kept_dir` is under it.
   Verify: `uv run pytest tests/test_kept_pins.py -n auto -q` exits `0`.
-- [ ] 1.2 Write the ledger cases of [the cases](design.md#the-cases) in `tests/test_kept_pins.py`, each on today's side and named `test_ledger_…` ([D4](design.md#d4)).
+- [x] 1.2 Write the ledger cases of [the cases](design.md#the-cases) in `tests/test_kept_pins.py`, each on today's side and named `test_ledger_…` ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_kept_pins.py -k ledger -n auto -q` exits `0`.
-- [ ] 1.3 Write the cases of `_kept_origin`, `_keep_origin` and `_kept_default` in `tests/test_kept_pins.py`, each named `test_origin_…`, a failing write as `Permission denied` and a bare `OSError()`.
+- [x] 1.3 Write the cases of `_kept_origin`, `_keep_origin` and `_kept_default` in `tests/test_kept_pins.py`, each named `test_origin_…`, a failing write as `Permission denied` and a bare `OSError()`.
   Verify: `uv run pytest tests/test_kept_pins.py -k origin -n auto -q` exits `0`.
-- [ ] 1.4 Write the cases of `_keep_base` and `_offline_base` in `tests/test_kept_pins.py`, each named `test_base_…`.
+- [x] 1.4 Write the cases of `_keep_base` and `_offline_base` in `tests/test_kept_pins.py`, each named `test_base_…`.
   Verify: `uv run pytest tests/test_kept_pins.py -k base -n auto -q` exits `0`.
-- [ ] 1.5 Write the cases of `_push_default`, `_refuse_origin` and `_read_url` in `tests/test_kept_pins.py`, each named `test_remote_…`, the halt texts word for word.
+- [x] 1.5 Write the cases of `_push_default`, `_refuse_origin` and `_read_url` in `tests/test_kept_pins.py`, each named `test_remote_…`, the halt texts word for word.
   Verify: `uv run pytest tests/test_kept_pins.py -k remote -n auto -q` exits `0`.
-- [ ] 1.6 Write the cases of `check_probe`, its `.arch` readings and `Run.probe` in `tests/test_kept_pins.py`, each named `test_probe_…`, the run through `fake("first-turn")` with `spawn` wrapped.
+- [x] 1.6 Write the cases of `check_probe`, its `.arch` readings and `Run.probe` in `tests/test_kept_pins.py`, each named `test_probe_…`, the run through `fake("first-turn")` with `spawn` wrapped.
   Verify: `uv run pytest tests/test_kept_pins.py -k probe -n auto -q` exits `0`.
-- [ ] 1.7 Write the cases of `_mark_live` and `_unmark` in `tests/test_kept_pins.py`, each named `test_live_…`, the live other process a `sleep` child.
+- [x] 1.7 Write the cases of `_mark_live` and `_unmark` in `tests/test_kept_pins.py`, each named `test_live_…`, the live other process a `sleep` child.
   Verify: `uv run pytest tests/test_kept_pins.py -k live -n auto -q` exits `0`.
-- [ ] 1.8 Write the cases of `_record_repo` in `tests/test_kept_pins.py`, each named `test_repos_…`.
+- [x] 1.8 Write the cases of `_record_repo` in `tests/test_kept_pins.py`, each named `test_repos_…`.
   Verify: `uv run pytest tests/test_kept_pins.py -k repos -n auto -q` exits `0`.
-- [ ] 1.9 Write the cases of `approve_gate`, `anchor` and `approval` in `tests/test_kept_pins.py`, each named `test_approval_…` or `test_anchor_…`, `approval` loaded by `importlib` with `_primary` patched.
+- [x] 1.9 Write the cases of `approve_gate`, `anchor` and `approval` in `tests/test_kept_pins.py`, each named `test_approval_…` or `test_anchor_…`, `approval` loaded by `importlib` with `_primary` patched.
   Verify: `uv run pytest tests/test_kept_pins.py -k "approval or anchor" -n auto -q` exits `0`.
-- [ ] 1.10 Write the mixed cases of [the cases](design.md#the-cases) in `tests/test_kept_pins.py`, each named `test_mixed_…`: `primary_of`, `_unread`, `Run.pushes`, `Run.unpushed`, `_unpushed`, `run`, the offline flow and `Run.push`.
+- [x] 1.10 Write the mixed cases of [the cases](design.md#the-cases) in `tests/test_kept_pins.py`, each named `test_mixed_…`: `primary_of`, `_unread`, `Run.pushes`, `Run.unpushed`, `_unpushed`, `run`, the offline flow and `Run.push`.
   Verify: `uv run pytest tests/test_kept_pins.py -k mixed -n auto -q` exits `0`.
-- [ ] 1.11 Write the cases of a link, a FIFO read in a child with a timeout, a folder, a bad byte, an empty file and a file over its bound at the kept origin, `.default`, the offline base and a ledger entry, each named `test_shape_…`, each on today's side and each FIFO case marked `slow`.
+- [x] 1.11 Write the cases of a link, a FIFO read in a child with a timeout, a folder, a bad byte, an empty file and a file over its bound at the kept origin, `.default`, the offline base and a ledger entry, each named `test_shape_…`, each on today's side and each FIFO case marked `slow`.
   Verify: `uv run pytest tests/test_kept_pins.py -k shape -n auto -q` exits `0`.
-- [ ] 1.12 Write the same shapes at the approval, the live mark and `repos`, each named `test_odd_…`, no case planting a second name at an inode.
+- [x] 1.12 Write the same shapes at the approval, the live mark and `repos`, each named `test_odd_…`, no case planting a second name at an inode.
   Verify: `uv run pytest tests/test_kept_pins.py -k odd -n auto -q` exits `0`.
-- [ ] 1.13 Write the cases of a write that fails after the file is made in `_keep_origin` and `_keep_base`, of the ways `.default` guards its write, of the readers of `repos` and of `.default` written with no newline, each named `test_write_…`.
+- [x] 1.13 Write the cases of a write that fails after the file is made in `_keep_origin` and `_keep_base`, of the ways `.default` guards its write, of the readers of `repos` and of `.default` written with no newline, each named `test_write_…`.
   Verify: `uv run pytest tests/test_kept_pins.py -k write -n auto -q` exits `0`.
 
 ## 2 — The module
