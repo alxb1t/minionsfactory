@@ -5,7 +5,7 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · hard
+- [x] 2 — The module · hard
 - [ ] 3 — The stations · hard
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
@@ -41,23 +41,23 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 
 ## 2 — The module
 
-- [ ] 2.1 Create `skills/mflib/kept.py` with its docstring, imports of `layout` and `statefile` alone, `Urls`, `Heads` and the failures `Refused` and `Unwritten` of [D2](design.md#d2). Add its row, layer `home`, `names` `layout.py, statefile.py`, to `docs/modules.md` between `findings.py` and `layout.py`.
+- [x] 2.1 Create `skills/mflib/kept.py` with its docstring, imports of `layout` and `statefile` alone, `Urls`, `Heads` and the failures `Refused` and `Unwritten` of [D2](design.md#d2). Add its row, layer `home`, `names` `layout.py, statefile.py`, to `docs/modules.md` between `findings.py` and `layout.py`.
   Verify: `uv run pytest tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.2 Write `origin`, `origin_stands`, `keep_origin`, `default`, `default_stands` and `keep_default` in `skills/mflib/kept.py`, each as its copy in `skills/mf-ship/scripts/conduct.py` behaves ([D5](design.md#d5)). Create `tests/test_kept.py` with their unit cases, each named `test_origin_…`, a failure raised as `Unwritten`.
+- [x] 2.2 Write `origin`, `origin_stands`, `keep_origin`, `default`, `default_stands` and `keep_default` in `skills/mflib/kept.py`, each as its copy in `skills/mf-ship/scripts/conduct.py` behaves ([D5](design.md#d5)). Create `tests/test_kept.py` with their unit cases, each named `test_origin_…`, a failure raised as `Unwritten`.
   Verify: `uv run pytest tests/test_kept.py -k origin -n auto -q` exits `0`.
-- [ ] 2.3 Write `base`, `base_stands` and `keep_base` in `skills/mflib/kept.py` as their copies behave, with their unit cases in `tests/test_kept.py`, each named `test_base_…`.
+- [x] 2.3 Write `base`, `base_stands` and `keep_base` in `skills/mflib/kept.py` as their copies behave, with their unit cases in `tests/test_kept.py`, each named `test_base_…`.
   Verify: `uv run pytest tests/test_kept.py -k base -n auto -q` exits `0`.
-- [ ] 2.4 Write `record_release`, `release_entries`, `release_heads` and `close_releases` in `skills/mflib/kept.py` as their copies behave, `bad` of `Heads` empty. Write their unit cases in `tests/test_kept.py`, each named `test_ledger_…`, among them a folder at an entry raising `Unwritten` naming the path.
+- [x] 2.4 Write `record_release`, `release_entries`, `release_heads` and `close_releases` in `skills/mflib/kept.py` as their copies behave, `bad` of `Heads` empty. Write their unit cases in `tests/test_kept.py`, each named `test_ledger_…`, among them a folder at an entry raising `Unwritten` naming the path.
   Verify: `uv run pytest tests/test_kept.py -k ledger -n auto -q` exits `0`.
-- [ ] 2.5 Write `approve` and `approval` in `skills/mflib/kept.py` as their copies behave, with their unit cases in `tests/test_kept.py`, each named `test_approval_…`.
+- [x] 2.5 Write `approve` and `approval` in `skills/mflib/kept.py` as their copies behave, with their unit cases in `tests/test_kept.py`, each named `test_approval_…`.
   Verify: `uv run pytest tests/test_kept.py -k approval -n auto -q` exits `0`.
-- [ ] 2.6 Write `holder`, `live`, `mark_live` and `unmark` in `skills/mflib/kept.py` as `holder` and `live` of `skills/mf-ship/scripts/pin.py` and the mark functions of the conductor behave, with their unit cases in `tests/test_kept.py`, each named `test_live_…`.
+- [x] 2.6 Write `holder`, `live`, `mark_live` and `unmark` in `skills/mflib/kept.py` as `holder` and `live` of `skills/mf-ship/scripts/pin.py` and the mark functions of the conductor behave, with their unit cases in `tests/test_kept.py`, each named `test_live_…`.
   Verify: `uv run pytest tests/test_kept.py -k live -n auto -q` exits `0`.
-- [ ] 2.7 Write `record_repo` in `skills/mflib/kept.py` as its copy behaves, with its unit cases in `tests/test_kept.py`, each named `test_repos_…`.
+- [x] 2.7 Write `record_repo` in `skills/mflib/kept.py` as its copy behaves, with its unit cases in `tests/test_kept.py`, each named `test_repos_…`.
   Verify: `uv run pytest tests/test_kept.py -k repos -n auto -q` exits `0`.
-- [ ] 2.8 Write `make_probe_mark`, `remove_probe_mark`, `probe_executor` and `probe_untouched` in `skills/mflib/kept.py` as the probe's lines behave, with their unit cases in `tests/test_kept.py`, each named `test_probe_…`. `Run.probe` keeps its own handling of the failure ([D5](design.md#d5)).
+- [x] 2.8 Write `make_probe_mark`, `remove_probe_mark`, `probe_executor` and `probe_untouched` in `skills/mflib/kept.py` as the probe's lines behave, with their unit cases in `tests/test_kept.py`, each named `test_probe_…`. `Run.probe` keeps its own handling of the failure ([D5](design.md#d5)).
   Verify: `uv run pytest tests/test_kept.py -k probe -n auto -q` exits `0`.
-- [ ] 2.9 Write in `tests/test_kept.py` a round-trip case of each format, each named `test_roundtrip_…`: the kept origin, `.default`, the offline base, a ledger entry, an approval, a live mark and `repos`, each written by the module's writer and read by its reader.
+- [x] 2.9 Write in `tests/test_kept.py` a round-trip case of each format, each named `test_roundtrip_…`: the kept origin, `.default`, the offline base, a ledger entry, an approval, a live mark and `repos`, each written by the module's writer and read by its reader.
   Verify: `uv run pytest tests/test_kept.py -k roundtrip -n auto -q` exits `0`.
 
 ## 3 — The stations
