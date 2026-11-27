@@ -169,7 +169,8 @@ to that worktree, the run directory and the brief, checks the cut on disk and bu
 `decide: recommended` takes the recommended option, logged in the brief; every other doubt halts at `cut-halted`, with no
 rescue, its line naming the answer: a re-plan and `conduct.py rejoin <id>`, which keeps the queued packages and takes a new
 one only with the person's `--yes <hash>` ([D62](#d62--a-queued-cuts-packages-are-approved-at-the-plan)). Queuing a cut is the person's yes to cut, run, merge and push
-it.**
+it. The queue's entries, its `briefs` and `supervised` records and its rejoin requests are written and read through
+`skills/mflib/queue.py`, in a typed entry, no link followed.**
 
 - **Why:** the person's chat stayed busy with cuts, and two cutters raced for one id.
 - **Rejected:** a background subagent in the person's session · the id given at dispatch · an `AGENTS.md` switch · a
@@ -192,7 +193,7 @@ joins or starts; no ends on `/mf-cut-change`. The plan never cuts.**
 ### D62 · A queued cut's packages are approved at the plan
 
 **A hard brief's `## Dependencies` holds a row per package the person approved in a round — item, package, constraint,
-why — or `None.`. `conduct.py cut` copies the item's rows into its home-queue entry, and a rejoin of a queued cut keeps
+why — or `None.`. `conduct.py cut` copies the rows into a typed entry of its home queue, and a rejoin of a queued cut keeps
 them, taking a row they lack only with the person's `--yes <hash>` of the new rows; the cut station halts a cut whose
 `design.md` lists a package or constraint outside them, and never reads the brief for approval. A cut halt the plan answers names the brief and `conduct.py rejoin`; a hand cut halts on an id the
 queue holds.**
@@ -849,7 +850,7 @@ each queued cut ([D58](#d58--a-settled-brief-is-cut-by-a-conductor-station)) at 
 of [D84](#d84--a-queued-cut-waits-while-the-line-is-at-its-cap), and its close,
 under the queue lock, starts the next run on a request or a cut it never read, never for a cut that only waits. A live run takes a rejoin request, in the
 home folder's queue, `~/.mf-ship-origin/<digest>.queue/rejoin/`, where no worker writes, a mailbox that holds no state,
-and, at each poll, every halt answered on disk ([D60](#d60--a-run-heals-its-own-halts)):
+made by its name under the folder's descriptor, a name that is no change id unlinked, and, at each poll, every halt answered on disk ([D60](#d60--a-run-heals-its-own-halts)):
 it takes back each requested version whose stage on disk is
 no longer a halt, a version cut since its start included, and none whose models file changed since the run read it, nor one
 whose converge or integrate halt was answered while its rescue ran, the person's own fix included, save by the person's
@@ -912,7 +913,8 @@ the default branch.**
 versions a run keeps at a station; `conduct.py run` reads it once at its start. With a cap, the run takes a queued cut, at
 its start and at each poll, in id order, only while fewer versions of its own repository are in flight than the cap; a
 cut that waits is not read, keeps the run alive, starts no next run at the close, and carries its reason, `<n> in flight,
-cap <N>`, in its queue entry, which `status`, `conduct.py cut` and the viewer show. A version is in flight while its thread
+cap <N>`, in its queue entry's `waits`, a wait when it is a non-empty string, which `status`, `conduct.py cut` and the viewer
+show. A version is in flight while its thread
 runs, its rescue and supervisor included, no halt names the run and every `after` id it names is shipped, its cut included;
 a final halt frees its slot. A rejoin request naming a cut, the
 take-back of a version and a version already cut at the run's start run past the cap. No file, no `[queue]` table and no
@@ -1191,6 +1193,7 @@ version a run; `[supervise]` picks its model,
   runs: the home queue's `supervised/<id>` records it.
 - **The brief:** a passed cut records its brief's path in the home queue's `briefs/<id>`, and the supervisor's prompt names
   it, read as evidence.
+- **The records:** a broken `briefs/<id>` or `supervised/<id>` reads as none, and a record is written staged.
 - **Why:** a supervising chat answered most of 0087's halts and 0085's integrate flag, none with code, each a judgment the
   rescue may not make, and each a restart.
 - **Accepts:** a decided amend that passes the check is a worker's decision, the spec delta included: converge reads it in a

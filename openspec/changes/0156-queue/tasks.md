@@ -8,7 +8,7 @@ Pin the queue as it is, move it into `skills/mflib/queue.py`, send the conductor
 - [x] 2 — The module · hard
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
-- [ ] 5 — The record · moderate
+- [x] 5 — The record · moderate
 
 ## 1 — The pin
 
@@ -108,11 +108,11 @@ The module keeps one side. The cases and pins of the pin phase turn to it ([D3](
 
 The record says what the queue now is, where each fact lives ([D12](design.md#d12)). No task edits a debt card.
 
-- [ ] 5.1 Edit D58 in `docs/decisions.md`: the queue's entries, its `briefs` and `supervised` records and its rejoin requests are written and read through `skills/mflib/queue.py`, in a typed entry, no link followed. Edit D62: the rows are copied into a typed entry.
+- [x] 5.1 Edit D58 in `docs/decisions.md`: the queue's entries, its `briefs` and `supervised` records and its rejoin requests are written and read through `skills/mflib/queue.py`, in a typed entry, no link followed. Edit D62: the rows are copied into a typed entry.
   Verify: `git grep -n -e "skills/mflib/queue.py" -- docs/decisions.md` prints a line.
-- [ ] 5.2 Edit D47 in `docs/decisions.md`: a request is made by its name under the `rejoin` folder's descriptor, and a name that is no change id is unlinked. Edit D84: `waits` is a wait when it is a non-empty string. Edit D61: a broken record reads as none, and a record is written staged.
+- [x] 5.2 Edit D47 in `docs/decisions.md`: a request is made by its name under the `rejoin` folder's descriptor, and a name that is no change id is unlinked. Edit D84: `waits` is a wait when it is a non-empty string. Edit D61: a broken record reads as none, and a record is written staged.
   Verify: `git grep -n -e "non-empty string" -- docs/decisions.md` prints a line.
-- [ ] 5.3 Edit `THREAT_MODEL.md`: the rejoin requests and the cut queue name `skills/mflib/queue.py`, which reads each file through no link, bounded and decoded strictly, and writes it staged. Add the module to the line that lists the shared home's files.
+- [x] 5.3 Edit `THREAT_MODEL.md`: the rejoin requests and the cut queue name `skills/mflib/queue.py`, which reads each file through no link, bounded and decoded strictly, and writes it staged. Add the module to the line that lists the shared home's files.
   Verify: `git grep -n -e "skills/mflib/queue.py" -- THREAT_MODEL.md` prints a line.
-- [ ] 5.4 Edit `docs/recipes.md`: the format line names the queue, written and parsed through `skills/mflib/queue.py`, its folder `layout.queue_dir(primary)`.
+- [x] 5.4 Edit `docs/recipes.md`: the format line names the queue, written and parsed through `skills/mflib/queue.py`, its folder `layout.queue_dir(primary)`.
   Verify: `git grep -n -e "skills/mflib/queue.py" -- docs/recipes.md` prints a line.

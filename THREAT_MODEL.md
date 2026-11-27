@@ -129,13 +129,16 @@ not follow, and releases its lock only while the lock holds its token. The start
   empties the folder through one descriptor, so a link swapped in after the listing deletes nothing either. A version whose
   converge or integrate halt is answered on disk while its rescue runs stays out for the run, whoever answered it, save by the
   person's amends alone, which let it go on, so a request cannot take it past the cap or a merge note; a person's grant is refused while that rescue runs, and the
-  person's own fix then, or a grant landing as it ends, waits for a re-run.
+  person's own fix then, or a grant landing as it ends, waits for a re-run. `skills/mflib/queue.py` makes a request by its
+  name under that descriptor and unlinks a name that is no change id.
 - The cut queue: `.minions/cuts/<id>` and `.minions/changes/<id>/cut.halt` are worker-writable — a forged reservation
   burns a number, a forged `cut.halt` halts its cut — and the queue entry, which names the brief a cutter writes and holds
   the packages its cut may add, stands in the home folder, where no worker writes, so no worker names that brief or
   widens that list. A passed cut's brief path stays there, in `briefs/<id>`, for its supervisor's prompt, and
   `supervised/<id>` names the open merge a supervisor tried, so no worker forges that record; a worker that moves the
-  worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting the same settle bound.
+  worktree's `MERGE_HEAD` reads as a new merge and gets it a try, each meeting the same settle bound. `skills/mflib/queue.py`
+  reads each entry and record through no link, bounded and decoded strictly, a broken one reading as none or as the
+  unreadable entry, and writes it staged.
 - `tasks.md`'s `Verify:` commands, which `plan_check.py` runs again at the build's close and after each converge fix, argv
   with no shell, as the build ran them; a card's **Still true?** command, which a checker writes and `converge.py` runs at
   the debt write, its backtick span `shlex`-split, no shell, under `sandboxed()`; and `make corpus`, an operator target outside the gate, which runs the readers
@@ -154,7 +157,7 @@ round. A test module stays off it: conformance judges every test edit under *Gat
 hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
-- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write, the status log, the findings files, `findings.py`, the debt file, `debtfile.py`, the run log, `runlog.py`, the claim, `claim.py`, the models file, `modelsfile.py`, and the marks of a change's folder, `marks.py`, each following no link — loaded by the scripts that run on the operator's machine.
+- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write, the status log, the findings files, `findings.py`, the debt file, `debtfile.py`, the run log, `runlog.py`, the claim, `claim.py`, the models file, `modelsfile.py`, the marks of a change's folder, `marks.py`, and the home queue, `queue.py`, each following no link — loaded by the scripts that run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run, and the setup script a cloud environment runs as root.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
