@@ -42,7 +42,6 @@ PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
     {
         ("brief_check.py", "_plain_row"),
         ("brief_check.py", "_rows"),
-        ("pin.py", "_kept_origin"),
         ("pin.py", "_scratch"),
         ("review_metrics.py", "_STYLE"),
         ("viewer.py", "_build_halt"),

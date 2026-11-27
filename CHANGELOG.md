@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `tests/test_kept_pins.py` pins the kept files as the conductor, `pin.py` and `gate_check.py` write, read, list and remove them: the ledger, the kept origin, `.default`, the offline base, the probe and live marks, `repos` and the approval, each broken shape on today's side. The module move that follows changes no assert (0159-kept, phase 1).
 - `skills/mflib/kept.py` writes, reads, lists and removes each kept file as its copy in the conductor, `pin.py` and `gate_check.py` does today, with `tests/test_kept.py`'s unit and round-trip cases. No script calls it yet; the stations move onto it next (0159-kept, phase 2).
+- The conductor, `pin.py` and `gate_check.py` write and read the kept files through `skills/mflib/kept.py`; `_ledger_entries`, `_mark_live` and `_unmark` go, and `pin.py` no longer loads the conductor for the kept origin. No assert changes (0159-kept, phase 3).
 
 ## [0.128.0] - 2026-11-27
 

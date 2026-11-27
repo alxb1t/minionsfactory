@@ -4,7 +4,6 @@ Real git: an MF checkout with `skills/mf-*`, its bare `origin` read by a `file:/
 under the autouse `isolated_home`. Why: 0068-pinned-release design D1, D2 and D3.
 """
 
-import json
 import os
 import runpy
 import shlex
@@ -16,7 +15,7 @@ from typing import Any
 
 import pytest
 from fake_worker import _commit, _git
-from mflib import layout
+from mflib import kept, layout
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ship" / "scripts" / "pin.py"
@@ -48,10 +47,9 @@ def _mf(tmp_path: Path, pushed: tuple[str, ...] = ("v0.1.0", "v0.2.0")) -> Path:
 
 
 def _keep(pin: dict[str, Any], root: Path, url: str) -> None:
-    """Keep `url` as `root`'s origin, as a run's first read does."""
-    file = layout.kept_file(root)
-    file.parent.mkdir(parents=True, exist_ok=True)
-    file.write_text(json.dumps([[url], [url]]))
+    """Keep `url` as `root`'s origin, as a run's first read does, over an older one."""
+    layout.kept_file(root).unlink(missing_ok=True)
+    kept.keep_origin(root, ([url], [url]))
 
 
 def _links(home: Path) -> dict[str, str]:

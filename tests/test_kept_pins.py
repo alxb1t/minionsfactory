@@ -18,6 +18,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
+import mflib.kept
 import pytest
 import test_conduct
 from conduct_load import conduct as _conduct
@@ -240,16 +241,16 @@ def test_ledger_entries_lists_every_name_of_the_folder(
     c: dict[str, Any], p: Path
 ) -> None:
     folder = layout.released_dir(p)
-    assert c["_ledger_entries"](p) == []
+    assert mflib.kept.release_entries(p) == []
     folder.parent.mkdir(parents=True, exist_ok=True)
     folder.write_text("a file, no folder\n")
-    assert c["_ledger_entries"](p) == []
+    assert mflib.kept.release_entries(p) == []
     folder.unlink()
     folder.mkdir()
     for name in ("0001-a", "0002-b", ".hidden"):
         (folder / name).write_text(f"{_H}\n")
 
-    assert sorted(entry.name for entry in c["_ledger_entries"](p)) == [
+    assert sorted(entry.name for entry in mflib.kept.release_entries(p)) == [
         ".hidden",
         "0001-a",
         "0002-b",
@@ -1206,13 +1207,13 @@ def test_live_mark_holds_this_pid_in_folders_of_0700(
     c: dict[str, Any], p: Path
 ) -> None:
     with _umask(0o022):
-        mark = c["_mark_live"](c["_pin"](), p)
+        mark = mflib.kept.mark_live(p, os.getpid(), os.getppid())
 
     assert mark == layout.live_dir() / layout.digest(p)
     assert mark.read_text() == f"{os.getpid()}\n"
     assert _modes(layout.kept_dir()) == 0o700
     assert _modes(layout.live_dir()) == 0o700
-    assert c["_mark_live"](c["_pin"](), p) == mark
+    assert mflib.kept.mark_live(p, os.getpid(), os.getppid()) == mark
     assert mark.read_text() == f"{os.getpid()}\n"
 
 
@@ -1223,7 +1224,7 @@ def test_live_mark_takes_over_a_mark_that_holds_no_other_live_process(
     text = {"parent": f"{os.getppid()}\n", "own": f"{os.getpid()}\n"}.get(held, held)
     mark = _marked(p, text)
 
-    assert c["_mark_live"](c["_pin"](), p) == mark
+    assert mflib.kept.mark_live(p, os.getpid(), os.getppid()) == mark
 
     assert mark.read_text() == f"{os.getpid()}\n"
 
@@ -1234,7 +1235,7 @@ def test_live_mark_leaves_the_mark_of_another_live_process(
     with _other_process() as other:
         mark = _marked(p, f"{other}\n")
 
-        assert c["_mark_live"](c["_pin"](), p) is None
+        assert mflib.kept.mark_live(p, os.getpid(), os.getppid()) is None
 
         assert mark.read_text() == f"{other}\n"
 
@@ -1243,18 +1244,18 @@ def test_live_mark_is_none_where_the_home_refuses_it(
     c: dict[str, Any], p: Path
 ) -> None:
     with _readonly(_kept()):
-        assert c["_mark_live"](c["_pin"](), p) is None
+        assert mflib.kept.mark_live(p, os.getpid(), os.getppid()) is None
     layout.kept_dir().rmdir()
     layout.kept_dir().write_text("a file\n")
 
-    assert c["_mark_live"](c["_pin"](), p) is None
+    assert mflib.kept.mark_live(p, os.getpid(), os.getppid()) is None
 
 
 def test_live_mark_is_none_for_a_folder_at_its_name(c: dict[str, Any], p: Path) -> None:
     layout.live_dir().mkdir(parents=True)
     layout.live_mark(p).mkdir()
 
-    assert c["_mark_live"](c["_pin"](), p) is None
+    assert mflib.kept.mark_live(p, os.getpid(), os.getppid()) is None
 
 
 def test_live_unmark_removes_the_mark_that_holds_this_pid(
@@ -1262,13 +1263,13 @@ def test_live_unmark_removes_the_mark_that_holds_this_pid(
 ) -> None:
     mark = _marked(p, f"{os.getpid()}\n")
 
-    c["_unmark"](c["_pin"](), mark)
+    mflib.kept.unmark(mark, os.getpid())
 
     assert not mark.exists()
 
 
 def test_live_unmark_of_none_is_quiet(c: dict[str, Any]) -> None:
-    c["_unmark"](c["_pin"](), None)
+    mflib.kept.unmark(None, os.getpid())
 
 
 @pytest.mark.parametrize("held", ["parent", "3999999", "junk"])
@@ -1278,7 +1279,7 @@ def test_live_unmark_leaves_a_mark_that_holds_another_pid(
     text = f"{os.getppid()}\n" if held == "parent" else held
     mark = _marked(p, text)
 
-    c["_unmark"](c["_pin"](), mark)
+    mflib.kept.unmark(mark, os.getpid())
 
     assert mark.read_text() == text
 

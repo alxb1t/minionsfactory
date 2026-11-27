@@ -36,7 +36,7 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-converge/scripts/converge.py` | station | bundle.py, debt_match.py, debtfile.py, evidence.py, findings.py, gate_check.py, gate_integrity.py, gate_run.py, integrate.py, layout.py, marks.py, open_cards.py, overlap.py, plan_check.py, skip_stub.py, statefile.py, statuslog.py |
 | `skills/mf-converge/scripts/debt_match.py` | station | debtfile.py, statefile.py |
 | `skills/mf-converge/scripts/evidence.py` | station | — |
-| `skills/mf-converge/scripts/gate_check.py` | station | layout.py |
+| `skills/mf-converge/scripts/gate_check.py` | station | kept.py, layout.py |
 | `skills/mf-converge/scripts/gate_integrity.py` | station | — |
 | `skills/mf-converge/scripts/gate_run.py` | station | layout.py, statefile.py |
 | `skills/mf-converge/scripts/open_cards.py` | station | findings.py, statefile.py |
@@ -55,8 +55,8 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-release/scripts/next_tag.py` | station | — |
 | `skills/mf-release/scripts/release.py` | station | debtfile.py, findings.py, gate_check.py, gate_run.py, layout.py, marks.py, metrics.py, modelsfile.py, next_tag.py, statefile.py |
 | `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, layout.py, metrics.py, overlap.py |
-| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, claim.py, converge.py, cut_check.py, debtfile.py, findings.py, gate_run.py, integrate.py, layout.py, marks.py, metrics.py, modelsfile.py, pin.py, plan_check.py, platform.py, queue.py, release.py, runlog.py, statefile.py, statuslog.py |
-| `skills/mf-ship/scripts/pin.py` | conductor | conduct.py, layout.py |
+| `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, claim.py, converge.py, cut_check.py, debtfile.py, findings.py, gate_run.py, integrate.py, kept.py, layout.py, marks.py, metrics.py, modelsfile.py, pin.py, plan_check.py, platform.py, queue.py, release.py, runlog.py, statefile.py, statuslog.py |
+| `skills/mf-ship/scripts/pin.py` | conductor | conduct.py, kept.py, layout.py |
 | `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, layout.py, platform.py, statefile.py |
 | `skills/mflib/__init__.py` | home | — |
 | `skills/mflib/claim.py` | home | layout.py, statefile.py |

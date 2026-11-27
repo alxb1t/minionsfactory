@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.kept
 import mflib.layout
 
 CONDUCT = Path(__file__).resolve().with_name("conduct.py")
@@ -39,7 +40,7 @@ class Refused(Exception):
 
 @functools.cache
 def _conduct() -> dict[str, Any]:
-    """Return the conductor's namespace: its kept URLs and its remote call options."""
+    """Return the conductor's namespace: its scratch folder and remote call options."""
     return runpy.run_path(str(CONDUCT))
 
 
@@ -59,26 +60,12 @@ def _write(file: Path, text: str | None) -> None:
 
 def holder(mark: Path) -> int | None:
     """Return the pid a live mark holds while that process runs, else None."""
-    try:
-        pid = int(mark.read_text())
-    except (OSError, ValueError):
-        return None
-    if pid <= 1:
-        return None
-    try:
-        os.kill(pid, 0)
-    except (ProcessLookupError, OverflowError):
-        return None
-    except PermissionError:
-        pass
-    return pid
+    return mflib.kept.holder(mark)
 
 
 def live(mine: Path | None = None) -> list[str]:
     """Return the live marks standing, `mine` aside; one whose pid is gone is none."""
-    folder = mflib.layout.live_dir()
-    marks = sorted(folder.iterdir()) if folder.is_dir() else []
-    return [mark.name for mark in marks if mark != mine and holder(mark)]
+    return mflib.kept.live(mine)
 
 
 def _version(tag: str) -> tuple[int, ...]:
@@ -153,7 +140,7 @@ def _remote(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _origin(primary: Path) -> str | None:
     """Return the fetch URL a run kept for `primary`'s `origin`, or None before one."""
-    kept = _conduct()["_kept_origin"](primary)
+    kept = mflib.kept.origin(primary)
     return kept[0][0] if kept and kept[0] else None
 
 

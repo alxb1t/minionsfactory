@@ -6,7 +6,7 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · hard
-- [ ] 3 — The stations · hard
+- [x] 3 — The stations · hard
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
 
@@ -62,33 +62,33 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 
 ## 3 — The stations
 
-- [ ] 3.1 In `skills/mf-ship/scripts/conduct.py` import `mflib.kept` between `findings` and `layout`, and send `_kept_origin`, `_keep_origin`, `_kept_default` and `_push_default` through it ([D3](design.md#d3)): `_keep_origin` keeps its `_urls`, `_origin_head` and `Stop` handling and returns the `strerror`, or the type name, of an `OSError` the module raises. Add `kept.py` to the conductor's `names` in `docs/modules.md`.
+- [x] 3.1 In `skills/mf-ship/scripts/conduct.py` import `mflib.kept` between `findings` and `layout`, and send `_kept_origin`, `_keep_origin`, `_kept_default` and `_push_default` through it ([D3](design.md#d3)): `_keep_origin` keeps its `_urls`, `_origin_head` and `Stop` handling and returns the `strerror`, or the type name, of an `OSError` the module raises. Add `kept.py` to the conductor's `names` in `docs/modules.md`.
   Verify: `uv run pytest tests/test_kept_pins.py -k "origin or remote" -n auto -q` exits `0`.
-- [ ] 3.2 Send `_refuse_origin`, `primary_of`, `_read_url` and `_unread` of `skills/mf-ship/scripts/conduct.py` through `origin` and `origin_stands`, their halt texts as they are; a test changes only the line by which it reaches a name ([D4](design.md#d4)).
+- [x] 3.2 Send `_refuse_origin`, `primary_of`, `_read_url` and `_unread` of `skills/mf-ship/scripts/conduct.py` through `origin` and `origin_stands`, their halt texts as they are; a test changes only the line by which it reaches a name ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_kept_pins.py tests/test_conduct.py -k "remote or mixed or kept_urls or refused_home or no_worker_pushes" -n auto -q` exits `0`.
-- [ ] 3.3 Send `_keep_base`, `_offline_base` and `anchor` of `skills/mf-ship/scripts/conduct.py` through `keep_base`, `base` and `base_stands`; `_keep_base` returns the `strerror`, or the type name, of an `OSError` the module raises, as it does.
+- [x] 3.3 Send `_keep_base`, `_offline_base` and `anchor` of `skills/mf-ship/scripts/conduct.py` through `keep_base`, `base` and `base_stands`; `_keep_base` returns the `strerror`, or the type name, of an `OSError` the module raises, as it does.
   Verify: `uv run pytest tests/test_kept_pins.py tests/test_conduct.py -k "base or anchor" -n auto -q` exits `0`.
-- [ ] 3.4 Send `_record_release`, `_ledger_heads` and `_close_releases` of `skills/mf-ship/scripts/conduct.py` through the ledger functions, `_close_releases` passing `_history_ancestor` as `landed`.
+- [x] 3.4 Send `_record_release`, `_ledger_heads` and `_close_releases` of `skills/mf-ship/scripts/conduct.py` through the ledger functions, `_close_releases` passing `_history_ancestor` as `landed`.
   Verify: `uv run pytest tests/test_kept_pins.py tests/test_conduct.py -k "ledger or forged or a_rerun_pushes" -n auto -q` exits `0`.
-- [ ] 3.5 Retarget the pins in `tests/test_kept_pins.py` that reach `_ledger_entries` to `release_entries`, which lists the same names ([D4](design.md#d4)).
+- [x] 3.5 Retarget the pins in `tests/test_kept_pins.py` that reach `_ledger_entries` to `release_entries`, which lists the same names ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_kept_pins.py -k ledger -n auto -q` exits `0`.
-- [ ] 3.6 Delete `_ledger_entries` from `skills/mf-ship/scripts/conduct.py`.
+- [x] 3.6 Delete `_ledger_entries` from `skills/mf-ship/scripts/conduct.py`.
   Verify: `git grep -c "_ledger_entries" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.7 Send `approve_gate` of `skills/mf-ship/scripts/conduct.py` through `approve`: its hash check and `Stop` words stay, and an `OSError` of the module words as `cannot write the approval — <strerror>; a sandbox refuses the home folder: run it outside one`.
+- [x] 3.7 Send `approve_gate` of `skills/mf-ship/scripts/conduct.py` through `approve`: its hash check and `Stop` words stay, and an `OSError` of the module words as `cannot write the approval — <strerror>; a sandbox refuses the home folder: run it outside one`.
   Verify: `uv run pytest tests/test_kept_pins.py tests/test_conduct.py -k "approval or anchor or approve_gate" -n auto -q` exits `0`.
-- [ ] 3.8 In `skills/mf-converge/scripts/gate_check.py` import `mflib.kept` after its seed line and send `approval` through it. Add `kept.py` to its row's `names` in `docs/modules.md`.
+- [x] 3.8 In `skills/mf-converge/scripts/gate_check.py` import `mflib.kept` after its seed line and send `approval` through it. Add `kept.py` to its row's `names` in `docs/modules.md`.
   Verify: `uv run pytest tests/test_gate_check.py -n auto -q` exits `0`.
-- [ ] 3.9 In `run` and `_record_repo` of `skills/mf-ship/scripts/conduct.py` call `mark_live`, `unmark` and `record_repo`; `_pin` stays for `move` and `trees` ([D9](design.md#d9)). The `_pin` stub of `tests/test_claim.py` keeps `move` alone.
+- [x] 3.9 In `run` and `_record_repo` of `skills/mf-ship/scripts/conduct.py` call `mark_live`, `unmark` and `record_repo`; `_pin` stays for `move` and `trees` ([D9](design.md#d9)). The `_pin` stub of `tests/test_claim.py` keeps `move` alone.
   Verify: `uv run pytest tests/test_claim.py tests/test_mark_pins.py -n auto -q` exits `0`.
-- [ ] 3.10 Retarget the pins in `tests/test_kept_pins.py` that reach `_mark_live` and `_unmark` to `mark_live` and `unmark`, the pid and the parent's passed as arguments ([D4](design.md#d4)).
+- [x] 3.10 Retarget the pins in `tests/test_kept_pins.py` that reach `_mark_live` and `_unmark` to `mark_live` and `unmark`, the pid and the parent's passed as arguments ([D4](design.md#d4)).
   Verify: `uv run pytest tests/test_kept_pins.py -k live -n auto -q` exits `0`.
-- [ ] 3.11 Delete `_mark_live` and `_unmark` from `skills/mf-ship/scripts/conduct.py`.
+- [x] 3.11 Delete `_mark_live` and `_unmark` from `skills/mf-ship/scripts/conduct.py`.
   Verify: `git grep -c -e "_mark_live" -e "_unmark" -- skills/mf-ship/scripts/conduct.py` prints nothing.
-- [ ] 3.12 In `skills/mf-ship/scripts/pin.py` import `mflib.kept` after its seed line, send `holder` and `live` through it and `_origin` through `origin`, so the `_conduct` load keeps `_scratch`, `SSH_COMMAND` and `GIT_TIMEOUT` alone. Add `kept.py` to its row's `names` in `docs/modules.md`.
+- [x] 3.12 In `skills/mf-ship/scripts/pin.py` import `mflib.kept` after its seed line, send `holder` and `live` through it and `_origin` through `origin`, so the `_conduct` load keeps `_scratch`, `SSH_COMMAND` and `GIT_TIMEOUT` alone. Add `kept.py` to its row's `names` in `docs/modules.md`.
   Verify: `uv run pytest tests/test_pin.py -n auto -q` exits `0`.
-- [ ] 3.13 Make `PRIVATE_REACH` in `tests/test_structure.py` list `_scratch` alone for `pin.py`, and in `tests/test_pin.py` plant the origin with the module's `keep_origin` in place of the hand-written JSON.
+- [x] 3.13 Make `PRIVATE_REACH` in `tests/test_structure.py` list `_scratch` alone for `pin.py`, and in `tests/test_pin.py` plant the origin with the module's `keep_origin` in place of the hand-written JSON.
   Verify: `uv run pytest tests/test_structure.py tests/test_pin.py -n auto -q` exits `0`.
-- [ ] 3.14 Send `Run.probe` and `check_probe` of `skills/mf-ship/scripts/conduct.py` through `make_probe_mark`, `remove_probe_mark`, `probe_executor` and `probe_untouched` ([D5](design.md#d5)); `Run.probe`'s halt `cannot write the probe mark: <strerror>` stays the conductor's text, the `strerror` of an `OSError` the module raises.
+- [x] 3.14 Send `Run.probe` and `check_probe` of `skills/mf-ship/scripts/conduct.py` through `make_probe_mark`, `remove_probe_mark`, `probe_executor` and `probe_untouched` ([D5](design.md#d5)); `Run.probe`'s halt `cannot write the probe mark: <strerror>` stays the conductor's text, the `strerror` of an `OSError` the module raises.
   Verify: `uv run pytest tests/test_kept_pins.py tests/test_conduct.py -k probe -n auto -q` exits `0`.
 
 ## 4 — The fix

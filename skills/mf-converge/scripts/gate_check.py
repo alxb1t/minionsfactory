@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.kept
 import mflib.layout
 
 TIMEOUT_SECONDS = 300
@@ -102,11 +103,7 @@ def approval(change: str) -> str | None:
     The folder is `conduct.py`'s, named as `digest` of the shared home names the
     primary; no worker writes there. Why: 0060-gate-planning design D4.
     """
-    entry = mflib.layout.gate_approval(_primary(), change)
-    try:
-        return entry.read_text().partition("\n")[0]
-    except OSError:
-        return None
+    return mflib.kept.approval(_primary(), change)
 
 
 def cut_commit(change: str) -> str:
