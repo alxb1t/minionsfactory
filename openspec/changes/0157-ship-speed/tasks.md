@@ -6,7 +6,7 @@ The green gate vouches for more pytest `Verify:` lines, the check judges in grou
 
 - [x] 1 — The green gate vouches more · hard
 - [x] 2 — Cheap first, and `--quick` · hard
-- [ ] 3 — The phase check collects · hard
+- [x] 3 — The phase check collects · hard
 - [ ] 4 — The fixer's check, and a clean file with a card not closed · hard
 - [ ] 5 — The words · moderate
 
@@ -40,11 +40,11 @@ The check judges in the groups of [D2](design.md#d2), a failed group ends it, an
 
 The conductor runs `--quick` after each phase but the last, beside `gate_built`, and a failure is that phase's check failing ([D4](design.md#d4)).
 
-- [ ] 3.1 **HALT CHECK** The conductor holds no quick run yet.
+- [x] 3.1 **HALT CHECK** The conductor holds no quick run yet.
   Verify: `git grep -q -e "^def _quick_plan" -- skills/mf-ship/scripts/conduct.py` exits `1`.
-- [ ] 3.2 In `skills/mf-ship/scripts/conduct.py` add `_quick_plan(primary, change, tree)`, which runs `plan_check.py --quick` through `_boxed` with `_close_base`'s base and returns `plan_check.py --quick exit <code> · <last line>`, or None, and `Run.quick_built(version, tree, phase)`, which on a failure calls `_halt_build` with `phase <N>` and `plan check` and returns `plan check: ` and the evidence. In `Run.advance`, beside the call of `gate_built`, call it once a numbered phase's check passed and a later phase is unticked. `_check_phase` stays as it is.
+- [x] 3.2 In `skills/mf-ship/scripts/conduct.py` add `_quick_plan(primary, change, tree)`, which runs `plan_check.py --quick` through `_boxed` with `_close_base`'s base and returns `plan_check.py --quick exit <code> · <last line>`, or None, and `Run.quick_built(version, tree, phase)`, which on a failure calls `_halt_build` with `phase <N>` and `plan check` and returns `plan check: ` and the evidence. In `Run.advance`, beside the call of `gate_built`, call it once a numbered phase's check passed and a later phase is unticked. `_check_phase` stays as it is.
   Verify: `git grep -n -e "--quick" -- skills/mf-ship/scripts/conduct.py` prints a line.
-- [ ] 3.3 In `tests/test_conduct.py` add `test_quick_built_fails_a_phase_whose_earlier_search_no_longer_holds`, over a fixture with phases 1, 2 and 3, a ticked task holding a `git grep` that exits 1: after phase 2 it returns `plan check: …` and `build.halt` names `phase 2`; with every check holding it returns None. Add `test_a_build_runs_the_quick_plan_check_after_every_phase_but_the_last`, `_quick_plan` stubbed to log its calls.
+- [x] 3.3 In `tests/test_conduct.py` add `test_quick_built_fails_a_phase_whose_earlier_search_no_longer_holds`, over a fixture with phases 1, 2 and 3, a ticked task holding a `git grep` that exits 1: after phase 2 it returns `plan check: …` and `build.halt` names `phase 2`; with every check holding it returns None. Add `test_a_build_runs_the_quick_plan_check_after_every_phase_but_the_last`, `_quick_plan` stubbed to log its calls.
   Verify: `uv run pytest tests/test_conduct.py -n auto -q -k quick` exits `0`.
 
 ## 4 — The fixer's check, and a clean file with a card not closed

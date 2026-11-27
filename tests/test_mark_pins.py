@@ -1393,6 +1393,7 @@ def _driven(
     run.conducted = conducted
     run.released_by = released_by
     run.gate_built = lambda version, where, models: (True, None)
+    run.quick_built = lambda version, where, phase: None
     run.close_build = close_build
     answer = run.advance(conduct["Version"](_CHANGE, tree), stop_at)
     assert run.halts == [], run.halts
