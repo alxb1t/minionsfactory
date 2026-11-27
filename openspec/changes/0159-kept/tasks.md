@@ -9,7 +9,7 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 - [x] 3 — The stations · hard
 - [x] 4 — The fix · hard
 - [x] 5 — The record · moderate
-- [ ] 6 — The held events · moderate
+- [x] 6 — The held events · moderate
 
 ## 1 — The pin
 
