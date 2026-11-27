@@ -43,7 +43,7 @@ extra-paths = ["skills"]
 testpaths = ["tests"]
 # The tests import the shared home `mflib` from `skills/`. Why: 0128-platform-port design D2.
 pythonpath = ["skills"]
-addopts = ["--strict-markers", "--tb=short"]
+addopts = ["--strict-markers", "--tb=short", "--dist=worksteal"]
 markers = ["slow: over 5 s; `make check` leaves it to the gate"]
 
 # Per file, not `ignore`, so a command-line `--select` keeps them.

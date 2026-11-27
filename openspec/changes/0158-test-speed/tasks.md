@@ -4,14 +4,14 @@ The scheduling default, then the marks and their words. Each phase follows [desi
 
 ## Progress
 
-- [ ] 1 — The scheduling default · moderate
+- [x] 1 — The scheduling default · moderate
 - [ ] 2 — The marks · moderate
 
 ## 1 — The scheduling default
 
-- [ ] 1.1 Add `"--dist=worksteal"` to the `addopts` list of `pyproject.toml`, after `"--tb=short"`, per [D1](design.md#d1). Edit no other line of it.
+- [x] 1.1 Add `"--dist=worksteal"` to the `addopts` list of `pyproject.toml`, after `"--tb=short"`, per [D1](design.md#d1). Edit no other line of it.
   Verify: `git grep -n -e "--dist=worksteal" -- pyproject.toml` exits `0`.
-- [ ] 1.2 Run the small file `tests/test_next_tag.py` under `-n 2`, to show the default parses beside `-n`, per [D5](design.md#d5). No file changes.
+- [x] 1.2 Run the small file `tests/test_next_tag.py` under `-n 2`, to show the default parses beside `-n`, per [D5](design.md#d5). No file changes.
   Verify: `uv run pytest tests/test_next_tag.py -q -n 2` exits `0`.
 
 ## 2 — The marks

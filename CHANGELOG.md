@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `pyproject.toml`'s `addopts` gains `--dist=worksteal`: the gate's tests, `make check`'s and every run with `-n` are handed out by work stealing, so one worker no longer holds the longest test while the others wait (0158-test-speed, phase 1).
+
 ## [0.127.0] - 2026-11-27
 
 Gate: local 9m56s · CI not read under mf-ship · 0.126.0: local 9m35s · CI not read under mf-ship
