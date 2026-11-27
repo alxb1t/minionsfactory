@@ -55,6 +55,8 @@ The record has the required keys `bump`, `brief`, `executor`, `after`, `halt`, `
 
 A wrong type at the read is the unreadable entry. `waits` is a wait when it is a non-empty string: the conductor's `unwait` and `_cut_line` and the viewer's `queue_row` read it so, and `viewer.py` is not edited.
 
+Fix note (2026-11-27, R1): `waits` is a string or null in `Entry`, and a null reads as no wait, as the scenario *An empty wait is no wait* says; D2's "`waits` a string" is read so.
+
 ### D3
 
 The one read decodes strictly through `statefile.read_bytes` under the folder's descriptor, which the module opens and never makes. An entry is bounded at 262,144 bytes, `briefs/<id>` and `supervised/<id>` at 65,536.
