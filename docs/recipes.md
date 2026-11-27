@@ -54,7 +54,8 @@ their folder found through `layout.beneath`. The debt file is written and parsed
 lock taken through `debtfile.lock`. The run log is written and parsed through `skills/mflib/runlog.py`, its folder
 `layout.runs_dir(primary)`, and the claim through `skills/mflib/claim.py`, its path `layout.claim_file(primary)`; each
 finds its folder through `layout.beneath`, which splits the path into the primary and the parts, `.minions` the first. The
-models file is written and parsed through `skills/mflib/modelsfile.py`, its path `layout.models_file(primary, change)`.
+models file is written and parsed through `skills/mflib/modelsfile.py`, its path `layout.models_file(primary, change)`. The
+queue is written and parsed through `skills/mflib/queue.py`, its folder `layout.queue_dir(primary)`.
 
 - **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
 - **Rules:** `check_layout` holds that `.minions` is joined in `skills/mflib/layout.py` alone: a string constant

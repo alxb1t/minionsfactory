@@ -34,6 +34,7 @@ import mflib.claim
 import mflib.debtfile
 import mflib.findings
 import mflib.modelsfile
+import mflib.queue
 import mflib.statefile
 import pytest
 from conduct_load import conduct as _conduct
@@ -5191,7 +5192,7 @@ def test_a_supervisor_settle_outside_the_text_halts(
     assert [call for call in _calls(calls) if "0002-marks" in call] == [
         "rescue 0002-marks with decide=recommended"
     ]
-    tried = conduct["_merge_tried"]
+    tried = mflib.queue.merge_tried
     assert tried(root, "0002-marks", merge)
     assert not tried(root, "0002-marks", "0" * 40)
 
@@ -6755,15 +6756,15 @@ def test_a_request_at_a_runs_close_starts_the_next_run(
     conduct["_request"](root, "all")
     listdir = os.listdir
     monkeypatch.setattr(os, "listdir", lambda fd: ["gone"])
-    assert not conduct["_requested"](queue)
+    assert not mflib.queue.requested(queue)
     monkeypatch.setattr(os, "listdir", listdir)
     elsewhere = tmp_path / "operator-files"
     shutil.move(queue / "rejoin", elsewhere)
     (queue / "rejoin").symlink_to(elsewhere)
-    assert not conduct["_requested"](queue)
+    assert not mflib.queue.requested(queue)
     (queue / "rejoin").unlink()
     shutil.move(elsewhere, queue / "rejoin")
-    assert conduct["_requested"](queue)
+    assert mflib.queue.requested(queue)
 
     # A start that stops prints its line.
     def unstarted(primary: Path, executor: str) -> int:
@@ -6847,7 +6848,7 @@ def _queued(
         entry["beside"] = list(beside)
     if models is not None:
         entry["models"] = models
-    conduct["_write_cut"](root, change, entry)
+    mflib.queue.write(root, change, entry)
 
 
 @pytest.mark.slow
@@ -11737,7 +11738,7 @@ def test_the_queue_names_are_their_spelled_paths(tmp_path: Path) -> None:
     entry = queue / "supervised" / "0001-a"
     entry.parent.mkdir()
     entry.write_text("abc\n")
-    assert conduct["_merge_tried"](root, "0001-a", "abc")
+    assert mflib.queue.merge_tried(root, "0001-a", "abc")
 
 
 def test_ship_toml_reads_tags() -> None:
@@ -12019,7 +12020,9 @@ def test_cap_close_starts_no_run_for_a_waiting_cut(
     assert starts == [(root, "claude")]
 
 
-def test_cap_writes_the_reason_into_the_entry(tmp_path: Path) -> None:
+def test_cap_writes_the_reason_into_the_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     conduct = _conduct()
     names = conduct["main"].__globals__
     root = _primary(tmp_path)
@@ -12032,13 +12035,13 @@ def test_cap_writes_the_reason_into_the_entry(tmp_path: Path) -> None:
     gate = threading.Event()
     threads = {"0002-v": _held(gate)}
     written: list[str] = []
-    write = names["_write_cut"]
+    write = mflib.queue.write
 
     def record(primary: Path, change: str, entry: dict[str, Any]) -> None:
         written.append(change)
         write(primary, change, entry)
 
-    names["_write_cut"] = record
+    monkeypatch.setattr(mflib.queue, "write", record)
 
     def waits(change: str) -> str | None:
         return conduct["_cuts"](root)[change].get("waits")
@@ -12095,7 +12098,7 @@ def test_cap_status_and_cut_line(tmp_path: Path, fake: Callable[..., Path]) -> N
         _queued(conduct, root, change, brief, halt=halt)
     for change in ("0001-a", "0003-c"):
         entry = conduct["_cuts"](root)[change]
-        conduct["_write_cut"](root, change, {**entry, "waits": "1 in flight, cap 1"})
+        mflib.queue.write(root, change, {**entry, "waits": "1 in flight, cap 1"})
 
     # A halt shows before a reason.
     assert conduct["status"](root).splitlines() == [

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.126.0] - 2026-11-27
+
+Gate: local 9m35s · CI not read under mf-ship · 0.125.0: local 7m48s · CI not read under mf-ship
+
+- Tests pin, green on today's code, what the queue's lock, entries, `briefs` and `supervised` records and rejoin requests do for each shape at a name, a link at the `cuts` and `rejoin` folders, and a failed write in `cut`, `rejoin` and the run's writes. The moves of the next phases turn them (0156-queue, phase 1).
+- `skills/mflib/queue.py` holds the queue's typed entry, its lock, entries, requests and `briefs` and `supervised` records, each behaving as the conductor's copy does; no script calls it yet. `statefile.folder` takes a `mode`, and `statefile.touch` makes a file by its name through no link (0156-queue, phase 2).
+- The conductor reads, writes, lists and removes the queue's entries, takes its lock, makes and takes its requests, and writes its `briefs` and `supervised` records through `skills/mflib/queue.py`. `_write_cut`, `_requested`, `_merge_tried` and `CUT_KEYS` are gone, and no assert changed (0156-queue, phase 3).
+- The queue reads each entry, `briefs` and `supervised` record through no link, bounded and decoded strictly, and types the entry: a link, a FIFO, a folder, an oversized file, a deep JSON or a wrong type is the unreadable entry, and a broken record reads as none. Every write is staged, mode 0600, through no link. `waits` is a wait only as a non-empty string (0156-queue, phase 4).
+- A request is made by its name under the `rejoin` folder's descriptor, and the taker removes a name that is no change id or `all`. A failed queue write stops `conduct.py cut` and `conduct.py rejoin` with exit 2, naming the file, and `cut` removes its reservation (0156-queue, phase 4).
+- D58, D62, D47, D84 and D61, the threat model and the recipes name `skills/mflib/queue.py` as the queue's one read and write: a typed entry, no link followed, a staged write, a request made by its name, and `waits` a wait as a non-empty string (0156-queue, phase 5).
+
 ## [0.125.0] - 2026-11-27
 
 Gate: local 7m48s · CI not read under mf-ship · 0.124.0: local 8m6s · CI not read under mf-ship

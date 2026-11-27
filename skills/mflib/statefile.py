@@ -163,17 +163,18 @@ def read(
     return data.decode(errors="replace")
 
 
-def folder(root: Path, *parts: str) -> int:
+def folder(root: Path, *parts: str, mode: int = 0o777) -> int:
     """Return a descriptor on `root`'s folder `parts`, each made, none read as a link.
 
-    A link at any of `parts` raises `OSError`; `root` itself is followed.
+    A link at any of `parts` raises `OSError`; `root` itself is followed. `mode` is
+    the mode of `root` and of each part it makes; `root`'s parents take the default.
     """
-    root.mkdir(parents=True, exist_ok=True)
+    root.mkdir(mode=mode, parents=True, exist_ok=True)
     fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
     try:
         for part in parts:
             with contextlib.suppress(FileExistsError):
-                os.mkdir(part, dir_fd=fd)
+                os.mkdir(part, mode, dir_fd=fd)
             inner = os.open(
                 part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
             )
@@ -183,6 +184,16 @@ def folder(root: Path, *parts: str) -> int:
         os.close(fd)
         raise
     return fd
+
+
+def touch(path: Path | str, folder: int, mode: int) -> None:
+    """Make an empty file by its name in the folder `folder` holds, of mode `mode`.
+
+    A file that stands is left as it is. The open follows no link and does not
+    block, so a link raises `ELOOP` and a FIFO with no reader `ENXIO`.
+    """
+    flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    os.close(os.open(path, flags, mode, dir_fd=folder))
 
 
 def open_folder(root: Path, *parts: str) -> int:
