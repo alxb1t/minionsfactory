@@ -506,6 +506,22 @@ def test_requests_take_nothing_from_a_linked_or_missing_folder(tmp_path: Path) -
     assert os.listdir(real) == [_CHANGE]
 
 
+def test_requests_take_nothing_when_the_folder_cannot_be_listed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = _primary(tmp_path)
+    queue.request(primary, _CHANGE)
+
+    def refusing(path: object) -> list[str]:
+        raise PermissionError(errno.EACCES, "denied")
+
+    with monkeypatch.context() as patched:
+        patched.setattr(queue.os, "listdir", refusing)
+        assert queue.requests(layout.queue_dir(primary)) == set()
+
+    assert os.listdir(layout.queue_rejoin(primary)) == [_CHANGE]
+
+
 def test_a_request_makes_its_folder_with_parents_0700(tmp_path: Path) -> None:
     primary = _primary(tmp_path)
     umask = os.umask(0o022)

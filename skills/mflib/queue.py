@@ -117,11 +117,10 @@ def _opened(folder: Path) -> Iterator[int | None]:
         os.close(fd)
 
 
-def _names(folder: Path, *, unlink: bool) -> list[str]:
-    """Return the names in `folder`, opened through no link at its last part, sorted.
+def _unlinked(folder: Path) -> list[str]:
+    """Remove each name in `folder`, opened through no link at its last part.
 
-    Under `unlink` each is removed, and only the names removed come back. A folder
-    that cannot be opened or listed holds none.
+    Return the names removed, sorted. A folder not opened or listed holds none.
     """
     with _opened(folder) as fd:
         if fd is None:
@@ -130,8 +129,6 @@ def _names(folder: Path, *, unlink: bool) -> list[str]:
             names = sorted(os.listdir(fd))
         except OSError:
             return []
-        if not unlink:
-            return names
         removed = []
         for name in names:
             try:
@@ -272,7 +269,7 @@ def requests(queue: Path) -> set[str]:
     A name that is no change id and not `all` is removed and left out.
     Why: 0063-rejoin design D2; 0156-queue design D5.
     """
-    return {name for name in _names(queue / _REJOIN, unlink=True) if _is_request(name)}
+    return {name for name in _unlinked(queue / _REJOIN) if _is_request(name)}
 
 
 def requested(queue: Path) -> bool:
