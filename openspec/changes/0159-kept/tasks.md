@@ -1,6 +1,6 @@
 # Kept — tasks
 
-The phases run in order: the pins, the module, the stations, the fix, the record. Each task names its files; the decisions are in [design](design.md).
+The phases run in order: the pins, the module, the stations, the fix, the record, the held events. Each task names its files; the decisions are in [design](design.md).
 
 ## Progress
 
@@ -9,6 +9,7 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 - [x] 3 — The stations · hard
 - [x] 4 — The fix · hard
 - [x] 5 — The record · moderate
+- [ ] 6 — The held events · moderate
 
 ## 1 — The pin
 
@@ -128,3 +129,8 @@ The phases run in order: the pins, the module, the stations, the fix, the record
   Verify: `git grep -n -e "the kept files, kept.py" -- THREAT_MODEL.md` prints a line.
 - [x] 5.5 In `docs/recipes.md` add that the kept files are written and parsed through `skills/mflib/kept.py`, their paths `layout.kept_file(primary)` and its neighbours in the layout module.
   Verify: `git grep -n -e "skills/mflib/kept.py" -- docs/recipes.md` prints a line.
+
+## 6 — The held events
+
+- [ ] 6.1 Cover the replay of the run log's `held` events in the `except Exception` of `run` in `skills/mf-ship/scripts/conduct.py`, the loop that releases them before the halt is logged ([D7](design.md#d7)): the gate's diff coverage found it missed, because every case of 4.2 raises its `Broken` after `ship` has released the list, so `held` is None. In `tests/test_kept_pins.py` add `test_broken_run_releases_the_held_events_before_the_halt`, in which `conductor.ship()` raises a `Broken` while the list is held — after a `ledger` event logged by a bad entry (`_bad_entry`) or a `sync` note of `push_left` — and the run log shows that event before the one `run · halt — conduct.py failed:` line and the exit is `2`. It writes no code in `conduct.py`.
+  Verify: `uv run pytest tests/test_kept_pins.py -k test_broken_ -n auto -q` exits `0`.
