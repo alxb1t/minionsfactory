@@ -7,7 +7,7 @@ Pin today's opens and the riders, move the riders, move the roots, say what is t
 - [x] 1 — Pin the roots and the riders · moderate
 - [x] 2 — The riders · moderate
 - [x] 3 — The root · hard
-- [ ] 4 — The record · moderate
+- [x] 4 — The record · moderate
 
 ## 1 — Pin the roots and the riders
 
@@ -72,7 +72,7 @@ Pin today's opens and the riders, move the riders, move the roots, say what is t
 
 ## 4 — The record
 
-- [ ] 4.1 In `THREAT_MODEL.md` rewrite the sentences of the run log and the claim, the models file, the findings files and the marks so each says its folder is opened from the primary, `.minions` a part refused as a link; the sentences carry the words `part refused`. Drop "but follow the `.minions` root" from the marks and keep the stand test's and the time's clause; reword the "other in-process writes" sentence for the riders of [D6](design.md#d6).
+- [x] 4.1 In `THREAT_MODEL.md` rewrite the sentences of the run log and the claim, the models file, the findings files and the marks so each says its folder is opened from the primary, `.minions` a part refused as a link; the sentences carry the words `part refused`. Drop "but follow the `.minions` root" from the marks and keep the stand test's and the time's clause; reword the "other in-process writes" sentence for the riders of [D6](design.md#d6).
   Verify: `git grep -q -F "part refused" -- THREAT_MODEL.md` exits `0`.
-- [ ] 4.2 In `docs/recipes.md` add `mark's name` to the `check_formats` line, and word the sentences of the run log, the claim and the findings so each folder is found through `layout.beneath`.
+- [x] 4.2 In `docs/recipes.md` add `mark's name` to the `check_formats` line, and word the sentences of the run log, the claim and the findings so each folder is found through `layout.beneath`.
   Verify: `git grep -q -F "mark's name" -- docs/recipes.md` exits `0`.

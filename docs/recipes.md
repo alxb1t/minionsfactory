@@ -49,10 +49,11 @@ its own git call for the primary, and `layout.primary_of` maps git's answer to i
 A writer stages the file through `write` of `skills/mflib/statefile.py`, which renames `<name>.tmp` over it and raises
 `WriteFailed` for the writer to word; a reader takes `statefile.read`, which follows no link. The status log is
 written and parsed through `skills/mflib/statuslog.py`, its path `layout.status_log(primary, change)`. The findings
-files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`.
-The debt file is written and parsed through `skills/mflib/debtfile.py`, its path `layout.debt_file(primary)`, and its
+files are written and parsed through `skills/mflib/findings.py`, their paths `layout.findings_file(primary, change, role)`,
+their folder found through `layout.beneath`. The debt file is written and parsed through `skills/mflib/debtfile.py`, its path `layout.debt_file(primary)`, and its
 lock taken through `debtfile.lock`. The run log is written and parsed through `skills/mflib/runlog.py`, its folder
-`layout.runs_dir(primary)`, and the claim through `skills/mflib/claim.py`, its path `layout.claim_file(primary)`. The
+`layout.runs_dir(primary)`, and the claim through `skills/mflib/claim.py`, its path `layout.claim_file(primary)`; each
+finds its folder through `layout.beneath`, which splits the path into the primary and the parts, `.minions` the first. The
 models file is written and parsed through `skills/mflib/modelsfile.py`, its path `layout.models_file(primary, change)`.
 
 - **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
@@ -60,8 +61,8 @@ models file is written and parsed through `skills/mflib/modelsfile.py`, its path
   elsewhere equal to `.minions`, or starting `.minions/`, fails unless `LAYOUT_SITES` lists the pair. It holds the home
   folder's names there too: a string constant elsewhere that contains `.mf-ship-origin`, or equals `XDG_CONFIG_HOME`,
   `XDG_DATA_HOME` or `XDG_STATE_HOME`, fails whatever the list holds, and `LAYOUT_SITES` lists neither.
-  `check_formats` holds the format names in `skills/mflib/`: a string constant elsewhere equal to `status_log.md`, or
-  containing `## Run`, `# Ship run`, the card head `- **` or `- \*\*`, or the run log's clock `\d\d:\d\d:\d\d` or
+  `check_formats` holds the format names in `skills/mflib/`: a string constant elsewhere equal to `status_log.md` or a mark's name,
+  or containing `## Run`, `# Ship run`, the card head `- **` or `- \*\*`, or the run log's clock `\d\d:\d\d:\d\d` or
   `(\d\d):(\d\d):(\d\d)`, fails unless `FORMAT_SITES` lists the pair.
 
 ## An OS

@@ -94,21 +94,28 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   reads (`findings/`, `models/`, `integrate/`, `build/`, `rescue/`, `release/`, `gate-check/`, `runs/` or a
   `runs/<stamp>/`) halts the run before the move takes a file; no write of the conductor's follows one
   ([D57](docs/decisions.md#d57--one-folder-per-change-in-minions)), and none of the run log or the claim follows a link
-  either: `skills/mflib/runlog.py` writes the log under the runs folder's descriptor and reads it through no link,
-  refusing what is no regular file, and a hard link at its appends, its stop line and `wait`'s reads, and `skills/mflib/claim.py` the claim, which halts the run, a stop and a worker's start when it is no folder. The status log is written by
+  either: `skills/mflib/runlog.py` opens the runs folder from the primary, `.minions` a part refused as a link, writes the
+  log under that folder's descriptor and reads it through no link, refusing what is no regular file, and a hard link at its
+  appends, its stop line and `wait`'s reads, and `skills/mflib/claim.py` opens its folder the same way: a link at `.minions`
+  stops the run at the claim, and nothing is written in the link's target. The status log is written by
   `skills/mflib/statuslog.py` through a descriptor held across its read and its write. The models file is read by
   `skills/mflib/modelsfile.py` through no link, refusing what is no regular file and anything over 65,536 bytes, and
-  written by it staged, refusing a link; a broken one halts its version alone. The findings files are read and
-  written by `skills/mflib/findings.py`, through the read and the staged write of `skills/mflib/statefile.py`, which
-  follow no link; a malformed one reads, to the conductor's security readers, as a blocking security card. The debt is
+  written by it staged, refusing a link, its folder opened from the primary, `.minions` a part refused as a link; a broken
+  one halts its version alone. The findings files are read and written by `skills/mflib/findings.py`, through the read and
+  the staged write of `skills/mflib/statefile.py`, which follow no link, the staged write opening its folder from the
+  primary, `.minions` a part refused as a link; a malformed one reads, to the conductor's security readers, as a blocking security card. The debt is
 written through `skills/mflib/debtfile.py`, which holds the folder it opens from the primary, `.minions` a part it does
 not follow, and releases its lock only while the lock holds its token. The start-of-run move of an old layout's files,
 `migrate_layout`, and of an old `backlog.md`, `migrate_debt`, follow no link they find: each halts on one, and
 `migrate_debt` on a `backlog.md` that is no regular file. The marks of a change's folder are read by
   `skills/mflib/marks.py` through no link, refusing what is no regular file, a bad byte and a file over its bound: a stop
-  mark so read halts its version and a pass mark reads as absent. Its read and its staged write follow no link at the mark or at the change folder, but follow the `.minions` root, and its stand test
-  and its time follow a link at any parent of the mark, the change folder included. The other
-  in-process writes of a change's folder follow no link by their own checks until their formats move. Among the worker output, `build-notes.md`, which any worker of
+  mark so read halts its version and a pass mark reads as absent. Its read and its staged write open the change folder from
+  the primary, `.minions` a part refused as a link, and follow no link at the mark or at the change folder; its stand test
+  and its time follow a link at any parent of the mark, the change folder included. The gate's record, the cut's
+  `cut-notes.md` and `context.md`, a grant and a cut's reservation follow no link either, each through `statefile` or its
+  own folder's descriptor: a record that is a link or holds a bad byte reads as none, and a reservation that is a link or a
+  folder fails the cut's check by name. The other in-process writes of a change's folder follow no link by their own checks
+  until their formats move. Among the worker output, `build-notes.md`, which any worker of
   the run can write, the next phase reads as evidence, and the conductor counts and trims through a descriptor that
   follows no link and refuses a file that is not a regular file of one name: a hard link, a folder or a pipe halts the
   version. A design's `Fix note` lines, which the converge fixer appends and the run reads as no decision change, and the
