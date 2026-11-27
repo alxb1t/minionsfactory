@@ -3139,10 +3139,11 @@ before the debt lock, every non-blocking amend card left `wontfix`, or `open` an
 the defect, SHALL halt the run `amend needed — <card ids>`, writing nothing to the debt, save one *Converge keeps deferred work
 in one repository debt file* lets go on; a card whose **Still true?** holds no command SHALL go to the debt unchecked. The person's
 amend answers either halt.
-The fixer SHALL run `plan_check.py` after its gate, as *A plan check holds the plan to the built tree* says, and SHALL write
-`.minions/changes/<change-id>/fix.md` with a last line `plan check left: <subjects>` or `plan check left: none`, which
-`converge.py` reads in place of the fixer's report. A verify round and the pickup check SHALL run `gate_check.py` after the gate,
-and a verify round SHALL then run `plan_check.py`.
+The fixer SHALL run `plan_check.py --quick` after its check and before its commit, as *A plan check holds the plan to the built tree*
+says, and SHALL write `.minions/changes/<change-id>/fix.md` with a last line `plan check left: <subjects>` or
+`plan check left: none`, which `converge.py` reads in place of the fixer's report. The whole plan check SHALL run for a fix after
+its gate, at the freeze. A verify round and the pickup check SHALL run `gate_check.py` after the gate, and a verify round SHALL then
+run `plan_check.py`, which reads a kept result while one stands.
 
 #### Scenario: A fix that needs a `Verify:` changed
 - **WHEN** a blocking card's fix needs a task's `Verify:` edited
@@ -3205,6 +3206,11 @@ and a verify round SHALL then run `plan_check.py`.
 #### Scenario: An amend card the amend settled
 - **WHEN** a blocking amend card halted `amend needed`, and the person's amend makes its **Still true?** check show the defect gone
 - **THEN** the amend round's verify pass turns it `verified`, naming the amend, and the round can end clean
+
+#### Scenario: The fixer's check and the script's
+- **WHEN** a fixer clears its cards and commits
+- **THEN** it has run `plan_check.py --quick` and `make check`, and converge runs the gate, then the whole plan check at the freeze
+- **AND** the verify round runs the whole check again, answered from the kept result while one stands, and a line it prints that the fixer's `plan check left:` line did not name is sent back as before
 
 ### Requirement: A verify halt is diagnosed by the run
 
@@ -4582,17 +4588,34 @@ alone with what the `Verify:` says, keeping its stderr apart, and SHALL show the
 `skills/mf-cut-change/scripts/verify_check.py` SHALL read a `Verify:`'s commands through this script's parser, loaded
 from it, and keep no parser of its own.
 
+It SHALL judge in groups, and a group that fails SHALL print its lines and end the check before the next group starts, a group
+whose only lines say `timed out` ending nothing, as such a line is no finding. The
+**reads** group comes first: the unticked boxes, the removed names, the base's tests and the corpus cases, which run no command. The
+**quick** group follows: every `Verify:` command that is no `pytest` run and no `make`, a `pytest` with `--collect-only` included, and the collection —
+the command with `--collect-only -q` appended — of each `pytest` `Verify:` that says it exits 0 and no more, a collection that timed out printing
+`timed out`, one that exits non-zero or finds no test printing `plan: <sub-task> — `<command>` collected no test`, and one that
+exits 2 with its first lines of output. The **long** group is last: the `pytest` and `make`
+commands, each a `pytest` the gate's green record vouches for left unrun. The commands of the quick group start before its
+collections, and none of them waits behind a command of the long group. With `--only` the reads group is empty.
+
+`--quick` SHALL judge the quick group alone, over the ticked sub-tasks as a plain check reads them, a `**HALT CHECK**` sub-task,
+a `**HUMAN` phase and a command naming `plan_check.py` left out as there. It SHALL run no `pytest` test and no `make`, check no
+box, name, test or corpus case, print `plan: clean` and exit 0 when no line is printed, and exit 2, naming both options, when
+`--only` is given with it.
+
 It SHALL run each distinct command once a check, whatever the number of sub-tasks that name it, and hold the one result to each
-sub-task's own words. It SHALL run the commands side by side, one slot for each core the machine has, and print the lines in
+sub-task's own words. It SHALL run the commands of a group side by side, one slot for each core the machine has, and print the lines in
 task order, then command order, whatever order they finish in: a `pytest` with `-n` takes every slot and runs alone, a `make`
 runs one at a time, and every `pytest` starts with `-p no:cacheprovider` in its `PYTEST_ADDOPTS`. It SHALL start a command only
 while the machine's 1-minute load is under its core count, and SHALL start one whatever the load when no command runs. A command
 past its limit — the integer after `**Verify timeout:**` in the root `AGENTS.md`, in seconds and at most a day, else 600 — SHALL lose its whole
 process group and print `plan: <sub-task> — `<command>` timed out`; ended by SIGTERM, the check SHALL end the
 process group of each command then running. A `pytest` command — one whose argv starts `pytest`, `uv run pytest` or `python -m pytest` — whose `Verify:` says nothing of its
-output beyond that it exits 0, and whose words after its pytest prefix are only `-q`, `-v`, `-x` or `-s` flags and test paths
-and `::` nodes that exist, SHALL pass unrun when `gate_run.py` holds a green record for the same tree and the same dry run of
-`make -n gate` and the command's own collection finds a test; one that says what it prints, selects with `-k`, `-m` or `--deselect`, or carries another option still runs. On a settled tree the check SHALL keep each finished result — its exit, stdout and stderr — in
+output beyond that it exits 0, and whose words after its pytest prefix are only quiet flags — `-q`, `-qq`, `-v`, `-vv`, `-x` or `-s` — `-n` or
+`--numprocesses` with its value, `-k` with its value, and test paths and `::` nodes that exist, SHALL pass unrun when `gate_run.py` holds a
+green record for the same tree and the same dry run of `make -n gate` and the command's own collection finds a test; one that says what it
+prints, says it exits another code, names a `[` node or a path outside the repo's `testpaths`, or carries `-m`, `-c`, `--deselect` or any
+other option still runs. On a settled tree the check SHALL keep each finished result — its exit, stdout and stderr — in
 `.minions/plan-check/<tree>/`, named by the command, `HEAD` and every ref, and SHALL read it again on the same tree while
 `HEAD` and every ref stand, whatever the command's words; a timed-out command SHALL be kept by no one, a result kept without its
 stderr SHALL be read as none kept, and an unsettled tree
@@ -4601,12 +4624,12 @@ SHALL keep and read none. With
 it names included, with the other skips, print only their lines and check nothing else.
 
 `conduct.py close` SHALL run it at the build's close, after the metrics and before `build.done`, its `--base` the sha `stacked-on` names while it stands and else the merge base of the default branch
-and `HEAD`, and SHALL halt on any other exit than 0, writing no `build.done`. Converge's fixer SHALL run it in the foreground after
+and `HEAD`, and SHALL halt on any other exit than 0, writing no `build.done`. Converge's fixer SHALL run `--quick` in the foreground after
 its check and before its commit, clearing each problem as a blocking card of the same pass, or setting it `wontfix` naming the
-amend; converge's Step 7 SHALL run it after `gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any
+amend; converge's Step 7 SHALL run the whole check after `gate_check.py`, and on exit 1 SHALL send its lines to the fixer again before any
 verify worker, counting no round, save a line that says a command timed out, which it SHALL send back to no one; a line the last fixer reported leaving, or one Step 7 already sent back, SHALL instead halt the
-run `amend needed — plan check: <subjects>`, naming each line's sub-task, `path:line` or test name and never the command it
-quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and
+run `amend needed — plan check: <subjects>`, naming each line's sub-task, `path:line` or test name and never the
+command it quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `plan_check.py` prints, in `tasks.md` and
 `design.md`'s prose.
 
 #### Scenario: A ticked check that no longer holds
@@ -4688,12 +4711,34 @@ quotes. `skills/mf-rescue/SKILL.md` SHALL take that halt as a fix of the lines `
 - **THEN** the command runs once, and `plan_check.py` prints a line for `1.2` alone
 
 #### Scenario: A bare pytest on a green gate
-- **WHEN** a ticked `Verify:` says a `pytest` command exits 0, and `gate_run.py` holds a green record for the same tree and the same dry run
+- **WHEN** a ticked `Verify:` says a `pytest` command exits 0, `gate_run.py` holds a green record for the same tree and the same dry run, and the command's collection finds a test
 - **THEN** the command does not run, and `plan_check.py` prints no line for it
-- **AND WHEN** the `Verify:` says the command prints `3`, or the tree or the dry run differs from the record's, or the command's collection finds no test, or a test path lies outside the repo's `testpaths`
+- **AND WHEN** the `Verify:` says the command prints `3`, or the tree or the dry run differs from the record's, or a test path lies outside the repo's `testpaths`
 - **THEN** the command runs
-- **AND WHEN** the command selects with `-k`, or names a test file or node that does not exist
-- **THEN** the command runs, and a selection that collects no test fails the check
+
+#### Scenario: A collection that finds no test
+- **WHEN** a ticked `Verify:` says a `pytest` command exits 0 and names a test file or node that does not exist, or selects no test with `-k`, whether or not a green record stands
+- **THEN** its collection fails, `plan_check.py` prints `collected no test` for it, exits 1, and runs no `pytest`
+
+#### Scenario: An option the green gate vouches
+- **WHEN** a ticked `Verify:` says `uv run pytest tests/test_a.py tests/test_b.py -n auto -q -k test_one` exits 0, the record stands, and the collection finds a test
+- **THEN** the command does not run, and `plan_check.py` prints no line for it
+- **AND WHEN** the command carries `-m slow`, `-c other.ini`, `--deselect` or a `[` node
+- **THEN** the command runs
+
+#### Scenario: A cheap failure ends the check
+- **WHEN** a ticked `git grep` `Verify:` exits 1 and a ticked `pytest` `Verify:` would run for minutes
+- **THEN** `plan_check.py` prints the search's line, exits 1, and starts no `pytest`
+- **AND WHEN** a box stands unticked under a ticked phase and a command also fails
+- **THEN** only the box's line prints
+
+#### Scenario: A quick check
+- **WHEN** `plan_check.py --quick` runs over a ticked `git grep` that exits 1 and a ticked `pytest` `Verify:` that says it exits 0
+- **THEN** it prints the search's line and exits 1, collects the `pytest` command and runs no test, and checks no box
+- **AND WHEN** every command passes
+- **THEN** it prints `plan: clean` and exits 0
+- **AND WHEN** `--only` is given with `--quick`
+- **THEN** it exits 2, naming both
 
 #### Scenario: A result kept by tree
 - **WHEN** `plan_check.py` runs a command on a settled tree and runs again on the same tree
@@ -5182,7 +5227,8 @@ role's reference. The script SHALL run the gate, `gate_check.py`, `plan_check.py
 under `conduct.py`'s sandbox runner, never bare. It SHALL stamp each findings file's `head`, `round`, `files` and `commits` after its
 checker returns, as *Converge stamps a findings file's counts* says, and SHALL read a findings file's frontmatter keys `passes` and
 `inconclusive`, and each card's `Amend:` field, in place of the prose the conductor read before; a file without them or with no
-frontmatter, or with a card whose id is outside `R<n>` and `S<n>`, or whose verdict is `changes-requested` with no open card, SHALL be malformed. A card is
+frontmatter, or with a card whose id is outside `R<n>` and `S<n>`, or whose verdict is `changes-requested` with no open card, or whose
+verdict is `clean` with `open_blocking` 0 while a blocking card's Status word is neither `verified` nor `accepted`, SHALL be malformed. A card is
 open until its status is `verified` or `accepted`; a role whose verdict is `changes-requested` while no open card blocks SHALL
 count as clean, its file's verdict written `clean` and its open cards left to the pickup and the debt. `converge.py`, `conduct.py`, `integrate.py`, `open_cards.py`, `overlap.py`
 and `skip_stub.py` SHALL read a findings file's cards and frontmatter through `skills/mflib/findings.py`, a card's title a line that
@@ -5193,7 +5239,10 @@ SHALL stay as before.
 The script SHALL go on where it can: a worker that exits non-zero or leaves no file SHALL get one fresh retry; a malformed
 findings file SHALL get one rewrite worker, then a debt card for it, and the run SHALL go on; a fixer whose gate is red or whose tree
 is dirty SHALL get one more fix pass, then the halt `cap reached`; `replay` exiting 2 SHALL send a worker round; the debt lock SHALL be waited for 10 minutes. The environment, a loop outcome, a gate that
-stays red, a security card and a debt the freeze may not read SHALL still halt.
+stays red, a security card and a debt the freeze may not read SHALL still halt. A file whose verdict is `clean` while a blocking card is
+not closed SHALL get its one rewrite worker, the role's own, told the card and its Status word, in place of the debt card and the go-on; the
+mismatch itself SHALL send no card to a fixer and count no round, and the file the worker leaves SHALL be read as any file. A file malformed after that rewrite, for any
+reason, SHALL halt the version, naming the role, the card and the word of the first read, and the halt SHALL not be `cap reached`.
 
 #### Scenario: A version converges with no conducting worker
 - **WHEN** a run takes a built version to converge on the fake hosts
@@ -5213,6 +5262,16 @@ stays red, a security card and a debt the freeze may not read SHALL still halt.
 - **WHEN** a checker's findings file says `changes-requested` and holds no open card
 - **THEN** one rewrite worker is started for it, as for a file that lacks `passes`, and the file reads `verdict: clean` after, the
   rewrite having fixed it or not
+
+#### Scenario: A clean file with a blocking card not closed
+- **WHEN** a verify worker's file says `verdict: clean` and `open_blocking: 0` while blocking card R1's Status reads `fixed`
+- **THEN** one rewrite worker of that role is started, told R1 and `fixed`, no fixer is sent R1, and the round count stays
+- **AND WHEN** the file then reads R1 `verified`, or `changes-requested` with `open_blocking: 1`
+- **THEN** converge goes on from that file
+
+#### Scenario: A clean file still mismatched
+- **WHEN** the file still says `verdict: clean` while R1's Status reads `fixed` after the rewrite worker, or the worker leaves the file with no `Amend:` line on a card
+- **THEN** the version halts, the halt naming the role, R1 and `fixed`, and it is no `cap reached`
 
 #### Scenario: A card titled outside the contract's ids
 - **WHEN** a checker's findings file holds a card titled `- **S-1 — a title**`
@@ -6966,3 +7025,20 @@ A rejoin request SHALL be an empty file made by its name under the `rejoin` fold
 #### Scenario: A failed write stops rejoin
 - **WHEN** `conduct.py rejoin` cannot write an entry it clears
 - **THEN** the command exits 2, naming the file, and the entries it cleared before stay cleared
+
+### Requirement: The conductor runs a quick plan check after each phase
+
+After a build phase's worker passes its check, `conduct.py` SHALL, for each phase of `## Progress` but the last, run `plan_check.py --change <change-id> --base <base> --quick` in the version's worktree, under the sandbox runner, its `<base>` the one the close's plan check takes. It SHALL run it beside the gate it runs after the last phase, once the phase is ticked at `HEAD` and the tree is clean, over every ticked sub-task, those of earlier phases included. A failure SHALL fail the build check as `plan check: plan_check.py --quick exit <code> · <the last line it printed>`, and SHALL write `build.halt` with `sub-task: phase <N>`, `stop: plan check`, the evidence and `head:`, so the version halts as a failed build check does and the rescue's amend of `tasks.md` answers it. A phase worker's own check SHALL stay a read of the boxes and the tree. The last phase SHALL run no quick check: the close's whole plan check follows it.
+
+#### Scenario: A later phase breaks an earlier search
+- **WHEN** phase 3 of four removes a line that a ticked `git grep` `Verify:` of phase 1 finds, and phase 3's worker passes its own check
+- **THEN** the conductor's quick plan check prints a line for that sub-task and exits 1, the build check fails as `plan check: …`, and `build.halt` names `phase 3`
+- **AND** no `pytest` runs for it
+
+#### Scenario: The last phase
+- **WHEN** the last phase's worker passes its check
+- **THEN** the conductor runs no quick plan check, and the gate and the close follow as before
+
+#### Scenario: A phase whose checks hold
+- **WHEN** every ticked `Verify:` command that runs no `pytest` test and no `make` passes, and each ticked `pytest` `Verify:` that says it exits 0 collects a test
+- **THEN** the quick plan check exits 0 and the next phase is spawned
