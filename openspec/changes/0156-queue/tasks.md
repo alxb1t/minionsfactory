@@ -28,8 +28,8 @@ Cases of the series' queue mutation run, written again at `HEAD`, each green as 
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_take_requests_reads_the_entries_again_when_a_request_stands` exits `0`.
 - [x] 1.7 Add to `tests/test_queue_pins.py` the pins of what no mutant reaches, the first being `test_a_fifo_at_an_entry_reads_in_a_child`: a link, a hard link, a folder, a bad byte, a file over its bound, a wrong type and a deep JSON at an entry; the same shapes at `briefs/<id>`, `supervised/<id>` and a request; a link at the `cuts` folder and at the `rejoin` folder.
   Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_a_fifo_at_an_entry_reads_in_a_child` exits `0`.
-- [x] 1.8 Add to `tests/test_queue_pins.py` the pins of a failed write in `cut`, `rejoin`, `cut_halted`, `wait_cut`, `unwait`, the writes of `briefs` and `supervised`, and a request, the first being `test_a_failed_entry_write_in_cut_leaves_the_reservation`; each form of `waits`, null, empty and text; the cut halt's text written and matched.
-  Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_a_failed_entry_write_in_cut_leaves_the_reservation` exits `0`.
+- [x] 1.8 Add to `tests/test_queue_pins.py` the pins of a failed write in `cut`, `rejoin`, `cut_halted`, `wait_cut`, `unwait`, the writes of `briefs` and `supervised`, and a request, the first being `test_a_failed_entry_write_in_cut_stops_it_and_removes_the_reservation`; each form of `waits`, null, empty and text; the cut halt's text written and matched.
+  Verify: `uv run pytest tests/test_queue_pins.py -n auto -q -k test_a_failed_entry_write_in_cut_stops_it_and_removes_the_reservation` exits `0`.
 - [x] 1.9 Run each case once under the change its comment names, by hand, and restore the file. No source file stays changed.
   Verify: `git status --porcelain -- skills` prints nothing.
 
