@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 import conduct_load
+import mflib.claim
 import mflib.debtfile
 import mflib.findings
 import mflib.modelsfile
@@ -9663,6 +9664,19 @@ def test_a_stale_lock_is_cleared_and_converge_resumes(
     assert not scratch.is_symlink() and scratch.is_dir()
     assert not list(scratch.iterdir())
     assert (outside / "kept.txt").read_text() == "x\n"
+
+    # A claim the folder's open let through and the take refuses stops the run in
+    # a named line, not a traceback.
+    def refuse(path: Path) -> None:
+        raise OSError(errno.EACCES, "Permission denied")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(mflib.claim, "take", refuse)
+        capsys.readouterr()
+        assert run() == 2
+    assert capsys.readouterr().out.startswith(
+        "run: cannot run — .minions/runs/active: Permission denied"
+    )
 
     # A link at `.minions`, which a worker hides from git, stops the run at its
     # claim: its target's `tmp` keeps its file and its `runs/` gains nothing.
