@@ -1050,7 +1050,9 @@ hostile repo needs a container.**
   the run that wrote it, so the URLs stand where no worker writes.
 - **Offline base:** beside the kept URLs stands `<digest>.pushed`, the default-branch sha a run last saw on `origin`,
   written after every good read and default-branch push. It judges the default branch while `origin` cannot be read, where
-  no worker writes.
+  no worker writes. A base that cannot be read stops the command.
+- **Kept files:** written and read through `skills/mflib/kept.py`. A kept file that cannot be read stops the command,
+  exit 2, and a ledger entry that is no commit id authorizes nothing.
 - **Accepts:** a Codex worker can read `~`, with its network off · a Codex worker writes each linked worktree's folder
   under the common directory, as a Claude worker does · a repo's `.claude/` settings, skills and `.mcp.json` reach no
   worker · a Claude worker starts no MCP server, the operator's own included ·
@@ -1225,7 +1227,8 @@ end or at an install with none live, to the pending release or a newer tag `orig
   no object with the primary, so nothing planted there reaches the export.
 - **Accepts:** a station run by hand leaves no live mark, so the links can move under it · a `TAG=<tag>` install trusts
   the checkout · a tag only the local repo holds is skipped, and the `start` line names it · after a reboot or a killed
-  run, a pending release waits for the next run's end or install.
+  run, a pending release waits for the next run's end or install · an unreadable mark reads as none, so a run takes it
+  over and an install treats it as no live run.
 - **Rejected:** a Python package or a plugin · `SKILLS_DIR`, which names one host · a waiter process · a move at a run's
   start · an `After release:` command · a pin per project.
 

@@ -8,7 +8,7 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 - [x] 2 — The module · hard
 - [x] 3 — The stations · hard
 - [x] 4 — The fix · hard
-- [ ] 5 — The record · moderate
+- [x] 5 — The record · moderate
 
 ## 1 — The pin
 
@@ -118,13 +118,13 @@ The phases run in order: the pins, the module, the stations, the fix, the record
 
 ## 5 — The record
 
-- [ ] 5.1 In `docs/decisions.md` add to D51 a bullet `**Kept files:**` saying they are written and read through `skills/mflib/kept.py`, a file that cannot be read stops the command, exit 2, and a ledger entry that is no commit id authorizes nothing; its `**Offline base:**` bullet gains that a base that cannot be read stops the command.
+- [x] 5.1 In `docs/decisions.md` add to D51 a bullet `**Kept files:**` saying they are written and read through `skills/mflib/kept.py`, a file that cannot be read stops the command, exit 2, and a ledger entry that is no commit id authorizes nothing; its `**Offline base:**` bullet gains that a base that cannot be read stops the command.
   Verify: `git grep -n -e "skills/mflib/kept.py" -- docs/decisions.md` prints a line.
-- [ ] 5.2 In `docs/decisions.md` add to D55 that an unreadable mark reads as none.
+- [x] 5.2 In `docs/decisions.md` add to D55 that an unreadable mark reads as none.
   Verify: `git grep -n -e "unreadable mark" -- docs/decisions.md` prints a line.
-- [ ] 5.3 In `THREAT_MODEL.md` add to the sentence on the kept URLs that a kept origin that cannot be read stops the run, and to the sentence on the release ledger that a non-commit entry authorizes nothing, is named in the log and stays.
+- [x] 5.3 In `THREAT_MODEL.md` add to the sentence on the kept URLs that a kept origin that cannot be read stops the run, and to the sentence on the release ledger that a non-commit entry authorizes nothing, is named in the log and stays.
   Verify: `git grep -n -e "non-commit entry" -- THREAT_MODEL.md` prints a line.
-- [ ] 5.4 In `THREAT_MODEL.md` add `kept.py` to the list of the shared home's modules that follow no link.
+- [x] 5.4 In `THREAT_MODEL.md` add `kept.py` to the list of the shared home's modules that follow no link.
   Verify: `git grep -n -e "the kept files, kept.py" -- THREAT_MODEL.md` prints a line.
-- [ ] 5.5 In `docs/recipes.md` add that the kept files are written and parsed through `skills/mflib/kept.py`, their paths `layout.kept_file(primary)` and its neighbours in the layout module.
+- [x] 5.5 In `docs/recipes.md` add that the kept files are written and parsed through `skills/mflib/kept.py`, their paths `layout.kept_file(primary)` and its neighbours in the layout module.
   Verify: `git grep -n -e "skills/mflib/kept.py" -- docs/recipes.md` prints a line.

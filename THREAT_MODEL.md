@@ -56,12 +56,12 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   save a run's start, which fetches `origin`'s default branch through that scratch repo into the primary's objects and
   fast-forwards the local branch, overwriting no ignored file and merging nothing. A run keeps `origin`'s URLs in the home folder before its first worker: while
   `origin` differs from them, no remote call of `conduct.py` runs, in that run or a later one, until a person repoints it
-  or removes the file. A changed config halts a run before its next push. A worker can redirect git with `commondir`
+  or removes the file; a kept origin that cannot be read stops the run. A changed config halts a run before its next push. A worker can redirect git with `commondir`
   or a swapped `.git`, so `conduct.py` halts when git
   names a repo outside the folder it runs in and no run kept that repo's URLs, and `status`, `check` and `report` make no
   remote call for a repo no run kept, wherever they run: a first read is a run's alone. It pushes only a release a run took
   to its release: the release ledger in the home folder holds each version's head from its release worker's start, and a head
-  authorizes nothing once it is on `origin`. The push check reads history in a clean scratch repo, through objects alone,
+  authorizes nothing once it is on `origin`, and a non-commit entry authorizes nothing, is named in the log and stays. The push check reads history in a clean scratch repo, through objects alone,
   with replacement disabled; no worker-written ref, graft or `shallow` file reaches it. Before any push, Betterleaks scans
   each pushed branch's range from the offline base, each two-parent merge by what it adds to the automatic merge, in such a
   scratch repo, with no system config or attributes, so no worker-written filter runs, and with no ignore file or allow
@@ -157,7 +157,7 @@ round. A test module stays off it: conformance judges every test edit under *Gat
 hooks reshape the whole run, is on it.
 
 - `skills/*/scripts/*` — the bundled scripts, the conductor's among them, run on the operator's machine.
-- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write, the status log, the findings files, `findings.py`, the debt file, `debtfile.py`, the run log, `runlog.py`, the claim, `claim.py`, the models file, `modelsfile.py`, the marks of a change's folder, `marks.py`, and the home queue, `queue.py`, each following no link — loaded by the scripts that run on the operator's machine.
+- `skills/mflib/*` — the shared home: the port to the OS, the layout of the run directory and of the home folder, and the formats of the state files — the staged write, the status log, the findings files, `findings.py`, the debt file, `debtfile.py`, the run log, `runlog.py`, the claim, `claim.py`, the models file, `modelsfile.py`, the marks of a change's folder, `marks.py`, the kept files, kept.py, and the home queue, `queue.py`, each following no link — loaded by the scripts that run on the operator's machine.
 - `scripts/*` — the metric scripts the gate and the collector run, and the setup script a cloud environment runs as root.
 - `skills/mf-bootstrap/templates/*` — what a new repo's gate, ignore list and threat model start from.
 - `skills/mf-ship/SKILL.md` — the unattended run's instructions, its merges and pushes.
