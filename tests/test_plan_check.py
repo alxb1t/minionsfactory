@@ -489,6 +489,12 @@ def test_a_green_record_vouches_n_and_k_options(
     # A `-k` that selects no test collects none: a line, and no pytest runs.
     gone = f"{file} -k gone"
     assert check(gone) == (1, [f"plan: 1.1 — `pytest -q {gone}` collected no test"])
+    # A `-n` with no worker count, or a word that is none, is no vouched option.
+    for named in (f"-n many {file}", f"{file} -n"):
+        assert check(named) == (
+            1,
+            [f"plan: 1.1 — `pytest -q {named}` collected no test"],
+        )
 
 
 def _logging_stubs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
