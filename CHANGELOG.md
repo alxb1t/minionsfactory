@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.128.0] - 2026-11-27
+
+Gate: local 7m38s · CI not read under mf-ship · 0.127.0: local 9m56s · CI not read under mf-ship
+
 - `pyproject.toml`'s `addopts` gains `--dist=worksteal`: the gate's tests, `make check`'s and every run with `-n` are handed out by work stealing, so one worker no longer holds the longest test while the others wait (0158-test-speed, phase 1).
 - The tests of this repository that ran over 1 s gain `@pytest.mark.slow`, and the marker's text and `AGENTS.md` say `over 1 s`: `make check` between phases runs the tests under 1 s and the whole-repo scanners, and the gate still runs every test (0158-test-speed, phase 2).
 
