@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A kept file is read through no link, without blocking and bounded: a broken kept origin, `.default` or offline base stops the command, exit 2, naming the file; a broken approval approves nothing; a ledger entry that is no commit id is named and skipped; a broken live mark or `repos` reads as none. Writes are staged at 0600, and the kept origin and `.default` are written once (0159-kept, phase 4).
 - `.default` is now written with a newline and read stripped. An older pinned conductor reads the new file as a moved default and halts its pushes: pins only move forward (0159-kept, phase 4).
 - D51, D55, the threat model and the recipes say the kept files go through `skills/mflib/kept.py`: an unreadable kept file stops the command, a non-commit ledger entry authorizes nothing, an unreadable live mark reads as none (0159-kept, phase 5).
+- `test_broken_run_releases_the_held_events_before_the_halt` covers the replay of the run log's held events when `ship` raises a `Broken`, so the gate's diff coverage holds (0159-kept, phase 6).
 
 ## [0.128.0] - 2026-11-27
 

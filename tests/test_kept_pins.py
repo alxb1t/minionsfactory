@@ -2369,6 +2369,28 @@ def test_broken_run_logs_the_halt_naming_the_file_and_exits_2(
 
 
 @pytest.mark.slow
+def test_broken_run_releases_the_held_events_before_the_halt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    fake()
+    conduct = test_conduct._conduct()
+    root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    _bad_entry(root, None)
+
+    def push(*_: object) -> None:
+        raise mflib.kept.Broken(layout.default_file(root), "it is not text")
+
+    monkeypatch.setattr(conduct["Run"], "push", push)
+
+    lines = run(2)
+
+    said = "run · ledger — 0001-a is no commit id: skipped"
+    assert said in lines
+    (halt,) = _halt_of(lines)
+    assert lines.index(said) < lines.index(halt)
+
+
+@pytest.mark.slow
 def test_broken_a_failure_that_is_no_kept_file_exits_1(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
