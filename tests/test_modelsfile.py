@@ -484,6 +484,7 @@ def test_case_l_a_station_moved_after_the_plan(
     assert (stopped.value.code, str(stopped.value)) == (1, said)
 
 
+@pytest.mark.slow
 def test_case_m_a_take_reads_every_planned_station_again(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
@@ -508,6 +509,7 @@ def test_case_m_a_take_reads_every_planned_station_again(
         assert why.startswith(_FILE) and said in why, why
 
 
+@pytest.mark.slow
 def test_a_build_model_that_is_no_token_halts_its_version(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
@@ -663,6 +665,7 @@ def test_pin_a_bad_byte(tmp_path: Path, conduct: dict[str, Any]) -> None:
     assert (run.halts, run.reached) == ([(_CHANGE, f"{_FILE}: it is not UTF-8")], [])
 
 
+@pytest.mark.slow
 def test_pin_text_that_is_not_toml(tmp_path: Path, conduct: dict[str, Any]) -> None:
     root = _repo(tmp_path)
     version = _version(conduct, root)
@@ -883,6 +886,7 @@ def test_pin_wrong_types(tmp_path: Path, conduct: dict[str, Any]) -> None:
         assert str(stopped.value) == f"{_FILE}: executor {shown} unknown"
 
 
+@pytest.mark.slow
 def test_pin_the_queued_text_against_the_file(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:
@@ -980,6 +984,7 @@ def test_stage_of_reads_no_skip_from_a_broken_file(
     assert said == "no conformance findings file"
 
 
+@pytest.mark.slow
 def test_status_names_a_broken_models_file(
     tmp_path: Path, conduct: dict[str, Any]
 ) -> None:

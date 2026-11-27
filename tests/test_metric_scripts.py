@@ -204,6 +204,7 @@ def test_test_metrics_read_the_junit_report(
         codebase.count(tmp_path, "total-coverage")
 
 
+@pytest.mark.slow
 def test_the_code_script_runs_as_the_collector_runs_it(tmp_path: Path) -> None:
     def run(kind: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -494,6 +495,7 @@ def _reader(
     return read
 
 
+@pytest.mark.slow
 def test_run_metrics_read_the_run_logs(tmp_path: Path) -> None:
     env = _run_fixture(tmp_path)
     run = _load("run")
@@ -591,6 +593,7 @@ def _with_fields(text: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+@pytest.mark.slow
 def test_run_reads_a_log_with_the_new_fields(tmp_path: Path) -> None:
     roots = {name: tmp_path / name for name in ("plain", "fielded")}
     envs = {}
@@ -653,6 +656,7 @@ def test_run_metrics_halt_on_an_old_layout(tmp_path: Path) -> None:
     assert (done.returncode, done.stdout, done.stderr) == (2, "", f"{said}\n")
 
 
+@pytest.mark.slow
 def test_run_metrics_halt_on_each_old_entry_alone(tmp_path: Path) -> None:
     env = _run_fixture(tmp_path)
     run = _load("run")

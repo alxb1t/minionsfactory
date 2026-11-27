@@ -67,6 +67,7 @@ def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+@pytest.mark.slow
 def test_a_hand_run_station_halts_on_an_old_layout(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"README.md": "x\n"})
     _version(root, "0001-todo")
@@ -292,6 +293,7 @@ def test_changelog_keeps_the_branch_entries_above_the_released_sections(
     assert (result.returncode, result.stdout) == (1, halted)
 
 
+@pytest.mark.slow
 def test_changelog_drops_a_stacked_bases_released_entries(tmp_path: Path) -> None:
     root, tree = _stacked_merge(tmp_path / "held", "- x1\n\n- d1\n\n- x2\n")
 
@@ -341,6 +343,7 @@ def _decision(number: int, title: str) -> str:
     return f"\n### D{number} · {title}\n\n**{title}.**\n\n- **Why:** because.\n"
 
 
+@pytest.mark.slow
 def test_decisions_renumbers_a_colliding_decision_and_its_citations(
     tmp_path: Path,
 ) -> None:
@@ -461,6 +464,7 @@ def _collision(base: Path, branch: dict[str, str], main: dict[str, str]) -> Path
     return tree
 
 
+@pytest.mark.slow
 def test_decisions_skips_a_conflicted_file_and_goes_on(tmp_path: Path) -> None:
     tree = _collision(
         tmp_path,
@@ -483,6 +487,7 @@ def test_decisions_skips_a_conflicted_file_and_goes_on(tmp_path: Path) -> None:
     assert _git(tree, "diff", "--name-only", "--diff-filter=U") == "docs/a.md"
 
 
+@pytest.mark.slow
 def test_decisions_halts_once_after_every_ambiguous_file(tmp_path: Path) -> None:
     tree = _collision(
         tmp_path,
@@ -751,6 +756,7 @@ def _spec(first: str) -> str:
     )
 
 
+@pytest.mark.slow
 def test_delta_reports_a_requirement_main_changed(tmp_path: Path) -> None:
     root = _primary(tmp_path, {"openspec/specs/sdd/spec.md": _spec("It SHALL hold.")})
     tree = _version(root, "0005-b")
@@ -921,6 +927,7 @@ def _pin_ready(tmp_path: Path) -> tuple[Path, Path, Path]:
     return root, tree, folder
 
 
+@pytest.mark.slow
 def test_pin_n_unready_reads_the_findings_files(tmp_path: Path) -> None:
     unready = runpy.run_path(str(_SCRIPT))["unready"]
     root, tree, folder = _pin_ready(tmp_path)

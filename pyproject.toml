@@ -1,6 +1,6 @@
 [project]
 name = "minions-factory"
-version = "0.127.0"
+version = "0.128.0"
 requires-python = ">=3.12"
 dependencies = []
 
@@ -43,8 +43,8 @@ extra-paths = ["skills"]
 testpaths = ["tests"]
 # The tests import the shared home `mflib` from `skills/`. Why: 0128-platform-port design D2.
 pythonpath = ["skills"]
-addopts = ["--strict-markers", "--tb=short"]
-markers = ["slow: over 5 s; `make check` leaves it to the gate"]
+addopts = ["--strict-markers", "--tb=short", "--dist=worksteal"]
+markers = ["slow: over 1 s; `make check` leaves it to the gate"]
 
 # Per file, not `ignore`, so a command-line `--select` keeps them.
 [tool.ruff.lint.per-file-ignores]

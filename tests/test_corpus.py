@@ -77,6 +77,7 @@ def _repo(root: Path) -> Path:
     return root
 
 
+@pytest.mark.slow
 def test_the_corpus_runs_each_case(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

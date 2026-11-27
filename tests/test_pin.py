@@ -81,6 +81,7 @@ def _mark(home: Path, name: str, pid: int | str) -> Path:
     return mark
 
 
+@pytest.mark.slow
 def test_a_bare_install_links_the_newest_tag_origin_holds(
     tmp_path: Path, isolated_home: Path
 ) -> None:
@@ -113,6 +114,7 @@ def test_a_bare_install_links_the_newest_tag_origin_holds(
     assert (tree / "skills/mf-build/SKILL.md").read_text() == "kept\n"
 
 
+@pytest.mark.slow
 def test_an_install_names_what_stops_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -160,6 +162,7 @@ def test_an_install_names_what_stops_it(
     assert "next is not a version tag or live" in done.stdout
 
 
+@pytest.mark.slow
 def test_a_tag_or_live_holds_the_links(tmp_path: Path, isolated_home: Path) -> None:
     pin = _pin()
     root = _mf(tmp_path, pushed=("v0.1.0",))
@@ -194,6 +197,7 @@ def test_a_tag_or_live_holds_the_links(tmp_path: Path, isolated_home: Path) -> N
     assert not hold.exists()
 
 
+@pytest.mark.slow
 def test_the_quiet_move_follows_origin(tmp_path: Path, isolated_home: Path) -> None:
     pin = _pin()
     assert pin["move"]() is None
@@ -338,6 +342,7 @@ def test_a_stale_mark_is_ignored(
     assert pin["live"]() == ["ended", "huge"]
 
 
+@pytest.mark.slow
 def test_a_planted_replace_ref_does_not_reach_the_export(
     tmp_path: Path, isolated_home: Path
 ) -> None:
@@ -360,6 +365,7 @@ def test_a_planted_replace_ref_does_not_reach_the_export(
     assert (tree / "mf-build/SKILL.md").read_text() == "build 2\n"
 
 
+@pytest.mark.slow
 def test_a_repo_planted_above_the_scratch_supplies_no_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

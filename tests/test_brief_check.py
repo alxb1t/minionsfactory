@@ -169,6 +169,7 @@ def test_a_fact_out_of_grammar_halts(
     assert capsys.readouterr().out == "brief: halt — no At <sha>, <YYYY-MM-DD>. line\n"
 
 
+@pytest.mark.slow
 def test_models_prints_the_items_toml(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -293,6 +294,7 @@ def _git_init(tmp_path: Path) -> Path:
     return root.resolve()
 
 
+@pytest.mark.slow
 def test_write_writes_the_items_models_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
