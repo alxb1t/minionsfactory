@@ -19,7 +19,9 @@ from this reference.
 - **Never weaken the gate** — no new blanket suppression, no loosened config — and **never delete or merge a test**:
   consolidation is planned at the cut (`T5`). Conformance checks for exactly this.
 - **Run the plan check** after your check and before your commit, in the foreground:
-  `uv run --script ../scripts/plan_check.py --change <change-id> --base <base>`, resolved from this reference. Each line
+  `uv run --script ../scripts/plan_check.py --change <change-id> --base <base> --quick`, resolved from this reference.
+  It runs each ticked `Verify:` that is no pytest run and no `make`, and collects each pytest one; converge runs the
+  whole check after the gate that follows your pass. Each line
   it prints is a blocking card of this pass: fix it, or set it `wontfix` naming the amend, as for a card. A line ending
   `timed out` is no card: leave it. A line you cannot clear without editing `tasks.md` or `design.md` you leave, and
   name in [your report](#your-report).

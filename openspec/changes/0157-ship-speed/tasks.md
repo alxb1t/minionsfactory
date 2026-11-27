@@ -7,7 +7,7 @@ The green gate vouches for more pytest `Verify:` lines, the check judges in grou
 - [x] 1 — The green gate vouches more · hard
 - [x] 2 — Cheap first, and `--quick` · hard
 - [x] 3 — The phase check collects · hard
-- [ ] 4 — The fixer's check, and a clean file with a card not closed · hard
+- [x] 4 — The fixer's check, and a clean file with a card not closed · hard
 - [ ] 5 — The words · moderate
 
 ## 1 — The green gate vouches more
@@ -51,15 +51,15 @@ The conductor runs `--quick` after each phase but the last, beside `gate_built`,
 
 The fixer runs `--quick` ([D5](design.md#d5)), and a clean file beside a blocking card not closed gets one rewrite worker, then a halt ([D6](design.md#d6)).
 
-- [ ] 4.1 **HALT CHECK** The fixer's reference still tells it to run the whole plan check.
+- [x] 4.1 **HALT CHECK** The fixer's reference still tells it to run the whole plan check.
   Verify: `git grep -q -e "Run the plan check" -- skills/mf-converge/references/fix.md` exits `0`.
-- [ ] 4.2 In `skills/mf-converge/references/fix.md` make the bullet *Run the plan check* run `plan_check.py --change <change-id> --base <base> --quick` before the commit, name what it runs, and say the whole check follows the gate. Keep its lines as blocking cards, its `timed out` rule and the `plan check left:` line.
+- [x] 4.2 In `skills/mf-converge/references/fix.md` make the bullet *Run the plan check* run `plan_check.py --change <change-id> --base <base> --quick` before the commit, name what it runs, and say the whole check follows the gate. Keep its lines as blocking cards, its `timed out` rule and the `plan check left:` line.
   Verify: `git grep -n -e "--quick" -- skills/mf-converge/references/fix.md` prints a line.
-- [ ] 4.3 In `skills/mf-converge/scripts/converge.py` add `CLEAN_OPEN` beside `NO_OPEN_CARD`, and make `read_findings` return malformed, the reason holding the card's id and Status word, for a file whose `verdict` is `clean`, whose `open_blocking` is `0` and which holds a blocking card whose status is neither `verified` nor `accepted`, judged after the passes of conformance.
+- [x] 4.3 In `skills/mf-converge/scripts/converge.py` add `CLEAN_OPEN` beside `NO_OPEN_CARD`, and make `read_findings` return malformed, the reason holding the card's id and Status word, for a file whose `verdict` is `clean`, whose `open_blocking` is `0` and which holds a blocking card whose status is neither `verified` nor `accepted`, judged after the passes of conformance.
   Verify: `git grep -n -e "^CLEAN_OPEN" -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 4.4 In `skills/mf-converge/scripts/converge.py` add `REWRITE_CLOSE`, the rewrite worker's prompt for `CLEAN_OPEN`, which lets it set the card's Status or the file's verdict; make `rewrite` send it for that reason and raise `Halt` naming the role, the card and the word of the first read when the rewritten file is malformed for any reason. The mismatch itself sends no card to a fixer and counts no round; the file the worker leaves is read as any file.
+- [x] 4.4 In `skills/mf-converge/scripts/converge.py` add `REWRITE_CLOSE`, the rewrite worker's prompt for `CLEAN_OPEN`, which lets it set the card's Status or the file's verdict; make `rewrite` send it for that reason and raise `Halt` naming the role, the card and the word of the first read when the rewritten file is malformed for any reason. The mismatch itself sends no card to a fixer and counts no round; the file the worker leaves is read as any file.
   Verify: `git grep -n -e "^REWRITE_CLOSE" -- skills/mf-converge/scripts/converge.py` prints a line.
-- [ ] 4.5 In `tests/test_converge.py` add `test_a_clean_file_with_a_card_not_closed_gets_a_rewrite` and `test_a_clean_file_still_mismatched_halts`, the first over a verify file clean with `open_blocking: 0` and R1 `fixed` that the rewrite worker sets `verified`: no fixer runs and the round stays; the second over a worker that leaves it and one that breaks the file another way, each halting with the role, R1 and `fixed`, not `cap reached`.
+- [x] 4.5 In `tests/test_converge.py` add `test_a_clean_file_with_a_card_not_closed_gets_a_rewrite` and `test_a_clean_file_still_mismatched_halts`, the first over a verify file clean with `open_blocking: 0` and R1 `fixed` that the rewrite worker sets `verified`: no fixer runs and the round stays; the second over a worker that leaves it and one that breaks the file another way, each halting with the role, R1 and `fixed`, not `cap reached`.
   Verify: `uv run pytest tests/test_converge.py -n auto -q -k clean_file` exits `0`.
 
 ## 5 — The words
