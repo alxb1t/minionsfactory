@@ -158,6 +158,79 @@ def _reserved(root: Path) -> None:
     _put(root, ".minions/cuts/0003-new", "")
 
 
+@pytest.mark.parametrize("kind", ["link", "folder"])
+@pytest.mark.parametrize("unattended", [True, False])
+def test_a_reservation_that_is_a_link_or_a_folder_fails_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str, unattended: bool
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.chdir(root)
+    cuts = root / ".minions" / "cuts"
+    cuts.mkdir(parents=True)
+    kept = tmp_path / "kept"
+    kept.write_text("")
+    if kind == "link":
+        (cuts / _ID).symlink_to(kept)
+    else:
+        (cuts / _ID).mkdir()
+
+    assert cut_pre.check_reserved(_ID, unattended) == (
+        f"{_ID} is a link or a folder in .minions/cuts/"
+    )
+
+
+def test_a_linked_other_reservation_is_listed_by_its_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.chdir(root)
+    cuts = root / ".minions" / "cuts"
+    cuts.mkdir(parents=True)
+    kept = tmp_path / "kept"
+    kept.write_text("")
+    (cuts / "0004-queued").symlink_to(kept)
+
+    assert cut_pre.check_id(_ID, unattended=True) == (
+        "the number is not above 4, one that is taken"
+    )
+
+
+def test_a_missing_cuts_folder_holds_no_reservation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.chdir(root)
+
+    assert cut_pre.check_reserved(_ID, unattended=False) is None
+    assert cut_pre.check_reserved(_ID, unattended=True) == (
+        f"{_ID} has no reservation in .minions/cuts/"
+    )
+    assert cut_pre.check_id(_ID, unattended=False) is None
+
+
+@pytest.mark.parametrize("linked", [".minions", ".minions/cuts"])
+def test_a_link_at_minions_or_cuts_fails_both_checks_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, linked: str
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.chdir(root)
+    outside = tmp_path / "outside"
+    (outside / "cuts").mkdir(parents=True)
+    if linked == ".minions":
+        (root / ".minions").symlink_to(outside)
+    else:
+        (root / ".minions").mkdir()
+        (root / ".minions" / "cuts").symlink_to(outside / "cuts")
+    named = linked.rpartition("/")[2]
+
+    for failed in (
+        cut_pre.check_reserved(_ID, unattended=False),
+        cut_pre.check_id(_ID, unattended=False),
+    ):
+        assert failed is not None
+        assert failed.startswith(f"{named}: ")
+
+
 def _lower_than_a_reservation(root: Path) -> None:
     _put(root, ".minions/cuts/0004-queued", "")
 

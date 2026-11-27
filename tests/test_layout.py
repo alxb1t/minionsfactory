@@ -64,6 +64,8 @@ def test_layout_findings_file_is_in_the_change_folder(tmp_path: Path) -> None:
     ("name", "spelled"),
     [
         (layout.runs_dir, ".minions/runs"),
+        (layout.cuts_dir, ".minions/cuts"),
+        (layout.grants_dir, ".minions/grants"),
         (layout.claim_file, ".minions/runs/active"),
         (layout.debt_file, ".minions/debt.md"),
         (layout.debt_lock, ".minions/debt.lock"),
@@ -71,7 +73,17 @@ def test_layout_findings_file_is_in_the_change_folder(tmp_path: Path) -> None:
         (layout.backlog_lock, ".minions/backlog.lock"),
         (layout.gate_dir, ".minions/gate"),
     ],
-    ids=["runs", "claim", "debt", "debt-lock", "backlog", "backlog-lock", "gate"],
+    ids=[
+        "runs",
+        "cuts",
+        "grants",
+        "claim",
+        "debt",
+        "debt-lock",
+        "backlog",
+        "backlog-lock",
+        "gate",
+    ],
 )
 def test_a_generic_entry_is_its_spelled_path(
     tmp_path: Path, name: Callable[[Path], Path], spelled: str
@@ -88,6 +100,23 @@ def test_a_cut_reservation_is_under_cuts(tmp_path: Path) -> None:
 def test_a_metrics_page_is_the_changes_html(tmp_path: Path) -> None:
     assert layout.metrics_page(tmp_path, "0001-todo") == (
         tmp_path / ".minions" / "metrics" / "0001-todo.html"
+    )
+
+
+def test_beneath_splits_a_path_below_minions(tmp_path: Path) -> None:
+    assert layout.beneath(layout.runs_dir(tmp_path)) == (tmp_path, (".minions", "runs"))
+
+
+def test_beneath_gives_a_path_with_no_minions_itself(tmp_path: Path) -> None:
+    assert layout.beneath(tmp_path / "runs") == (tmp_path / "runs", ())
+
+
+def test_beneath_takes_the_nearest_minions(tmp_path: Path) -> None:
+    inner = tmp_path / ".minions" / "a"
+
+    assert layout.beneath(inner / ".minions" / "runs") == (
+        inner,
+        (".minions", "runs"),
     )
 
 

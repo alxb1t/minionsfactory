@@ -3247,6 +3247,23 @@ def test_a_change_folder_that_is_a_link_cannot_be_stamped(tmp_path: Path) -> Non
     assert list(outside.iterdir()) == []
 
 
+def test_a_change_folder_is_refused_at_a_link_at_minions(tmp_path: Path) -> None:
+    converge = _converge()
+    primary, outside = tmp_path / "primary", tmp_path / "outside"
+    primary.mkdir()
+    outside.mkdir()
+    (primary / ".minions").symlink_to(outside)
+    context = _bare(converge, primary)
+    context.log.write_text("# t\n")
+    cannot = f"converge: cannot run — {context.log} cannot be stamped"
+
+    with pytest.raises(converge["Cannot"]) as refused:
+        converge["open_run"](context)
+
+    assert str(refused.value) == cannot
+    assert (outside / "changes" / _CHANGE / "status_log.md").read_text() == "# t\n"
+
+
 # The pin: converge's copy of the findings format, as it stands.
 # Why: 0138-findings design D2, its cases a, b, c, d, f and g.
 

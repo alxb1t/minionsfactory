@@ -10,7 +10,7 @@ import os
 import shutil
 from pathlib import Path
 
-from . import statefile
+from . import layout, statefile
 
 # The most bytes read of one entry. Why: 0140-run-log design D9.
 BOUND = 4096
@@ -32,8 +32,9 @@ def _open(active: Path) -> int | None:
     """
     if not active.parent.is_dir():
         return None
+    root, parts = layout.beneath(active.parent)
     try:
-        return statefile.open_folder(active.parent, active.name)
+        return statefile.open_folder(root, *parts, active.name)
     except FileNotFoundError:
         return None
     except OSError as error:
@@ -51,9 +52,15 @@ def _entry(fd: int, name: str) -> str | None:
     return None if len(data) > BOUND else data.decode(errors="replace")
 
 
+def _parent(active: Path) -> int:
+    """Return a descriptor on the claim's parent, made, `.minions` read as no link."""
+    root, parts = layout.beneath(active.parent)
+    return statefile.folder(root, *parts)
+
+
 def take(active: Path) -> None:
     """Make the claim's folder at once; what stands there raises `FileExistsError`."""
-    parent = statefile.folder(active.parent)
+    parent = _parent(active)
     try:
         os.mkdir(active.name, dir_fd=parent)
     finally:
@@ -143,7 +150,7 @@ def remove(active: Path) -> None:
     if (fd := _open(active)) is None:
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(active))
     os.close(fd)
-    parent = statefile.folder(active.parent)
+    parent = _parent(active)
     try:
         shutil.rmtree(active.name, dir_fd=parent)
     finally:

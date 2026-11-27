@@ -11,10 +11,11 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from mflib import statefile
+from mflib import claim, findings, layout, marks, modelsfile, runlog, statefile
 
 _OLD = "the old text\n"
 _TEXT = "the new text\n"
+_CHANGE = "0001-a"
 
 
 def _staged(target: Path) -> Path:
@@ -113,6 +114,32 @@ def test_refuse_link_true_writes_a_missing_target(tmp_path: Path) -> None:
     statefile.write(target, _TEXT, refuse_link=True)
 
     assert target.read_text() == _TEXT
+
+
+def test_write_or_say_writes_and_says_nothing(tmp_path: Path) -> None:
+    target = tmp_path / "state.md"
+
+    assert statefile.write_or_say(target, _TEXT) is None
+    assert target.read_text() == _TEXT
+
+
+def test_write_or_say_names_a_link(tmp_path: Path) -> None:
+    target = tmp_path / "state.md"
+    outside = tmp_path / "outside"
+    outside.write_text(_OLD)
+    target.symlink_to(outside)
+
+    assert statefile.write_or_say(target, _TEXT) == f"{target} is a link"
+    assert outside.read_text() == _OLD
+
+
+def test_write_or_say_gives_another_failure_its_reason(tmp_path: Path) -> None:
+    parent = tmp_path / "parent"
+    parent.write_text(_OLD)
+
+    said = statefile.write_or_say(parent / "state.md", _TEXT)
+
+    assert said == f"{parent / 'state.md'}: {os.strerror(errno.ENOTDIR)}"
 
 
 def test_refuse_link_false_replaces_a_link_at_the_target(tmp_path: Path) -> None:
@@ -455,3 +482,77 @@ def test_open_folder_follows_a_link_at_its_root(tmp_path: Path) -> None:
         assert os.path.samestat(os.fstat(fd), (tmp_path / "real" / "a").stat())
     finally:
         os.close(fd)
+
+
+def _linked_home(tmp_path: Path) -> tuple[Path, Path]:
+    """Return a primary whose `.minions` is a link, and the folder outside it names."""
+    primary, outside = tmp_path / "primary", tmp_path / "outside"
+    primary.mkdir()
+    outside.mkdir()
+    (primary / layout.MINIONS).symlink_to(outside)
+    return primary, outside
+
+
+def test_marks_refuses_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+
+    with pytest.raises(marks.Unwritten):
+        marks.write(primary, _CHANGE, marks.BUILD_DONE, _TEXT)
+
+    assert list(outside.iterdir()) == []
+
+
+def test_modelsfile_refuses_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+
+    with pytest.raises(statefile.WriteFailed):
+        modelsfile.write(primary, _CHANGE, _TEXT)
+    with pytest.raises(modelsfile.Broken, match="its folder cannot be opened"):
+        modelsfile.load(primary, _CHANGE)
+
+    assert list(outside.iterdir()) == []
+
+
+def test_findings_refuses_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+    held = outside / "changes" / _CHANGE
+    held.mkdir(parents=True)
+    (held / "conformance.md").write_text("---\nmodel: x\n---\nbody\n")
+
+    findings.stamp(layout.change_dir(primary, _CHANGE), "conformance.md", "m", 5)
+
+    assert (held / "conformance.md").read_text() == "---\nmodel: x\n---\nbody\n"
+
+
+def test_claim_refuses_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        claim.take(layout.claim_file(primary))
+
+    assert list(outside.iterdir()) == []
+
+
+def test_runlog_refuses_a_link_at_minions(tmp_path: Path) -> None:
+    primary, outside = _linked_home(tmp_path)
+    log = outside / "runs" / "20261101-100000.md"
+    log.parent.mkdir()
+    title = f"{runlog.title('20261101-100000')}\n\n"
+    log.write_text(title)
+
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        runlog.stop(layout.runs_dir(primary))
+
+    assert log.read_text() == title
+
+
+def test_runlog_refuses_a_link_at_runs(tmp_path: Path) -> None:
+    primary, outside = tmp_path / "primary", tmp_path / "outside"
+    (primary / layout.MINIONS).mkdir(parents=True)
+    outside.mkdir()
+    layout.runs_dir(primary).symlink_to(outside)
+
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        runlog.RunLog(layout.runs_dir(primary), "20261101-100000")
+
+    assert list(outside.iterdir()) == []

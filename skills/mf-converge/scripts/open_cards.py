@@ -43,12 +43,8 @@ def judged(card: mflib.findings.Card) -> bool:
 # `bundle.py`'s `write`.
 def write(path: Path, text: str) -> None:
     """Replace `path` with `text` through a staged file; a link is refused."""
-    try:
-        mflib.statefile.write(path, text, refuse_link=True)
-    except mflib.statefile.WriteFailed as failed:
-        if failed.error.errno == errno.ELOOP:
-            raise Stop(f"{path} is a link") from failed
-        raise Stop(f"{path}: {failed.error.strerror}") from failed
+    if said := mflib.statefile.write_or_say(path, text):
+        raise Stop(said)
 
 
 def open_page(findings: Path, out: Path) -> int:

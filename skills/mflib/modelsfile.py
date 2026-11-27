@@ -64,7 +64,7 @@ def load(primary: Path, change: str) -> bytes | None:
     `Broken`. Why: 0142-models design D6.
     """
     try:
-        fd = statefile.open_folder(layout.run_dir(primary), layout.CHANGES, change)
+        fd = statefile.open_folder(primary, layout.MINIONS, layout.CHANGES, change)
     except FileNotFoundError:
         return None
     except OSError as error:
@@ -179,7 +179,7 @@ def write(primary: Path, change: str, text: str) -> None:
     A failure raises `statefile.WriteFailed`. Why: 0142-models design D8.
     """
     try:
-        fd = statefile.folder(layout.run_dir(primary), layout.CHANGES, change)
+        fd = statefile.folder(primary, layout.MINIONS, layout.CHANGES, change)
     except OSError as error:
         raise statefile.WriteFailed("create", error) from error
     try:

@@ -111,13 +111,13 @@ def dry_run() -> str:
 
 
 def read_record(path: Path) -> dict[str, str]:
-    """Return a record's `key: value` lines; a missing file has none.
+    """Return a record's `key: value` lines; a missing, linked or bad file has none.
 
     e.g. the lines "dry: 9f…", "seconds: 382" → {"dry": "9f…", "seconds": "382"}
     """
     try:
-        text = path.read_text()
-    except OSError:
+        text = mflib.statefile.read_bytes(path).decode()
+    except (OSError, UnicodeDecodeError):
         return {}
     pairs = (line.partition(": ") for line in text.splitlines())
     return {key: value for key, _, value in pairs}

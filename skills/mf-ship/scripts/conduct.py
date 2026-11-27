@@ -1347,11 +1347,13 @@ def _restamp(runs: Path, change: str, buried: str) -> int:
     e.g. "10:00:00 · round 2 · done — ok" → "round 2 · done — re-stamped by the run"
     Why: card 0109·S1; 0136-status-log design D7.
     """
-    log = mflib.layout.status_log(runs.parent, change)
+    primary = runs.parent
+    log = mflib.layout.status_log(primary, change)
     found = re.search(r"· (round \d+) · done\b", buried)
     event = f"{found[1] if found else 'round 1'} · done — re-stamped by the run"
     try:
-        fd = mflib.statefile.folder(runs, mflib.layout.CHANGES, change)
+        parts = (mflib.layout.MINIONS, mflib.layout.CHANGES, change)
+        fd = mflib.statefile.folder(primary, *parts)
     except OSError as error:
         print(f"stamp: cannot stamp — {log}: {error.strerror}")
         return 2
@@ -3132,7 +3134,8 @@ def _granted(runs: Path, change: str, take: bool) -> bool:
     Why: 0067-rescue design D7.
     """
     try:
-        fd = os.open(runs / "grants", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        fd = os.open(runs / mflib.layout.GRANTS, flags)
     except OSError:
         return False
     try:
@@ -5001,11 +5004,12 @@ class Run:
         spawned = f"{station}{named} · model {model or 'default'}{shown}{other}"
         self.log.event(who, "spawn", f"{spawned}{_load_tail()}")
         if who == "run":
-            out, sink = _free_log(self.runs, (self.log.stamp,), f"run_{station}")
+            parts = (mflib.layout.MINIONS, mflib.layout.RUNS, self.log.stamp)
+            out, sink = _free_log(self.primary, parts, f"run_{station}")
         else:
-            parts = (mflib.layout.CHANGES, who, "logs")
+            parts = (mflib.layout.MINIONS, mflib.layout.CHANGES, who, "logs")
             name = f"{self.log.stamp}-{station}"
-            out, sink = _free_log(mflib.layout.run_dir(self.primary), parts, name)
+            out, sink = _free_log(self.primary, parts, name)
         with self.guard:
             self.outs[who, station] = out
         if executor == "codex":
@@ -6310,7 +6314,8 @@ class Run:
             folder.mkdir(mode=0o700, exist_ok=True)
             (folder / change).write_text(f"{entry['brief']}\n")
             # The entry goes last, so a reservation that cannot go keeps it to halt.
-            _remove_in(mflib.layout.run_dir(primary), "cuts", name=change)
+            cuts = (mflib.layout.MINIONS, mflib.layout.CUTS)
+            _remove_in(primary, *cuts, name=change)
             (mflib.layout.queue_cuts(primary) / change).unlink()
         sha = _git(primary, "rev-parse", "--short=7", change).strip()
         self.log.event("run", "cut", f"{change}: cut at {sha}")
@@ -7120,7 +7125,7 @@ class Run:
         ]
         for change, files in sorted(found.items()):
             folder = mflib.layout.change_dir(self.primary, change)
-            links = [*olds, folder.parent, folder, folder / "logs"]
+            links = [minions, *olds, folder.parent, folder, folder / "logs"]
             for link in [*links, *(old for old, _ in files)]:
                 if link.is_symlink():
                     named = link.relative_to(self.primary)
@@ -7144,9 +7149,8 @@ class Run:
         for change, files in sorted(found.items()):
             for old, new in files:
                 where, _, name = new.rpartition("/")
-                fd = _folder_fd(
-                    minions, mflib.layout.CHANGES, change, *([where] if where else [])
-                )
+                held = (mflib.layout.CHANGES, change, *([where] if where else []))
+                fd = _folder_fd(self.primary, mflib.layout.MINIONS, *held)
                 try:
                     if old.is_dir():
                         os.rename(old, name, dst_dir_fd=fd)
@@ -7189,7 +7193,7 @@ class Run:
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         # A worker may link the folder elsewhere: a link lists nothing.
-        standing = _entries(mflib.layout.run_dir(self.primary) / "grants", empty=False)
+        standing = _entries(mflib.layout.grants_dir(self.primary), empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
         release = _pin()["describe"]()
         awake = (
@@ -7339,8 +7343,14 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         tags = _pushes_tags()
         if not (started := mflib.platform.process(os.getpid(), "lstart")):
             raise Stop(2, "run: cannot run — ps cannot read this run's start time")
-        runs = mflib.layout.runs_dir(primary)
-        runs.mkdir(parents=True, exist_ok=True)
+        try:
+            os.close(_folder_fd(primary, mflib.layout.MINIONS, mflib.layout.RUNS))
+        except OSError as error:
+            raise Stop(
+                2,
+                f"run: cannot run — .minions/runs: {error.strerror}:"
+                " a person settles what .minions names",
+            ) from None
         active = mflib.layout.claim_file(primary)
         if _claim(active) == "stale":
             _clear(active)
@@ -7356,6 +7366,11 @@ def run(cwd: Path, executor: str, detach: bool) -> int:
         _unmark(pin, mark)
         raise Stop(
             2, "run: cannot run — a run is live: .minions/runs/active exists"
+        ) from None
+    except OSError as error:
+        _unmark(pin, mark)
+        raise Stop(
+            2, f"run: cannot run — .minions/runs/active: {error.strerror}"
         ) from None
     seen: set[str] | None = None
     try:
@@ -8109,7 +8124,7 @@ def _next_id(primary: Path) -> int:
     branches = _git(primary, "branch", "--list", "[0-9]*", "--format=%(refname:short)")
     names = [
         *branches.split(),
-        *_entries(mflib.layout.run_dir(primary) / "cuts", empty=False),
+        *_entries(mflib.layout.cuts_dir(primary), empty=False),
     ]
     names += _cuts(primary)
     for rev in [default, *branches.split()]:
@@ -8181,7 +8196,7 @@ def cut(
             mflib.modelsfile.write(primary, change, models)
         except mflib.statefile.WriteFailed as error:
             raise _unwritten(change, error) from None
-        fd = _folder_fd(mflib.layout.run_dir(primary), "cuts")
+        fd = _folder_fd(primary, mflib.layout.MINIONS, mflib.layout.CUTS)
         try:
             flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW
             os.close(os.open(change, flags, 0o644, dir_fd=fd))
@@ -8355,9 +8370,25 @@ def grant(cwd: Path, change: str, executor: str) -> int:
             )
         if not live:
             preconditions(cwd, executor)
-        grants = mflib.layout.run_dir(primary) / "grants"
-        grants.mkdir(parents=True, exist_ok=True)
-        (grants / change).touch()
+        parts = (mflib.layout.MINIONS, mflib.layout.GRANTS)
+        try:
+            fd = _folder_fd(primary, *parts)
+        except OSError as error:
+            raise Stop(
+                2, f"grant: cannot run — {'/'.join(parts)}: {error.strerror}"
+            ) from None
+        try:
+            # why: O_NONBLOCK, as the state files open: a pipe planted at the grant's
+            # name refuses (ENXIO) and holds no one under the queue lock.
+            flags = os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            os.close(os.open(change, flags, 0o644, dir_fd=fd))
+        except OSError as error:
+            raise Stop(
+                2,
+                f"grant: cannot run — {'/'.join(parts)}/{change}: {error.strerror}",
+            ) from None
+        finally:
+            os.close(fd)
         if not live:
             pid = _start_run(primary, executor)
             print(f"grant: recorded · run started · pid {pid}")

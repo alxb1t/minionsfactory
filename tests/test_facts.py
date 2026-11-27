@@ -393,6 +393,43 @@ def test_a_changed_string_lists_each_line_holding_it(
     ]
 
 
+@pytest.mark.parametrize("fresh", [True, False], ids=["fresh", "appended"])
+def test_write_notes_refuses_a_link(tmp_path: Path, fresh: bool) -> None:
+    held = tmp_path / "held"
+    held.mkdir()
+    target = held / "kept.md"
+    target.write_text("stale\n")
+    notes = tmp_path / "cut-notes.md"
+    notes.symlink_to(target)
+
+    with pytest.raises(facts.Stop) as stop:
+        facts.write_notes(notes, ["a"], fresh=fresh)
+
+    assert stop.value.code == 2
+    assert str(stop.value).startswith(f"facts: cannot place — {notes}")
+    assert target.read_text() == "stale\n"
+    assert notes.is_symlink()
+
+
+def test_write_notes_appends_to_a_file_and_makes_a_missing_one(tmp_path: Path) -> None:
+    notes = tmp_path / "0106-x" / "cut-notes.md"
+    notes.parent.mkdir()
+
+    facts.write_notes(notes, ["a"], fresh=False)
+    facts.write_notes(notes, ["b"], fresh=False)
+
+    assert notes.read_text() == "- a\n- b\n"
+
+
+def test_write_notes_stops_on_a_folder_that_is_missing(tmp_path: Path) -> None:
+    notes = tmp_path / "gone" / "cut-notes.md"
+
+    with pytest.raises(facts.Stop) as stop:
+        facts.write_notes(notes, ["a"], fresh=True)
+
+    assert str(stop.value).startswith(f"facts: cannot place — {notes}: ")
+
+
 def test_the_notes_file_is_written_and_appended(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

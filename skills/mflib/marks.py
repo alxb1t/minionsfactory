@@ -71,7 +71,7 @@ def _path(primary: Path, change: str, name: str) -> Path:
 
 def _folder(primary: Path, change: str) -> int:
     """Return a descriptor on the change's folder, made, none of its parts a link."""
-    return statefile.folder(layout.run_dir(primary), layout.CHANGES, change)
+    return statefile.folder(primary, layout.MINIONS, layout.CHANGES, change)
 
 
 def read(primary: Path, change: str, name: str, bound: int = BOUND) -> str | None:
@@ -81,7 +81,7 @@ def read(primary: Path, change: str, name: str, bound: int = BOUND) -> str | Non
     `Broken`. Why: 0154-marks design D5.
     """
     try:
-        fd = statefile.open_folder(layout.run_dir(primary), layout.CHANGES, change)
+        fd = statefile.open_folder(primary, layout.MINIONS, layout.CHANGES, change)
     except FileNotFoundError:
         return None
     except OSError as error:
