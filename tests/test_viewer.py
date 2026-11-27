@@ -714,10 +714,9 @@ def test_the_queue_shows_an_empty_or_null_waits_as_no_wait(tmp_path: Path) -> No
     root = _primary(tmp_path)
     _queue(root, {"0003-c": None, "0004-d": None}, {"0003-c": "", "0004-d": None})
     shown = _tree(root)
-    unreadable = "the queue entry is unreadable"
     assert shown["queue"] == [
         {"id": "0003-c", "state": "cut", "halt": None, "waits": ""},
-        {"id": "0004-d", "state": "cut halted", "halt": unreadable, "waits": None},
+        {"id": "0004-d", "state": "cut", "halt": None, "waits": None},
     ]
 
 

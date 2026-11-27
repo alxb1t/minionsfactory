@@ -42,7 +42,7 @@ class Entry(TypedDict):
     dependencies: NotRequired[list[list[str]]]
     models: NotRequired[str | None]
     beside: NotRequired[list[str]]
-    waits: NotRequired[str]
+    waits: NotRequired[str | None]
 
 
 REQUIRED = Entry.__required_keys__

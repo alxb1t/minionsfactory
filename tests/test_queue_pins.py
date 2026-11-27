@@ -1333,15 +1333,15 @@ def test_a_wrong_type_at_an_entry_is_the_unreadable_one(tmp_path: Path) -> None:
         ("model", 3),
         ("halt", 3),
         ("dependencies", "x"),
-        ("waits", None),
         ("waits", 7),
     ):
         entry.write_text(json.dumps({**whole, key: value}))
         # mutant: drop the type test of `entries`
         assert _cuts(root) == {"0001-a": _UNREADABLE}, (key, value)
-    # An empty `waits` is a string: the entry reads, and waits not.
-    entry.write_text(json.dumps({**whole, "waits": ""}))
-    assert _cuts(root) == {"0001-a": {**whole, "waits": ""}}
+    # A null or empty `waits` reads as no wait: the entry reads, and waits not.
+    for waits in (None, ""):
+        entry.write_text(json.dumps({**whole, "waits": waits}))
+        assert _cuts(root) == {"0001-a": {**whole, "waits": waits}}
 
 
 def test_a_record_is_read_through_no_link_bounded_and_strict(tmp_path: Path) -> None:

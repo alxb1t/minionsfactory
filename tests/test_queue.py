@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 from unittest import mock
 
+import conduct_load
 import pytest
 from mflib import layout, queue
 
@@ -80,6 +81,12 @@ def test_the_halt_text_names_the_cut_waited_on() -> None:
 @pytest.mark.parametrize("name", ["0001-a", "12-two-words", "0003-a1-b2"])
 def test_the_change_id_pattern_takes_an_id(name: str) -> None:
     assert queue.CHANGE_ID.fullmatch(name)
+
+
+def test_the_change_id_pattern_is_the_conductors() -> None:
+    conductors = conduct_load.conduct()["CHANGE_ID"]
+    assert queue.CHANGE_ID.pattern == conductors.pattern
+    assert queue.CHANGE_ID.flags == conductors.flags
 
 
 @pytest.mark.parametrize("name", ["a-0001", "0001", "0001-A", "0001-a-", ".0001-a"])
@@ -268,7 +275,6 @@ def test_entries_read_a_deep_json_as_the_unreadable_one(
         ("dependencies", [["pypi", 1]]),
         ("models", 7),
         ("beside", [None]),
-        ("waits", None),
         ("waits", 7),
     ],
 )
@@ -285,7 +291,14 @@ def test_entries_keep_a_null_where_the_record_takes_one_and_an_unknown_key(
     tmp_path: Path,
 ) -> None:
     primary = _primary(tmp_path)
-    held = {**_ENTRY, "halt": "x", "model": "opus", "models": "[build]\n", "more": 1}
+    held = {
+        **_ENTRY,
+        "halt": "x",
+        "model": "opus",
+        "models": "[build]\n",
+        "waits": None,
+        "more": 1,
+    }
     (_cuts(primary) / _CHANGE).write_text(json.dumps(held))
 
     assert queue.entries(primary) == {_CHANGE: held}
