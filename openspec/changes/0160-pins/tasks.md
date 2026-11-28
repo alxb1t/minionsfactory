@@ -6,7 +6,7 @@ In order: pin the region on today's side, add the module as copies, send the sta
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · moderate
-- [ ] 3 — The stations · moderate
+- [x] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
 
@@ -40,15 +40,15 @@ In order: pin the region on today's side, add the module as copies, send the sta
 
 ## 3 — The stations
 
-- [ ] 3.1 In `skills/mf-ship/scripts/pin.py`, `describe` reads `source`, `pending` and `hold` through `mflib.kept`. No assert of any test changes.
+- [x] 3.1 In `skills/mf-ship/scripts/pin.py`, `describe` reads `source`, `pending` and `hold` through `mflib.kept`. No assert of any test changes.
   Verify: `git grep -n -e "mflib.kept.pending()" -- skills/mf-ship/scripts/pin.py` prints a line; `uv run pytest tests/test_pin.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`; `uv run pytest tests/test_conduct.py -k "last_run_moves or re_pin_builds or run_holds_the_machine_awake or started_run_is_seen or run_on_linux_holds_nothing" -n auto -q` exits `0`.
-- [ ] 3.2 In `pin.py`, `move` reads `source`, `pending`, `checkout` and `hold` through `mflib.kept` and clears `pending` by `mflib.kept.clear_pending`. No assert changes.
+- [x] 3.2 In `pin.py`, `move` reads `source`, `pending`, `checkout` and `hold` through `mflib.kept` and clears `pending` by `mflib.kept.clear_pending`. No assert changes.
   Verify: `git grep -n -e "mflib.kept.checkout()" -- skills/mf-ship/scripts/pin.py` prints a line; `uv run pytest tests/test_pin.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`; `uv run pytest tests/test_conduct.py -k "last_run_moves or re_pin_builds or run_holds_the_machine_awake or started_run_is_seen or run_on_linux_holds_nothing" -n auto -q` exits `0`.
-- [ ] 3.3 In `pin.py`, `install` writes `source`, `hold`, `checkout` and `pending` and clears `hold` and `pending` through `mflib.kept`; delete `_read` and `_write`. No assert changes.
+- [x] 3.3 In `pin.py`, `install` writes `source`, `hold`, `checkout` and `pending` and clears `hold` and `pending` through `mflib.kept`; delete `_read` and `_write`. No assert changes.
   Verify: `git grep -c -e "^def _read" -e "^def _write" -- skills/mf-ship/scripts/pin.py` prints nothing; `uv run pytest tests/test_pin.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 3.4 In `skills/mf-ship/scripts/conduct.py`, `_ship_file` returns `(path, mflib.kept.ship_data())`, keeping its `except` and its `Stop` frame; it stays a no-argument call.
+- [x] 3.4 In `skills/mf-ship/scripts/conduct.py`, `_ship_file` returns `(path, mflib.kept.ship_data())`, keeping its `except` and its `Stop` frame; it stays a no-argument call.
   Verify: `git grep -c -e "tomllib.loads(path.read_text())" -- skills/mf-ship/scripts/conduct.py` prints nothing; `uv run pytest tests/test_claim.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 3.5 In `conduct.py`, `_cap` and `_pushes_tags` call `mflib.kept.ship_cap` and `ship_tags`, and word a `Broken` as `Stop(2, f"{path}: {error.phrase}")`; each `except` is reached by the wrong-type cases of Cases S. No assert changes.
+- [x] 3.5 In `conduct.py`, `_cap` and `_pushes_tags` call `mflib.kept.ship_cap` and `ship_tags`, and word a `Broken` as `Stop(2, f"{path}: {error.phrase}")`; each `except` is reached by the wrong-type cases of Cases S. No assert changes.
   Verify: `git grep -n -e "mflib.kept.ship_cap" -- skills/mf-ship/scripts/conduct.py` prints a line; `uv run pytest tests/test_conduct.py -k "cap_reads_ship_toml or ship_toml_is_read or ship_toml_reads_tags or cap_file_that_is_bad or cap_gates or cap_of_one or cap_counts or cap_close_starts or cap_writes or cap_status_and_cut_line or small_cap_is_granted or start_makes_a_missing_tag or refused_tag_push or tags_false or status_says_a_machine_pushes_no_tag or report_with_a_bad_tags" -n auto -q` exits `0`.
 
 ## 4 — The fix
