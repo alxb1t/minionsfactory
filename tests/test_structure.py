@@ -75,18 +75,12 @@ FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("conduct.py", "- **"),
         # the spec template, no card
         ("cut_context.py", "- **"),
-        # the debt's
-        ("debt.py", "- **"),
         # the card's reader
         ("review_metrics.py", "- **"),
         ("review_metrics.py", "## Run"),
         ("review_metrics.py", "status_log.md"),
         # the run log's reader, until the readers' version
         ("review_metrics.py", r"\d\d:\d\d:\d\d"),
-        # the card's reader
-        ("run.py", "- **"),
-        # the mark's own read, until the readers' version
-        ("run.py", "build.done"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")

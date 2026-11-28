@@ -14,7 +14,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-from mflib import statuslog
+from mflib import debtfile, statuslog
 
 _ROOT = Path(__file__).resolve().parent.parent
 _RUN = _ROOT / "scripts" / "metrics" / "run.py"
@@ -977,7 +977,7 @@ _FINDINGS: dict[str, tuple[str | bytes, list[object]]] = {
         [0, 2],
     ),
     "odd-dashless-entry": (_findings("", "-a\n- b\n  - nested\n * c\n"), [0, 1]),
-    "odd-verdict-only": (_findings(_card(priority=None)), [0, 0]),
+    "odd-verdict-only": (_findings(_card(priority=None)), [1, 0]),
     "odd-unanchored-priority": (
         _findings(
             _lines(
@@ -986,7 +986,7 @@ _FINDINGS: dict[str, tuple[str | bytes, list[object]]] = {
                 "  - **Verdict:** confirmed",
             )
         ),
-        [0, 0],
+        [1, 0],
     ),
     "no-blank-after-verdict": (
         _findings(_card().replace("Verdict:** confirmed", "Verdict:**confirmed")),
@@ -998,7 +998,7 @@ _FINDINGS: dict[str, tuple[str | bytes, list[object]]] = {
     ),
     "backtick-verdict": (_findings(_card(verdict="`confirmed`")), [1, 0]),
     "repeat-note": (_findings(_card(verdict="confirmed — repeat of 0012·R3")), [1, 0]),
-    "odd-capital-Confirmed": (_findings(_card(verdict="Confirmed")), [0, 0]),
+    "odd-capital-Confirmed": (_findings(_card(verdict="Confirmed")), [1, 0]),
     "refuted-verdict": (_findings(_card(verdict="refuted")), [0, 0]),
     "odd-heading-between-priority-and-verdict": (
         _findings(
@@ -1016,20 +1016,20 @@ _FINDINGS: dict[str, tuple[str | bytes, list[object]]] = {
             _card()
             + _lines("# x", "  - **Priority:** high", "  - **Verdict:** confirmed")
         ),
-        [2, 0],
+        [1, 0],
     ),
     "heading-above-priority": (
         _findings(
             _lines("# t", "  - **Priority:** high", "  - **Verdict:** confirmed")
         ),
-        [1, 0],
+        [0, 0],
     ),
     "odd-refused-heading": (
         _findings(_card(), "- a\n").replace("Refuted", "Refused"),
-        _GAP_BOTH,
+        [1, 1],
     ),
     "odd-no-section": (_findings(_card(), None), _GAP_BOTH),
-    "odd-heading-no-newline": (_findings(_card(), None) + "\n## Refuted", _GAP_BOTH),
+    "odd-heading-no-newline": (_findings(_card(), None) + "\n## Refuted", [1, 0]),
     "odd-no-space-heading": (_findings(_card()).replace("## ", "##"), _GAP_BOTH),
     "odd-h3-heading": (
         _findings(_card()).replace("## Refuted", "### Refuted"),
@@ -1060,7 +1060,7 @@ _FINDINGS: dict[str, tuple[str | bytes, list[object]]] = {
                 "  - **Verdict:** confirmed",
             )
         ),
-        [1, 0],
+        [0, 0],
     ),
     "no-priority": (
         _findings(
@@ -1070,7 +1070,7 @@ _FINDINGS: dict[str, tuple[str | bytes, list[object]]] = {
                 "  - **Verdict:** confirmed",
             )
         ),
-        [0, 0],
+        [1, 0],
     ),
     "dated-note": (
         _findings(_lines("- **2026-11-05 — a note**", "  a line of text")),
@@ -1080,7 +1080,7 @@ _FINDINGS: dict[str, tuple[str | bytes, list[object]]] = {
         _findings(_card(title="2026-11-05 — a note")),
         [1, 0],
     ),
-    "odd-untitled-card": (_findings(_card(title="a")), [1, 0]),
+    "odd-untitled-card": (_findings(_card(title="a")), [0, 0]),
     "crlf": (_findings(_card(), _TWO).replace("\n", "\r\n").encode(), [1, 2]),
     "bad-byte-in-section": (
         _findings(_card(), "- a\n").encode() + b"\xff\n- b\n",
@@ -1118,7 +1118,7 @@ _FINDINGS_SHAPES = {
     "missing": ["gap: no 0001-x/conformance.md"] * 2,
     "folder": ["gap: no 0001-x/conformance.md"] * 2,
     "dangling": ["gap: no 0001-x/conformance.md"] * 2,
-    "link": [1, 1],
+    "link": ["gap: no 0001-x/conformance.md"] * 2,
     "fifo": ["gap: no 0001-x/conformance.md"] * 2,
     "bad-byte": _GAP_BOTH,
     "empty": _GAP_BOTH,
@@ -1194,14 +1194,14 @@ def _done_cases(shas: list[str]) -> dict[str, tuple[str | bytes, list[object]]]:
         "odd-crlf": (f"head: {built}\r\n", [2, 1]),
         "odd-text-after": (f"head: {built} extra\n", gap),
         "odd-indented": (f"  head: {built}\n", gap),
-        "odd-two-blanks": (f"head:  {built}\n", gap),
-        "odd-tab-after-colon": (f"head:\t{built}\n", gap),
-        "odd-no-blank": (f"head:{built}\n", gap),
+        "odd-two-blanks": (f"head:  {built}\n", [2, 1]),
+        "odd-tab-after-colon": (f"head:\t{built}\n", [2, 1]),
+        "odd-no-blank": (f"head:{built}\n", [2, 1]),
         "empty": ("", gap),
-        "odd-over-65536-bytes": (_done(built, _PAD * 17_000), [2, 1]),
-        "odd-over-262144-bytes": (_done(built, _PAD * 66_000), [2, 1]),
-        "odd-head-after-65536-bytes": (_PAD * 17_000 + _done(built), [2, 1]),
-        "first-head-wins": (f"head: {first}\nhead: {built}\n", [1, 2]),
+        "odd-over-65536-bytes": (_done(built, _PAD * 17_000), gap),
+        "odd-over-262144-bytes": (_done(built, _PAD * 66_000), gap),
+        "odd-head-after-65536-bytes": (_PAD * 17_000 + _done(built), gap),
+        "first-head-wins": (f"head: {first}\nhead: {built}\n", gap),
         "after-other-line": (f"simplify: lean already\nhead: {built}\n", [2, 1]),
         "head-at-tip": (_done(tip), [3, 0]),
         "not-in-history": (
@@ -1229,11 +1229,11 @@ def test_build_done_head(chain: dict[str, object], key: str) -> None:
         ("missing", [_GAP_HEAD] * 2),
         ("folder", [_GAP_HEAD] * 2),
         ("dangling", [_GAP_HEAD] * 2),
-        ("link", [2, 1]),
+        ("link", [_GAP_HEAD] * 2),
         ("fifo", [_GAP_HEAD] * 2),
-        ("bad-byte", ["UnicodeDecodeError"] * 2),
+        ("bad-byte", [_GAP_HEAD] * 2),
         ("empty", [_GAP_HEAD] * 2),
-        ("big", [2, 1]),
+        ("big", [_GAP_HEAD] * 2),
     ],
 )
 def test_build_done_file_shapes(
@@ -1775,30 +1775,26 @@ def _prices_text(text: str) -> Callable[[Path], None]:
 
 
 _NO_CACHED = _ROWS.replace("cached_input = 0.5, ", "")
+
+
+def _unreadable(reason: str) -> tuple[str, str]:
+    """Return what `run.py` and `review_metrics.py` each make of a bad price table."""
+    return f"raises Gap: prices: {reason}", f"raises Unreadable: {reason}"
+
+
 _CODEX_PRICES = {
     "good": (_ROWS, (_PRICED, _PRICED)),
-    "missing": (
-        None,
-        (
-            "raises FileNotFoundError: [Errno 2] No such file or directory:"
-            " '<P>/run/prices.toml'",
-            "raises FileNotFoundError: [Errno 2] No such file or directory:"
-            " '<P>/rm/prices.toml'",
-        ),
+    "missing": (None, _unreadable("No such file or directory")),
+    "not-toml": ("not = = toml", _unreadable("Invalid value (at line 1, column 7)")),
+    "no-models": ("[other]\nx = 1\n", _unreadable("no models table")),
+    "models-not-table": ("models = 5\n", _unreadable("no models table")),
+    "codex-row-no-cached-input": (
+        _NO_CACHED,
+        ("raises Gap: no price for model gpt-5.5", "raises KeyError: 'cached_input'"),
     ),
-    "not-toml": (
-        "not = = toml",
-        ("raises TOMLDecodeError: Invalid value (at line 1, column 7)",) * 2,
-    ),
-    "no-models": ("[other]\nx = 1\n", ("raises KeyError: 'models'",) * 2),
-    "models-not-table": (
-        "models = 5\n",
-        ("raises AttributeError: 'int' object has no attribute 'get'",) * 2,
-    ),
-    "codex-row-no-cached-input": (_NO_CACHED, ("raises KeyError: 'cached_input'",) * 2),
     "price-string": (
         _ROWS.replace("input = 2.0", 'input = "2.0"'),
-        ('raises TypeError: can only concatenate str (not "float") to str',) * 2,
+        ("raises Gap: no price for model gpt-5.5", (None, 1_100_000)),
     ),
     "claude-row-no-cache-write": (
         _ROWS + _SONNET.replace("cache_write = 3.75,", ""),
@@ -1821,10 +1817,7 @@ def test_prices_toml_read_by_both_scripts_for_a_codex_log(
     assert _codex_read(tmp_path, monkeypatch, plant) == expected
 
 
-_NO_FILE = (
-    "raises FileNotFoundError: [Errno 2] No such file or directory:"
-    " '<P>/run/prices.toml'"
-)
+_NO_FILE = "raises Gap: prices: No such file or directory"
 _NO_ROW = "raises Gap: no price for model {}"
 
 
@@ -1834,11 +1827,7 @@ _NO_ROW = "raises Gap: no price for model {}"
         (None, True, (_NO_ROW.format("default"), (None, 1_100_000))),
         ("o9", True, (_NO_ROW.format("o9"), (None, 1_100_000))),
         (None, False, (_NO_FILE, (None, 1_100_000))),
-        (
-            "o9",
-            False,
-            (_NO_FILE, _NO_FILE.replace("/run/", "/rm/")),
-        ),
+        ("o9", False, _unreadable("No such file or directory")),
     ],
     ids=["model-null", "model-o9", "model-null-no-file", "model-o9-no-file"],
 )
@@ -1945,20 +1934,13 @@ _SONNET_5M = ("claude-sonnet-5-5", 5_000_000, 28.05)
     ("prices", "expected"),
     [
         (_CLAUDE_PRICES, _SONNET_5M),
-        (
-            None,
-            "raises FileNotFoundError: [Errno 2] No such file or directory:"
-            " '<P>/repo/prices.toml'",
-        ),
+        (None, "raises Unreadable: No such file or directory"),
         (
             "not = = toml",
-            "raises TOMLDecodeError: Invalid value (at line 1, column 7)",
+            "raises Unreadable: Invalid value (at line 1, column 7)",
         ),
-        ("[other]\nx = 1\n", "raises KeyError: 'models'"),
-        (
-            "models = 5\n",
-            "raises AttributeError: 'int' object has no attribute 'get'",
-        ),
+        ("[other]\nx = 1\n", "raises Unreadable: no models table"),
+        ("models = 5\n", "raises Unreadable: no models table"),
     ],
     ids=["good", "missing", "not-toml", "no-models", "models-not-table"],
 )
@@ -2004,8 +1986,7 @@ def test_prices_toml_for_a_claude_worker(
             None,
             None,
             None,
-            "raises FileNotFoundError: [Errno 2] No such file or directory:"
-            " '<P>/repo/prices.toml'",
+            "raises Unreadable: No such file or directory",
         ),
         (
             _CLAUDE_PRICES,
@@ -2058,25 +2039,15 @@ def test_a_claude_workers_model_and_usage_shapes(
 
 
 _PRICE_SHAPES = {
-    "link": (_PRICED, _PRICED),
+    "link": _unreadable("it is a link"),
     "crlf": (_PRICED, _PRICED),
-    "dangling": (
-        "raises FileNotFoundError: [Errno 2] No such file or directory:"
-        " '<P>/run/prices.toml'",
-        "raises FileNotFoundError: [Errno 2] No such file or directory:"
-        " '<P>/rm/prices.toml'",
+    "dangling": _unreadable("it is a link"),
+    "folder": _unreadable("it is not a file"),
+    "badbyte": _unreadable(
+        "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"
     ),
-    "folder": (
-        "raises IsADirectoryError: [Errno 21] Is a directory: '<P>/run/prices.toml'",
-        "raises IsADirectoryError: [Errno 21] Is a directory: '<P>/rm/prices.toml'",
-    ),
-    "badbyte": (
-        "raises UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0:"
-        " invalid start byte",
-    )
-    * 2,
-    "empty": ("raises KeyError: 'models'",) * 2,
-    "big": (_PRICED, _PRICED),
+    "empty": _unreadable("no models table"),
+    "big": _unreadable("it is over 262144 bytes"),
 }
 
 
@@ -2115,8 +2086,10 @@ def test_a_prices_file_that_is_a_fifo_blocks_both_scripts(
         _codex_repo(root, [_TURN], "gpt-5.5")
         os.mkfifo(root / "prices.toml")
 
-    assert _hangs(_CHILD, _RUN, run_root, run_root / "prices.toml", timeout=3)
-    assert _hangs(_REVIEW_CHILD, _REVIEW, rm_root, rm_root / "prices.toml", timeout=3)
+    assert not _hangs(_CHILD, _RUN, run_root, run_root / "prices.toml", timeout=3)
+    assert not _hangs(
+        _REVIEW_CHILD, _REVIEW, rm_root, rm_root / "prices.toml", timeout=3
+    )
 
 
 # ---- slice W: the debt file ---------------------------------------------------
@@ -2159,25 +2132,21 @@ def _debt_file(root: Path, text: str | bytes) -> None:
 
 def _debt_reads(root: Path, text: str | bytes) -> tuple[object, object]:
     _debt_file(root, text)
-    try:
-        cards: object = debt.cards(root)
-    except ValueError as error:
-        cards = type(error).__name__
-    return cards, _debt_script(root)
+    return debt.cards(root), _debt_script(root)
 
 
 _CARDS = {
     "titled": ("- **0023·a — title**\n", 1),
-    "open": ("- **0023·a**\n", 1),
-    "unclosed": ("- **0023·a\n", 1),
+    "open": ("- **0023·a**\n", 0),
+    "unclosed": ("- **0023·a\n", 0),
     "indented": ("  - **0023·a**\n", 0),
     "five-digits": ("- **12345·x\n", 0),
     "letters": ("- **R1·b**\n", 0),
     "hyphen": ("- **0023-a**\n", 0),
     "empty": ("", 0),
-    "crlf": ("- **0023·a**\r\n- **0024·b**\r\n", 2),
-    "30000": ("- **0023·a**\n" * 30_000, 30_000),
-    "sections": (_SECTIONS, 6),
+    "crlf": ("- **0023·a**\r\n- **0024·b**\r\n", 0),
+    "30000": ("- **0023·a**\n" * 30_000, 0),
+    "sections": (_SECTIONS, 1),
 }
 
 
@@ -2192,12 +2161,16 @@ def test_the_debt_script_counts_cards_of_four_digits_at_a_line_start(
 
 
 _NO_DEBT = (None, (1, "", "no .minions/debt.md\n"))
+_LINKED = (
+    "raises Unreadable: it is a link",
+    (1, "", "no .minions/debt.md: it is a link\n"),
+)
 
 
 @pytest.mark.parametrize(
     ("kind", "expected"),
     [
-        ("link", (1, (0, "1\n", ""))),
+        ("link", _LINKED),
         ("missing", _NO_DEBT),
         ("dangling", _NO_DEBT),
         ("folder", _NO_DEBT),
@@ -2208,24 +2181,21 @@ def test_the_debt_script_reads_a_link_and_reports_a_missing_file(
     tmp_path: Path, kind: str, expected: object
 ) -> None:
     root = _repo(tmp_path)
-    _shaped(root, ".minions/debt.md", kind, "- **0023·a**\n")
+    _shaped(root, ".minions/debt.md", kind, "- **0023·a — x**\n")
+    try:
+        cards: object = debt.cards(root)
+    except debtfile.Unreadable as error:
+        cards = f"raises Unreadable: {error.reason}"
 
-    assert (debt.cards(root), _debt_script(root)) == expected
+    assert (cards, _debt_script(root)) == expected
 
 
 def test_a_debt_file_with_a_bad_byte_is_a_traceback(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     _put(root, ".minions/debt.md", b"\xff\xfe")
 
-    with pytest.raises(UnicodeDecodeError):
-        debt.cards(root)
-    code, out, err = _debt_script(root)
-    assert (code, out) == (1, "")
-    assert (
-        err.rstrip()
-        .splitlines()[-1]
-        .startswith("UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff")
-    )
+    assert debt.cards(root) == 0
+    assert _debt_script(root) == (0, "0\n", "")
 
 
 def test_a_directory_that_is_no_repository_is_a_called_process_error(
@@ -2253,10 +2223,10 @@ def _debt_added(root: Path, change: str) -> object:
 @pytest.mark.parametrize(
     ("change", "count"),
     [
-        ("0001-x", 3),
-        ("0002-z", 1),
-        ("0000-y", 2),
-        ("0001-x extra", 1),
+        ("0001-x", 1),
+        ("0002-z", 0),
+        ("0000-y", 0),
+        ("0001-x extra", 0),
         ("0009-q", 0),
         ("0001", 0),
         ("0001.x", 0),
@@ -2274,10 +2244,10 @@ def test_a_versions_debt_is_the_cards_of_its_own_section(
 @pytest.mark.parametrize(
     ("text", "count"),
     [
-        ("## 0001-x  \n- **0023·a**\n", 1),
+        ("## 0001-x  \n- **0023·a**\n", 0),
         ("## 0001-x\ntext only\n", 0),
-        ("## 0001-x\n- **R1·b**\n- **a**\n- **12345·x\n", 3),
-        ("## 0001-x\r\n- **0023·a**\r\n", 1),
+        ("## 0001-x\n- **R1·b**\n- **a**\n- **12345·x\n", 0),
+        ("## 0001-x\r\n- **0023·a**\r\n", 0),
         ("", 0),
     ],
     ids=["trailing-blanks", "no-card", "three-odd-cards", "crlf", "empty"],
@@ -2295,8 +2265,8 @@ def test_a_versions_debt_in_odd_files(tmp_path: Path, text: str, count: int) -> 
         ("missing", "gap: no .minions/debt.md"),
         ("dangling", "gap: no .minions/debt.md"),
         ("folder", "gap: no .minions/debt.md"),
-        ("link", 1),
-        ("bad-byte", "UnicodeDecodeError"),
+        ("link", "gap: no .minions/debt.md: it is a link"),
+        ("bad-byte", 0),
     ],
 )
 def test_a_versions_debt_file_that_is_missing_a_link_or_has_a_bad_byte(

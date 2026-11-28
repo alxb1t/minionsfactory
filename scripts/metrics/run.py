@@ -14,7 +14,6 @@ import os
 import re
 import subprocess
 import sys
-import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -25,8 +24,12 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills"))
+import mflib.debtfile
 import mflib.eras
+import mflib.findings
 import mflib.layout
+import mflib.marks
+import mflib.prices
 import mflib.runlog
 import mflib.statefile
 import mflib.statuslog
@@ -68,9 +71,9 @@ CODEX_USAGE = ("input_tokens", "output_tokens")
 # A Codex log holding one of these did work, so a missing `turn.completed` is a gap.
 CODEX_ITEMS = ("item.started", "item.completed")
 ROLE = re.compile(r"\b(conformance|adversarial)\b", re.IGNORECASE)
-PRIORITY = re.compile(r"^[ \t]*- \*\*Priority:\*\*", re.MULTILINE)
-CONFIRMED = re.compile(r"^[ \t]*- \*\*Verdict:\*\*[ \t]*`?confirmed", re.MULTILINE)
 REPEAT = re.compile(r"repeat of `?(\d+)·(\w+)")
+# The keys of a price row a Codex turn is priced by.
+PRICED = ("input", "cached_input", "output")
 # A Codex log's prices, read when one is priced. Why: 0096-codex-ready design D6.
 PRICES = Path(__file__).resolve().parents[2] / "skills/mf-review-metrics/prices.toml"
 
@@ -188,8 +191,11 @@ def _priced(path: Path, name: str, turns: list[dict[str, Any]]) -> float | Gap:
     if spawn is None:
         return Gap(f"no spawn line in {name}")
     model = spawn.get("model")
-    row = tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"].get(model)
-    if not model or not isinstance(row, dict):
+    try:
+        row = mflib.prices.rows(PRICES).get(model)
+    except mflib.prices.Unreadable as error:
+        return Gap(f"prices: {error.reason}")
+    if not model or row is None or not all(key in row for key in PRICED):
         return Gap(f"no price for model {model or 'default'}")
     dollars = 0.0
     for turn in turns:
@@ -441,14 +447,10 @@ class Version:
 
         Counted along the first parent, merges left out.
         """
-        done = self.folder / "build.done"
-        name = f"{self.change}/{done.name}"
-        found = done.is_file() and re.search(
-            r"^head: ([0-9a-f]{7,40})\s*$", done.read_text(), re.MULTILINE
-        )
-        if not found:
+        name = f"{self.change}/{mflib.marks.BUILD_DONE}"
+        built = mflib.marks.done_head(self.primary, self.change)
+        if built is None:
             raise Gap(f"no head in {name}")
-        built = found[1]
         ancestor = ["git", "merge-base", "--is-ancestor", built, self.head]
         checked = subprocess.run(
             ancestor, cwd=self.root, capture_output=True, timeout=TIMEOUT_SECONDS
@@ -577,25 +579,30 @@ class Version:
             raise Gap(f"no {role} subagent event in a converge log")
         return total
 
-    def cards(self, role: str) -> tuple[list[str], str]:
-        """Return a role's findings cards and its `## Refuted` section."""
-        path = self.folder / f"{role}.md"
-        if not path.is_file():
+    def cards(self, role: str) -> tuple[list[mflib.findings.Card], list[str]]:
+        """Return a role's findings cards and the entries of its refuted section."""
+        path = mflib.layout.findings_file(self.primary, self.change, role)
+        try:
+            text = mflib.findings.read(path)
+        except OSError:
+            text = None
+        if text is None:
             raise Gap(f"no {self.change}/{path.name}")
-        text = path.read_text(encoding="utf-8", errors="replace")
-        refuted = re.search(r"^## Refuted.*?\n(.*?)(?=^## |\Z)", text, re.M | re.S)
-        if not refuted:
+        entries = mflib.findings.refuted(text)
+        if entries is None:
+            entries = mflib.eras.refuted(text)
+        if entries is None:
             raise Gap(f"no ## Refuted in {self.change}/{path.name}")
-        pieces = re.split(r"^(?=- \*\*|#)", text, flags=re.MULTILINE)
-        return [p for p in pieces if PRIORITY.search(p)], refuted[1]
+        return mflib.findings.cards(text, role), entries
 
     def confirmed(self, role: str) -> int:
         """Return a role's cards whose verdict is `confirmed`."""
-        return sum(bool(CONFIRMED.search(card)) for card in self.cards(role)[0])
+        cards = self.cards(role)[0]
+        return sum(card.word("Verdict") == "confirmed" for card in cards)
 
     def refuted(self, role: str) -> int:
-        """Return the entries of a role's `## Refuted` section."""
-        return len(re.findall(r"^- ", self.cards(role)[1], re.MULTILINE))
+        """Return the entries of a role's refuted section."""
+        return len(self.cards(role)[1])
 
     def per_confirmed(self, role: str) -> int:
         """Return a role's tokens per confirmed card."""
@@ -628,7 +635,7 @@ class Version:
                 for number, card in REPEAT.findall(text)
             )
             for role in ROLES
-            for text in self.cards(role)[0]
+            for text in ("\n".join(card.lines) for card in self.cards(role)[0])
         )
 
     def debt(self) -> int:
@@ -636,10 +643,11 @@ class Version:
         path = mflib.layout.debt_file(self.primary)
         if not path.is_file():
             raise Gap("no .minions/debt.md")
-        text = path.read_text(encoding="utf-8")
-        heading = rf"^## {re.escape(self.change)}[ \t]*\n(.*?)(?=^## |\Z)"
-        section = re.search(heading, text, re.MULTILINE | re.DOTALL)
-        return len(re.findall(r"^- \*\*", section[1], re.MULTILINE)) if section else 0
+        try:
+            text = mflib.debtfile.read(path)
+        except mflib.debtfile.Unreadable as error:
+            raise Gap(f"no .minions/debt.md: {error.reason}") from error
+        return mflib.debtfile.count(text, self.change)
 
 
 METRICS: dict[str, Callable[[Version], Number]] = {

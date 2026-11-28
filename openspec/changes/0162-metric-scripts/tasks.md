@@ -7,7 +7,7 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · moderate
 - [x] 3 — The logs · hard
-- [ ] 4 — The files · moderate
+- [x] 4 — The files · moderate
 - [ ] 5 — The record · moderate
 
 ## 1 — The pin
@@ -67,30 +67,30 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 
 ## 4 — The files
 
-- [ ] 4.1 In `scripts/metrics/run.py` read the findings through `layout.findings_file`, `findings.read`, `findings.cards` and `findings.refuted`, else `eras.refuted`, in `cards`, `confirmed`, `refuted`, `per_confirmed` and `escapes`, importing `mflib.findings` under the seed line ([D8](design.md#d8)); the gap `no <change>/<role>.md` is reached by the `link` case of `test_findings_file_shapes` and `eras.refuted` by the `odd-refused-heading` case ([D14](design.md#d14)).
+- [x] 4.1 In `scripts/metrics/run.py` read the findings through `layout.findings_file`, `findings.read`, `findings.cards` and `findings.refuted`, else `eras.refuted`, in `cards`, `confirmed`, `refuted`, `per_confirmed` and `escapes`, importing `mflib.findings` under the seed line ([D8](design.md#d8)); the gap `no <change>/<role>.md` is reached by the `link` case of `test_findings_file_shapes` and `eras.refuted` by the `odd-refused-heading` case ([D14](design.md#d14)).
   `PRIORITY` and `CONFIRMED` are removed.
   Verify: `git grep -l -e "findings.refuted" -- scripts/metrics/run.py` prints `scripts/metrics/run.py`; `uv run pytest tests/test_metric_scripts.py tests/test_run_dir_finders.py -n auto -q` exits `0`.
-- [ ] 4.2 In `tests/test_metric_pins.py` turn the slice S findings rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; make `run.py`'s row of `docs/modules.md` `eras.py, findings.py, layout.py, runlog.py, statefile.py, statuslog.py`.
+- [x] 4.2 In `tests/test_metric_pins.py` turn the slice S findings rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; make `run.py`'s row of `docs/modules.md` `eras.py, findings.py, layout.py, runlog.py, statefile.py, statuslog.py`.
   Verify: `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 4.3 In `scripts/metrics/run.py` read `build.done` through `marks.done_head` in `commits`, importing `mflib.marks` under the seed line ([D9](design.md#d9)); the gap `no head in <change>/build.done` is reached by the `link` and `bad-byte` cases of `test_build_done_file_shapes` ([D14](design.md#d14)).
+- [x] 4.3 In `scripts/metrics/run.py` read `build.done` through `marks.done_head` in `commits`, importing `mflib.marks` under the seed line ([D9](design.md#d9)); the gap `no head in <change>/build.done` is reached by the `link` and `bad-byte` cases of `test_build_done_file_shapes` ([D14](design.md#d14)).
   Verify: `git grep -l -e "marks.done_head" -- scripts/metrics/run.py` prints `scripts/metrics/run.py`; `uv run pytest tests/test_metric_scripts.py tests/test_run_dir_finders.py -n auto -q` exits `0`.
-- [ ] 4.4 In `tests/test_metric_pins.py` turn the slice S `build.done` rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; take `run.py`'s `build.done` entry out of `FORMAT_SITES` in `tests/test_structure.py` and add `marks.py` to `run.py`'s row of `docs/modules.md`.
+- [x] 4.4 In `tests/test_metric_pins.py` turn the slice S `build.done` rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; take `run.py`'s `build.done` entry out of `FORMAT_SITES` in `tests/test_structure.py` and add `marks.py` to `run.py`'s row of `docs/modules.md`.
   Verify: `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 4.5 Retype the typed lines of `test_the_backlog_is_read_from_the_primary_run_directory` in `tests/test_metric_scripts.py` as `- **0023·a — x**` and `- **0024·b — y**`, its assert of `2` standing ([D10](design.md#d10)).
+- [x] 4.5 Retype the typed lines of `test_the_backlog_is_read_from_the_primary_run_directory` in `tests/test_metric_scripts.py` as `- **0023·a — x**` and `- **0024·b — y**`, its assert of `2` standing ([D10](design.md#d10)).
   Verify: `git grep -l -F -e "0023·a — x" -- tests/test_metric_scripts.py` prints `tests/test_metric_scripts.py`; `uv run pytest tests/test_metric_scripts.py -q` exits `0`.
-- [ ] 4.6 In `scripts/metrics/debt.py` and in `Version.debt` of `scripts/metrics/run.py` read the debt file through `debtfile.read` and count through `debtfile.count`, `debt.py`'s `__main__` exiting `no <file>: <reason>` and `Version.debt` giving the gap `no .minions/debt.md: <reason>` for `debtfile.Unreadable`, importing `mflib.debtfile` under the seed line ([D10](design.md#d10)); both lines are reached by the `link` cases of `test_the_debt_script_reads_a_link_and_reports_a_missing_file` and `test_a_versions_debt_file_that_is_missing_a_link_or_has_a_bad_byte` ([D14](design.md#d14)).
+- [x] 4.6 In `scripts/metrics/debt.py` and in `Version.debt` of `scripts/metrics/run.py` read the debt file through `debtfile.read` and count through `debtfile.count`, `debt.py`'s `__main__` exiting `no <file>: <reason>` and `Version.debt` giving the gap `no .minions/debt.md: <reason>` for `debtfile.Unreadable`, importing `mflib.debtfile` under the seed line ([D10](design.md#d10)); both lines are reached by the `link` cases of `test_the_debt_script_reads_a_link_and_reports_a_missing_file` and `test_a_versions_debt_file_that_is_missing_a_link_or_has_a_bad_byte` ([D14](design.md#d14)).
   `CARD` is removed.
   Verify: `git grep -l -e "debtfile.count" -- scripts/metrics/debt.py` prints `scripts/metrics/debt.py`; `uv run pytest tests/test_metric_scripts.py tests/test_run_dir_finders.py -n auto -q` exits `0`.
-- [ ] 4.7 In `tests/test_metric_pins.py` turn the slice W debt rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; take the `- **` entries of `run.py` and `debt.py` out of `FORMAT_SITES` in `tests/test_structure.py`, add `debtfile.py` to `run.py`'s row of `docs/modules.md` and make `debt.py`'s row `debtfile.py, layout.py`.
+- [x] 4.7 In `tests/test_metric_pins.py` turn the slice W debt rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; take the `- **` entries of `run.py` and `debt.py` out of `FORMAT_SITES` in `tests/test_structure.py`, add `debtfile.py` to `run.py`'s row of `docs/modules.md` and make `debt.py`'s row `debtfile.py, layout.py`.
   Verify: `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 4.8 Import `prices` from `mflib` in `tests/test_review_metrics.py` and re-point the lines that call `_prices` at `prices.rows(review_metrics.PRICES)`, their asserts unchanged ([D11](design.md#d11)).
+- [x] 4.8 Import `prices` from `mflib` in `tests/test_review_metrics.py` and re-point the lines that call `_prices` at `prices.rows(review_metrics.PRICES)`, their asserts unchanged ([D11](design.md#d11)).
   Verify: `git grep -l -e "prices.rows" -- tests/test_review_metrics.py` prints `tests/test_review_metrics.py`; `uv run pytest tests/test_review_metrics.py -q` exits `0`.
-- [ ] 4.9 **CORPUS** `review-metrics` In `scripts/metrics/run.py`'s `_priced` and in `skills/mf-review-metrics/scripts/review_metrics.py` take the price table from `prices.rows`, importing `mflib.prices` under the seed line ([D11](design.md#d11)); in `run.py` an `Unreadable` is the gap `prices: <reason>` and a model with no usable row the gap `no price for model <model>`, in `review_metrics.py` it escapes, and the lines are reached by `test_the_prices_file_as_a_link_a_folder_a_bad_byte_or_empty` and the pipe case of `test_a_prices_file_that_is_a_fifo_blocks_both_scripts` ([D14](design.md#d14)).
+- [x] 4.9 **CORPUS** `review-metrics` In `scripts/metrics/run.py`'s `_priced` and in `skills/mf-review-metrics/scripts/review_metrics.py` take the price table from `prices.rows`, importing `mflib.prices` under the seed line ([D11](design.md#d11)); in `run.py` an `Unreadable` is the gap `prices: <reason>` and a model with no usable row the gap `no price for model <model>`, in `review_metrics.py` it escapes, and the lines are reached by `test_the_prices_file_as_a_link_a_folder_a_bad_byte_or_empty` and the pipe case of `test_a_prices_file_that_is_a_fifo_blocks_both_scripts` ([D14](design.md#d14)).
   In `review_metrics.py` `_prices` is removed and its call sites call `mflib.prices.rows(PRICES)`.
   Verify: `git grep -l -e "prices.rows" -- scripts/metrics/run.py` prints `scripts/metrics/run.py`; `uv run pytest tests/test_metric_scripts.py tests/test_run_dir_finders.py -n auto -q` exits `0`; `uv run pytest tests/test_review_metrics.py -q` exits `0`.
-- [ ] 4.10 In `tests/test_metric_pins.py` turn the slice W price rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; add `prices.py` to the rows of `run.py` and `review_metrics.py` in `docs/modules.md`.
+- [x] 4.10 In `tests/test_metric_pins.py` turn the slice W price rows of [the turns](cases.md#the-turns) for phase 4 and no other assert; add `prices.py` to the rows of `run.py` and `review_metrics.py` in `docs/modules.md`.
   Verify: `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 4.11 Each set holds after the phase ([D15](design.md#d15)).
+- [x] 4.11 Each set holds after the phase ([D15](design.md#d15)).
   Verify: `git diff --stat HEAD -- tests/test_run_dir_finders.py` prints nothing; `uv run pytest tests/test_runlog.py tests/test_statuslog.py tests/test_findings.py tests/test_marks.py tests/test_debtfile.py tests/test_prices.py tests/test_eras.py tests/test_structure.py -n auto -q` exits `0`; `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py -n auto -q` exits `0`; `uv run pytest tests/test_review_metrics.py -q` exits `0`.
 
 ## 5 — The record
