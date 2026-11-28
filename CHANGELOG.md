@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `describe`, `move` and `install` of `pin.py` read, write and clear the pin's files through `mflib.kept`, and `_ship_file`, `_cap` and `_pushes_tags` of the conductor read `ship.toml` through it. `_read` and `_write` of `pin.py` are gone; no behaviour changes (0160-pins, phase 3).
 - The pin's files are read through no link, without blocking, bounded and strict, written staged at 0600 in a folder of 0700, and removed by name. A broken one stops `describe` and so a run, exit 2, naming it; `move` names it and moves nothing. An empty `source` is no source (0160-pins, phase 4).
 - `ship.toml` is read the same way: a link, a FIFO, a folder, a file over 65,536 bytes, a bad byte, a TOML error and a too deep nesting stop `run`, `cut`, `status` and `report`, exit 2, naming the file. A `ship.toml` that is a link now stops the command where it was followed (0160-pins, phase 4).
+- D55, D84, the threat model, the principles and the recipes name `skills/mflib/kept.py` as the read and the write of the pin's files and of `ship.toml`, and the shapes that stop a command (0160-pins, phase 5).
 
 ## [0.129.0] - 2026-11-27
 

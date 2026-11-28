@@ -8,7 +8,7 @@ In order: pin the region on today's side, add the module as copies, send the sta
 - [x] 2 — The module · moderate
 - [x] 3 — The stations · moderate
 - [x] 4 — The fix · hard
-- [ ] 5 — The record · moderate
+- [x] 5 — The record · moderate
 
 ## 1 — The pin
 
@@ -64,13 +64,13 @@ In order: pin the region on today's side, add the module as copies, send the sta
 
 ## 5 — The record
 
-- [ ] 5.1 In `docs/decisions.md`, D55 says the pin's files go through `kept.py`, a pin file that cannot be read stops the `start` line and `install`'s write, and a move names it and moves nothing.
+- [x] 5.1 In `docs/decisions.md`, D55 says the pin's files go through `kept.py`, a pin file that cannot be read stops the `start` line and `install`'s write, and a move names it and moves nothing.
   Verify: `git grep -n -e "pin file" -- docs/decisions.md` prints a line naming D55's text.
-- [ ] 5.2 In `docs/decisions.md`, D84 says a `ship.toml` that is a link, a FIFO, a folder, a file over its bound and a file nested too deep cannot be read, and stops `run`, `cut`, `status` and `report`.
+- [x] 5.2 In `docs/decisions.md`, D84 says a `ship.toml` that is a link, a FIFO, a folder, a file over its bound and a file nested too deep cannot be read, and stops `run`, `cut`, `status` and `report`.
   Verify: `git grep -n -e "FIFO" -- docs/decisions.md` prints a line naming D84's text.
-- [ ] 5.3 In `THREAT_MODEL.md`, the line on the shared home's modules names the pin's files and `ship.toml` among the kept files.
+- [x] 5.3 In `THREAT_MODEL.md`, the line on the shared home's modules names the pin's files and `ship.toml` among the kept files.
   Verify: `git grep -n -e "pin's" -- THREAT_MODEL.md` prints a line naming the kept files.
-- [ ] 5.4 In `docs/principles.md`, the sentences on `conduct.py`'s read of `ship.toml` and `pin.py`'s pinned release name `skills/mflib/kept.py` as the read and the write.
+- [x] 5.4 In `docs/principles.md`, the sentences on `conduct.py`'s read of `ship.toml` and `pin.py`'s pinned release name `skills/mflib/kept.py` as the read and the write.
   Verify: `git grep -n -e "mflib/kept.py" -- docs/principles.md` prints a line naming the pinned release.
-- [ ] 5.5 In `docs/recipes.md`, the paragraph on the home's modules adds the pin's files and the `ship.toml` read to the kept files.
+- [x] 5.5 In `docs/recipes.md`, the paragraph on the home's modules adds the pin's files and the `ship.toml` read to the kept files.
   Verify: `git grep -n -e "ship.toml" -- docs/recipes.md` prints a line naming the kept files.

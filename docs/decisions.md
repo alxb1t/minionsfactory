@@ -922,8 +922,9 @@ show. A version is in flight while its thread
 runs, its rescue and supervisor included, no halt names the run and every `after` id it names is shipped, its cut included;
 a final halt frees its slot. A rejoin request naming a cut, the
 take-back of a version and a version already cut at the run's start run past the cap. No file, no `[queue]` table and no
-key mean no cap; a file that cannot be read, or a value that is no whole number above 0, stops `conduct.py run` and
-`conduct.py cut` with exit 2, naming the file.**
+key mean no cap; a file that cannot be read — a link, a FIFO, a folder, a file over 65,536 bytes, a bad byte, a TOML
+error or a file nested too deep — stops `conduct.py run`, `cut`, `status` and `report`, and a value that is no whole
+number above 0 stops `run` and `cut`, each with exit 2, naming the file.**
 
 - **Why:** the person runs this repo's line and another repo's line on one laptop, each one version at a time, to save the
   CPU; the cap is a fact of the machine, so it stands in the operator's folder, where no worker writes, and a final halt
@@ -1220,7 +1221,9 @@ version a run; `[supervise]` picks its model,
 and links every `mf-*` on `~/.claude/skills` and `~/.agents/skills` into it; bare, it takes the newest tag the kept `origin`
 holds, from a scratch clone, and `TAG=<tag>` or `TAG=live` holds the links. Each conductor marks itself live in
 `~/.mf-ship-origin/live/`, an install under a live run writes `pending`, and the links move only at the last live run's
-end or at an install with none live, to the pending release or a newer tag `origin` holds. Every tree is kept.**
+end or at an install with none live, to the pending release or a newer tag `origin` holds. Every tree is kept. The pin's
+files go through `skills/mflib/kept.py`: a pin file that cannot be read stops the `start` line, a name `install` cannot
+write stops `install`, and a move names a broken file and moves nothing.**
 
 - **Why:** links into the live checkout let every MF release change the skills another repo's workers read mid-run. A
   conductor already loaded would read new skills with old code, so no link moves at a run's start. A scratch clone shares
