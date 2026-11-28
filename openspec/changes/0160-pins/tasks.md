@@ -4,7 +4,7 @@ In order: pin the region on today's side, add the module as copies, send the sta
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · moderate
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
@@ -12,19 +12,19 @@ In order: pin the region on today's side, add the module as copies, send the sta
 
 ## 1 — The pin
 
-- [ ] 1.1 **HALT CHECK** `kept.py` still defines `_read`, `_replace` and `_remove`, which the new functions call, and `conduct.py` still defines `_ship_file`.
+- [x] 1.1 **HALT CHECK** `kept.py` still defines `_read`, `_replace` and `_remove`, which the new functions call, and `conduct.py` still defines `_ship_file`.
   Verify: `git grep -n -e "^def _read" -- skills/mflib/kept.py` exits `0`; `git grep -n -e "^def _replace" -- skills/mflib/kept.py` exits `0`; `git grep -n -e "^def _remove" -- skills/mflib/kept.py` exits `0`; `git grep -n -e "^def _ship_file" -- skills/mf-ship/scripts/conduct.py` exits `0`.
-- [ ] 1.2 Create `tests/test_pinfiles_pins.py`: its docstring, helpers imported from `tests/test_pin.py` and `tests/conduct_load.py`, and Cases R of [the cases](design.md#the-cases), each named `test_r_<what>`. A FIFO case runs in a child with a timeout and carries `slow`.
+- [x] 1.2 Create `tests/test_pinfiles_pins.py`: its docstring, helpers imported from `tests/test_pin.py` and `tests/conduct_load.py`, and Cases R of [the cases](design.md#the-cases), each named `test_r_<what>`. A FIFO case runs in a child with a timeout and carries `slow`.
   Verify: `uv run pytest tests/test_pinfiles_pins.py -n auto -q` exits `0`.
-- [ ] 1.3 Add Cases W for `install` to `tests/test_pinfiles_pins.py`: the world and `install` rows, the folder, link and FIFO rows at `source`, `hold`, `checkout` and `pending`, each named `test_wi_<what>`. Each case holds today's side.
+- [x] 1.3 Add Cases W for `install` to `tests/test_pinfiles_pins.py`: the world and `install` rows, the folder, link and FIFO rows at `source`, `hold`, `checkout` and `pending`, each named `test_wi_<what>`. Each case holds today's side.
   Verify: `uv run pytest tests/test_pinfiles_pins.py -k "test_wi_" -n auto -q` exits `0`.
-- [ ] 1.4 Add Cases W for `move`'s reads to `tests/test_pinfiles_pins.py`: the `move` rows and the first-read rows, a bad byte, a link, an oversize file and a FIFO at each file `move` reads, each named `test_wm_<what>`.
+- [x] 1.4 Add Cases W for `move`'s reads to `tests/test_pinfiles_pins.py`: the `move` rows and the first-read rows, a bad byte, a link, an oversize file and a FIFO at each file `move` reads, each named `test_wm_<what>`.
   Verify: `uv run pytest tests/test_pinfiles_pins.py -k "test_wm_" -n auto -q` exits `0`.
-- [ ] 1.5 Add Cases S for `_ship_file`, `_cap` and `_pushes_tags` to `tests/test_pinfiles_pins.py`, reaching them as `conduct["_ship_file"]` through `tests/conduct_load.py`, each named `test_s_<what>`; a FIFO case runs in a child python and carries `slow`.
+- [x] 1.5 Add Cases S for `_ship_file`, `_cap` and `_pushes_tags` to `tests/test_pinfiles_pins.py`, reaching them as `conduct["_ship_file"]` through `tests/conduct_load.py`, each named `test_s_<what>`; a FIFO case runs in a child python and carries `slow`.
   Verify: `uv run pytest tests/test_pinfiles_pins.py -k "test_s_" -n auto -q` exits `0`.
-- [ ] 1.6 Add the Cases S callers to `tests/test_pinfiles_pins.py`: `status`, `report`, `run` and `cut` with the reads of `ship.toml` counted by wrapping `_ship_file` in the conductor's dict, each named `test_sc_<what>` and each over 1 s marked `slow` ([D10](design.md#d10)).
+- [x] 1.6 Add the Cases S callers to `tests/test_pinfiles_pins.py`: `status`, `report`, `run` and `cut` with the reads of `ship.toml` counted by wrapping `_ship_file` in the conductor's dict, each named `test_sc_<what>` and each over 1 s marked `slow` ([D10](design.md#d10)).
   Verify: `uv run pytest tests/test_pinfiles_pins.py -k "test_sc_" -n auto -q` exits `0`.
-- [ ] 1.7 Pay card `0159·R3` in `tests/test_kept_pins.py` per [D11](design.md#d11): add the live-mark assertion to `test_stop_a_bad_byte_in_the_default_stops_run_with_exit_2_naming_it`, and delete `test_broken_run_logs_the_halt_naming_the_file_and_exits_2`.
+- [x] 1.7 Pay card `0159·R3` in `tests/test_kept_pins.py` per [D11](design.md#d11): add the live-mark assertion to `test_stop_a_bad_byte_in_the_default_stops_run_with_exit_2_naming_it`, and delete `test_broken_run_logs_the_halt_naming_the_file_and_exits_2`.
   Verify: `git grep -c -e "test_broken_run_logs_the_halt_naming_the_file_and_exits_2" -- tests/test_kept_pins.py` prints nothing; `uv run pytest tests/test_kept_pins.py tests/test_pinfiles_pins.py -n auto -q` exits `0`.
 
 ## 2 — The module

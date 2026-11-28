@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `tests/test_pinfiles_pins.py` pins the pin's files and `ship.toml` as `pin.py` and the conductor keep them: the reads and writes of `describe`, `move` and `install`, and `_ship_file`, `_cap` and `_pushes_tags` with their callers, each broken shape on today's side. The moves that follow change no assert (0160-pins, phase 1).
+- Card `0159·R3` is paid: the real-byte test of the kept `default` holds the live-mark assertion, and its patched twin is deleted (0160-pins, phase 1).
+
 ## [0.129.0] - 2026-11-27
 
 Gate: local 7m33s · CI not read under mf-ship · 0.128.0: local 7m38s · CI not read under mf-ship
