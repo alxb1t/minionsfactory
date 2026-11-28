@@ -161,7 +161,7 @@ The log's create, its appends and the stop line SHALL open the log under the run
 - **THEN** the first is passed over and the second pair's newest is the suffix `-10`
 
 #### Scenario: An event's day
-- **WHEN** a log stamped `20261103-235900` holds an event at `00:00:01` and then one at `23:00:00`, and another log stamped `20261103-130000` holds `10:00:00` first
+- **WHEN** a log stamped `20261103-235900` holds an event at `00:00:01` and then one at `00:00:00`, and another log stamped `20261103-130000` holds `10:00:00` first
 - **THEN** the first event of the first log is on the next day and its second a day on again, and the first event of the second log is on the stamp's day
 
 ### Requirement: The kept files are read and written through one module

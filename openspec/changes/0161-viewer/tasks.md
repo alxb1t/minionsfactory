@@ -8,7 +8,7 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 - [x] 2 — The module · moderate
 - [x] 3 — The readers · moderate
 - [x] 4 — The fix · hard
-- [ ] 5 — The record · moderate
+- [x] 5 — The record · moderate
 
 ## 1 — The pin
 
@@ -101,12 +101,12 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 
 ## 5 — The record
 
-- [ ] 5.1 In `docs/decisions.md` edit where a sentence is no longer true: D57 names `statuslog.runs`, the spent text and the `verdicts` line, `runlog`'s moment and cause and `kept.repos`; D82 says the viewer reads the formats through the home modules and shows a `repos` that cannot be read; D83's list of formats and its Accepts name this version's entries ([D32](design.md#d32)).
+- [x] 5.1 In `docs/decisions.md` edit where a sentence is no longer true: D57 names `statuslog.runs`, the spent text and the `verdicts` line, `runlog`'s moment and cause and `kept.repos`; D82 says the viewer reads the formats through the home modules and shows a `repos` that cannot be read; D83's list of formats and its Accepts name this version's entries ([D32](design.md#d32)).
   D83's sentence that the lists only shrink is unchanged.
   Verify: `git grep -l -e "statuslog.runs" -- docs/decisions.md` prints `docs/decisions.md`.
-- [ ] 5.2 In `THREAT_MODEL.md` say in the viewer's paragraph that it reads the status log, the run log, a findings file, the queue and `repos` through `skills/mflib/` modules, each bound kept, and that a `repos` that cannot be read shows one row and stops nothing.
+- [x] 5.2 In `THREAT_MODEL.md` say in the viewer's paragraph that it reads the status log, the run log, a findings file, the queue and `repos` through `skills/mflib/` modules, each bound kept, and that a `repos` that cannot be read shows one row and stops nothing.
   Verify: `git grep -l -e "kept.repos" -- THREAT_MODEL.md` prints `THREAT_MODEL.md`.
-- [ ] 5.3 In `docs/recipes.md` add the recipe "A new fact on the board": the module's parser, the viewer's projector, the page and the test ([D24](design.md#d24)); in the state-file recipe name `statuslog.runs`, `runlog.timed` and `kept.repos` among what a reader takes.
+- [x] 5.3 In `docs/recipes.md` add the recipe "A new fact on the board": the module's parser, the viewer's projector, the page and the test ([D24](design.md#d24)); in the state-file recipe name `statuslog.runs`, `runlog.timed` and `kept.repos` among what a reader takes.
   Verify: `git grep -l -e "new fact" -- docs/recipes.md` prints `docs/recipes.md`.
-- [ ] 5.4 Read the delta `openspec/changes/0161-viewer/specs/sdd/spec.md` against the built code and edit each sentence that differs; the requirement that the viewer loads `conduct.py` and `converge.py` by path stands, and the run log's requirement still says `conduct.py` keeps `EVENT` and `last_log` bound.
+- [x] 5.4 Read the delta `openspec/changes/0161-viewer/specs/sdd/spec.md` against the built code and edit each sentence that differs; the requirement that the viewer loads `conduct.py` and `converge.py` by path stands, and the run log's requirement still says `conduct.py` keeps `EVENT` and `last_log` bound.
   Verify: `openspec validate 0161-viewer --strict` exits `0`.

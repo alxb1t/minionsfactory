@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The viewer reads the run log, the status log, a findings file, the queue and `repos` through `statefile`, `runlog`, `statuslog`, `findings`, `queue` and `kept`, and converge writes its `verdicts` and `pickup` lines through `statuslog`. The viewer's own readers and the `_spent` of converge are gone; no assert changes, and the structure lists and the module map drop the entries the move empties (0161-viewer, phase 3).
 - The board shows the status log's newest run, its mark and `fixing` from `statuslog.runs`, so a heading of any shape is seen, and a `verdicts` line is an event of the module's form. A run log's first event is a day on only when it is 12 hours or more before its stamp, and a name that is no real date is no log (0161-viewer, phase 4).
 - `kept.repos` raises `Broken` for a record that cannot be read, and the page shows one `repos` row saying so beside `ui.toml`'s projects. A relative line and a linked `.minions` are no project (0161-viewer, phase 4).
+- The record names the viewer's reads: D57, D82 and D83 of `docs/decisions.md`, the viewer's paragraph of `THREAT_MODEL.md`, the recipe "A new fact on the board" and the state-file recipe of `docs/recipes.md`. The spec delta's event-day case reads as `runlog.timed` gives it (0161-viewer, phase 5).
 
 ## [0.130.0] - 2026-11-28
 
