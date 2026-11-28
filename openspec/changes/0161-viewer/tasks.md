@@ -4,7 +4,7 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 
 ## Progress
 
-- [ ] 1 — The pin · moderate
+- [x] 1 — The pin · moderate
 - [ ] 2 — The module · moderate
 - [ ] 3 — The readers · moderate
 - [ ] 4 — The fix · hard
@@ -12,25 +12,25 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 
 ## 1 — The pin
 
-- [ ] 1.1 Add `tests/test_viewer_pins.py` with its harness and the group A cases of [the cases](design.md#the-cases): `runpy` loaders of the viewer and converge, a real git repo with a linked worktree, a fake `ps` first on `PATH`, and writers of a run log, a status log, a findings file, a claim and a queue entry, as `tests/test_viewer.py` builds them.
+- [x] 1.1 Add `tests/test_viewer_pins.py` with its harness and the group A cases of [the cases](design.md#the-cases): `runpy` loaders of the viewer and converge, a real git repo with a linked worktree, a fake `ps` first on `PATH`, and writers of a run log, a status log, a findings file, a claim and a queue entry, as `tests/test_viewer.py` builds them.
   A case reaches the code through `project`, `projects` or `read_part`; start no worker, and mark a case over `1` s `slow` ([D27](design.md#d27)).
   Verify: `uv run pytest tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 1.2 Add the group B cases of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: the log's stem, the clock, the days and the lines kept, each through `project(primary)`, with a first event of `00:00:01` in a log stamped `23:59:00` pinned on the stem's day.
+- [x] 1.2 Add the group B cases of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: the log's stem, the clock, the days and the lines kept, each through `project(primary)`, with a first event of `00:00:01` in a log stamped `23:59:00` pinned on the stem's day.
   Name the case of that first event `test_l6_the_first_event_is_on_the_stems_day` ([D40](design.md#d40)); every other stem holds its first event less than `12` hours before the stem's time.
   Verify: `uv run pytest tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 1.3 Add the group H cases and the run log's shapes of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: `runlog.events` and `runlog.newest` through their public functions, a log that is a link, a folder, empty or a FIFO, and a claim that is a file, a link or a FIFO.
+- [x] 1.3 Add the group H cases and the run log's shapes of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: `runlog.events` and `runlog.newest` through their public functions, a log that is a link, a folder, empty or a FIFO, and a claim that is a file, a link or a FIFO.
   Name the case of `20261399-250000.md` `test_l1_a_name_that_is_no_date_is_listed`; run a FIFO in a child with a timeout, marked `slow`.
   Verify: `uv run pytest tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 1.4 Add the groups C, D, E and G of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: the spent fields, the heading, the mark, `fixing`, the round, the cause, and converge's `_spent` through `runpy`.
+- [x] 1.4 Add the groups C, D, E and G of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: the spent fields, the heading, the mark, `fixing`, the round, the cause, and converge's `_spent` through `runpy`.
   Add a case whose top line is a `halt` holding ` · fix — sent`, shown `fixing` today, named `test_v4_a_halt_that_holds_the_words_shows_fixing`.
   Verify: `uv run pytest tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 1.5 Add the group I cases and the heading shapes of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: `statuslog.is_heading`, `newest`, `latest` and `parse_event`, and the viewer's reading of each heading shape.
+- [x] 1.5 Add the group I cases and the heading shapes of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: `statuslog.is_heading`, `newest`, `latest` and `parse_event`, and the viewer's reading of each heading shape.
   Name the viewer cases of a mark of several words, a trailing space, a missing date and CRLF `test_s1_…`, `test_s2_…` and `test_s5_…`, and the case of words before `verdicts` `test_v6_…`.
   Verify: `uv run pytest tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 1.6 Add the shapes of the status log and the findings files of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: a link, a dangling link, a folder, a FIFO in a child, a bad byte, an empty file, `262144` bytes before and after the text, CRLF and a missing file.
+- [x] 1.6 Add the shapes of the status log and the findings files of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: a link, a dangling link, a folder, a FIFO in a child, a bad byte, an empty file, `262144` bytes before and after the text, CRLF and a missing file.
   Mark a FIFO case `slow`; add the frontmatter case of quoted values.
   Verify: `uv run pytest tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 1.7 Add the slice P cases of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: `projects` over rows and the record, the shapes of `repos`, a queue entry through `project(primary)["queue"]`, and the run log line of `Converge Skipped`.
+- [x] 1.7 Add the slice P cases of [the cases](design.md#the-cases) to `tests/test_viewer_pins.py`: `projects` over rows and the record, the shapes of `repos`, a queue entry through `project(primary)["queue"]`, and the run log line of `Converge Skipped`.
   Name each case of a record that is a link, a dangling link, a folder or a FIFO `test_p1_…`, of a bad byte or a NUL byte, the record `x\x00y` among them, `test_p2_…` and of a file over the bound, the records of `262144` blank lines and of blanks up to `262141` bytes among them, `test_p3_…`, of a relative line `test_p4_…` and of a linked `.minions` `test_p6_…`; run a FIFO record in a child, marked `slow`.
   Verify: `uv run pytest tests/test_viewer_pins.py -n auto -q` exits `0`.
 
