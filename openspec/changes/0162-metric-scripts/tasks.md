@@ -6,7 +6,7 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · moderate
-- [ ] 3 — The logs · hard
+- [x] 3 — The logs · hard
 - [ ] 4 — The files · moderate
 - [ ] 5 — The record · moderate
 
@@ -52,16 +52,16 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 
 ## 3 — The logs
 
-- [ ] 3.1 In `scripts/metrics/run.py` read the run log through `runlog.logs`, `statefile.lines` with the bound `262144` and `runlog.timed`, building its own `Event` from each pair, `at` the `datetime.fromtimestamp` of the moment, and import `mflib.runlog` and `mflib.statefile` under the seed line ([D6](design.md#d6)).
+- [x] 3.1 In `scripts/metrics/run.py` read the run log through `runlog.logs`, `statefile.lines` with the bound `262144` and `runlog.timed`, building its own `Event` from each pair, `at` the `datetime.fromtimestamp` of the moment, and import `mflib.runlog` and `mflib.statefile` under the seed line ([D6](design.md#d6)).
   `STAMP`, `EVENT`, `MIDNIGHT`, `_logs` and `_events` are removed.
   Verify: `git grep -l -e "runlog.timed" -- scripts/metrics/run.py` prints `scripts/metrics/run.py`; `uv run pytest tests/test_metric_scripts.py tests/test_run_dir_finders.py -n auto -q` exits `0`.
-- [ ] 3.2 In `tests/test_metric_pins.py` turn the slice R rows of [the turns](cases.md#the-turns) for phase 3 and no other assert ([D12](design.md#d12)); take the entry of `run.py`'s clock pattern out of `FORMAT_SITES` in `tests/test_structure.py` and make `run.py`'s row of `docs/modules.md` `layout.py, runlog.py, statefile.py` ([D13](design.md#d13)).
+- [x] 3.2 In `tests/test_metric_pins.py` turn the slice R rows of [the turns](cases.md#the-turns) for phase 3 and no other assert ([D12](design.md#d12)); take the entry of `run.py`'s clock pattern out of `FORMAT_SITES` in `tests/test_structure.py` and make `run.py`'s row of `docs/modules.md` `layout.py, runlog.py, statefile.py` ([D13](design.md#d13)).
   Verify: `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 3.3 In `scripts/metrics/run.py` read the status log through `layout.status_log`, `statuslog.read`, `statuslog.runs`, `statuslog.blocking` and `eras.blocking`, in `rounds`, `blockers`, `grants` and `amends`, importing `mflib.statuslog` and `mflib.eras` under the seed line ([D7](design.md#d7)); a log `statuslog.read` refuses is the gap `no <change>/status_log.md`, reached by the `link` case of `test_status_log_file_shapes`, and the count from `eras.blocking` by the old-role cases of `test_blockers_read_the_round_one_verdicts` ([D14](design.md#d14)).
+- [x] 3.3 In `scripts/metrics/run.py` read the status log through `layout.status_log`, `statuslog.read`, `statuslog.runs`, `statuslog.blocking` and `eras.blocking`, in `rounds`, `blockers`, `grants` and `amends`, importing `mflib.statuslog` and `mflib.eras` under the seed line ([D7](design.md#d7)); a log `statuslog.read` refuses is the gap `no <change>/status_log.md`, reached by the `link` case of `test_status_log_file_shapes`, and the count from `eras.blocking` by the old-role cases of `test_blockers_read_the_round_one_verdicts` ([D14](design.md#d14)).
   Verify: `git grep -l -e "statuslog.runs" -- scripts/metrics/run.py` prints `scripts/metrics/run.py`; `uv run pytest tests/test_metric_scripts.py tests/test_run_dir_finders.py -n auto -q` exits `0`.
-- [ ] 3.4 In `tests/test_metric_pins.py` turn the slice S status-log rows of [the turns](cases.md#the-turns) for phase 3 and no other assert; take `run.py`'s `## Run` and `status_log.md` entries out of `FORMAT_SITES` in `tests/test_structure.py` and make `run.py`'s row of `docs/modules.md` `eras.py, layout.py, runlog.py, statefile.py, statuslog.py`.
+- [x] 3.4 In `tests/test_metric_pins.py` turn the slice S status-log rows of [the turns](cases.md#the-turns) for phase 3 and no other assert; take `run.py`'s `## Run` and `status_log.md` entries out of `FORMAT_SITES` in `tests/test_structure.py` and make `run.py`'s row of `docs/modules.md` `eras.py, layout.py, runlog.py, statefile.py, statuslog.py`.
   Verify: `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 3.5 The phase leaves the test files that [D12](design.md#d12) closes to asserts as they were, and the module set holds.
+- [x] 3.5 The phase leaves the test files that [D12](design.md#d12) closes to asserts as they were, and the module set holds.
   They are `tests/test_metric_scripts.py`, `tests/test_review_metrics.py` and `tests/test_run_dir_finders.py`.
   Verify: `git diff --stat HEAD -- tests/test_metric_scripts.py tests/test_review_metrics.py tests/test_run_dir_finders.py` prints nothing; `uv run pytest tests/test_runlog.py tests/test_statuslog.py tests/test_findings.py tests/test_marks.py tests/test_debtfile.py tests/test_prices.py tests/test_eras.py tests/test_structure.py -n auto -q` exits `0`.
 

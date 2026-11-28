@@ -87,10 +87,6 @@ FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("run.py", "- **"),
         # the mark's own read, until the readers' version
         ("run.py", "build.done"),
-        ("run.py", "## Run"),
-        ("run.py", "status_log.md"),
-        # the run log's reader, until the readers' version
-        ("run.py", r"\d\d:\d\d:\d\d"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")

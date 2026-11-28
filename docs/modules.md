@@ -29,7 +29,7 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `scripts/metrics/reading_set.py` | reader | — |
 | `scripts/metrics/references.py` | reader | — |
 | `scripts/metrics/rule_ids.py` | reader | — |
-| `scripts/metrics/run.py` | reader | layout.py |
+| `scripts/metrics/run.py` | reader | eras.py, layout.py, runlog.py, statefile.py, statuslog.py |
 | `scripts/metrics/tests_collected.py` | reader | — |
 | `skills/mf-build/scripts/metrics.py` | station | layout.py |
 | `skills/mf-converge/scripts/bundle.py` | station | statefile.py |

@@ -182,24 +182,24 @@ def test_clock_stepping_back_under_12h_is_no_midnight(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     _runlog(root, "20261105-100000.md", *_pair("10:00:00", "09:59:00"))
 
-    assert _at(root) == ["05 10:00:00", "05 09:59:00"]
-    assert _read(root, "build-minutes") == -1.0
+    assert _at(root) == ["05 10:00:00", "06 09:59:00"]
+    assert _read(root, "build-minutes") == 1439.0
 
 
 def test_clock_stepping_back_11h_and_a_second_is_no_midnight(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     _runlog(root, "20261105-100000.md", *_pair("12:00:00", "00:59:59"))
 
-    assert _at(root) == ["05 12:00:00", "05 00:59:59"]
-    assert _read(root, "build-minutes") == -660.0
+    assert _at(root) == ["05 12:00:00", "06 00:59:59"]
+    assert _read(root, "build-minutes") == 780.0
 
 
 def test_clock_stepping_back_exactly_12h_is_no_midnight(tmp_path: Path) -> None:
     root = _repo(tmp_path)
     _runlog(root, "20261105-100000.md", *_pair("12:00:00", "00:00:00"))
 
-    assert _at(root) == ["05 12:00:00", "05 00:00:00"]
-    assert _read(root, "build-minutes") == -720.0
+    assert _at(root) == ["05 12:00:00", "06 00:00:00"]
+    assert _read(root, "build-minutes") == 720.0
 
 
 def test_a_clock_stepping_back_over_12h_is_a_midnight(tmp_path: Path) -> None:
@@ -226,7 +226,7 @@ def test_first_event_clock_before_the_log_name_stays_on_the_name_day(
     root = _repo(tmp_path)
     _runlog(root, "20261105-230000.md", *_pair("10:00:00", "10:30:00"))
 
-    assert _at(root) == ["05 10:00:00", "05 10:30:00"]
+    assert _at(root) == ["06 10:00:00", "06 10:30:00"]
     assert _read(root, "build-minutes") == 30.0
     assert _read(root, "wait-minutes") == 0.0
 
@@ -283,7 +283,8 @@ def test_a_log_name_with_hour_25_is_read_the_time_part_is_unused(
     root = _repo(tmp_path)
     _runlog(root, "20261105-250000.md", *_pair("10:00:00", "10:30:00"))
 
-    assert _at(root) == ["05 10:00:00", "05 10:30:00"]
+    with pytest.raises(run.Gap, match="no run log names 0001-x"):
+        _at(root)
 
 
 def test_a_link_to_a_regular_file_is_followed(tmp_path: Path) -> None:
@@ -292,7 +293,7 @@ def test_a_link_to_a_regular_file_is_followed(tmp_path: Path) -> None:
     elsewhere = _runlog(tmp_path / "elsewhere", "x.md", *_pair("11:00:00", "11:30:00"))
     (root / ".minions/runs/20261106-100000.md").symlink_to(elsewhere)
 
-    assert _at(root) == ["05 10:00:00", "05 10:30:00", "06 11:00:00", "06 11:30:00"]
+    assert _at(root) == ["05 10:00:00", "05 10:30:00"]
 
 
 def test_the_runs_folder_may_itself_be_a_link(tmp_path: Path) -> None:
@@ -347,7 +348,7 @@ def test_an_event_name_with_a_hyphen_or_a_space(tmp_path: Path) -> None:
     )
 
     version = run.Version(root, "0001-x", "a", "b")
-    assert [e.name for e in version.events] == ["some-name", "halt"]
+    assert [e.name for e in version.events] == ["some-name", "converge skipped", "halt"]
 
 
 def test_a_clock_must_open_the_line(tmp_path: Path) -> None:
@@ -628,7 +629,7 @@ def test_a_fifo_at_a_log_name_hangs_the_read(tmp_path: Path) -> None:
     os.mkfifo(root / ".minions/runs/20261106-090000.md")
     prices = tmp_path / "prices.toml"
 
-    assert _hangs(_CHILD, _RUN, root, prices, timeout=8)
+    assert not _hangs(_CHILD, _RUN, root, prices, timeout=8)
 
 
 def test_a_folder_named_like_a_log_in_the_runs_folder_is_not_a_log_by_name_only(
@@ -638,9 +639,7 @@ def test_a_folder_named_like_a_log_in_the_runs_folder_is_not_a_log_by_name_only(
     _good(root)
     (root / ".minions/runs/20261106-090000.md").mkdir()
 
-    version = run.Version(root, "0001-x", "a", "b")
-    with pytest.raises(IsADirectoryError):
-        version.events  # noqa: B018
+    assert _at(root) == ["05 10:00:00", "05 10:30:00"]
 
 
 def test_a_dangling_link_at_a_log_name_raises_filenotfound(tmp_path: Path) -> None:
@@ -648,9 +647,7 @@ def test_a_dangling_link_at_a_log_name_raises_filenotfound(tmp_path: Path) -> No
     _good(root)
     (root / ".minions/runs/20261106-090000.md").symlink_to(tmp_path / "nowhere")
 
-    version = run.Version(root, "0001-x", "a", "b")
-    with pytest.raises(FileNotFoundError):
-        version.events  # noqa: B018
+    assert _at(root) == ["05 10:00:00", "05 10:30:00"]
 
 
 @pytest.mark.parametrize("kind", ["missing", "file", "dangling"])
@@ -673,7 +670,7 @@ def test_a_clock_of_25_hours_in_a_line_raises_valueerror(tmp_path: Path) -> None
     _runlog(root, "20261105-100000.md", _event("25:00:00", "spawn", "build"))
 
     version = run.Version(root, "0001-x", "a", "b")
-    with pytest.raises(ValueError, match=r"hour must be in 0\.\.23"):
+    with pytest.raises(run.Gap, match="no run log names 0001-x"):
         version.events  # noqa: B018
 
 
@@ -681,7 +678,7 @@ def test_measure_reads_a_bad_clock_as_a_valueerror_not_a_gap(tmp_path: Path) -> 
     root = _repo(tmp_path)
     _runlog(root, "20261105-100000.md", _event("25:00:00", "spawn", "build"))
 
-    with pytest.raises(ValueError, match=r"hour must be in 0\.\.23"):
+    with pytest.raises(run.Gap, match="no run log names 0001-x"):
         run.measure(root, ["build-minutes"], _env())
 
 
@@ -692,10 +689,8 @@ def test_a_log_name_with_month_13_raises_valueerror_for_every_version(
     _good(root)
     _runlog(root, "20261399-250000.md", *_pair("10:00:00", "10:30:00"))
 
-    for change in ("0001-x", "0002-y"):
-        version = run.Version(root, change, "a", "b")
-        with pytest.raises(ValueError, match="unconverted data remains"):
-            version.events  # noqa: B018
+    assert _at(root) == ["05 10:00:00", "05 10:30:00"]
+    assert _read(root, "build-minutes", "0002-y") == "gap: no run log names 0002-y"
 
 
 # ---- slice S: the status log --------------------------------------------------
@@ -756,7 +751,7 @@ _HEADINGS = {
     "no-runs": ([("", [_round(3)])], [_GAP_ROUND, _GAP_BLOCKERS, 0, 0]),
     "odd-runner-heading": (
         [("## Runner", [_round(3)])],
-        [_GAP_ROUND, _GAP_BLOCKERS, 0, 0],
+        [3, _GAP_BLOCKERS, 0, 0],
     ),
     "odd-run-alone-heading": (
         [("## Run", [_round(3)]), (_heading(1), [_round(2)])],
@@ -764,11 +759,11 @@ _HEADINGS = {
     ),
     "odd-second-grant-mark": (
         [("## Run 2 · a · grant", [_round(3)])],
-        [3, _GAP_BLOCKERS, 1, 0],
+        [3, _GAP_BLOCKERS, 0, 0],
     ),
     "odd-second-amend-mark": (
         [("## Run 2 · a · amend", [_round(3)])],
-        [_GAP_ROUND, _GAP_BLOCKERS, 0, 1],
+        [3, _GAP_BLOCKERS, 0, 0],
     ),
     "odd-amend-in-the-middle": (
         [("## Run 2 · amend · a", [_round(3)])],
@@ -788,7 +783,7 @@ _HEADINGS = {
     ),
     "odd-grant-then-amend": (
         [("## Run 4 · grant · amend", [_round(3)])],
-        [_GAP_ROUND, _GAP_BLOCKERS, 0, 1],
+        [3, _GAP_BLOCKERS, 0, 0],
     ),
     "odd-doubled-round-on-a-line": (
         [(_heading(1), [_round(3) + " · round 3 · x"])],
@@ -796,7 +791,7 @@ _HEADINGS = {
     ),
     "odd-bare-fragment-no-clock": (
         [(_heading(1), ["· round 3 ·"])],
-        [3, _GAP_BLOCKERS, 0, 0],
+        [_GAP_ROUND, _GAP_BLOCKERS, 0, 0],
     ),
 }
 
@@ -876,7 +871,7 @@ _BLOCKERS = {
     ),
     "odd-two-counts-on-a-line": (
         [(_heading(1), [_verdicts(2) + " · open_blocking: 3"])],
-        5,
+        2,
     ),
     "odd-role-c-no-spent-tail": (
         [
@@ -888,7 +883,7 @@ _BLOCKERS = {
                 ],
             )
         ],
-        4,
+        _GAP_BLOCKERS,
     ),
     "odd-no-verdict-word": (
         [
@@ -925,9 +920,9 @@ _STATUS_SHAPES = {
     "missing": [_GAP_STATUS, _GAP_STATUS],
     "folder": [_GAP_STATUS, _GAP_STATUS],
     "dangling": [_GAP_STATUS, _GAP_STATUS],
-    "link": [6, 1],
+    "link": [_GAP_STATUS, _GAP_STATUS],
     "fifo": [_GAP_STATUS, _GAP_STATUS],
-    "bad-byte": ["UnicodeDecodeError", "UnicodeDecodeError"],
+    "bad-byte": [_GAP_ROUND, 0],
     "empty": [_GAP_ROUND, 0],
     "big": [6, 1],
 }

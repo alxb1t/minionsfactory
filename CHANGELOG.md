@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `tests/test_metric_pins.py` pins the metric scripts' reads on today's side: the day rule, file list and broken shapes of the run log, the headings, marks and verdict counts of the status log, a findings card and its refuted section, the head of `build.done`, the proposal's `debt:` list, the worker logs, `prices.toml` in `run.py` and `review_metrics.py`, and the debt file in `debt.py` and `Version.debt`. The moves that follow turn the asserts [the cases](openspec/changes/0162-metric-scripts/cases.md#the-turns) list and no other (0162-metric-scripts, phase 1).
 - The home gains `runlog.logs`, `statuslog.blocking`, `findings.refuted`, `prices.rows` with `prices.Unreadable`, and `eras.blocking` and `eras.refuted` for the old forms, each with unit cases, and `runlog.timed` passes by a clock that is no time of day, so the viewer shows the events around one. No script calls them yet (0162-metric-scripts, phase 2).
+- `run.py` reads the run log through `runlog.logs`, `statefile.lines` and `runlog.timed`, so a pipe, a folder, a link or a bad clock costs no metric. Turned: any step back is a day on, a name that is no real stamp is no log, a link at a log's name yields nothing, and `converge skipped` is an event (0162-metric-scripts, phase 3).
+- `run.py` reads the status log through `statuslog.read`, `statuslog.runs`, `statuslog.blocking` and `eras.blocking`. Turned: a mark counts only whole, a round needs a whole event line, a line has one count, a role other than today's and the old ones counts nothing, a link is a gap and a bad byte is replaced (0162-metric-scripts, phase 3).
 
 ## [0.131.0] - 2026-11-28
 

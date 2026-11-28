@@ -18,18 +18,22 @@ import tomllib
 from collections import Counter
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import cached_property
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills"))
+import mflib.eras
 import mflib.layout
+import mflib.runlog
+import mflib.statefile
+import mflib.statuslog
 
 TIMEOUT_SECONDS = 600
-STAMP = re.compile(r"(\d{8})-(\d{6})(?:-(\d+))?")
-EVENT = re.compile(r"^(\d\d):(\d\d):(\d\d) · (\S+) · ([\w-]+) — (.*)$", re.MULTILINE)
+# why: a run log line is cut here, so no line is held whole; 0162-metric-scripts D6
+PART = 262_144
 STATIONS = ("build", "converge", "integrate", "release", "rescue", "supervise")
 # The checkers an older converge's mailbox started: no stage of their own, so no
 # minutes. Why: 0097-cross-model design D11.
@@ -43,8 +47,6 @@ CHECKERS = (
 # Why: 0108-converge-script design D4, D10.
 WORKER = re.compile(r"converge-[a-z-]+-r\d+")
 HALT = re.compile(r"(\w+) (?:check fail|worker exit|timed out)\b")
-# why: a clock set back an hour is no midnight
-MIDNIGHT = timedelta(hours=12)
 STAGES = ("build", "converge", "catch-up", "integrate")
 # The stages a version's cost sums; the release's own log is still being written.
 SPENT = (*STAGES, "rescue", "supervise")
@@ -126,26 +128,10 @@ def _git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-def _logs(runs: Path) -> list[tuple[Path, re.Match[str]]]:
-    """Return the run logs and their stamps, oldest first.
-
-    e.g. `20261105-174408.md`, then `20261105-174408-2.md`
-    """
-    logs = [(p, found) for p in runs.glob("*.md") if (found := STAMP.fullmatch(p.stem))]
-    return sorted(logs, key=lambda log: (log[1][1], log[1][2], int(log[1][3] or 1)))
-
-
-def _events(path: Path, stamp: re.Match[str]) -> list[Event]:
-    """Return a run log's events, a day added at each midnight it crosses."""
-    day = datetime.strptime(stamp[1], "%Y%m%d")
-    events: list[Event] = []
-    for line in EVENT.finditer(path.read_text(encoding="utf-8", errors="replace")):
-        hour, minute, second, who, name, detail = line.groups()
-        at = day.replace(hour=int(hour), minute=int(minute), second=int(second))
-        if events and events[-1].at - at > MIDNIGHT:
-            day, at = day + timedelta(days=1), at + timedelta(days=1)
-        events.append(Event(path.stem, at, who, name, detail))
-    return events
+def _blocking(event: mflib.statuslog.Event) -> int | None:
+    """Return a `verdicts` event's open blocking count, today's form or an old run's."""
+    count = mflib.statuslog.blocking(event)
+    return mflib.eras.blocking(event) if count is None else count
 
 
 def _versions(detail: str) -> list[str]:
@@ -263,8 +249,14 @@ class Version:
     @cached_property
     def events(self) -> list[Event]:
         """Return the events naming the version, oldest first; none is a gap."""
-        logs = _logs(mflib.layout.runs_dir(self.primary))
-        named = [e for log in logs for e in _events(*log) if self._names(e)]
+        named: list[Event] = []
+        for log in mflib.runlog.logs(mflib.layout.runs_dir(self.primary)):
+            lines = mflib.statefile.lines(log, PART)
+            for read, moment in mflib.runlog.timed(log.stem, lines):
+                at = datetime.fromtimestamp(moment)
+                event = Event(log.stem, at, read.who, read.name, read.detail)
+                if self._names(event):
+                    named.append(event)
         if not named:
             raise Gap(f"no run log names {self.change}")
         return named
@@ -400,23 +392,22 @@ class Version:
         )
 
     @cached_property
-    def status_runs(self) -> list[tuple[str, str]]:
-        """Return the status log's runs as heading and body, newest first."""
-        path = self.folder / "status_log.md"
-        if not path.is_file():
-            raise Gap(f"no {self.change}/{path.name}")
-        parts = re.split(
-            r"^(## Run\b.*)$", path.read_text(encoding="utf-8"), flags=re.MULTILINE
-        )
-        return list(zip(parts[1::2], parts[2::2], strict=True))
+    def status_runs(self) -> list[mflib.statuslog.Section]:
+        """Return the status log's runs, newest first; a log it cannot read is a gap."""
+        path = mflib.layout.status_log(self.primary, self.change)
+        try:
+            text = mflib.statuslog.read(path)
+        except mflib.statuslog.Refused as refused:
+            raise Gap(f"no {self.change}/{path.name}") from refused
+        return mflib.statuslog.runs(text)
 
     def rounds(self) -> int:
         """Return the highest round a run that is no catch-up or amend run reached."""
         found = [
-            int(n)
-            for heading, body in self.status_runs
-            if not heading.rstrip().endswith(("· catch-up", "· amend"))
-            for n in re.findall(r"· round (\d+) ·", body)
+            event.round
+            for run in self.status_runs
+            if run.mark not in ("catch-up", "amend")
+            for event in run.events
         ]
         if not found:
             raise Gap("no round in the status log")
@@ -427,25 +418,23 @@ class Version:
 
         A run that halted before its fan-out left none, so the next run holds them.
         """
-        verdicts = r"^.* · round 1 · verdicts — .*$"
-        lines: list[str] = []
-        for _, body in reversed(self.status_runs):
-            if lines := re.findall(verdicts, body, re.MULTILINE):
+        verdicts: list[mflib.statuslog.Event] = []
+        for run in reversed(self.status_runs):
+            held = [e for e in run.events if (e.round, e.name) == (1, "verdicts")]
+            if verdicts := held:
                 break
-        counts = [
-            int(n) for line in lines for n in re.findall(r"open_blocking:? (\d+)", line)
-        ]
+        counts = [n for event in verdicts if (n := _blocking(event)) is not None]
         if not counts:
             raise Gap("no round 1 verdicts with open_blocking")
         return sum(counts)
 
     def grants(self) -> int:
         """Return the converge runs marked as a grant's."""
-        return sum(h.rstrip().endswith("· grant") for h, _ in self.status_runs)
+        return sum(run.mark == "grant" for run in self.status_runs)
 
     def amends(self) -> int:
         """Return the converge runs marked as an answered halt's amend round."""
-        return sum(h.rstrip().endswith("· amend") for h, _ in self.status_runs)
+        return sum(run.mark == "amend" for run in self.status_runs)
 
     def commits(self, fixes: bool) -> int:
         """Return the commits up to `build.done`'s head, or after it, if `fixes`.
