@@ -436,24 +436,33 @@ def remove_probe_mark(mark: Path) -> None:
 
 
 def _pin_read(file: Path) -> str | None:
-    """Return the pin file's text, stripped, or None when it is no file."""
-    return file.read_text().strip() if file.is_file() else None
+    """Return the pin file's text, stripped, or None when none stands.
+
+    A name that `_read` cannot read raises `Broken`. Why: 0160-pins design D3.
+    """
+    text = _read(file)
+    return None if text is None else text.strip()
 
 
 def _pin_keep(file: Path, text: str) -> None:
-    """Write `text` and one newline to the pin file, its folder made at 0700."""
-    file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    file.write_text(f"{text}\n")
+    """Replace the pin file with `text` and one newline, as `_replace` writes.
+
+    Why: 0160-pins design D7.
+    """
+    _replace(file, f"{text}\n")
 
 
 def _pin_clear(file: Path) -> None:
-    """Remove the pin file; a gone one is quiet."""
-    file.unlink(missing_ok=True)
+    """Remove the pin file by name, as `_remove` does; a gone one is quiet."""
+    _remove(file)
 
 
 def source() -> str | None:
-    """Return the primary an install ran in, or None before the first."""
-    return _pin_read(layout.pin_source())
+    """Return the primary an install ran in, or None before the first or for blank.
+
+    Why: 0160-pins design D8.
+    """
+    return _pin_read(layout.pin_source()) or None
 
 
 def pending() -> str | None:
@@ -504,12 +513,19 @@ def clear_hold() -> None:
 def ship_data() -> dict[str, Any]:
     """Return the operator's `ship.toml` parsed, `{}` for no file.
 
-    A file that cannot be read or parsed raises the error of its parse.
+    A file `_read` cannot read, or that does not parse, raises `Broken`.
+    Why: 0160-pins design D4.
     """
-    try:
-        return tomllib.loads(layout.ship_file().read_text())
-    except FileNotFoundError:
+    file = layout.ship_file()
+    text = _read(file)
+    if text is None:
         return {}
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise Broken(file, str(error)) from None
+    except RecursionError:
+        raise Broken(file, "it is nested too deep") from None
 
 
 def ship_cap(data: dict[str, Any]) -> int | None:

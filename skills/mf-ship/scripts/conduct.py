@@ -7527,8 +7527,8 @@ def _ship_file() -> tuple[Path, dict[str, Any]]:
     path = mflib.layout.ship_file()
     try:
         return path, mflib.kept.ship_data()
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
-        raise Stop(2, f"{path}: {error}") from None
+    except mflib.kept.Broken as error:
+        raise Stop(2, f"{path}: {error.phrase}") from None
 
 
 def _cap() -> int | None:

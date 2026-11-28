@@ -279,10 +279,10 @@ def move(mine: Path | None = None) -> str | None:
     Nothing moves without `source`, while a run other than `mine` is live, or under a
     hold for a newer tag; `origin` that cannot be read moves nothing.
     """
-    source = mflib.kept.source()
-    if source is None or live(mine):
-        return None
     try:
+        source = mflib.kept.source()
+        if source is None or live(mine):
+            return None
         target = mflib.kept.pending()
         if target == "live":
             skills = Path(mflib.kept.checkout() or source) / "skills"

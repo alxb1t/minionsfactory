@@ -1,7 +1,7 @@
 """Pins of the pin's files and `ship.toml` as `pin.py` and the conductor keep them.
 
-Each case holds today's side and reaches the code through a caller that stays.
-Why: 0160-pins design D5, The cases.
+Each case reaches the code through a caller that stays, on the side its reading
+settles. Why: 0160-pins design D5, The readings, The cases.
 """
 
 import contextlib
@@ -12,13 +12,13 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 import test_conduct
 from conduct_load import conduct as _conduct
 from fake_worker import _commit, _git
-from mflib import layout
+from mflib import kept, layout
 from test_conduct import (
     _idle_machine,  # noqa: F401
     _no_codex_sessions,  # noqa: F401
@@ -36,8 +36,10 @@ _SCRIPT = (
 )
 _SK = " · skipped v0.2.0: not on origin"
 _PENDING = " · pending v0.2.0"
-_LONG = f"{_PENDING}\n{'x' * 70000}"
 _BAD = b"\xff\xfe"
+_NOT_A_FILE = "it is not a file"
+_NOT_TEXT = "it is not text"
+_OVER = "it is over 65536 bytes"
 _FILES: dict[str, Callable[[], Path]] = {
     "source": layout.pin_source,
     "pending": layout.pin_pending,
@@ -45,8 +47,23 @@ _FILES: dict[str, Callable[[], Path]] = {
     "checkout": layout.pin_checkout,
 }
 _DESCRIBE_CHILD = (
-    "import runpy, sys\nprint(repr(runpy.run_path(sys.argv[1])['describe']()))\n"
+    "import runpy, sys\n"
+    "try:\n"
+    "    said = repr(runpy.run_path(sys.argv[1])['describe']())\n"
+    "except OSError as error:\n"
+    "    said = str(error)\n"
+    "print(said)\n"
 )
+
+
+def _named(name: str, phrase: str) -> str:
+    """Return the text of a pin file `name` that cannot be read, for `phrase`."""
+    return f"~/.mf-ship-origin/{name} cannot be read: {phrase}"
+
+
+def _moved(name: str, phrase: str) -> str:
+    """Return what `move` says for a pin file `name` that cannot be read."""
+    return f"pin: cannot move — {_named(name, phrase)}"
 
 
 @pytest.fixture
@@ -123,12 +140,19 @@ def _described(shape: str, name: str, tmp_path: Path) -> str:
     return described
 
 
-_ROWS = {
-    "link": ("source", _SK, _PENDING, "", _SK),
-    "dangling": ("source", "", _SK, _SK, _SK),
-    "folder": ("source", "", _SK, _SK, _SK),
+class _Broke(NamedTuple):
+    """Say `describe` stops on the pin file, naming it with `phrase`."""
+
+    phrase: str
+
+
+_LINK = _Broke(_NOT_A_FILE)
+_ROWS: dict[str, tuple[str | _Broke, ...]] = {
+    "link": ("source", _LINK, _LINK, _LINK, _SK),
+    "dangling": ("source", _LINK, _LINK, _LINK, _SK),
+    "folder": ("source", _LINK, _LINK, _LINK, _SK),
     "empty": ("source", "", _SK, _SK, _SK),
-    "big": ("source", "", _LONG, "", _SK),
+    "big": ("source", _Broke(_OVER), _Broke(_OVER), _Broke(_OVER), _SK),
 }
 _NAMES = ("source", "pending", "hold", "checkout")
 
@@ -140,15 +164,22 @@ def test_r_a_shape_at_a_pin_file_reads_as_its_row(
 ) -> None:
     expected = _ROWS[shape][1 + _NAMES.index(name)]
 
-    assert _described(shape, name, tmp_path) == expected
+    if isinstance(expected, _Broke):
+        with pytest.raises(kept.Broken) as broken:
+            _described(shape, name, tmp_path)
+        assert str(broken.value) == _named(name, expected.phrase)
+    else:
+        assert _described(shape, name, tmp_path) == expected
 
 
 @pytest.mark.parametrize("name", ["source", "pending", "hold"])
-def test_r_a_bad_byte_in_a_pin_file_ends_describe_in_a_traceback(
+def test_r_a_bad_byte_in_a_pin_file_stops_describe_naming_it(
     tmp_path: Path, name: str
 ) -> None:
-    with pytest.raises(UnicodeDecodeError):
+    with pytest.raises(kept.Broken) as broken:
         _described("binary", name, tmp_path)
+
+    assert str(broken.value) == _named(name, _NOT_TEXT)
 
 
 def test_r_a_bad_byte_in_checkout_is_not_read_by_describe(tmp_path: Path) -> None:
@@ -170,8 +201,8 @@ def test_r_a_pipe_at_a_pin_file_is_read_at_once(tmp_path: Path, name: str) -> No
         timeout=30,
     )
 
-    expected = "" if name == "source" else _SK
-    assert (done.returncode, done.stdout, done.stderr) == (0, f"{expected!r}\n", "")
+    expected = repr(_SK) if name == "checkout" else _named(name, _NOT_A_FILE)
+    assert (done.returncode, done.stdout, done.stderr) == (0, f"{expected}\n", "")
 
 
 @pytest.mark.parametrize("name", _NAMES)
@@ -219,22 +250,24 @@ def test_r_a_pending_of_several_lines_keeps_every_line(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("name", ["pending", "hold"])
-def test_r_a_folder_at_pending_or_hold_leaves_the_skipped_note(
+def test_r_a_folder_at_pending_or_hold_stops_describe_naming_it(
     tmp_path: Path, name: str
 ) -> None:
     pin, root = _world(tmp_path)
     _put("source", str(root))
     _FILES[name]().mkdir()
 
-    assert pin["describe"]() == _SK
+    with pytest.raises(kept.Broken, match=re.escape(_named(name, _NOT_A_FILE))):
+        pin["describe"]()
 
 
-def test_r_a_folder_at_source_describes_nothing(tmp_path: Path) -> None:
+def test_r_a_folder_at_source_stops_describe_naming_it(tmp_path: Path) -> None:
     pin, _ = _world(tmp_path)
     layout.pin_source().parent.mkdir(exist_ok=True)
     layout.pin_source().mkdir()
 
-    assert pin["describe"]() == ""
+    with pytest.raises(kept.Broken, match=re.escape(_named("source", _NOT_A_FILE))):
+        pin["describe"]()
 
 
 def test_r_empty_pending_and_hold_leave_the_skipped_note(tmp_path: Path) -> None:
@@ -248,17 +281,18 @@ def test_r_empty_pending_and_hold_leave_the_skipped_note(tmp_path: Path) -> None
     assert pin["describe"]() == ""
 
 
-@pytest.mark.slow
-def test_r_an_empty_source_is_the_current_folder_for_move(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("text", ["", "  \n"])
+def test_r_an_empty_source_moves_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_home: Path, text: str
 ) -> None:
     pin = _pin()
     root = _mf(tmp_path)
     _keep(pin, root, (tmp_path / "origin.git").as_uri())
-    _put("source", "")
+    _put("source", text)
     monkeypatch.chdir(root)
 
-    assert pin["move"]() == "pin: moved to v0.2.0"
+    assert pin["move"]() is None
+    assert _links(isolated_home) == {}
 
 
 def test_r_no_source_moves_nothing(
@@ -358,9 +392,14 @@ def test_r_a_source_that_is_no_repo_or_is_missing_describes_nothing(
     assert pin["describe"]() == ""
 
 
+def _halts(lines: list[str]) -> list[str]:
+    """Return the run's halt lines among the run log's `lines`."""
+    return [line for line in lines if line.startswith("run · halt — ")]
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    ("name", "code"), [("source", 1), ("pending", 1), ("hold", 1), ("checkout", 0)]
+    ("name", "code"), [("source", 2), ("pending", 2), ("hold", 2), ("checkout", 0)]
 )
 def test_r_a_run_logs_a_bad_byte_in_a_pin_file_as_its_halt(
     tmp_path: Path,
@@ -376,16 +415,31 @@ def test_r_a_run_logs_a_bad_byte_in_a_pin_file_as_its_halt(
         _put("source", str(root))
     _put(name, _BAD)
 
+    halts = _halts(run(code))
+
     if name == "checkout":
-        assert not [line for line in run(code) if line.startswith("run · halt — ")]
+        assert not halts
         return
-    with pytest.raises(UnicodeDecodeError):
-        run(code)
-    log = conduct["last_log"](root / ".minions" / "runs").read_text()
-    assert (
-        " · run · halt — conduct.py failed: 'utf-8' codec can't decode byte 0xff"
-        " in position 0: invalid start byte · cause run\n"
-    ) in log
+    assert halts == [
+        f"run · halt — conduct.py failed: {_named(name, _NOT_TEXT)} · cause run"
+    ]
+
+
+@pytest.mark.slow
+def test_r_a_bad_byte_at_hold_halts_run_and_takes_the_live_mark(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+) -> None:
+    fake()
+    conduct = test_conduct._conduct()
+    root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
+    _put("source", str(root))
+    _put("hold", _BAD)
+
+    (halt,) = _halts(run(2))
+
+    assert _named("hold", _NOT_TEXT) in halt
+    assert not layout.live_mark(root).exists()
+    assert _raw()["hold"] == _BAD
 
 
 @contextlib.contextmanager
@@ -438,13 +492,13 @@ def _hold_k(mode: int) -> Iterator[Path]:
         kept.chmod(0o700)
 
 
-def test_wi_a_first_install_makes_the_folder_0700_and_files_by_the_umask(
+def test_wi_a_first_install_makes_the_folder_0700_and_files_0600(
     tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pin = _pin()
     mf = _mf(tmp_path)
     for umask, mode, home in (
-        (0o022, 0o644, isolated_home),
+        (0o022, 0o600, isolated_home),
         (0o077, 0o600, tmp_path / "second-home"),
     ):
         home.mkdir(exist_ok=True)
@@ -616,6 +670,23 @@ def test_wi_a_clean_install_clears_pending(tmp_path: Path) -> None:
     assert "pending" not in _state()
 
 
+def test_wi_a_second_install_replaces_source_whole_and_leaves_no_staged_file(
+    tmp_path: Path,
+) -> None:
+    pin = _pin()
+    mf = _mf(tmp_path)
+    _put("source", f"{mf}/a/much/longer/path/than/the/checkout\n")
+
+    pin["install"](mf, "v0.1.0")
+    pin["install"](mf, "v0.1.0")
+
+    assert _state()["source"] == f"{mf}\n"
+    assert sorted(entry.name for entry in layout.kept_dir().iterdir()) == [
+        "hold",
+        "source",
+    ]
+
+
 def test_wi_a_folder_at_source_stops_install_and_exports_nothing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -664,7 +735,7 @@ def test_wi_a_file_at_the_kept_folder_stops_install(
     kept.write_text("mine\n")
 
     assert _said(pin, capsys, "install", "v0.1.0") == (
-        f"pin: cannot install — [Errno 17] File exists: '{kept}'"
+        "pin: cannot install — [Errno 17] File exists"
     )
 
     assert kept.read_text() == "mine\n"
@@ -751,9 +822,7 @@ def test_wi_a_folder_at_pending_stops_the_clearing_after_the_links(
 
     said = _said(pin, capsys, "install", "v0.1.0")
 
-    assert re.fullmatch(
-        rf"pin: cannot install — \[Errno (1|21)\] .*: '{re.escape(str(pending))}'", said
-    )
+    assert re.fullmatch(r"pin: cannot install — \[Errno (1|21)\] .*: 'pending'", said)
     assert pending.is_dir()
     assert _state() == {"hold": "v0.1.0\n", "source": f"{mf}\n"}
     assert _links(isolated_home)
@@ -773,9 +842,8 @@ def test_wi_a_folder_at_hold_stops_a_bare_install_after_the_export(
 
     said = _said(pin, capsys, "install")
 
-    assert re.fullmatch(
-        rf"pin: cannot install — \[Errno (1|21)\] .*: '{re.escape(str(hold))}'", said
-    )
+    assert re.fullmatch(r"pin: cannot install — \[Errno (1|21)\] .*: 'hold'", said)
+    assert hold.is_dir()
     assert (layout.data_dir() / "v0.2.0" / "VERSION").is_file()
     assert _links(isolated_home) == {}
     assert _state() == {"source": f"{mf}\n"}
@@ -791,7 +859,7 @@ _TARGETS = {
 
 @pytest.mark.parametrize("kind", ["file", "dangling"])
 @pytest.mark.parametrize("name", _NAMES)
-def test_wi_a_write_follows_a_link_at_a_pin_file(
+def test_wi_a_write_replaces_a_link_at_a_pin_file_and_leaves_its_target(
     tmp_path: Path, isolated_home: Path, name: str, kind: str
 ) -> None:
     pin = _pin()
@@ -808,10 +876,14 @@ def test_wi_a_write_follows_a_link_at_a_pin_file(
 
     pin["install"](mf, release)
 
-    assert path.is_symlink()
-    assert target.read_text() == (
+    assert not path.is_symlink()
+    assert path.read_text() == (
         {"source": f"{mf}\n", "checkout": f"{mf}\n"}.get(name, f"{release}\n")
     )
+    if kind == "file":
+        assert target.read_text() == "orig\n"
+    else:
+        assert not target.exists()
 
 
 @pytest.mark.slow
@@ -833,7 +905,7 @@ def test_wi_the_removal_of_a_link_at_pending_or_hold_takes_the_link(
     assert target.read_text() == "orig\n"
 
 
-def test_wi_a_pipe_at_pending_is_removed_and_a_dangling_hold_is_written_through(
+def test_wi_a_pipe_at_pending_is_removed_and_a_dangling_hold_is_replaced(
     tmp_path: Path,
 ) -> None:
     pin = _pin()
@@ -845,13 +917,15 @@ def test_wi_a_pipe_at_pending_is_removed_and_a_dangling_hold_is_written_through(
 
     assert pin["install"](mf, "v0.1.0") == "pin: linked v0.1.0"
 
-    assert not layout.pin_pending().exists()
-    assert target.read_text() == "v0.1.0\n"
+    assert not os.path.lexists(layout.pin_pending())
+    assert not layout.pin_hold().is_symlink()
+    assert layout.pin_hold().read_text() == "v0.1.0\n"
+    assert not target.exists()
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("name", _NAMES)
-def test_wi_a_pipe_with_no_reader_blocks_an_install(
+def test_wi_a_pipe_with_no_reader_is_replaced_by_an_install(
     tmp_path: Path, isolated_home: Path, name: str
 ) -> None:
     mf = _mf(tmp_path)
@@ -862,13 +936,16 @@ def test_wi_a_pipe_with_no_reader_blocks_an_install(
     if mark:
         _mark(isolated_home, mark, os.getpid())
 
-    with pytest.raises(subprocess.TimeoutExpired):
-        subprocess.run(
-            [sys.executable, str(_SCRIPT), "install", release],
-            cwd=mf,
-            capture_output=True,
-            timeout=4,
-        )
+    done = subprocess.run(
+        [sys.executable, str(_SCRIPT), "install", release],
+        cwd=mf,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert done.returncode == 0, done.stdout
+    assert stat.S_ISREG(path.lstat().st_mode)
 
 
 _MOVE_CHILD = "import runpy, sys\nprint(repr(runpy.run_path(sys.argv[1])['move']()))\n"
@@ -1007,21 +1084,23 @@ def test_wm_a_skills_folder_of_mode_0500_is_named_and_pending_stays(
 
 
 @pytest.mark.parametrize("shape", ["link", "empty"])
-def test_wm_source_a_link_or_an_empty_file_still_moves(
-    tmp_path: Path, shape: str
+def test_wm_source_a_link_is_named_and_an_empty_file_moves_nothing(
+    tmp_path: Path, isolated_home: Path, shape: str
 ) -> None:
     pin, mf = _moving(tmp_path)
     layout.pin_source().unlink()
     _put("pending", "v0.1.0\n")
     _plant("source", shape, mf, tmp_path)
 
-    assert pin["move"]() == "pin: moved to v0.1.0"
+    said = pin["move"]()
 
+    assert said == (_moved("source", _NOT_A_FILE) if shape == "link" else None)
     assert layout.pin_source().is_symlink() is (shape == "link")
+    assert _links(isolated_home) == {}
 
 
 @pytest.mark.parametrize("shape", ["dangling", "folder"])
-def test_wm_source_a_dangling_link_or_a_folder_moves_nothing(
+def test_wm_source_a_dangling_link_or_a_folder_is_named_and_moves_nothing(
     tmp_path: Path, shape: str
 ) -> None:
     pin, mf = _moving(tmp_path)
@@ -1029,13 +1108,13 @@ def test_wm_source_a_dangling_link_or_a_folder_moves_nothing(
     _put("pending", "v0.1.0\n")
     _plant("source", shape, mf, tmp_path)
 
-    assert pin["move"]() is None
+    assert pin["move"]() == _moved("source", _NOT_A_FILE)
 
     assert _state()["pending"] == "v0.1.0\n"
 
 
 @pytest.mark.parametrize("name", ["source", "pending", "checkout"])
-def test_wm_a_bad_byte_ends_move_in_a_traceback_and_moves_nothing(
+def test_wm_a_bad_byte_is_named_and_moves_nothing(
     tmp_path: Path, isolated_home: Path, name: str
 ) -> None:
     pin, _ = _moving(tmp_path)
@@ -1043,53 +1122,51 @@ def test_wm_a_bad_byte_ends_move_in_a_traceback_and_moves_nothing(
     _put(name, _BAD)
     before = _raw()
 
-    with pytest.raises(UnicodeDecodeError):
-        pin["move"]()
+    assert pin["move"]() == _moved(name, _NOT_TEXT)
 
     assert _links(isolated_home) == {}
     assert _raw() == before
 
 
-@pytest.mark.slow
-def test_wm_a_bad_byte_at_hold_ends_move_in_a_traceback(tmp_path: Path) -> None:
+def test_wm_a_bad_byte_at_hold_is_named(tmp_path: Path) -> None:
     pin = _pin()
     mf = _mf(tmp_path)
     _keep(pin, mf, (tmp_path / "origin.git").as_uri())
     _put("source", str(mf))
     _put("hold", _BAD)
 
-    with pytest.raises(UnicodeDecodeError):
-        pin["move"]()
+    assert pin["move"]() == _moved("hold", _NOT_TEXT)
 
 
-def test_wm_pending_a_link_moves_and_the_removal_takes_the_link(
-    tmp_path: Path,
+def test_wm_pending_a_link_is_named_and_the_link_stays(
+    tmp_path: Path, isolated_home: Path
 ) -> None:
     pin, _ = _moving(tmp_path)
     target = tmp_path / "target"
     target.write_text("v0.1.0\n")
     layout.pin_pending().symlink_to(target)
 
-    assert pin["move"]() == "pin: moved to v0.1.0"
+    assert pin["move"]() == _moved("pending", _NOT_A_FILE)
 
-    assert not layout.pin_pending().is_symlink()
+    assert layout.pin_pending().is_symlink()
     assert target.read_text() == "v0.1.0\n"
+    assert _links(isolated_home) == {}
 
 
 @pytest.mark.parametrize("shape", ["dangling", "folder"])
-def test_wm_pending_a_dangling_link_or_a_folder_stays_and_moves_nothing(
+def test_wm_pending_a_dangling_link_or_a_folder_stays_and_is_named(
     tmp_path: Path, shape: str
 ) -> None:
     pin, mf = _moving(tmp_path)
     _plant("pending", shape, mf, tmp_path)
 
-    assert pin["move"]() is None
+    assert pin["move"]() == _moved("pending", _NOT_A_FILE)
 
     assert os.path.lexists(layout.pin_pending())
 
 
 @pytest.mark.parametrize("name", ["pending", "checkout"])
-def test_wm_a_pending_or_checkout_of_70000_x_is_a_name_too_long(
+def test_wm_a_pending_or_checkout_of_70000_x_is_over_the_bound(
     tmp_path: Path, name: str
 ) -> None:
     pin, _ = _moving(tmp_path)
@@ -1098,27 +1175,27 @@ def test_wm_a_pending_or_checkout_of_70000_x_is_a_name_too_long(
     if name == "checkout":
         _put("checkout", "x" * 70000)
 
-    said = pin["move"]()
+    assert pin["move"]() == _moved(name, _OVER)
 
-    assert re.match(r"pin: cannot move — \[Errno (63|36)\] File name too long: ", said)
     assert _state()["pending"] == pending
 
 
-def test_wm_a_source_of_70000_x_still_moves_a_pending_tag(tmp_path: Path) -> None:
+def test_wm_a_source_of_70000_x_is_over_the_bound(
+    tmp_path: Path, isolated_home: Path
+) -> None:
     pin, _ = _moving(tmp_path)
     _put("source", "x" * 70000)
     _put("pending", "v0.1.0\n")
 
-    assert pin["move"]() == "pin: moved to v0.1.0"
+    assert pin["move"]() == _moved("source", _OVER)
+
+    assert _links(isolated_home) == {}
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize(
-    ("name", "expected"),
-    [("source", "None"), ("pending", "None"), ("checkout", "'pin: moved to live'")],
-)
+@pytest.mark.parametrize("name", ["source", "pending", "checkout"])
 def test_wm_a_pipe_at_a_file_move_reads_does_not_block(
-    tmp_path: Path, name: str, expected: str
+    tmp_path: Path, name: str
 ) -> None:
     _moving(tmp_path, None)
     _put("pending", "live\n")
@@ -1133,13 +1210,22 @@ def test_wm_a_pipe_at_a_file_move_reads_does_not_block(
         timeout=60,
     )
 
-    assert (done.returncode, done.stdout) == (0, f"{expected}\n")
-    assert os.path.lexists(layout.pin_pending()) is (name != "checkout")
+    assert (done.returncode, done.stdout) == (0, f"{_moved(name, _NOT_A_FILE)!r}\n")
+    assert os.path.lexists(layout.pin_pending())
+
+
+_HOLDS = {
+    "link": _NOT_A_FILE,
+    "big": _OVER,
+    "dangling": _NOT_A_FILE,
+    "folder": _NOT_A_FILE,
+    "pipe": _NOT_A_FILE,
+}
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("shape", ["link", "big", "dangling", "folder", "pipe"])
-def test_wm_hold_a_link_or_an_oversize_file_holds_and_the_rest_read_as_none(
+@pytest.mark.parametrize("shape", sorted(_HOLDS))
+def test_wm_hold_of_any_shape_but_a_file_is_named_and_moves_nothing(
     tmp_path: Path, shape: str
 ) -> None:
     pin = _pin()
@@ -1158,11 +1244,38 @@ def test_wm_hold_a_link_or_an_oversize_file_holds_and_the_rest_read_as_none(
     else:
         said = repr(pin["move"]())
 
-    held = shape in ("link", "big")
-    assert said == ("None" if held else "'pin: moved to v0.2.0'")
+    assert said == repr(_moved("hold", _HOLDS[shape]))
+    assert not (layout.data_dir() / "v0.2.0").exists()
 
 
-_CAP_CHILD = "import runpy, sys\nprint(repr(runpy.run_path(sys.argv[1])['_cap']()))\n"
+def test_wb_source_broken_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    pin, _ = _moving(tmp_path)
+    _put("pending", "v0.1.0\n")
+    pinned = pin["mflib"].kept
+
+    def broken() -> str | None:
+        raise pinned.Broken(layout.pin_source(), "it is not text")
+
+    monkeypatch.setattr(pinned, "source", broken)
+
+    assert pin["move"]() == (
+        "pin: cannot move — ~/.mf-ship-origin/source cannot be read: it is not text"
+    )
+    assert _links(isolated_home) == {}
+
+
+_CAP_CHILD = (
+    "import runpy, sys\n"
+    "conduct = runpy.run_path(sys.argv[1])\n"
+    "try:\n"
+    "    said = repr(conduct['_cap']())\n"
+    "except conduct['Stop'] as stop:\n"
+    "    said = f'{stop.code} {stop}'\n"
+    "print(said)\n"
+)
+_DEEP = "it is nested too deep"
 _CONDUCT_SCRIPT = _SCRIPT.with_name("conduct.py")
 _NESTED = {
     "arrays": ("a = " + "[" * 1000 + "]" * 1000 + "\n"),
@@ -1182,11 +1295,16 @@ def _toml(content: str | bytes) -> Path:
     return path
 
 
-def _stopped(conduct: dict[str, Any], call: str, text: str) -> None:
+def _stopped_by(conduct: dict[str, Any], call: Callable[[], object], text: str) -> None:
     """Assert `call` stops with code 2 and exactly `text`."""
     with pytest.raises(conduct["Stop"]) as stopped:
-        conduct[call]()
+        call()
     assert (stopped.value.code, str(stopped.value)) == (2, text)
+
+
+def _stopped(conduct: dict[str, Any], call: str, text: str) -> None:
+    """Assert the conductor's `call` stops with code 2 and exactly `text`."""
+    _stopped_by(conduct, conduct[call], text)
 
 
 def test_s_no_file_reads_as_empty_data_at_its_spelled_path() -> None:
@@ -1223,44 +1341,28 @@ def test_s_the_whole_dict_is_returned_and_each_table_is_read() -> None:
 
 
 @pytest.mark.parametrize("call", _CALLS)
-def test_s_a_file_at_the_config_folder_stops_with_the_systems_words(call: str) -> None:
+def test_s_a_file_at_the_config_folder_stops_with_the_modules_phrase(
+    call: str,
+) -> None:
     conduct = _conduct()
     folder = layout.config_dir()
     folder.parent.mkdir(parents=True)
     folder.write_text("mine\n")
 
-    _stopped(
-        conduct,
-        call,
-        f"{layout.ship_file()}: [Errno 20] Not a directory: '{layout.ship_file()}'",
-    )
+    _stopped(conduct, call, f"{layout.ship_file()}: Not a directory")
 
 
-@pytest.mark.parametrize(
-    ("content", "words"),
-    [
-        (
-            b"[queue]\nin_flight = 2\n# \xe9\n",
-            "'utf-8' codec can't decode byte 0xe9 in position 24:"
-            " invalid continuation byte",
-        ),
-        (
-            b"\xff\xfe",
-            "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte",
-        ),
-    ],
-)
+@pytest.mark.parametrize("content", [b"[queue]\nin_flight = 2\n# \xe9\n", b"\xff\xfe"])
 @pytest.mark.parametrize("call", ["_cap", "_pushes_tags"])
-def test_s_a_bad_byte_stops_with_the_decoders_words(
-    call: str, content: bytes, words: str
-) -> None:
+def test_s_a_bad_byte_stops_as_no_text(call: str, content: bytes) -> None:
     conduct = _conduct()
     path = _toml(content)
 
-    _stopped(conduct, call, f"{path}: {words}")
+    _stopped(conduct, call, f"{path}: {_NOT_TEXT}")
 
 
-def test_s_a_link_to_a_valid_file_is_read_through(tmp_path: Path) -> None:
+@pytest.mark.parametrize("call", _CALLS)
+def test_s_a_link_to_a_valid_file_stops(call: str, tmp_path: Path) -> None:
     conduct = _conduct()
     target = tmp_path / "target.toml"
     target.write_text("[queue]\nin_flight = 2\n[push]\ntags = false\n")
@@ -1268,34 +1370,33 @@ def test_s_a_link_to_a_valid_file_is_read_through(tmp_path: Path) -> None:
     path.parent.mkdir(parents=True)
     path.symlink_to(target)
 
-    assert conduct["_ship_file"]()[0] == path
-    assert (conduct["_cap"](), conduct["_pushes_tags"]()) == (2, False)
+    _stopped(conduct, call, f"{path}: {_NOT_A_FILE}")
 
 
-def test_s_a_dangling_link_reads_as_no_file(tmp_path: Path) -> None:
+@pytest.mark.parametrize("call", _CALLS)
+def test_s_a_dangling_link_stops(call: str, tmp_path: Path) -> None:
     conduct = _conduct()
     path = layout.ship_file()
     path.parent.mkdir(parents=True)
     path.symlink_to(tmp_path / "nowhere")
 
-    assert conduct["_ship_file"]() == (path, {})
-    assert (conduct["_cap"](), conduct["_pushes_tags"]()) == (None, True)
+    _stopped(conduct, call, f"{path}: {_NOT_A_FILE}")
 
 
 @pytest.mark.parametrize("call", _CALLS)
-def test_s_a_folder_stops_with_the_systems_words(call: str) -> None:
+def test_s_a_folder_stops_as_no_file(call: str) -> None:
     conduct = _conduct()
     path = layout.ship_file()
     path.mkdir(parents=True)
 
-    _stopped(conduct, call, f"{path}: [Errno 21] Is a directory: '{path}'")
+    _stopped(conduct, call, f"{path}: {_NOT_A_FILE}")
 
 
-def test_s_a_file_over_the_old_bound_is_read() -> None:
+def test_s_a_file_over_the_bound_stops() -> None:
     conduct = _conduct()
-    _toml("[queue]\nin_flight = 2\n# " + "x" * 70000 + "\n")
+    path = _toml("[queue]\nin_flight = 2\n# " + "x" * 70000 + "\n")
 
-    assert conduct["_cap"]() == 2
+    _stopped(conduct, "_cap", f"{path}: {_OVER}")
 
 
 @pytest.mark.parametrize(
@@ -1328,14 +1429,11 @@ def test_s_a_file_with_crlf_lines_reads() -> None:
 
 @pytest.mark.parametrize("call", _CALLS)
 @pytest.mark.parametrize("shape", sorted(_NESTED))
-def test_s_a_deeply_nested_file_ends_in_a_recursion_error(
-    call: str, shape: str
-) -> None:
+def test_s_a_deeply_nested_file_stops_naming_it(call: str, shape: str) -> None:
     conduct = _conduct()
-    _toml(_NESTED[shape])
+    path = _toml(_NESTED[shape])
 
-    with pytest.raises(RecursionError):
-        conduct[call]()
+    _stopped(conduct, call, f"{path}: {_DEEP}")
 
 
 def test_s_a_file_nested_a_hundred_deep_reads() -> None:
@@ -1346,17 +1444,19 @@ def test_s_a_file_nested_a_hundred_deep_reads() -> None:
 
 
 @pytest.mark.slow
-def test_s_a_pipe_blocks_the_read() -> None:
+def test_s_a_pipe_stops_the_read_at_once() -> None:
     path = layout.ship_file()
     path.parent.mkdir(parents=True)
     os.mkfifo(path)
 
-    with pytest.raises(subprocess.TimeoutExpired):
-        subprocess.run(
-            [sys.executable, "-c", _CAP_CHILD, str(_CONDUCT_SCRIPT)],
-            capture_output=True,
-            timeout=4,
-        )
+    done = subprocess.run(
+        [sys.executable, "-c", _CAP_CHILD, str(_CONDUCT_SCRIPT)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert (done.returncode, done.stdout) == (0, f"2 {path}: {_NOT_A_FILE}\n")
 
 
 def test_s_a_config_folder_of_mode_0500_reads_and_a_file_of_mode_0_stops() -> None:
@@ -1372,7 +1472,7 @@ def test_s_a_config_folder_of_mode_0500_reads_and_a_file_of_mode_0_stops() -> No
         pytest.skip("root reads a file of mode 0")
     path.chmod(0)
     try:
-        _stopped(conduct, "_cap", f"{path}: [Errno 13] Permission denied: '{path}'")
+        _stopped(conduct, "_cap", f"{path}: Permission denied")
     finally:
         path.chmod(0o600)
 
@@ -1474,7 +1574,7 @@ def test_sc_status_reads_the_file_once(
     assert len(reads) == 1
 
 
-def test_sc_status_stops_on_a_toml_error_and_lets_a_deep_file_through(
+def test_sc_status_stops_on_a_toml_error_and_on_a_deep_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1487,8 +1587,8 @@ def test_sc_status_stops_on_a_toml_error_and_lets_a_deep_file_through(
 
     assert said == f"{path}: {_UNCLOSED_WORDS}"
     _toml(_NESTED["arrays"])
-    with pytest.raises(RecursionError):
-        test_conduct._main(conduct, root, "status", monkeypatch=monkeypatch)
+    said = test_conduct._status(conduct, root, capsys, monkeypatch, 2)
+    assert said == f"{path}: {_DEEP}"
 
 
 @pytest.mark.slow
@@ -1507,13 +1607,16 @@ def test_sc_report_reads_the_file_once_and_stops_as_status_does(
     assert test_conduct._main(conduct, root, "report", monkeypatch=monkeypatch) == 2
     assert capsys.readouterr().out.strip() == f"{path}: {_UNCLOSED_WORDS}"
     _toml(_NESTED["arrays"])
-    with pytest.raises(RecursionError):
-        test_conduct._main(conduct, root, "report", monkeypatch=monkeypatch)
+    assert test_conduct._main(conduct, root, "report", monkeypatch=monkeypatch) == 2
+    assert capsys.readouterr().out.strip() == f"{path}: {_DEEP}"
 
 
 @pytest.mark.slow
 def test_sc_run_reads_the_file_twice_and_a_deep_file_starts_nothing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    fake: Callable[..., Path],
 ) -> None:
     conduct = _conduct()
     fake()
@@ -1523,9 +1626,10 @@ def test_sc_run_reads_the_file_twice_and_a_deep_file_starts_nothing(
 
     assert test_conduct._run_claude(conduct, root, monkeypatch) == 0
     assert len(reads) == 2
-    _toml(_NESTED["arrays"])
-    with pytest.raises(RecursionError):
-        test_conduct._run_claude(conduct, root, monkeypatch)
+    path = _toml(_NESTED["arrays"])
+    capsys.readouterr()
+    assert test_conduct._run_claude(conduct, root, monkeypatch) == 2
+    assert capsys.readouterr().out.strip() == f"{path}: {_DEEP}"
     assert not (root / ".minions" / "runs" / "active").exists()
 
 
@@ -1552,7 +1656,6 @@ def test_sc_cut_reads_the_file_once_and_reserves_nothing_for_a_deep_one(
 
     assert cut("d") == "cut: queued 0001-d · run started · pid 4242 · cap 2"
     assert len(reads) == 1
-    _toml(_NESTED["arrays"])
-    with pytest.raises(RecursionError):
-        cut("e")
+    path = _toml(_NESTED["arrays"])
+    _stopped_by(conduct, lambda: cut("e"), f"{path}: {_DEEP}")
     assert os.listdir(root / ".minions" / "cuts") == ["0001-d"]

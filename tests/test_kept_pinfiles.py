@@ -1,9 +1,11 @@
 """Unit and round-trip cases of the pin's files and `ship.toml` in `kept.py`.
 
-Each case holds today's side, as `pin.py` and the conductor keep these files.
-Why: 0160-pins design D1 and D5.
+Each case holds the side its reading settles.
+Why: 0160-pins design D1, D3, D4, D7 and D8, The readings.
 """
 
+import errno
+import os
 import stat
 import tomllib
 from collections.abc import Callable
@@ -107,51 +109,75 @@ def test_pin_read_keeps_the_inner_newlines_of_a_pending_of_several_lines() -> No
     assert kept.pending() == "v0.2.0\nsecond line"
 
 
+def _broken(name: str, phrase: str) -> None:
+    """Assert the pin file `name`'s reader raises `Broken` naming it with `phrase`."""
+    with pytest.raises(kept.Broken) as raised:
+        _READERS[name]()
+    assert raised.value.path == _PATHS[name]()
+    assert str(raised.value) == f"~/.mf-ship-origin/{name} cannot be read: {phrase}"
+
+
+@pytest.mark.parametrize("text", ["", " \t\n"])
 @pytest.mark.parametrize("name", _NAMES)
-def test_pin_read_an_empty_file_is_empty_text(name: str) -> None:
+def test_pin_read_an_empty_file_is_empty_text_and_source_none(
+    name: str, text: str
+) -> None:
     path = _PATHS[name]()
     path.parent.mkdir()
-    path.write_text("")
+    path.write_text(text)
 
-    assert _READERS[name]() == ""
+    assert _READERS[name]() == (None if name == "source" else "")
 
 
 @pytest.mark.parametrize("name", _NAMES)
-def test_pin_read_a_folder_at_the_name_is_none(name: str) -> None:
+def test_pin_read_a_folder_at_the_name_is_broken(name: str) -> None:
     path = _PATHS[name]()
     path.mkdir(parents=True)
 
-    assert _READERS[name]() is None
+    _broken(name, "it is not a file")
 
 
+@pytest.mark.parametrize("kind", ["file", "dangling"])
 @pytest.mark.parametrize("name", _NAMES)
-def test_pin_read_follows_a_link_to_a_file(name: str, tmp_path: Path) -> None:
+def test_pin_read_a_link_is_broken(name: str, kind: str, tmp_path: Path) -> None:
     target = tmp_path / "target"
-    target.write_text("v0.1.0\n")
+    if kind == "file":
+        target.write_text("v0.1.0\n")
     path = _PATHS[name]()
     path.parent.mkdir()
     path.symlink_to(target)
 
-    assert _READERS[name]() == "v0.1.0"
+    _broken(name, "it is not a file")
 
 
 @pytest.mark.parametrize("name", _NAMES)
-def test_pin_read_a_bad_byte_raises_the_decode_error(name: str) -> None:
+def test_pin_read_a_pipe_is_broken_at_once(name: str) -> None:
+    path = _PATHS[name]()
+    path.parent.mkdir()
+    os.mkfifo(path)
+
+    _broken(name, "it is not a file")
+
+
+@pytest.mark.parametrize("name", _NAMES)
+def test_pin_read_a_bad_byte_is_broken(name: str) -> None:
     path = _PATHS[name]()
     path.parent.mkdir()
     path.write_bytes(b"\xff\xfe")
 
-    with pytest.raises(UnicodeDecodeError):
-        _READERS[name]()
+    _broken(name, "it is not text")
 
 
 @pytest.mark.parametrize("name", _NAMES)
-def test_pin_read_a_file_over_the_bound_is_read_whole(name: str) -> None:
+def test_pin_read_a_file_over_the_bound_is_broken(name: str) -> None:
     path = _PATHS[name]()
     path.parent.mkdir()
-    path.write_text("x" * (kept.BOUND + 100))
+    path.write_text("x" * kept.BOUND)
+    assert _READERS[name]() == "x" * kept.BOUND
 
-    assert _READERS[name]() == "x" * (kept.BOUND + 100)
+    path.write_text("x" * (kept.BOUND + 1))
+
+    _broken(name, f"it is over {kept.BOUND} bytes")
 
 
 def test_pin_keep_makes_the_kept_folder_at_0700() -> None:
@@ -188,11 +214,77 @@ def test_pin_keep_in_a_home_that_stands_not_makes_it(
     assert stat.S_IMODE(layout.kept_dir().stat().st_mode) == 0o700
 
 
-def test_pin_keep_over_a_folder_raises_the_system_error() -> None:
+def test_pin_keep_over_a_folder_is_unwritten_naming_the_file() -> None:
     layout.pin_hold().mkdir(parents=True)
 
-    with pytest.raises(IsADirectoryError):
+    with pytest.raises(kept.Unwritten) as raised:
         kept.keep_hold("live")
+
+    assert raised.value.errno == errno.EISDIR
+    assert raised.value.filename == str(layout.pin_hold())
+    assert not layout.pin_hold().with_name("hold.tmp").exists()
+
+
+@pytest.mark.parametrize("name", _NAMES)
+def test_pin_keep_writes_the_file_0600_whatever_the_umask(name: str) -> None:
+    before = os.umask(0o022)
+    try:
+        _KEEPERS[name]("v0.1.0")
+    finally:
+        os.umask(before)
+
+    assert stat.S_IMODE(_PATHS[name]().stat().st_mode) == 0o600
+    assert sorted(entry.name for entry in layout.kept_dir().iterdir()) == [name]
+
+
+@pytest.mark.parametrize("kind", ["file", "dangling"])
+@pytest.mark.parametrize("name", _NAMES)
+def test_pin_keep_replaces_a_link_and_leaves_its_target(
+    name: str, kind: str, tmp_path: Path
+) -> None:
+    target = tmp_path / "target"
+    if kind == "file":
+        target.write_text("orig\n")
+    path = _PATHS[name]()
+    path.parent.mkdir()
+    path.symlink_to(target)
+
+    _KEEPERS[name]("v0.1.0")
+
+    assert not path.is_symlink()
+    assert path.read_text() == "v0.1.0\n"
+    if kind == "file":
+        assert target.read_text() == "orig\n"
+    else:
+        assert not target.exists()
+
+
+@pytest.mark.parametrize("name", _NAMES)
+def test_pin_keep_replaces_a_pipe_without_blocking(name: str) -> None:
+    path = _PATHS[name]()
+    path.parent.mkdir()
+    os.mkfifo(path)
+
+    _KEEPERS[name]("v0.1.0")
+
+    assert stat.S_ISREG(path.lstat().st_mode)
+    assert path.read_text() == "v0.1.0\n"
+
+
+@pytest.mark.parametrize("name", ["pending", "hold"])
+def test_pin_clear_removes_a_link_and_leaves_its_target(
+    name: str, tmp_path: Path
+) -> None:
+    target = tmp_path / "target"
+    target.write_text("orig\n")
+    path = _PATHS[name]()
+    path.parent.mkdir()
+    path.symlink_to(target)
+
+    {"pending": kept.clear_pending, "hold": kept.clear_hold}[name]()
+
+    assert not os.path.lexists(path)
+    assert target.read_text() == "orig\n"
 
 
 @pytest.mark.parametrize("name", ["pending", "hold"])
@@ -251,42 +343,77 @@ def test_ship_data_reads_at_each_call() -> None:
     assert kept.ship_data() == {"queue": {"in_flight": 3}}
 
 
-def test_ship_data_a_folder_raises_the_error_read_text_raises() -> None:
+def _ship_broken(phrase: str) -> None:
+    """Assert `ship_data` raises `Broken` naming `ship.toml` with `phrase`."""
+    with pytest.raises(kept.Broken) as raised:
+        kept.ship_data()
+    assert raised.value.path == layout.ship_file()
+    assert raised.value.phrase == phrase
+    assert str(raised.value) == f"{layout.ship_file()}: {phrase}"
+
+
+def test_ship_data_a_folder_is_broken() -> None:
     layout.ship_file().mkdir(parents=True)
 
-    with pytest.raises(IsADirectoryError):
-        kept.ship_data()
+    _ship_broken("it is not a file")
 
 
-def test_ship_data_under_a_file_at_the_config_folder_raises_not_a_directory() -> None:
+def test_ship_data_under_a_file_at_the_config_folder_is_broken() -> None:
     layout.config_dir().parent.mkdir(parents=True)
     layout.config_dir().write_text("x\n")
 
-    with pytest.raises(NotADirectoryError):
-        kept.ship_data()
+    _ship_broken("Not a directory")
 
 
-def test_ship_data_a_bad_byte_raises_the_decode_error() -> None:
+def test_ship_data_a_bad_byte_is_broken() -> None:
     _ship(b"\xff\xfe")
 
-    with pytest.raises(UnicodeDecodeError):
-        kept.ship_data()
+    _ship_broken("it is not text")
 
 
-def test_ship_data_a_toml_error_raises_the_parser_error() -> None:
+def test_ship_data_a_toml_error_is_broken_in_the_parsers_words() -> None:
     _ship("[queue")
 
-    with pytest.raises(tomllib.TOMLDecodeError):
-        kept.ship_data()
+    with pytest.raises(tomllib.TOMLDecodeError) as parsed:
+        tomllib.loads("[queue")
+    _ship_broken(str(parsed.value))
 
 
-def test_ship_data_follows_a_link_to_a_file(tmp_path: Path) -> None:
+@pytest.mark.parametrize("kind", ["file", "dangling"])
+def test_ship_data_a_link_is_broken(kind: str, tmp_path: Path) -> None:
     target = tmp_path / "target.toml"
-    target.write_text("[queue]\nin_flight = 2\n")
+    if kind == "file":
+        target.write_text("[queue]\nin_flight = 2\n")
     layout.ship_file().parent.mkdir(parents=True)
     layout.ship_file().symlink_to(target)
 
-    assert kept.ship_data() == {"queue": {"in_flight": 2}}
+    _ship_broken("it is not a file")
+
+
+def test_ship_data_a_pipe_is_broken_at_once() -> None:
+    layout.ship_file().parent.mkdir(parents=True)
+    os.mkfifo(layout.ship_file())
+
+    _ship_broken("it is not a file")
+
+
+def test_ship_data_a_file_over_the_bound_is_broken() -> None:
+    path = _ship("# " + "x" * (kept.BOUND - 3) + "\n")
+    assert kept.ship_data() == {}
+
+    path.write_text("# " + "x" * (kept.BOUND - 2) + "\n")
+
+    _ship_broken(f"it is over {kept.BOUND} bytes")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["a = " + "[" * 1000 + "]" * 1000 + "\n", "a = " + "{b = " * 400 + "1" + "}" * 400],
+)
+def test_ship_data_a_file_nested_too_deep_is_broken(text: str) -> None:
+    _ship(text)
+
+    _ship_broken("it is nested too deep")
 
 
 @pytest.mark.parametrize(

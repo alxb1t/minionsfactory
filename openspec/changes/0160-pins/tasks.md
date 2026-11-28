@@ -7,7 +7,7 @@ In order: pin the region on today's side, add the module as copies, send the sta
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · moderate
 - [x] 3 — The stations · moderate
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 - [ ] 5 — The record · moderate
 
 ## 1 — The pin
@@ -53,13 +53,13 @@ In order: pin the region on today's side, add the module as copies, send the sta
 
 ## 4 — The fix
 
-- [ ] 4.1 In `pin.py`, `move`'s first read, of `source`, joins its `try`, so a `Broken` is `pin: cannot move — <text>` ([D3](design.md#d3)). Add the case `test_wb_source_broken_is_named` to `tests/test_pinfiles_pins.py`: `mflib.kept.source` patched to raise `Broken` gives that text; the real bad byte follows in 4.2.
+- [x] 4.1 In `pin.py`, `move`'s first read, of `source`, joins its `try`, so a `Broken` is `pin: cannot move — <text>` ([D3](design.md#d3)). Add the case `test_wb_source_broken_is_named` to `tests/test_pinfiles_pins.py`: `mflib.kept.source` patched to raise `Broken` gives that text; the real bad byte follows in 4.2.
   Verify: `uv run pytest tests/test_pinfiles_pins.py -k "test_wb_source_broken_is_named" -n auto -q` exits `0`; `uv run pytest tests/test_pin.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 4.2 In `kept.py`, `_pin_read` reads through `_read`, and `source` returns None for an empty file ([D3](design.md#d3), [D8](design.md#d8)). Turn the read cases of R1, W1, R2, R3, R4, R7 and W5 in `tests/test_pinfiles_pins.py` and `tests/test_kept_pinfiles.py`; add the slow case of a bad byte at `hold` through `run`.
+- [x] 4.2 In `kept.py`, `_pin_read` reads through `_read`, and `source` returns None for an empty file ([D3](design.md#d3), [D8](design.md#d8)). Turn the read cases of R1, W1, R2, R3, R4, R7 and W5 in `tests/test_pinfiles_pins.py` and `tests/test_kept_pinfiles.py`; add the slow case of a bad byte at `hold` through `run`.
   Verify: `uv run pytest tests/test_kept_pinfiles.py tests/test_kept.py tests/test_pin.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`; `uv run pytest tests/test_conduct.py -k "last_run_moves or re_pin_builds or run_holds_the_machine_awake or started_run_is_seen or run_on_linux_holds_nothing" -n auto -q` exits `0`.
-- [ ] 4.3 In `kept.py`, `_pin_keep` writes through `_replace` and `_pin_clear` unlinks by name through `_remove` ([D7](design.md#d7)). Turn the write cases of W2, W3, W6 and W9; a second `install` replaces `source` whole and leaves no `source.tmp`.
+- [x] 4.3 In `kept.py`, `_pin_keep` writes through `_replace` and `_pin_clear` unlinks by name through `_remove` ([D7](design.md#d7)). Turn the write cases of W2, W3, W6 and W9; a second `install` replaces `source` whole and leaves no `source.tmp`.
   Verify: `uv run pytest tests/test_kept_pinfiles.py tests/test_kept.py tests/test_pin.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 4.4 In `kept.py`, `ship_data` reads through `_read` and raises `Broken` for a TOML error and a `RecursionError`. In `conduct.py`, `_ship_file` is one `try` over `kept.ship_data()` with one `except kept.Broken` that raises `Stop(2, f"{path}: {error.phrase}")`; `ship_data` answers an absent file. Turn the cases of S1 to S5; each new `except` has its case.
+- [x] 4.4 In `kept.py`, `ship_data` reads through `_read` and raises `Broken` for a TOML error and a `RecursionError`. In `conduct.py`, `_ship_file` is one `try` over `kept.ship_data()` with one `except kept.Broken` that raises `Stop(2, f"{path}: {error.phrase}")`; `ship_data` answers an absent file. Turn the cases of S1 to S5; each new `except` has its case.
   Verify: `uv run pytest tests/test_kept_pinfiles.py tests/test_kept.py tests/test_claim.py tests/test_pinfiles_pins.py tests/test_structure.py -n auto -q` exits `0`; `uv run pytest tests/test_conduct.py -k "cap_reads_ship_toml or ship_toml_is_read or ship_toml_reads_tags or cap_file_that_is_bad or cap_gates or cap_of_one or cap_counts or cap_close_starts or cap_writes or cap_status_and_cut_line or small_cap_is_granted or start_makes_a_missing_tag or refused_tag_push or tags_false or status_says_a_machine_pushes_no_tag or report_with_a_bad_tags" -n auto -q` exits `0`.
 
 ## 5 — The record
