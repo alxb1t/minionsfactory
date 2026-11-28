@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `tests/test_metric_pins.py` pins the metric scripts' reads on today's side: the day rule, file list and broken shapes of the run log, the headings, marks and verdict counts of the status log, a findings card and its refuted section, the head of `build.done`, the proposal's `debt:` list, the worker logs, `prices.toml` in `run.py` and `review_metrics.py`, and the debt file in `debt.py` and `Version.debt`. The moves that follow turn the asserts [the cases](openspec/changes/0162-metric-scripts/cases.md#the-turns) list and no other (0162-metric-scripts, phase 1).
+
 ## [0.131.0] - 2026-11-28
 
 Gate: local 9m19s · CI not read under mf-ship · 0.130.0: local 7m43s · CI not read under mf-ship
