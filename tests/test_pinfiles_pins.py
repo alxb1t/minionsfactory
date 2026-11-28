@@ -399,7 +399,7 @@ def _halts(lines: list[str]) -> list[str]:
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    ("name", "code"), [("source", 2), ("pending", 2), ("hold", 2), ("checkout", 0)]
+    ("name", "code"), [("source", 2), ("pending", 2), ("checkout", 0)]
 )
 def test_r_a_run_logs_a_bad_byte_in_a_pin_file_as_its_halt(
     tmp_path: Path,
@@ -434,10 +434,18 @@ def test_r_a_bad_byte_at_hold_halts_run_and_takes_the_live_mark(
     root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
     _put("source", str(root))
     _put("hold", _BAD)
+    layout.released_dir(root).mkdir(parents=True)
+    (layout.released_dir(root) / "0001-a").write_text("abc\n")
 
-    (halt,) = _halts(run(2))
+    lines = run(2)
 
-    assert _named("hold", _NOT_TEXT) in halt
+    halts = _halts(lines)
+    assert halts == [
+        f"run · halt — conduct.py failed: {_named('hold', _NOT_TEXT)} · cause run"
+    ]
+    said = "run · ledger — 0001-a is no commit id: skipped"
+    assert said in lines
+    assert lines.index(said) < lines.index(halts[0])
     assert not layout.live_mark(root).exists()
     assert _raw()["hold"] == _BAD
 

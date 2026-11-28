@@ -61,7 +61,9 @@ def write(
     try:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(staged, dir_fd=folder)
-        with os.fdopen(_open(staged, flags, folder, mode), "w") as file:
+        with os.fdopen(
+            _open(staged, flags, folder, mode), "w", encoding="utf-8"
+        ) as file:
             file.write(text)
         step = "replace"
         os.replace(staged, path, src_dir_fd=folder, dst_dir_fd=folder)

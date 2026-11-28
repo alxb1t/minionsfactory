@@ -522,7 +522,8 @@ def ship_data() -> dict[str, Any]:
         return {}
     try:
         return tomllib.loads(text)
-    except tomllib.TOMLDecodeError as error:
+    except (tomllib.TOMLDecodeError, ValueError) as error:
+        # Why: an integer past Python's digit limit is a bare ValueError.
         raise Broken(file, str(error)) from None
     except RecursionError:
         raise Broken(file, "it is nested too deep") from None

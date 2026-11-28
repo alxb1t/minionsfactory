@@ -7181,12 +7181,13 @@ class Run:
         self.fresh = True
         self.push_left(RETRIES)
         self.fresh = False
+        # Why: a `Broken` from `describe` halts with the held events still in the log.
+        release = _pin()["describe"]()
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         # A worker may link the folder elsewhere: a link lists nothing.
         standing = _entries(mflib.layout.grants_dir(self.primary), empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
-        release = _pin()["describe"]()
         awake = (
             "" if os.environ.get("MF_SHIP_AGENT") else f" · {_hold_awake(os.getpid())}"
         )

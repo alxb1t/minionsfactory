@@ -10,7 +10,7 @@ import stat
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import pytest
 from mflib import kept, layout
@@ -92,6 +92,25 @@ def test_pin_keep_then_read_round_trips_the_text(name: str) -> None:
 
     assert _READERS[name]() == "v0.1.0"
     assert _PATHS[name]().read_text() == "v0.1.0\n"
+
+
+@pytest.mark.parametrize("name", _NAMES)
+def test_pin_keep_writes_utf_8_whatever_the_locale(
+    name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opened = os.fdopen
+
+    def latin_1(fd: int, mode: str, encoding: str | None = None) -> IO[str]:
+        if "b" in mode:
+            return opened(fd, mode)
+        return opened(fd, mode, encoding=encoding or "latin-1")
+
+    monkeypatch.setattr(os, "fdopen", latin_1)
+
+    _KEEPERS[name]("Müller")
+
+    assert _PATHS[name]().read_bytes() == "Müller\n".encode()
+    assert _READERS[name]() == "Müller"
 
 
 @pytest.mark.parametrize("name", _NAMES)
@@ -414,6 +433,14 @@ def test_ship_data_a_file_nested_too_deep_is_broken(text: str) -> None:
     _ship(text)
 
     _ship_broken("it is nested too deep")
+
+
+def test_ship_data_an_integer_past_the_digit_limit_is_broken() -> None:
+    _ship("in_flight = " + "1" * 5000 + "\n")
+
+    with pytest.raises(ValueError, match="Exceeds the limit") as parsed:
+        tomllib.loads("in_flight = " + "1" * 5000)
+    _ship_broken(str(parsed.value))
 
 
 @pytest.mark.parametrize(
