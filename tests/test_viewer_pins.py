@@ -13,12 +13,11 @@ import time
 from datetime import datetime, timedelta
 from functools import cache
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from fake_worker import _commit, _git
-from mflib import layout, runlog, statuslog
+from mflib import layout, runlog, statefile, statuslog
 
 _REPO = Path(__file__).resolve().parent.parent
 _VIEWER = _REPO / "skills" / "mf-ui" / "scripts" / "viewer.py"
@@ -195,10 +194,9 @@ def root(tmp_path: Path) -> Path:
 
 
 def test_read_lines_of_a_folder_leaves_no_descriptor_open(tmp_path: Path) -> None:
-    read_lines = _viewer()["read_lines"]
     before = len(os.listdir("/dev/fd"))
     for _ in range(40):
-        assert list(read_lines(tmp_path)) == []
+        assert list(statefile.lines(tmp_path, _PART)) == []
     assert len(os.listdir("/dev/fd")) == before
 
 
@@ -1106,12 +1104,13 @@ def test_a_converge_skipped_line_is_an_event_in_its_lower_case_form(root: Path) 
     assert _tree(root)["run"]["last"] == "10:00:01 · x · converge skipped — plan"
 
 
-def _spent_of(**fields: Any) -> str:  # noqa: ANN401
-    """Return converge's spent text for a checker's result of `fields`."""
-    given = {"models": ("claude", None, None), "tokens": 1, "fallback": False}
-    result = SimpleNamespace(**(given | fields))
-    text: str = _loaded(_CONVERGE)["_spent"](result)
-    return text
+def _spent_of(
+    models: tuple[str, str | None, str | None] = ("claude", None, None),
+    tokens: int | None = 1,
+    fallback: bool | str = False,
+) -> str:
+    """Return the spent text converge writes for a checker's plain values."""
+    return statuslog.spent(models, tokens, fallback)
 
 
 def test_s9_spent_words_each_field_and_any_string_fallback_as_failed() -> None:

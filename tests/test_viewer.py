@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 from fake_worker import _commit, _git
-from mflib import layout
+from mflib import layout, statefile
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-ui" / "scripts" / "viewer.py"
@@ -157,12 +157,11 @@ def test_read_part_reads_a_regular_file_only(tmp_path: Path) -> None:
     assert read_part(tmp_path / "link") is None
     assert read_part(tmp_path / "missing") is None
     assert read_part(tmp_path) is None
-    read_lines = runpy.run_path(str(_SCRIPT))["read_lines"]
     long = tmp_path / "long"
     long.write_text("a\n" + "b" * (part * 2 + 5) + "\nc")
-    assert list(read_lines(long)) == ["a", "b" * part, "c"]
+    assert list(statefile.lines(long, part)) == ["a", "b" * part, "c"]
     for path in (tmp_path / "pipe", tmp_path / "link", tmp_path / "missing"):
-        assert list(read_lines(path)) == []
+        assert list(statefile.lines(path, part)) == []
 
 
 def test_main_dispatches_its_commands(

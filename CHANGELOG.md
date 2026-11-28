@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `tests/test_viewer_pins.py` pins the viewer's reads of the status log, the run log, a findings file, the queue and `repos` on today's side: the stem, clock and days of a run log, the heading, mark, `fixing` and spent fields of a status log, and each broken shape of a file. The moves that follow change no assert (0161-viewer, phase 1).
 - `statefile.lines`, `runlog.timed` and `cause`, `statuslog.runs`, `spent`, `verdicts_line` and `verdicts`, and `kept.repos` read as the viewer and converge read today, with unit cases. No script calls them yet (0161-viewer, phase 2).
+- The viewer reads the run log, the status log, a findings file, the queue and `repos` through `statefile`, `runlog`, `statuslog`, `findings`, `queue` and `kept`, and converge writes its `verdicts` and `pickup` lines through `statuslog`. The viewer's own readers and the `_spent` of converge are gone; no assert changes, and the structure lists and the module map drop the entries the move empties (0161-viewer, phase 3).
 
 ## [0.130.0] - 2026-11-28
 

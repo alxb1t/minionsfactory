@@ -6,7 +6,7 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · moderate
-- [ ] 3 — The readers · moderate
+- [x] 3 — The readers · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
 
@@ -56,25 +56,25 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 
 ## 3 — The readers
 
-- [ ] 3.1 Re-point the lines by which a test reaches a moved name, and no assert: the `read_lines` lines of `tests/test_viewer.py` and the `read_lines` case of `tests/test_viewer_pins.py` take `statefile.lines` with `PART`, and the case of converge's `_spent` takes `statuslog.spent` ([D1](design.md#d1)).
+- [x] 3.1 Re-point the lines by which a test reaches a moved name, and no assert: the `read_lines` lines of `tests/test_viewer.py` and the `read_lines` case of `tests/test_viewer_pins.py` take `statefile.lines` with `PART`, and the case of converge's `_spent` takes `statuslog.spent` ([D1](design.md#d1)).
   The case of `_spent` passes its models, tokens and fallback as plain values and asserts the same text.
   Verify: `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 3.2 In `skills/mf-ui/scripts/viewer.py` read the run log through `statefile.lines` with `PART`, `runlog.parse` and `runlog.timed`, and the newest log through `runlog.newest`; the viewer's `read_lines`, `EVENT` and `last_log` subscripts are removed ([D31](design.md#d31)).
+- [x] 3.2 In `skills/mf-ui/scripts/viewer.py` read the run log through `statefile.lines` with `PART`, `runlog.parse` and `runlog.timed`, and the newest log through `runlog.newest`; the viewer's `read_lines`, `EVENT` and `last_log` subscripts are removed ([D31](design.md#d31)).
   No assert changes: the midnight case and the long-line case pass as phase 1 wrote them; import each module the task calls under the seed line.
   Verify: `git grep -c -F -e "read_lines" -e "conduct[\"EVENT\"]" -- skills/mf-ui/scripts/viewer.py` prints nothing; `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 3.3 In `skills/mf-ui/scripts/viewer.py` read the status log through `layout.status_log`, a role's spent fields through `statuslog.verdicts` per line, the first line of a role winning, and a findings file's fields through `findings.frontmatter`; `VERDICT`, `SPENT` and the converge subscripts of `FALLBACK` and `FAILED` are removed.
+- [x] 3.3 In `skills/mf-ui/scripts/viewer.py` read the status log through `layout.status_log`, a role's spent fields through `statuslog.verdicts` per line, the first line of a role winning, and a findings file's fields through `findings.frontmatter`; `VERDICT`, `SPENT` and the converge subscripts of `FALLBACK` and `FAILED` are removed.
   `RUN_HEADING` and `fixing` stay as they are until phase 4; import each module the task calls under the seed line.
   Verify: `git grep -c -e "VERDICT" -e "SPENT" -e "status_log.md" -- skills/mf-ui/scripts/viewer.py` prints nothing; `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 3.4 In `skills/mf-ui/scripts/viewer.py` read the queue through `queue.entries` and `queue.is_wait`, a halt's cause through `runlog.cause`, and the record through `kept.repos`, the `.minions` check through `layout.run_dir`; the `conduct["_cuts"]` and `conduct["_frontmatter"]` subscripts and `CAUSE` are removed ([D3](design.md#d3), [D8](design.md#d8)).
+- [x] 3.4 In `skills/mf-ui/scripts/viewer.py` read the queue through `queue.entries` and `queue.is_wait`, a halt's cause through `runlog.cause`, and the record through `kept.repos`, the `.minions` check through `layout.run_dir`; the `conduct["_cuts"]` and `conduct["_frontmatter"]` subscripts and `CAUSE` are removed ([D3](design.md#d3), [D8](design.md#d8)).
   Import each module the task calls under the seed line.
   Verify: `git grep -c -F -e "conduct[\"_cuts\"]" -e "conduct[\"_frontmatter\"]" -e "CAUSE" -- skills/mf-ui/scripts/viewer.py` prints nothing; `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py tests/test_kept_pins.py -n auto -q` exits `0`.
-- [ ] 3.5 In `skills/mf-converge/scripts/converge.py` write the `verdicts` line through `statuslog.verdicts_line` and the `pickup` line through `statuslog.spent`; `_spent`, `FALLBACK` and `FAILED` are removed.
+- [x] 3.5 In `skills/mf-converge/scripts/converge.py` write the `verdicts` line through `statuslog.verdicts_line` and the `pickup` line through `statuslog.spent`; `_spent`, `FALLBACK` and `FAILED` are removed.
   The text of both lines is as it was.
   Verify: `git grep -c -e "_spent" -e "FALLBACK" -e "FAILED" -- skills/mf-converge/scripts/converge.py` prints nothing; `uv run pytest tests/test_converge.py -k "verdicts or fallback or findings_file or stamp or status or log" -n auto -q` exits `0`.
-- [ ] 3.6 In `tests/test_structure.py` drop the entries: the viewer's `status_log.md` of `FORMAT_SITES`, its `.minions` of `LAYOUT_SITES`, and its `_cuts` and `_frontmatter` of `PRIVATE_REACH`; keep both loads and its `## Run` ([D32](design.md#d32)).
+- [x] 3.6 In `tests/test_structure.py` drop the entries: the viewer's `status_log.md` of `FORMAT_SITES`, its `.minions` of `LAYOUT_SITES`, and its `_cuts` and `_frontmatter` of `PRIVATE_REACH`; keep both loads and its `## Run` ([D32](design.md#d32)).
   In `docs/modules.md` give the viewer's row `findings.py`, `kept.py`, `queue.py`, `runlog.py` and `statuslog.py` beside its names, in order.
   Verify: `uv run pytest tests/test_structure.py -q` exits `0`.
-- [ ] 3.7 Hold every assert of the conductor's and the pins' tests: converge's lines and the viewer's reads moved, `conduct.py` did not.
+- [x] 3.7 Hold every assert of the conductor's and the pins' tests: converge's lines and the viewer's reads moved, `conduct.py` did not.
   Verify: `uv run pytest tests/test_conduct.py -k "frontmatter or log_verify or cut_halt or queued_cut or a_cut or cap_status or cap_writes or rejoin or halt_is or run_log or spent or status_log or newest" -n auto -q` exits `0`.
 
 ## 4 — The fix

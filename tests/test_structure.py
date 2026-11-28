@@ -46,8 +46,6 @@ PRIVATE_REACH: frozenset[tuple[str, str]] = frozenset(
         ("review_metrics.py", "_STYLE"),
         ("viewer.py", "_build_halt"),
         ("viewer.py", "_claim"),
-        ("viewer.py", "_cuts"),
-        ("viewer.py", "_frontmatter"),
         ("viewer.py", "_maybe"),
         ("viewer.py", "_progress"),
         ("viewer.py", "_rating"),
@@ -67,7 +65,6 @@ LAYOUT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("converge.py", ".minions/"),
         ("cut_check.py", ".minions/"),
         ("gate_run.py", ".minions/"),
-        ("viewer.py", ".minions"),
     }
 )
 FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
@@ -95,7 +92,6 @@ FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
         # the run log's reader, until the readers' version
         ("run.py", r"\d\d:\d\d:\d\d"),
         ("viewer.py", "## Run"),
-        ("viewer.py", "status_log.md"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")

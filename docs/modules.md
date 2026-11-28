@@ -57,7 +57,7 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, layout.py, metrics.py, overlap.py |
 | `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, claim.py, converge.py, cut_check.py, debtfile.py, findings.py, gate_run.py, integrate.py, kept.py, layout.py, marks.py, metrics.py, modelsfile.py, pin.py, plan_check.py, platform.py, queue.py, release.py, runlog.py, statefile.py, statuslog.py |
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py, kept.py, layout.py |
-| `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, layout.py, platform.py, statefile.py |
+| `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, findings.py, kept.py, layout.py, platform.py, queue.py, runlog.py, statefile.py, statuslog.py |
 | `skills/mflib/__init__.py` | home | — |
 | `skills/mflib/claim.py` | home | layout.py, statefile.py |
 | `skills/mflib/debtfile.py` | home | findings.py, statefile.py |
