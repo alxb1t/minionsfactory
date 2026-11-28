@@ -3321,6 +3321,10 @@ and tokens of the converge stage, never in its minutes, which the run log's `con
 tokens in that role's. The cut's `diff-lines` and `diff-files` SHALL be the
 collector's station values.
 
+`scripts/metrics/run.py` SHALL read each format of a version through the home module that owns it. It SHALL take the run logs from `runlog.logs`, passing over a name that is no real date and time, read each through `statefile.lines` so that a link, a pipe, a folder or a missing file gives no event, and date each event through `runlog.timed`: between two events any step back of the clock is a day on, the first event is a day on only when its clock is 12 hours or more earlier than the time in the log's stamp, and a line whose clock is no time of day is no event. It SHALL read the status log through `layout.status_log` and `statuslog.runs`: a round is an event's, a run's mark is the module's whole, and a round-1 `verdicts` count is `statuslog.blocking`'s for a `conformance` or `adversarial` line and `eras.blocking`'s for the old `review`, `security` and colon forms. It SHALL read a findings file through `findings.cards`, a card being a titled line and its indented lines and a Verdict a word read with its case folded, and the refuted section through `findings.refuted`, else `eras.refuted`; a file with neither is a gap. It SHALL read the head of `build.done` through `marks.done_head`, count a debt card as `debtfile` does — a title `- **<digits>·<id> — ` — and read `prices.toml` through `prices.rows`, an unreadable table making the Codex cost metrics a gap `prices: <reason>` and a model with no usable row a gap naming the model.
+
+`scripts/metrics/debt.py` SHALL read and count the debt file through `debtfile`, and exit `no <file>: <reason>` for a file the module refuses, a link to a regular file among them.
+
 #### Scenario: A version with its run
 - **WHEN** a version's run log, status log, findings and station logs are on disk at its release's collect
 - **THEN** its data file holds the minutes per stage, the rounds, the cost per station and each checker's yield, under
@@ -3350,6 +3354,30 @@ collector's station values.
 - **WHEN** a version's logs hold `<stamp>-converge-conformance-r1.log`, a priced Codex log, no mailbox standing
 - **THEN** `cost-usd-converge` and `tokens-converge` hold that log's dollars and tokens,
   `conformance-tokens-per-confirmed` counts its tokens, and `minutes-converge` is the run log's
+
+#### Scenario: A clock that steps back
+- **WHEN** a version's run log holds a build spawn at `10:00:00` and its finish at `09:59:00`
+- **THEN** `build-minutes` reads `1439`, the finish being a day on
+
+#### Scenario: A name that is no date
+- **WHEN** `20261399-250000.md` stands beside a version's run log
+- **THEN** the metrics read the run log and none raises
+
+#### Scenario: An old verdicts line
+- **WHEN** a status log's round 1 holds `verdicts — review changes-requested · open_blocking 2 (R1, R2)` and a `security` line with `open_blocking 0`
+- **THEN** `blockers-round-1` reads `2`
+
+#### Scenario: A findings file whose section is spelled `## Refused`
+- **WHEN** an adversarial file holds a `## Refused` section and no `## Refuted`
+- **THEN** its refuted, confirmed and escape metrics are read, not gaps
+
+#### Scenario: A price table that cannot be read
+- **WHEN** `prices.toml` is a link, a pipe or no TOML and a Codex log is priced
+- **THEN** the cost metrics are a gap `prices: <reason>`, the token metrics are read, and nothing blocks
+
+#### Scenario: A debt line with no title
+- **WHEN** the debt file holds `- **0023·a**` with no ` — `
+- **THEN** `debt.py` and `debt-added` count no card
 
 ### Requirement: A station keeps a log per spawn
 
@@ -6322,9 +6350,11 @@ With `tags` `false` under `[push]` in `ship.toml`, `conduct.py report` SHALL rea
 
 ### Requirement: One module writes and parses a findings file
 
-`skills/mflib/findings.py` SHALL be the one writer and parser of a findings file: its card, its fields, its frontmatter, the read of the file, a halt's card ids, the stub and the stamp. `converge.py`, `conduct.py` and `integrate.py` SHALL read and write a findings file through it, and `open_cards.py`, `overlap.py` and `skip_stub.py` SHALL be commands over it with their arguments, output and exits as they were.
+`skills/mflib/findings.py` SHALL be the one writer and parser of a findings file: its card, its fields, its frontmatter, the read of the file, a halt's card ids, the stub, the stamp and the entries of its refuted section. `converge.py`, `conduct.py` and `integrate.py` SHALL read and write a findings file through it, and `open_cards.py`, `overlap.py` and `skip_stub.py` SHALL be commands over it with their arguments, output and exits as they were.
 
 A **card** SHALL be its title line `- **<id> — <title>**` and the indented lines after it, a blank line not ending it; a **field line** SHALL be `- **<Name>:**`, `- **<Name>**:` or a bare `- **Still true?**`, the first of a repeated field read. A field's **word** SHALL be its first word with backticks and `*` dropped, a trailing `.,;:` stripped and case folded, read the same for a Status, a grade and a category; a Status word no reader knows, and an empty Status, SHALL read as not cleared. A card id outside `R<n>` and `S<n>`, and a Status or Priority line under no card, SHALL make the file malformed at its read, in every reader.
+
+The **refuted section** SHALL be the lines from the first line that starts `## Refuted` to the next line that starts `## `, or to the end of the text, and its entries the top-level `- ` lines of it; a text with no such heading has none.
 
 The **frontmatter** SHALL be the block at the start of the file, closed by its first `---` line, a key and its whole value stripped. Every reader SHALL follow no link and replace a byte that is not UTF-8, a missing file keeping each caller's answer; a malformed file SHALL reach `conduct.py`'s security readers as a blocking security card. The conductor's stamp of a checker's `model:` and `tokens:` SHALL write through the staged write of `skills/mflib/statefile.py` at mode `0600`, renaming over the file, and SHALL NOT unlink it first.
 
@@ -6368,6 +6398,10 @@ The **frontmatter** SHALL be the block at the start of the file, closed by its f
 - **WHEN** a findings file holds a card whose Status is `accepted`
 - **THEN** converge clears it and `skip_stub.py` does not
 
+#### Scenario: The refuted section
+- **WHEN** a findings file's text ends on `## Refuted` and `- a claim` with no newline
+- **THEN** the entries are `- a claim`, and a text with no such heading has none
+
 ### Requirement: One module writes and parses the debt file
 
 `skills/mflib/debtfile.py` SHALL be the one writer and parser of `.minions/debt.md`: its read, a card's id, extent and count, the file and unfile of cards, the spoiled card's text, its lock, the patch's paths and the match of a card to them, the page of `debt-cards.md`, and the clear of a paid card. `converge.py`, `cut_context.py` and `conduct.py` SHALL read and write the debt through it, and `debt_match.py` SHALL be a command over it with its arguments, output and exits as they were. The module SHALL name no state path: its callers find the file and its lock through `skills/mflib/layout.py`.
@@ -6402,11 +6436,11 @@ The lock SHALL be one function of the module: it SHALL make `.minions/debt.lock`
 
 ### Requirement: One module writes and parses the run log
 
-`skills/mflib/runlog.py` SHALL be the one writer and parser of the run log, `.minions/runs/<stamp>.md`: its title, its event line and the one pattern that reads it, the event list, the order of logs and the newest log, the verify, the stop line, the reads of the release's death, of the rescue and of `report`, the tail `wait` follows, the moment of an event and the cause of a halt. `conduct.py` SHALL write and read the run log through it, and SHALL keep `EVENT` and `last_log` bound to the module's. The viewer SHALL read the newest log, an event and its moment through the module and take neither `EVENT` nor `last_log` from the loaded conductor. The module SHALL name no state path: its callers find the folder through `skills/mflib/layout.py`.
+`skills/mflib/runlog.py` SHALL be the one writer and parser of the run log, `.minions/runs/<stamp>.md`: its title, its event line and the one pattern that reads it, the event list, the order of logs, the list of every log and the newest log, the verify, the stop line, the reads of the release's death, of the rescue and of `report`, the tail `wait` follows, the moment of an event and the cause of a halt. `conduct.py` SHALL write and read the run log through it, and SHALL keep `EVENT` and `last_log` bound to the module's. The viewer SHALL read the newest log, an event and its moment through the module and take neither `EVENT` nor `last_log` from the loaded conductor. The module SHALL name no state path: its callers find the folder through `skills/mflib/layout.py`.
 
-A run log SHALL be a file of `.minions/runs/` whose name is a stamp, `<YYYYMMDD-HHMMSS>.md`, a real date and time, with a `-<n>` suffix or none; the newest log, the release's death read and `report` SHALL pass over any other `*.md`, a name that is no real date among them. An event line SHALL be `<HH:MM:SS> · <who> · <event> — <detail>`, the detail on one line, and the event list SHALL hold `sync` and `codex` beside the others, so `conduct.py log --verify` passes a run that wrote one. The verify SHALL pass an open spawn only when the log's last line is `run · halt — stopped by the person`, and a finish with no spawn SHALL pass.
+A run log SHALL be a file of `.minions/runs/` whose name is a stamp, `<YYYYMMDD-HHMMSS>.md`, a real date and time, with a `-<n>` suffix or none; the list of logs, the newest log, the release's death read and `report` SHALL pass over any other `*.md`, a name that is no real date among them, and the list SHALL be oldest first. An event line SHALL be `<HH:MM:SS> · <who> · <event> — <detail>`, the detail on one line, and the event list SHALL hold `sync` and `codex` beside the others, so `conduct.py log --verify` passes a run that wrote one. The verify SHALL pass an open spawn only when the log's last line is `run · halt — stopped by the person`, and a finish with no spawn SHALL pass.
 
-An event's moment SHALL be dated from the log's stamp: between two events any step back of the clock is a day on, and the first event is a day on only when its clock is 12 hours or more earlier than the time in the stamp. A halt's cause SHALL be read as the word of lower-case letters and hyphens after ` · cause ` at the end of its detail.
+An event's moment SHALL be dated from the log's stamp: between two events any step back of the clock is a day on, and the first event is a day on only when its clock is 12 hours or more earlier than the time in the stamp. A line whose clock is no time of day, an hour of 24 or more or a minute or a second of 60 or more, SHALL have no moment, while the event reads of the conductor keep reading it as an event. A halt's cause SHALL be read as the word of lower-case letters and hyphens after ` · cause ` at the end of its detail.
 
 The log's create, its appends and the stop line SHALL open the log under the runs folder's descriptor, follow no link, take a regular file alone and not block. Each line SHALL be one `O_APPEND` write, the appends of one conductor SHALL be held by a lock in the process, and the stop line SHALL have one writer, the module's append. Every conductor read of a log SHALL follow no link, not block, take a regular file alone and replace a byte that is not UTF-8.
 
@@ -6443,6 +6477,14 @@ The log's create, its appends and the stop line SHALL open the log under the run
 #### Scenario: An event's day
 - **WHEN** a log stamped `20261103-235900` holds an event at `00:00:01` and then one at `00:00:00`, and another log stamped `20261103-130000` holds `10:00:00` first
 - **THEN** the first event of the first log is on the next day and its second a day on again, and the first event of the second log is on the stamp's day
+
+#### Scenario: Every log, oldest first
+- **WHEN** `.minions/runs/` holds `20261105-100000.md`, `20261105-090000-2.md`, `20261104-235959-3.md`, `20261105-090000.md` and `notes.md`
+- **THEN** the list is `20261104-235959-3`, `20261105-090000`, `20261105-090000-2`, `20261105-100000`
+
+#### Scenario: A clock that is no time
+- **WHEN** a log holds `25:00:00 · x · spawn — build` beside good events
+- **THEN** the event has no moment and the others do, the conductor's event reads still hold it as an event, and the viewer raises nothing
 
 ### Requirement: One module writes and parses the claim
 
@@ -7183,7 +7225,7 @@ The read of the operator's `ship.toml` SHALL be `skills/mflib/kept.py`'s, as *Th
 
 ### Requirement: One module parses a status log's runs and its verdicts line
 
-`skills/mflib/statuslog.py` SHALL give every run of a status log's text, newest first, each its heading's number, its mark and its events: a line that starts `## Run` is a heading, its number the ASCII digits after `## Run ` and none when there are none, its mark the text after the first ` · `, and its events the lines of the run that are events of the module's form, newest first. The module SHALL write the spent text converge puts at the end of a `verdicts` and a `pickup` line — `executor <x> · model <m> · effort <e> · tokens <n>`, the model and effort `default` where none, the tokens `unavailable` where none, then ` · fallback: codex usage limit` for a fallback that is true and ` · fallback: codex failed` for any string — and the `verdicts` line itself, and SHALL parse a `verdicts` event into its role, executor, model, effort, tokens and fallback, the fallback read from the event's own detail. `converge.py` SHALL write both lines through the module.
+`skills/mflib/statuslog.py` SHALL give every run of a status log's text, newest first, each its heading's number, its mark and its events: a line that starts `## Run` is a heading, its number the ASCII digits after `## Run ` and none when there are none, its mark the text after the first ` · `, and its events the lines of the run that are events of the module's form, newest first. The module SHALL write the spent text converge puts at the end of a `verdicts` and a `pickup` line — `executor <x> · model <m> · effort <e> · tokens <n>`, the model and effort `default` where none, the tokens `unavailable` where none, then ` · fallback: codex usage limit` for a fallback that is true and ` · fallback: codex failed` for any string — and the `verdicts` line itself, and SHALL parse a `verdicts` event into its role, executor, model, effort, tokens and fallback, the fallback read from the event's own detail. It SHALL also give the open-blocking count of a `verdicts` event whose detail starts with the role `conformance` or `adversarial`, the number after the detail's first ` · open_blocking `, and none for any other event. `converge.py` SHALL write both lines through the module.
 
 #### Scenario: Every run, newest first
 
@@ -7205,6 +7247,11 @@ The read of the operator's `ship.toml` SHALL be `skills/mflib/kept.py`'s, as *Th
 - **WHEN** a line holds `fallback: codex failed` before the word `verdicts`, outside the event's detail
 - **THEN** the line is no `verdicts` event, and no fallback is read from it
 
+#### Scenario: The count of a verdicts line
+
+- **WHEN** an event named `verdicts` holds `conformance clean · open_blocking 2 · executor claude`, and another holds `review changes-requested · open_blocking 2`
+- **THEN** the module gives `2` for the first and none for the second
+
 ### Requirement: A reader's bounded stream of lines
 
 `skills/mflib/statefile.py` SHALL give `lines(path, cut)`: each line of a regular file, one at a time, cut at `cut` characters with the rest of a longer line dropped, a bad byte replaced and the open made through no link and without blocking. A link, a FIFO, a folder or a missing file SHALL give no line, and no descriptor SHALL stay open.
@@ -7218,3 +7265,43 @@ The read of the operator's `ship.toml` SHALL be `skills/mflib/kept.py`'s, as *Th
 
 - **WHEN** the path is a link, a FIFO or a folder
 - **THEN** the stream gives no line, at once
+
+### Requirement: One module reads the price table
+
+`skills/mflib/prices.py` SHALL give `rows(path)`: the `[models]` table of `skills/mf-review-metrics/prices.toml` as a row of numbers by model, a row that is no table or holds a price that is no number, a bool included, left out. It SHALL raise `Unreadable` with a reason for a missing file, a link, a pipe, a folder, a file over 262,144 bytes, text that is no TOML, and a `models` that is missing or no table, following no link and not blocking. `scripts/metrics/run.py` and `skills/mf-review-metrics/scripts/review_metrics.py` SHALL read the table through it and parse it nowhere else.
+
+#### Scenario: A table read
+- **WHEN** `prices.toml` holds two Claude rows and a Codex row
+- **THEN** `rows` gives the three rows by model, each a row of numbers
+
+#### Scenario: A row with a string price
+- **WHEN** a row of the table holds `input = "1"`
+- **THEN** that model has no row and the other models keep theirs
+
+#### Scenario: A file that is no regular file
+- **WHEN** `prices.toml` is a link, a folder or a pipe
+- **THEN** `rows` raises `Unreadable` at once, and nothing blocks
+
+#### Scenario: A table that is no table
+- **WHEN** the file holds no `models` key, or `models = 1`
+- **THEN** `rows` raises `Unreadable` saying there is no models table
+
+### Requirement: One module reads the formats an old run left
+
+`skills/mflib/eras.py` SHALL read the forms of old runs, and the spelling `## Refused` a checker still slips into, and write nothing: `blocking(event)` the count of a `verdicts` event whose detail starts with the role `review` or `security` and holds ` · open_blocking <n>`, or holds `open_blocking: <n>`; and `refuted(text)` the entries of the refuted section under the heading `## Refused`. No conductor and no station SHALL load it; the metric scripts SHALL.
+
+#### Scenario: An old role line
+- **WHEN** an event named `verdicts` holds `review changes-requested · open_blocking 2 (R1, R2) · 7 commits`
+- **THEN** `blocking` gives `2`
+
+#### Scenario: A colon count
+- **WHEN** a `verdicts` detail holds `review verdict: changes-requested; open_blocking: 2 (R1, R2)`
+- **THEN** `blocking` gives `2`
+
+#### Scenario: The old section's spelling
+- **WHEN** a findings text holds a `## Refused` section with one top-level entry
+- **THEN** `refuted` gives that entry, and `findings.refuted` of the same text gives none
+
+#### Scenario: No station loads it
+- **WHEN** the scripts of the conductor and of each station are searched for `eras`
+- **THEN** none loads the module

@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.132
 ---
 
 # Metric scripts
