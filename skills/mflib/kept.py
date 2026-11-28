@@ -1,7 +1,7 @@
 """Write, read, list and remove the conductor's kept files in the home folder.
 
 The kept origin, `.default`, the offline base, the release ledger, the gate approval,
-the live mark, `repos` and the probe mark. Why: 0159-kept design D1, D2 and D5 to D8.
+the live mark, `repos`, the probe mark, the pin's files and `ship.toml`.
 """
 
 import contextlib
@@ -10,14 +10,16 @@ import json
 import os
 import re
 import stat
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from . import layout, statefile
 
 type Urls = tuple[list[str], list[str]]
 
+# Why: 0159-kept design D1, D2 and D5 to D8; 0160-pins design D1.
 BOUND = 65536
 REPOS_BOUND = 262144
 
@@ -53,12 +55,22 @@ class Unwritten(OSError):
 
 
 class Broken(OSError):
-    """Say a kept file cannot be read, naming it under the home's kept folder."""
+    """Say a file cannot be read, holding its `path` and the `phrase` that says why."""
 
     def __init__(self, path: Path, phrase: str) -> None:
-        """Hold the text `~/.mf-ship-origin/<name> cannot be read: <phrase>`."""
-        name = path.relative_to(layout.kept_dir())
-        self.text = f"~/{layout.KEPT_ORIGINS}/{name} cannot be read: {phrase}"
+        """Hold the text a halt line names, worded by where `path` lies.
+
+        Under the kept folder: `~/.mf-ship-origin/<name> cannot be read: <phrase>`.
+        Elsewhere: `<path>: <phrase>`.
+        """
+        self.path = path
+        self.phrase = phrase
+        try:
+            name = path.relative_to(layout.kept_dir())
+        except ValueError:
+            self.text = f"{path}: {phrase}"
+        else:
+            self.text = f"~/{layout.KEPT_ORIGINS}/{name} cannot be read: {phrase}"
         super().__init__(errno.EINVAL, self.text, str(path))
 
     def __str__(self) -> str:
@@ -421,6 +433,128 @@ def make_probe_mark(executor: str, pid: int) -> Path:
 def remove_probe_mark(mark: Path) -> None:
     """Remove the probe mark `mark`; a gone one is quiet."""
     _remove(mark)
+
+
+def _pin_read(file: Path) -> str | None:
+    """Return the pin file's text, stripped, or None when none stands.
+
+    A name that `_read` cannot read raises `Broken`. Why: 0160-pins design D3.
+    """
+    text = _read(file)
+    return None if text is None else text.strip()
+
+
+def _pin_keep(file: Path, text: str) -> None:
+    """Replace the pin file with `text` and one newline, as `_replace` writes.
+
+    Why: 0160-pins design D7.
+    """
+    _replace(file, f"{text}\n")
+
+
+def _pin_clear(file: Path) -> None:
+    """Remove the pin file by name, as `_remove` does; a gone one is quiet."""
+    _remove(file)
+
+
+def source() -> str | None:
+    """Return the primary an install ran in, or None before the first or for blank.
+
+    Why: 0160-pins design D8.
+    """
+    return _pin_read(layout.pin_source()) or None
+
+
+def pending() -> str | None:
+    """Return the release the links wait to move to, or None."""
+    return _pin_read(layout.pin_pending())
+
+
+def hold() -> str | None:
+    """Return the release the links are held at, or None."""
+    return _pin_read(layout.pin_hold())
+
+
+def checkout() -> str | None:
+    """Return the checkout a live install links, or None."""
+    return _pin_read(layout.pin_checkout())
+
+
+def keep_source(text: str) -> None:
+    """Keep `text` as the primary an install ran in."""
+    _pin_keep(layout.pin_source(), text)
+
+
+def keep_pending(text: str) -> None:
+    """Keep `text` as the release the links wait to move to."""
+    _pin_keep(layout.pin_pending(), text)
+
+
+def keep_hold(text: str) -> None:
+    """Keep `text` as the release the links are held at."""
+    _pin_keep(layout.pin_hold(), text)
+
+
+def keep_checkout(text: str) -> None:
+    """Keep `text` as the checkout a live install links."""
+    _pin_keep(layout.pin_checkout(), text)
+
+
+def clear_pending() -> None:
+    """Remove the pending release; a gone one is quiet."""
+    _pin_clear(layout.pin_pending())
+
+
+def clear_hold() -> None:
+    """Remove the held release; a gone one is quiet."""
+    _pin_clear(layout.pin_hold())
+
+
+def ship_data() -> dict[str, Any]:
+    """Return the operator's `ship.toml` parsed, `{}` for no file.
+
+    A file `_read` cannot read, or that does not parse, raises `Broken`.
+    Why: 0160-pins design D4.
+    """
+    file = layout.ship_file()
+    text = _read(file)
+    if text is None:
+        return {}
+    try:
+        return tomllib.loads(text)
+    except (tomllib.TOMLDecodeError, ValueError) as error:
+        # Why: an integer past Python's digit limit is a bare ValueError.
+        raise Broken(file, str(error)) from None
+    except RecursionError:
+        raise Broken(file, "it is nested too deep") from None
+
+
+def ship_cap(data: dict[str, Any]) -> int | None:
+    """Return `in_flight` of `[queue]` in `data`, None when none is set.
+
+    A value that is no whole number above 0 raises `Broken`.
+    """
+    table = data.get("queue")
+    if not isinstance(table, dict) or "in_flight" not in table:
+        return None
+    value = table["in_flight"]
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise Broken(layout.ship_file(), "`in_flight` is not a whole number above 0")
+    return value
+
+
+def ship_tags(data: dict[str, Any]) -> bool:
+    """Return `tags` of `[push]` in `data`, True when none is set.
+
+    A value that is no boolean raises `Broken`.
+    """
+    table = data.get("push")
+    if not isinstance(table, dict) or "tags" not in table:
+        return True
+    value = table["tags"]
+    if not isinstance(value, bool):
+        raise Broken(layout.ship_file(), "`tags` is not true or false")
+    return value
 
 
 def probe_executor(mark: Path) -> str:

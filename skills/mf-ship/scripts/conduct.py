@@ -7181,12 +7181,13 @@ class Run:
         self.fresh = True
         self.push_left(RETRIES)
         self.fresh = False
+        # Why: a `Broken` from `describe` halts with the held events still in the log.
+        release = _pin()["describe"]()
         held, self.log.held = self.log.held, None
         down = " · origin: unreachable — pushes wait" if self.offline else ""
         # A worker may link the folder elsewhere: a link lists nothing.
         standing = _entries(mflib.layout.grants_dir(self.primary), empty=False)
         grants = f" · grant {' '.join(standing)}" if standing else ""
-        release = _pin()["describe"]()
         awake = (
             "" if os.environ.get("MF_SHIP_AGENT") else f" · {_hold_awake(os.getpid())}"
         )
@@ -7526,11 +7527,9 @@ def _ship_file() -> tuple[Path, dict[str, Any]]:
     """
     path = mflib.layout.ship_file()
     try:
-        return path, tomllib.loads(path.read_text())
-    except FileNotFoundError:
-        return path, {}
-    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
-        raise Stop(2, f"{path}: {error}") from None
+        return path, mflib.kept.ship_data()
+    except mflib.kept.Broken as error:
+        raise Stop(2, f"{path}: {error.phrase}") from None
 
 
 def _cap() -> int | None:
@@ -7539,13 +7538,10 @@ def _cap() -> int | None:
     e.g. `[queue]` holding `in_flight = 2` gives 2. Why: 0129-queue-cap design D1.
     """
     path, data = _ship_file()
-    table = data.get("queue")
-    if not isinstance(table, dict) or "in_flight" not in table:
-        return None
-    value = table["in_flight"]
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise Stop(2, f"{path}: `in_flight` is not a whole number above 0")
-    return value
+    try:
+        return mflib.kept.ship_cap(data)
+    except mflib.kept.Broken as error:
+        raise Stop(2, f"{path}: {error.phrase}") from None
 
 
 def _pushes_tags() -> bool:
@@ -7554,13 +7550,10 @@ def _pushes_tags() -> bool:
     No table and no key give True. Why: 0132-cloud-run design D1
     """
     path, data = _ship_file()
-    table = data.get("push")
-    if not isinstance(table, dict) or "tags" not in table:
-        return True
-    value = table["tags"]
-    if not isinstance(value, bool):
-        raise Stop(2, f"{path}: `tags` is not true or false")
-    return value
+    try:
+        return mflib.kept.ship_tags(data)
+    except mflib.kept.Broken as error:
+        raise Stop(2, f"{path}: {error.phrase}") from None
 
 
 def _brief_of(primary: Path, change: str) -> str | None:

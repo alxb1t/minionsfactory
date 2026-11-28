@@ -2348,27 +2348,6 @@ def test_broken_main_words_a_kept_file_that_cannot_be_read_and_exits_2(
 
 
 @pytest.mark.slow
-def test_broken_run_logs_the_halt_naming_the_file_and_exits_2(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
-) -> None:
-    fake()
-    conduct = test_conduct._conduct()
-    root, _, run = _offline_retries(tmp_path, conduct, monkeypatch)
-    broken = _broken(layout.default_file, "it is not text")
-    monkeypatch.setattr(conduct["mflib"].kept, "default", broken)
-
-    lines = run(2)
-
-    named = layout.default_file(root).name
-    (halt,) = _halt_of(lines)
-    assert halt.startswith(
-        f"run · halt — conduct.py failed: ~/.mf-ship-origin/{named} cannot be read:"
-        " it is not text"
-    )
-    assert not layout.live_mark(root).exists()
-
-
-@pytest.mark.slow
 def test_broken_run_releases_the_held_events_before_the_halt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake: Callable[..., Path]
 ) -> None:
@@ -2501,6 +2480,7 @@ def test_stop_a_bad_byte_in_the_default_stops_run_with_exit_2_naming_it(
     named = layout.default_file(root).name
     (halt,) = _halt_of(lines)
     assert f"~/.mf-ship-origin/{named} cannot be read: it is not text" in halt
+    assert not layout.live_mark(root).exists()
 
 
 def test_stop_a_second_approve_gate_leaves_the_second_hash(

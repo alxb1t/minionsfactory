@@ -56,8 +56,8 @@ lock taken through `debtfile.lock`. The run log is written and parsed through `s
 finds its folder through `layout.beneath`, which splits the path into the primary and the parts, `.minions` the first. The
 models file is written and parsed through `skills/mflib/modelsfile.py`, its path `layout.models_file(primary, change)`. The
 queue is written and parsed through `skills/mflib/queue.py`, its folder `layout.queue_dir(primary)`. The kept files of
-the home folder are written and parsed through `skills/mflib/kept.py`, their paths `layout.kept_file(primary)` and its
-neighbours in the layout module.
+the home folder, the pin's files among them, are written and parsed through `skills/mflib/kept.py`, as is the read of
+the operator's `ship.toml`; their paths are `layout.kept_file(primary)` and its neighbours in the layout module.
 
 - **Row:** none, unless the extension adds a script; then a row as for a station, its `names` cell holding `layout.py`.
 - **Rules:** `check_layout` holds that `.minions` is joined in `skills/mflib/layout.py` alone: a string constant

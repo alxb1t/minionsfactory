@@ -169,10 +169,12 @@ is done on a commit and a ticked box together; a round number lives in the findi
 - `conduct.py`'s read-only reads of the operator's Claude `settings.json`, under `~/.claude` or `CLAUDE_CONFIG_DIR`, for
   the plugins a worker turns off, and of the Codex sessions, under `~/.codex/sessions` or `CODEX_HOME`, for a Codex
   worker's rollout file — named in no repo;
-- `conduct.py`'s read-only read of the operator's `ship.toml`, under `$XDG_CONFIG_HOME/minionsfactory/` — named in no
+- `conduct.py`'s read-only read of the operator's `ship.toml`, under `$XDG_CONFIG_HOME/minionsfactory/`, which
+  `skills/mflib/kept.py` reads — named in no
   repo ([D84](decisions.md#d84--a-queued-cut-waits-while-the-line-is-at-its-cap));
 - `pin.py`'s pinned release: the data folder, `$XDG_DATA_HOME/minionsfactory/`, and `source`, `hold`, `pending`,
-  `checkout` and `live/` beside the kept URLs, which `conduct.py` reads and writes too, and the `mf-*` links on
+  `checkout` and `live/` beside the kept URLs, which `conduct.py` reads and writes too, the pin's files read and
+  written by `skills/mflib/kept.py`, and the `mf-*` links on
   `~/.claude/skills` and `~/.agents/skills`, which a run's end moves — named in no target repo
   ([D55](decisions.md#d55--one-pinned-mf-release-per-machine)).
 

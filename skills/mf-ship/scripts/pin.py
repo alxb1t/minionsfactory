@@ -44,20 +44,6 @@ def _conduct() -> dict[str, Any]:
     return runpy.run_path(str(CONDUCT))
 
 
-def _read(file: Path) -> str | None:
-    """Return what the kept file holds, or None when it is absent."""
-    return file.read_text().strip() if file.is_file() else None
-
-
-def _write(file: Path, text: str | None) -> None:
-    """Write `text` to the kept file; None removes it."""
-    if text is None:
-        file.unlink(missing_ok=True)
-        return
-    file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    file.write_text(f"{text}\n")
-
-
 def holder(mark: Path) -> int | None:
     """Return the pid a live mark holds while that process runs, else None."""
     return mflib.kept.holder(mark)
@@ -275,10 +261,10 @@ def describe() -> str:
             # No `--dirty`: its index refresh runs a clean filter the checkout names.
             done = _git(root, "describe", "--tags", "--always")
             parts.append(f"mf live {done.stdout.strip() or 'unknown'}")
-    source = _read(mflib.layout.pin_source())
-    if pending := _read(mflib.layout.pin_pending()):
+    source = mflib.kept.source()
+    if pending := mflib.kept.pending():
         parts.append(f"pending {pending}")
-    elif source and not _read(mflib.layout.pin_hold()):
+    elif source and not mflib.kept.hold():
         try:
             if skipped := _skipped(Path(source), _linked(), None):
                 parts.append(f"skipped {skipped}: not on origin")
@@ -293,16 +279,16 @@ def move(mine: Path | None = None) -> str | None:
     Nothing moves without `source`, while a run other than `mine` is live, or under a
     hold for a newer tag; `origin` that cannot be read moves nothing.
     """
-    source = _read(mflib.layout.pin_source())
-    if source is None or live(mine):
-        return None
     try:
-        target = _read(mflib.layout.pin_pending())
+        source = mflib.kept.source()
+        if source is None or live(mine):
+            return None
+        target = mflib.kept.pending()
         if target == "live":
-            skills = Path(_read(mflib.layout.pin_checkout()) or source) / "skills"
+            skills = Path(mflib.kept.checkout() or source) / "skills"
         elif target:
             skills = mflib.layout.data_dir() / target / "skills"
-        elif _read(mflib.layout.pin_hold()) or not (url := _origin(Path(source))):
+        elif mflib.kept.hold() or not (url := _origin(Path(source))):
             return None
         else:
             linked = _linked()
@@ -313,7 +299,7 @@ def move(mine: Path | None = None) -> str | None:
         if live(mine):
             return None
         _link(skills)
-        _write(mflib.layout.pin_pending(), None)
+        mflib.kept.clear_pending()
     except (Refused, *FAILURES) as error:
         return f"pin: cannot move — {error}"
     return f"pin: moved to {target}"
@@ -327,7 +313,7 @@ def install(cwd: Path, release: str | None) -> str:
     checkout = Path(_out(cwd, "rev-parse", "--show-toplevel")).resolve()
     common = _out(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
     primary = mflib.layout.primary_of(Path(common).resolve())
-    _write(mflib.layout.pin_source(), str(primary))
+    mflib.kept.keep_source(str(primary))
     skipped = None
     if release is None:
         if not (url := _origin(primary)):
@@ -337,22 +323,22 @@ def install(cwd: Path, release: str | None) -> str:
         if not (target := _newest(held)):
             raise Refused("origin holds no version tag")
         skills = _fetch(url, target)
-        _write(mflib.layout.pin_hold(), None)
+        mflib.kept.clear_hold()
         skipped = _skipped(primary, target, held)
     elif release == "live":
         target, skills = release, checkout / "skills"
-        _write(mflib.layout.pin_hold(), release)
-        _write(mflib.layout.pin_checkout(), str(checkout))
+        mflib.kept.keep_hold(release)
+        mflib.kept.keep_checkout(str(checkout))
     elif _version(release):
         target, skills = release, _export(checkout, release)
-        _write(mflib.layout.pin_hold(), release)
+        mflib.kept.keep_hold(release)
     else:
         raise Refused(f"{release} is not a version tag or live")
     if live():
-        _write(mflib.layout.pin_pending(), target)
+        mflib.kept.keep_pending(target)
         return f"pin: pending {target} — a run is live"
     _link(skills)
-    _write(mflib.layout.pin_pending(), None)
+    mflib.kept.clear_pending()
     note = f" · skipped {skipped}: not on origin" if skipped else ""
     return f"pin: linked {target}{note}"
 
