@@ -200,6 +200,7 @@ None.
 - **The turns are many.** Many asserts turn across phases 3 and 4. Each is listed in [the turns](cases.md#the-turns); the conformance check holds the list on each phase's diff, and an assert changed outside it is a finding.
 - **Phase 3 is the one hard phase.** It re-points the run log and the status log and turns the day rule, the heading, the mark and the old forms; its halves are separate tasks, each green on its own.
 - **Local time.** `datetime.fromtimestamp` of a moment `runlog.timed` made from a naive local time may differ at a DST fold; no case sets a zone, as the viewer's.
+- **A clock set back.** Between two events any step back of the clock is a day on, as [the spec delta](specs/sdd/spec.md) says, so a run log that crosses the end of summer time dates every event after the step a day on, and a stage's minutes that span it read about a day long. Accepted, per Q279 ([the cases](cases.md), R7): the old bound of 12 hours dates a quiet gap of over 12 hours a day early — a halt at 11:00 answered at 09:00 the next morning — the viewer already reads a step back as a day on, and no log on disk steps back by less than 12 hours.
 - **`prices.Unreadable` escapes `review_metrics.py`.** A bad price table raises there, as a bad one does today; its meaning is 5e3's.
 - **No corpus case reads `run.py` and `debt.py`.** [D16](#d16) records why; a regression on real data shows at the next release's collect.
 
