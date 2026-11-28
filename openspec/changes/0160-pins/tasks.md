@@ -5,7 +5,7 @@ In order: pin the region on today's side, add the module as copies, send the sta
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · moderate
+- [x] 2 — The module · moderate
 - [ ] 3 — The stations · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
@@ -29,13 +29,13 @@ In order: pin the region on today's side, add the module as copies, send the sta
 
 ## 2 — The module
 
-- [ ] 2.1 In `skills/mflib/kept.py` give `Broken` the attributes `path` and `phrase`, and word a path outside the kept folder as `<path>: <phrase>` ([D6](design.md#d6)); name the pin's files and `ship.toml` in the module docstring. Create `tests/test_kept_pinfiles.py` with the `Broken` cases, each named `test_broken_<what>`.
+- [x] 2.1 In `skills/mflib/kept.py` give `Broken` the attributes `path` and `phrase`, and word a path outside the kept folder as `<path>: <phrase>` ([D6](design.md#d6)); name the pin's files and `ship.toml` in the module docstring. Create `tests/test_kept_pinfiles.py` with the `Broken` cases, each named `test_broken_<what>`.
   Verify: `uv run pytest tests/test_kept_pinfiles.py tests/test_kept.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.2 Add to `skills/mflib/kept.py` the readers `source`, `pending`, `hold` and `checkout`, the writers `keep_source`, `keep_pending`, `keep_hold` and `keep_checkout`, and the clears `clear_pending` and `clear_hold`, over `_pin_read`, `_pin_keep` and `_pin_clear`, each as its copy in `pin.py` behaves ([D1](design.md#d1), [D5](design.md#d5)). Add their unit and round-trip cases to `tests/test_kept_pinfiles.py`, each named `test_pin_<what>`.
+- [x] 2.2 Add to `skills/mflib/kept.py` the readers `source`, `pending`, `hold` and `checkout`, the writers `keep_source`, `keep_pending`, `keep_hold` and `keep_checkout`, and the clears `clear_pending` and `clear_hold`, over `_pin_read`, `_pin_keep` and `_pin_clear`, each as its copy in `pin.py` behaves ([D1](design.md#d1), [D5](design.md#d5)). Add their unit and round-trip cases to `tests/test_kept_pinfiles.py`, each named `test_pin_<what>`.
   Verify: `uv run pytest tests/test_kept_pinfiles.py -k "test_pin_" -n auto -q` exits `0`; `uv run pytest tests/test_kept_pinfiles.py tests/test_kept.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.3 Add to `skills/mflib/kept.py` `ship_data`, `ship_cap` and `ship_tags`, each as its copy in `conduct.py` behaves: `ship_data` raises the raw `OSError`, `UnicodeDecodeError` and `TOMLDecodeError` of its parse, and the checks raise `Broken` with today's phrase. Add their cases to `tests/test_kept_pinfiles.py`, each named `test_ship_<what>`; a folder raises the `OSError` `read_text` raises.
+- [x] 2.3 Add to `skills/mflib/kept.py` `ship_data`, `ship_cap` and `ship_tags`, each as its copy in `conduct.py` behaves: `ship_data` raises the raw `OSError`, `UnicodeDecodeError` and `TOMLDecodeError` of its parse, and the checks raise `Broken` with today's phrase. Add their cases to `tests/test_kept_pinfiles.py`, each named `test_ship_<what>`; a folder raises the `OSError` `read_text` raises.
   Verify: `uv run pytest tests/test_kept_pinfiles.py -k "test_ship_" -n auto -q` exits `0`; `uv run pytest tests/test_kept_pinfiles.py tests/test_kept.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.4 Confirm no script calls the new functions yet and the map row of `kept.py` stands.
+- [x] 2.4 Confirm no script calls the new functions yet and the map row of `kept.py` stands.
   Verify: `git diff --quiet HEAD -- skills/mf-ship/scripts/pin.py skills/mf-ship/scripts/conduct.py docs/modules.md` exits `0`.
 
 ## 3 — The stations
