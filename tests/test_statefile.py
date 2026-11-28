@@ -264,6 +264,30 @@ def test_guard_decides_whether_a_file_that_is_no_regular_file_is_read() -> None:
         statefile.read_bytes(os.devnull)
 
 
+def test_lines_cut_a_long_line_and_drop_its_rest(tmp_path: Path) -> None:
+    file = tmp_path / "log"
+    file.write_text("abcdefgh\nxy\nabc\nlast")
+
+    assert list(statefile.lines(file, 3)) == ["abc", "xy", "abc", "las"]
+
+    file.write_text("abc")
+    assert list(statefile.lines(file, 3)) == ["abc"]
+
+
+def test_lines_read_nothing_from_what_is_no_regular_file(tmp_path: Path) -> None:
+    (tmp_path / "file").write_text("a\n")
+    (tmp_path / "link").symlink_to(tmp_path / "file")
+    os.mkfifo(tmp_path / "pipe")
+    (tmp_path / "folder").mkdir()
+    before = len(os.listdir("/dev/fd"))
+
+    for name in ("link", "pipe", "folder", "gone"):
+        assert list(statefile.lines(tmp_path / name, 9)) == []
+
+    assert list(statefile.lines(tmp_path / "file", 9)) == ["a"]
+    assert len(os.listdir("/dev/fd")) == before
+
+
 def test_a_read_takes_an_offset(tmp_path: Path) -> None:
     path = tmp_path / "state.md"
     path.write_bytes(b"abcdef")

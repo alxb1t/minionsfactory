@@ -7,6 +7,7 @@ import contextlib
 import errno
 import os
 import stat
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal
 
@@ -163,6 +164,24 @@ def read(
     """
     data = read_bytes(path, folder=folder, limit=limit, tail=tail, offset=offset)
     return data.decode(errors="replace")
+
+
+def lines(path: Path | str, cut: int) -> Iterator[str]:
+    """Yield a regular file's lines one at a time, each cut at `cut` characters.
+
+    The whole file is streamed, so one line is held; a long line's rest is dropped.
+    A link, a pipe, a folder or a missing file yields no line. Why: 0161-viewer D4, D30.
+    """
+    try:
+        fd = open_regular(path)
+    except OSError:
+        return
+    with os.fdopen(fd, encoding="utf-8", errors="replace") as file:
+        while piece := file.readline(cut):
+            if not piece.endswith("\n") and len(piece) == cut:
+                while (rest := file.readline(cut)) and not rest.endswith("\n"):
+                    pass
+            yield piece.rstrip("\n")
 
 
 def folder(root: Path, *parts: str, mode: int = 0o777) -> int:

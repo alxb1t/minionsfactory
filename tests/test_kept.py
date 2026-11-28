@@ -9,6 +9,7 @@ import json
 import os
 import stat
 import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -630,6 +631,48 @@ def test_repos_with_a_file_at_the_kept_folder_records_nothing(p: Path) -> None:
     kept.record_repo(p)
 
     assert layout.kept_dir().read_text() == "x\n"
+
+
+def test_repos_list_each_line_stripped(tmp_path: Path) -> None:
+    record = tmp_path / "repos"
+    record.write_text("  /a \t\n\n\t \n/b\r\n/c")
+
+    assert kept.repos(record) == ["/a", "/b", "/c"]
+
+    record.write_text("/a\n" + "\n" * kept.REPOS_BOUND + "/c\n")
+    assert kept.repos(record) == ["/a"]
+
+
+def test_repos_list_is_empty_for_a_missing_file(tmp_path: Path) -> None:
+    assert kept.repos(tmp_path / "gone") == []
+
+
+def test_repos_list_is_empty_for_a_link(tmp_path: Path) -> None:
+    (tmp_path / "other").write_text("/a\n")
+    (tmp_path / "repos").symlink_to(tmp_path / "other")
+
+    assert kept.repos(tmp_path / "repos") == []
+
+
+@pytest.mark.slow
+def test_repos_list_is_empty_for_a_fifo(tmp_path: Path) -> None:
+    os.mkfifo(tmp_path / "repos")
+    code = (
+        "import sys\nfrom pathlib import Path\nfrom mflib import kept\n"
+        "print(kept.repos(Path(sys.argv[1])))\n"
+    )
+    skills = Path(__file__).parents[1] / "skills"
+
+    done = subprocess.run(
+        [sys.executable, "-c", code, str(tmp_path / "repos")],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=True,
+        env={**os.environ, "PYTHONPATH": str(skills)},
+    )
+
+    assert done.stdout == "[]\n"
 
 
 # --- the probe mark

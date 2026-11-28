@@ -8,6 +8,8 @@ import os
 import re
 import threading
 import time
+from collections.abc import Iterable, Iterator
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import NamedTuple
 
@@ -30,6 +32,8 @@ CAUSES = (
     *("cut", "amend", "cap", "human", "release", "run", "other"),
 )
 _STAMPED = re.compile(r"\d{8}-\d{6}(-\d+)?")
+_STAMP = "%Y%m%d-%H%M%S"
+_CAUSE = re.compile(r" · cause ([a-z-]+)$")
 # The most bytes `wait` reads of a log at one poll. Why: 0140-run-log design D7.
 BOUND = 262_144
 
@@ -79,6 +83,35 @@ def parse(text: str) -> Event | None:
     if found is None:
         return None
     return Event(text, found[1], found[2], text[found.end() :])
+
+
+def timed(stem: str, lines: Iterable[str]) -> Iterator[tuple[Event, float]]:
+    """Yield each event of `lines` with its epoch second, dated from the log's stem.
+
+    The first event is on the stem's day; a clock that steps back from the event
+    before is a day on, and days add. Why: 0161-viewer design D20.
+    """
+    base = datetime.strptime(stem[:15], _STAMP)
+    days, before = 0, 0
+    for text in lines:
+        if (event := parse(text)) is None:
+            continue
+        hours, minutes, seconds = (int(part) for part in text[:8].split(":"))
+        moment = hours * 3600 + minutes * 60 + seconds
+        days += moment < before
+        before = moment
+        at = base.replace(hour=hours, minute=minutes, second=seconds)
+        yield event, (at + timedelta(days=days)).timestamp()
+
+
+def cause(detail: str) -> str | None:
+    """Return the word a detail ends with after ` · cause `, or None.
+
+    The word is lower-case letters and hyphens, any word, not `CAUSES` alone.
+    e.g. "build check fail · cause check-red" → "check-red"
+    """
+    found = _CAUSE.search(detail)
+    return found[1] if found else None
 
 
 def order(log: Path) -> tuple[str, int, str]:

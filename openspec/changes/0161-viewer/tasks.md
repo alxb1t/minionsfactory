@@ -5,7 +5,7 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · moderate
+- [x] 2 — The module · moderate
 - [ ] 3 — The readers · moderate
 - [ ] 4 — The fix · hard
 - [ ] 5 — The record · moderate
@@ -36,22 +36,22 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 
 ## 2 — The module
 
-- [ ] 2.1 Add `lines(path, cut)` to `skills/mflib/statefile.py`: the viewer's `read_lines` as it is, each line of a regular file cut at `cut` characters, nothing for a link, a FIFO, a folder or a missing file ([D4](design.md#d4), [D30](design.md#d30)).
+- [x] 2.1 Add `lines(path, cut)` to `skills/mflib/statefile.py`: the viewer's `read_lines` as it is, each line of a regular file cut at `cut` characters, nothing for a link, a FIFO, a folder or a missing file ([D4](design.md#d4), [D30](design.md#d30)).
   Add `test_lines_cut_a_long_line_and_drop_its_rest` and `test_lines_read_nothing_from_what_is_no_regular_file` to `tests/test_statefile.py`, the open-descriptor count held.
   Verify: `uv run pytest tests/test_statefile.py -k test_lines -q` exits `0`.
-- [ ] 2.2 Add `timed(stem, lines)` and `cause(detail)` to `skills/mflib/runlog.py` as the viewer reads them today: a step back of the clock between events is a day on, the first event is on the stem's day, the cause is any word of lower-case letters and hyphens at the end.
+- [x] 2.2 Add `timed(stem, lines)` and `cause(detail)` to `skills/mflib/runlog.py` as the viewer reads them today: a step back of the clock between events is a day on, the first event is on the stem's day, the cause is any word of lower-case letters and hyphens at the end.
   Add `test_timed_a_step_back_is_a_day_on` and `test_cause_reads_a_word_off_the_list_too` to `tests/test_runlog.py`, each stem with its first event less than `12` hours before the stem's time.
   Verify: `uv run pytest tests/test_runlog.py -k "test_timed or test_cause" -n auto -q` exits `0`.
-- [ ] 2.3 Add `Section` and `runs(text)` to `skills/mflib/statuslog.py`: every run of a log's text, newest first, each its heading's number, mark and events, a line that starts `## Run` a heading as `is_heading` reads it, no date and no clock ([D41](design.md#d41)).
+- [x] 2.3 Add `Section` and `runs(text)` to `skills/mflib/statuslog.py`: every run of a log's text, newest first, each its heading's number, mark and events, a line that starts `## Run` a heading as `is_heading` reads it, no date and no clock ([D41](design.md#d41)).
   Add `test_runs_give_each_run_newest_first` and `test_runs_read_running_as_a_heading_with_no_number` to `tests/test_statuslog.py`.
   Verify: `uv run pytest tests/test_statuslog.py -k test_runs -q` exits `0`.
-- [ ] 2.4 Add `FALLBACK`, `FAILED`, `spent`, `verdicts_line` and `Verdicts` to `skills/mflib/statuslog.py`, and `verdicts(line)`, which finds the `verdicts` text anywhere in a line as the viewer does ([D29](design.md#d29), [D34](design.md#d34)).
+- [x] 2.4 Add `FALLBACK`, `FAILED`, `spent`, `verdicts_line` and `Verdicts` to `skills/mflib/statuslog.py`, and `verdicts(line)`, which finds the `verdicts` text anywhere in a line as the viewer does ([D29](design.md#d29), [D34](design.md#d34)).
   Add `test_spent_words_a_string_fallback_as_failed` and `test_verdicts_read_a_line_the_writer_wrote` to `tests/test_statuslog.py`, the text of `spent` as converge writes it today.
   Verify: `uv run pytest tests/test_statuslog.py -k "test_spent or test_verdicts" -q` exits `0`.
-- [ ] 2.5 Add `repos(path)` to `skills/mflib/kept.py`, reading the record as the viewer's `projects` does today: the first `REPOS_BOUND` bytes, each line stripped, a blank one skipped, nothing for a link, a FIFO or a missing file ([D35](design.md#d35)).
+- [x] 2.5 Add `repos(path)` to `skills/mflib/kept.py`, reading the record as the viewer's `projects` does today: the first `REPOS_BOUND` bytes, each line stripped, a blank one skipped, nothing for a link, a FIFO or a missing file ([D35](design.md#d35)).
   Add `test_repos_list_each_line_stripped`, `test_repos_list_is_empty_for_a_missing_file`, `test_repos_list_is_empty_for_a_link` and `test_repos_list_is_empty_for_a_fifo` to `tests/test_kept.py`, the FIFO in a child with a timeout, marked `slow`.
   Verify: `uv run pytest tests/test_kept.py -n auto -q` exits `0`.
-- [ ] 2.6 No script calls the new functions yet, and no row of the map changes.
+- [x] 2.6 No script calls the new functions yet, and no row of the map changes.
   Verify: `git grep -c -e "statuslog.runs" -e "statefile.lines" -e "kept.repos" -e "runlog.timed" -- skills/mf-ui skills/mf-converge skills/mf-ship` prints nothing; `uv run pytest tests/test_statuslog.py tests/test_status_log_copies.py tests/test_runlog.py tests/test_kept.py tests/test_structure.py -n auto -q` exits `0`.
 
 ## 3 — The readers

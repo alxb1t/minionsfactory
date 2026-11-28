@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -1306,3 +1307,58 @@ def test_module_verify_raises_on_a_link(tmp_path: Path) -> None:
 
     with pytest.raises(OSError, match=r"linked\.md"):
         runlog.verify(log)
+
+
+def _at(day: int, clock: str) -> float:
+    hours, minutes, seconds = (int(part) for part in clock.split(":"))
+    return datetime(2026, 11, day, hours, minutes, seconds).timestamp()
+
+
+def test_timed_a_step_back_is_a_day_on() -> None:
+    lines = [
+        "# Ship run 20261101-235900",
+        "23:59:30 · run · start — executor claude",
+        "not an event",
+        "23:59:30 · 0001-a · spawn — build",
+        "00:00:10 · 0001-a · finish — build",
+        "00:00:05 · 0001-a · check — gate",
+        "00:00:05 · 0001-a · done — ok",
+    ]
+
+    found = list(runlog.timed("20261101-235900", lines))
+
+    assert [event.name for event, _ in found] == [
+        "start",
+        "spawn",
+        "finish",
+        "check",
+        "done",
+    ]
+    assert [at for _, at in found] == [
+        _at(1, "23:59:30"),
+        _at(1, "23:59:30"),
+        _at(2, "00:00:10"),
+        _at(3, "00:00:05"),
+        _at(3, "00:00:05"),
+    ]
+
+
+def test_timed_dates_the_first_event_on_the_stems_day_and_a_suffix_stays() -> None:
+    first = list(runlog.timed("20261101-235900-3", ["23:59:10 · run · start — x"]))
+    [(event, at)] = first
+
+    assert event.who == "run"
+    assert at == _at(1, "23:59:10")
+
+
+def test_cause_reads_a_word_off_the_list_too() -> None:
+    assert runlog.cause("build check fail — x · cause check-red") == "check-red"
+    assert runlog.cause("x · cause not-on-the-list") == "not-on-the-list"
+    assert "not-on-the-list" not in runlog.CAUSES
+
+
+def test_cause_reads_none_without_a_word_at_the_end() -> None:
+    assert runlog.cause("no cause here") is None
+    assert runlog.cause("x · cause Plan") is None
+    assert runlog.cause("x · cause gate-red · more") is None
+    assert runlog.cause("x · cause ") is None
