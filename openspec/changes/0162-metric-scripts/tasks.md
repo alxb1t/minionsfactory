@@ -8,7 +8,7 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 - [x] 2 — The module · moderate
 - [x] 3 — The logs · hard
 - [x] 4 — The files · moderate
-- [ ] 5 — The record · moderate
+- [x] 5 — The record · moderate
 
 ## 1 — The pin
 
@@ -95,17 +95,17 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 
 ## 5 — The record
 
-- [ ] 5.1 In `docs/recipes.md` make the reader recipe of *A state file* name `prices.rows` for the price table and `eras` for an old form, and say the metric scripts read each state file through the module that owns it ([D17](design.md#d17)).
+- [x] 5.1 In `docs/recipes.md` make the reader recipe of *A state file* name `prices.rows` for the price table and `eras` for an old form, and say the metric scripts read each state file through the module that owns it ([D17](design.md#d17)).
   Verify: `git grep -l -e "prices.rows" -- docs/recipes.md` prints `docs/recipes.md`.
-- [ ] 5.2 In `THREAT_MODEL.md` add `prices.py` and `eras.py` to the list of the shared home, and say `eras.py` reads and writes nothing and no station loads it ([D17](design.md#d17)).
+- [x] 5.2 In `THREAT_MODEL.md` add `prices.py` and `eras.py` to the list of the shared home, and say `eras.py` reads and writes nothing and no station loads it ([D17](design.md#d17)).
   Verify: `git grep -l -e "prices.py" -- THREAT_MODEL.md` prints `THREAT_MODEL.md`; `git grep -l -e "eras.py" -- THREAT_MODEL.md` prints `THREAT_MODEL.md`.
-- [ ] 5.3 In `docs/decisions.md` make D83's *Accepts* line say the readers of `review_metrics.py` alone still hold theirs ([D17](design.md#d17)).
+- [x] 5.3 In `docs/decisions.md` make D83's *Accepts* line say the readers of `review_metrics.py` alone still hold theirs ([D17](design.md#d17)).
   Verify: `git grep -l -F -e "alone still" -- docs/decisions.md` prints `docs/decisions.md`.
-- [ ] 5.4 The metric scripts define no format name the home owns: `run.py` has no `STAMP =`, `EVENT =`, `MIDNIGHT =`, `PRIORITY =`, `CONFIRMED =`, `def _logs` and `def _events`, `debt.py` has no `CARD =` and no `read_text`, and `review_metrics.py` has no `def _prices` ([D6](design.md#d6) to [D11](design.md#d11)).
+- [x] 5.4 The metric scripts define no format name the home owns: `run.py` has no `STAMP =`, `EVENT =`, `MIDNIGHT =`, `PRIORITY =`, `CONFIRMED =`, `def _logs` and `def _events`, `debt.py` has no `CARD =` and no `read_text`, and `review_metrics.py` has no `def _prices` ([D6](design.md#d6) to [D11](design.md#d11)).
   Verify: `git grep -c -e "STAMP =" -e "EVENT =" -e "MIDNIGHT =" -e "PRIORITY =" -e "CONFIRMED =" -e "def _logs" -e "def _events" -- scripts/metrics/run.py` prints nothing; `git grep -c -e "CARD =" -e "read_text" -- scripts/metrics/debt.py` prints nothing; `git grep -c -e "def _prices" -- skills/mf-review-metrics/scripts/review_metrics.py` prints nothing.
-- [ ] 5.5 No list entry of `tests/test_structure.py` is a tuple opening `"run.py",` and `"debt.py",`, and no station calls `eras.blocking` and `eras.refuted` ([D13](design.md#d13)).
+- [x] 5.5 No list entry of `tests/test_structure.py` is a tuple opening `"run.py",` and `"debt.py",`, and no station calls `eras.blocking` and `eras.refuted` ([D13](design.md#d13)).
   Verify: `git grep -c -F -e '"run.py",' -e '"debt.py",' -- tests/test_structure.py` prints nothing; `git grep -c -e "eras.blocking" -e "eras.refuted" -- skills/mf-ship skills/mf-converge skills/mf-build skills/mf-cut-change skills/mf-release skills/mf-integrate skills/mf-ui` prints nothing.
-- [ ] 5.6 The new modules and tests are tracked.
+- [x] 5.6 The new modules and tests are tracked.
   Verify: `git ls-files --error-unmatch skills/mflib/prices.py skills/mflib/eras.py tests/test_metric_pins.py tests/test_prices.py tests/test_eras.py` exits `0`.
-- [ ] 5.7 The metric set, the viewer set and the review set of [D15](design.md#d15) pass.
+- [x] 5.7 The metric set, the viewer set and the review set of [D15](design.md#d15) pass.
   Verify: `uv run pytest tests/test_metric_scripts.py tests/test_metric_pins.py tests/test_run_dir_finders.py -n auto -q` exits `0`; `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`; `uv run pytest tests/test_review_metrics.py -q` exits `0`.

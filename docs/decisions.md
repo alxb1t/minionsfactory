@@ -80,7 +80,7 @@ surface for each Python file under `skills/`, in `make gate` and `make check`.**
   feature: a load of another station, a borrowed private name, a cycle, an OS command in a new file.
 - **Accepts:** today's breaches, each on a list in `tests/test_structure.py` that only shrinks
   ([D79](#d79--a-tool-finds-a-checker-judges)); the viewer's `status_log.md`, `## Run`, `.minions`, `_cuts` and
-  `_frontmatter` entries are gone, and the readers of `review_metrics.py` and `run.py` still hold theirs · a name that is
+  `_frontmatter` entries are gone, and the readers of `review_metrics.py` alone still hold theirs · a name that is
   no load, held as an edge · a row in `docs/modules.md`
   for each new script.
 - **Rejected:** a layer table beyond the map's layers · a rule per file · a new gate step · a decision per rule.

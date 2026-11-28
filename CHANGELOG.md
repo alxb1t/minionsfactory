@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `run.py` reads the status log through `statuslog.read`, `statuslog.runs`, `statuslog.blocking` and `eras.blocking`. Turned: a mark counts only whole, a round needs a whole event line, a line has one count, a role other than today's and the old ones counts nothing, a link is a gap and a bad byte is replaced (0162-metric-scripts, phase 3).
 - `run.py` reads the findings through `findings.read`, `cards` and `refuted`, else `eras.refuted`, and `build.done` through `marks.done_head`. Turned: a card is a titled line with its indented lines, a Verdict needs no Priority and its case is folded, `## Refused` and a last-line heading are sections, and a link, a bad byte, a second `head:` line and a file over 65,536 bytes are no head (0162-metric-scripts, phase 4).
 - `debt.py` and `Version.debt` read the debt file through `debtfile.read` and `count`, and `run.py` and `review_metrics.py` read `prices.toml` through `prices.rows`. Turned: a card is a title `- **<digits>·<id> — `, a link at the debt file is the gap `…: it is a link`, a bad byte is replaced, and a bad price table is the gap `prices: <reason>` in `run.py` and `prices.Unreadable` in `review_metrics.py` where a pipe no longer blocks (0162-metric-scripts, phase 4).
+- The recipes name `prices.rows` and `eras`, the threat model lists `prices.py` and `eras.py` among the shared home, and D83 says the readers of `review_metrics.py` alone still hold their format entries (0162-metric-scripts, phase 5).
 
 ## [0.131.0] - 2026-11-28
 

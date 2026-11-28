@@ -45,8 +45,10 @@ A new file in `.minions/changes/<change-id>/`, per
 
 A reader takes `change_dir(primary, change)` from `skills/mflib/layout.py`, the home's run-directory layout. It keeps
 its own git call for the primary, and `layout.primary_of` maps git's answer to it. It takes what a module parses —
-`statuslog.runs` for a status log's runs, `runlog.timed` for an event's moment, `kept.repos` for the record of projects —
-and writes no regex of a format a module owns.
+`statuslog.runs` for a status log's runs, `runlog.timed` for an event's moment, `prices.rows` for the price table,
+`kept.repos` for the record of projects — and writes no regex of a format a module owns. An old run's form is read
+through `skills/mflib/eras.py`, which no station loads. The metric scripts read each state file through the module that
+owns it.
 
 A writer stages the file through `write` of `skills/mflib/statefile.py`, which renames `<name>.tmp` over it and raises
 `WriteFailed` for the writer to word; a reader takes `statefile.read`, which follows no link. The status log is
