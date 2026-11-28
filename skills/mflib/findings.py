@@ -3,6 +3,7 @@
 Why: 0138-findings design D1.
 """
 
+import itertools
 import os
 import re
 from collections.abc import Callable, Mapping
@@ -37,6 +38,7 @@ LISTS = ("passes", "inconclusive")
 VERDICTS = ("clean", "changes-requested")
 HALT_ID = re.compile(r"\b[RS]\d+\b")
 STUB_BODY = "Skipped by the plan: no worker judged this round."
+REFUTED = "## Refuted"
 
 
 def _words(value: str) -> list[str]:
@@ -144,6 +146,22 @@ def cards(text: str, role: str) -> list[Card]:
                 current.fields.setdefault(named[1], named[2].strip())
         blanks = []
     return found
+
+
+def refuted(text: str) -> list[str] | None:
+    """Return the top-level `- ` lines of the `## Refuted` section, None without one.
+
+    The section runs from the first line that starts `## Refuted` to the next `## `.
+    Why: 0162-metric-scripts design D3.
+    """
+    lines = text.splitlines()
+    at = next((i for i, line in enumerate(lines) if line.startswith(REFUTED)), None)
+    if at is None:
+        return None
+    section = itertools.takewhile(
+        lambda line: not line.startswith("## "), lines[at + 1 :]
+    )
+    return [line for line in section if line.startswith("- ")]
 
 
 def strays(text: str) -> list[tuple[str, str]]:

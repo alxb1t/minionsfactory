@@ -535,3 +535,37 @@ def test_fix_stamp_keeps_the_file_when_its_write_fails(tmp_path: Path) -> None:
     findings.stamp(tmp_path, "conformance.md", "m", 5)
 
     assert path.read_text() == "---\nmodel: x\n---\n"
+
+
+def test_refuted_gives_the_top_level_entries_of_the_section() -> None:
+    text = (
+        "- **R1 — a card**\n  - **Verdict:** confirmed\n\n"
+        "## Refuted\n\n- a\n- b\n  - nested\n-c\n * d\n\n- e\n"
+    )
+
+    assert findings.refuted(text) == ["- a", "- b", "- e"]
+    assert findings.refuted("## Refuted (3)\n- a\n") == ["- a"]
+    assert findings.refuted("## Refuted\n") == []
+    assert findings.refuted("## Refuted\r\n- a\r\n- b\r\n") == ["- a", "- b"]
+    assert findings.refuted("## Refuted\n- a\n## Refuted\n- b\n") == ["- a"]
+
+
+def test_refuted_ends_at_the_next_second_level_heading() -> None:
+    text = "## Refuted\n- a\n### sub\n- b\n## Next\n- c\n"
+
+    assert findings.refuted(text) == ["- a", "- b"]
+    assert findings.refuted("## Refuted\n- a\n# Top\n- b\n") == ["- a", "- b"]
+    assert findings.refuted("## Refuted\n## Next\n- c\n") == []
+
+
+def test_refuted_reads_a_heading_on_the_last_line_with_no_newline() -> None:
+    assert findings.refuted("- x\n## Refuted") == []
+    assert findings.refuted("## Refuted\n- a") == ["- a"]
+
+
+def test_refuted_is_none_without_the_heading() -> None:
+    assert findings.refuted("") is None
+    assert findings.refuted("## Refused\n- a\n") is None
+    assert findings.refuted("##Refuted\n- a\n") is None
+    assert findings.refuted("### Refuted\n- a\n") is None
+    assert findings.refuted(" ## Refuted\n- a\n") is None

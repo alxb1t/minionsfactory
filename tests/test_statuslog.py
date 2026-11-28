@@ -559,3 +559,44 @@ def test_verdicts_read_an_event_of_the_modules_form() -> None:
     assert _verdicts("other clean · open_blocking 0 · x") is None
     assert _verdicts("conformance clean · open_blocking 0 · tokens 5", "fix") is None
     assert _verdicts("x verdicts — conformance clean · open_blocking 0 · y") is None
+
+
+def _blocking(detail: str, name: str = "verdicts") -> int | None:
+    return statuslog.blocking(statuslog.Event(1, name, detail))
+
+
+def test_blocking_reads_the_count_of_a_conformance_line() -> None:
+    spent = statuslog.spent(("claude", "m", "high"), 5, False)
+    written = statuslog.verdicts_line("conformance", "changes-requested", 12, spent)
+    event = statuslog.parse_event(f"10:00:00 · round 1 · {written}")
+
+    assert event is not None
+    assert statuslog.blocking(event) == 12
+    assert _blocking("adversarial clean · open_blocking 0 · tokens 5") == 0
+    assert _blocking("conformance clean · open_blocking 7 (R1, R2)") == 7
+
+
+def test_blocking_reads_a_line_with_no_verdict_word_and_no_tail() -> None:
+    assert _blocking("conformance · open_blocking 4") == 4
+    assert _blocking("adversarial · open_blocking 4 · x") == 4
+    assert _blocking("conformance clean") is None
+    assert _blocking("conformance clean · open_blocking ") is None
+    assert _blocking("conformance clean · open_blocking x") is None
+    assert _blocking("conformance") is None
+
+
+def test_blocking_is_none_for_an_old_role_and_for_another_event() -> None:
+    assert _blocking("review changes-requested · open_blocking 2 (R1, R2)") is None
+    assert _blocking("security clean · open_blocking 0") is None
+    assert _blocking("conformance: open_blocking: 2") is None
+    assert _blocking("c changes-requested · open_blocking 4") is None
+    assert _blocking("conformance clean · open_blocking 1", "fix") is None
+    assert _blocking("x verdicts — conformance clean · open_blocking 1") is None
+
+
+def test_blocking_reads_the_first_count_of_a_line() -> None:
+    assert _blocking("conformance clean · open_blocking 2 · open_blocking 3") == 2
+    assert _blocking("conformance clean · open_blocking 2 · open_blocking: 3") == 2
+    assert _blocking("conformance x · open_blocking x · open_blocking 3") is None
+    assert _blocking("conformance x · open_blocking " + "9" * 19) is None
+    assert _blocking("conformance x · open_blocking " + "9" * 18) == int("9" * 18)

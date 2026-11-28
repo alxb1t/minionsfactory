@@ -5,7 +5,7 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 ## Progress
 
 - [x] 1 — The pin · moderate
-- [ ] 2 — The module · moderate
+- [x] 2 — The module · moderate
 - [ ] 3 — The logs · hard
 - [ ] 4 — The files · moderate
 - [ ] 5 — The record · moderate
@@ -35,19 +35,19 @@ The phases pin the metric scripts' reads on today's side, add the home's new pie
 
 ## 2 — The module
 
-- [ ] 2.1 Add `logs(runs)` to `skills/mflib/runlog.py` and let `timed` pass by a line whose clock is no time of day ([D1](design.md#d1)); add `test_logs_list_each_real_stamp_oldest_first`, `test_logs_pass_over_a_name_that_is_no_date`, `test_timed_passes_by_a_clock_that_is_no_time` and `test_parse_still_reads_a_clock_of_25_hours` to `tests/test_runlog.py`, and `test_a_log_with_a_clock_of_25_hours_still_shows_its_other_events` to `tests/test_viewer.py`.
+- [x] 2.1 Add `logs(runs)` to `skills/mflib/runlog.py` and let `timed` pass by a line whose clock is no time of day ([D1](design.md#d1)); add `test_logs_list_each_real_stamp_oldest_first`, `test_logs_pass_over_a_name_that_is_no_date`, `test_timed_passes_by_a_clock_that_is_no_time` and `test_parse_still_reads_a_clock_of_25_hours` to `tests/test_runlog.py`, and `test_a_log_with_a_clock_of_25_hours_still_shows_its_other_events` to `tests/test_viewer.py`.
   Verify: `uv run pytest tests/test_runlog.py tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 2.2 Add `blocking(event)` to `skills/mflib/statuslog.py` ([D2](design.md#d2)); add `test_blocking_reads_the_count_of_a_conformance_line`, `test_blocking_reads_a_line_with_no_verdict_word_and_no_tail`, `test_blocking_is_none_for_an_old_role_and_for_another_event` and `test_blocking_reads_the_first_count_of_a_line` to `tests/test_statuslog.py`.
+- [x] 2.2 Add `blocking(event)` to `skills/mflib/statuslog.py` ([D2](design.md#d2)); add `test_blocking_reads_the_count_of_a_conformance_line`, `test_blocking_reads_a_line_with_no_verdict_word_and_no_tail`, `test_blocking_is_none_for_an_old_role_and_for_another_event` and `test_blocking_reads_the_first_count_of_a_line` to `tests/test_statuslog.py`.
   Verify: `uv run pytest tests/test_statuslog.py -q` exits `0`.
-- [ ] 2.3 Add `refuted(text)` to `skills/mflib/findings.py` ([D3](design.md#d3)); add `test_refuted_gives_the_top_level_entries_of_the_section`, `test_refuted_ends_at_the_next_second_level_heading`, `test_refuted_reads_a_heading_on_the_last_line_with_no_newline` and `test_refuted_is_none_without_the_heading` to `tests/test_findings.py`.
+- [x] 2.3 Add `refuted(text)` to `skills/mflib/findings.py` ([D3](design.md#d3)); add `test_refuted_gives_the_top_level_entries_of_the_section`, `test_refuted_ends_at_the_next_second_level_heading`, `test_refuted_reads_a_heading_on_the_last_line_with_no_newline` and `test_refuted_is_none_without_the_heading` to `tests/test_findings.py`.
   Verify: `uv run pytest tests/test_findings.py -q` exits `0`.
-- [ ] 2.4 Add `skills/mflib/prices.py` with `rows(path)` and `Unreadable` ([D4](design.md#d4)), and its row in `docs/modules.md`: layer `home`, names `statefile.py`. Add `tests/test_prices.py` with a case for the table read, a row with a string price and a bool, a link, a folder, a file over `262144` bytes, text that is no TOML, a `models` that is missing and one that is no table, and a pipe read in a child with a timeout, marked `slow`; each error path of `rows` has its case ([D14](design.md#d14)).
+- [x] 2.4 Add `skills/mflib/prices.py` with `rows(path)` and `Unreadable` ([D4](design.md#d4)), and its row in `docs/modules.md`: layer `home`, names `statefile.py`. Add `tests/test_prices.py` with a case for the table read, a row with a string price and a bool, a link, a folder, a file over `262144` bytes, text that is no TOML, a `models` that is missing and one that is no table, and a pipe read in a child with a timeout, marked `slow`; each error path of `rows` has its case ([D14](design.md#d14)).
   Verify: `uv run pytest tests/test_prices.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.5 Add `skills/mflib/eras.py` with `blocking(event)` and `refuted(text)` ([D5](design.md#d5)), and its row in `docs/modules.md`: layer `home`, names `statuslog.py`. Add `tests/test_eras.py` with the lines of isekai's `0037` (`review … open_blocking 2 (R1, R2)` and `security … open_blocking 0`), MF's `0095` lines, the colon form, today's roles giving none, and `refuted` over `## Refused` giving the entries and over `## Refuted` giving none.
+- [x] 2.5 Add `skills/mflib/eras.py` with `blocking(event)` and `refuted(text)` ([D5](design.md#d5)), and its row in `docs/modules.md`: layer `home`, names `statuslog.py`. Add `tests/test_eras.py` with the lines of isekai's `0037` (`review … open_blocking 2 (R1, R2)` and `security … open_blocking 0`), MF's `0095` lines, the colon form, today's roles giving none, and `refuted` over `## Refused` giving the entries and over `## Refuted` giving none.
   Verify: `uv run pytest tests/test_eras.py tests/test_structure.py -n auto -q` exits `0`.
-- [ ] 2.6 No script calls the new functions, no station has `mflib.eras` and none has `import eras` ([D5](design.md#d5)).
+- [x] 2.6 No script calls the new functions, no station has `mflib.eras` and none has `import eras` ([D5](design.md#d5)).
   Verify: `git diff --stat HEAD -- scripts/metrics skills/mf-review-metrics/scripts/review_metrics.py` prints nothing; `git grep -c -e "mflib.eras" -e "import eras" -- skills/mf-ship skills/mf-converge skills/mf-build skills/mf-cut-change skills/mf-release skills/mf-integrate skills/mf-ui` prints nothing.
-- [ ] 2.7 The module set and the viewer set pass with the new cases ([D15](design.md#d15)).
+- [x] 2.7 The module set and the viewer set pass with the new cases ([D15](design.md#d15)).
   Verify: `uv run pytest tests/test_runlog.py tests/test_statuslog.py tests/test_findings.py tests/test_marks.py tests/test_debtfile.py tests/test_prices.py tests/test_eras.py tests/test_structure.py -n auto -q` exits `0`; `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
 
 ## 3 — The logs
