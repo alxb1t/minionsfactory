@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 from fake_worker import _commit, _git
-from mflib import layout, runlog, statefile, statuslog
+from mflib import kept, layout, runlog, statefile, statuslog
 
 _REPO = Path(__file__).resolve().parent.parent
 _VIEWER = _REPO / "skills" / "mf-ui" / "scripts" / "viewer.py"
@@ -345,7 +345,7 @@ def test_l6_the_first_event_is_on_the_stems_day(root: Path) -> None:
     ]
     assert _started(root, [_spawn("09:00:00")]) == [_at("09:00:00")]
     late = "20261103-235900"
-    assert _started(root, [_spawn("00:00:01")], late) == [_at("00:00:01")]
+    assert _started(root, [_spawn("00:00:01")], late) == [_at("00:00:01", 1)]
     assert _started(root, [_spawn("20:59:00")], late) == [_at("20:59:00")]
 
 
@@ -409,9 +409,9 @@ def test_l1_a_name_that_is_no_date_is_listed(root: Path) -> None:
     runs = root / ".minions" / "runs"
     _log(root, [_spawn("10:00:00")])
     (runs / "20261399-250000.md").write_text("# Ship run\n")
-    assert runlog.newest(runs) == runs / "20261399-250000.md"
-    with pytest.raises(ValueError, match="20261399-250000"):
-        _tree(root)
+    assert runlog.newest(runs) == runs / f"{_STAMP}.md"
+    shown = _tree(root)
+    assert (shown["run"]["log"], shown["run"]["last"]) == (_STAMP, _spawn("10:00:00"))
 
 
 @pytest.mark.slow
@@ -519,7 +519,7 @@ def test_the_spent_fields_come_from_the_text_after_open_blocking(root: Path) -> 
     }
 
 
-def test_v6_the_words_of_a_fallback_before_verdicts_mark_one(root: Path) -> None:
+def test_v6_the_words_of_a_fallback_before_verdicts_mark_none(root: Path) -> None:
     lines = [
         "10:02:00 · round 1 · fallback: codex failed · verdicts — adversarial clean"
         " · open_blocking 0 · executor codex · tokens 3",
@@ -528,8 +528,8 @@ def test_v6_the_words_of_a_fallback_before_verdicts_mark_one(root: Path) -> None
     ]
     roles = _converge(root, f"{_HEAD2}\n\n" + "\n".join(lines) + "\n")["roles"]
     assert (roles["adversarial"]["fallback"], roles["adversarial"]["executor"]) == (
-        True,
-        "codex",
+        None,
+        None,
     )
     assert (roles["conformance"]["executor"], roles["conformance"]["tokens"]) == (
         None,
@@ -582,17 +582,20 @@ def test_the_fixing_flag_asks_the_top_line_alone(root: Path) -> None:
     assert (no_run["run"], no_run["fixing"]) == (None, False)
 
 
-def test_v4_a_halt_that_holds_the_words_shows_fixing(root: Path) -> None:
+def test_v4_a_halt_that_holds_the_words_is_not_fixing(root: Path) -> None:
     halt = "11:05:00 · round 2 · halt — the worker said · fix — sent"
-    assert _converge(root, f"{_HEAD2}\n\n{halt}\n")["fixing"] is True
+    assert _converge(root, f"{_HEAD2}\n\n{halt}\n")["fixing"] is False
+    sent = "11:04:00 · round 2 · fix — sent R1"
+    assert _converge(root, f"{_HEAD2}\n\n{halt}\n{sent}\n")["fixing"] is False
+    assert _converge(root, f"{_HEAD2}\n\n{sent}\n{halt}\n")["fixing"] is True
 
 
-def test_v3_a_newest_heading_the_viewer_cannot_read_shows_the_older_run(
+def test_v3_a_newest_heading_with_no_date_is_the_newest_run(
     root: Path,
 ) -> None:
     older = f"{_HEAD2}\n\n11:05:00 · round 2 · fix — sent R1\n"
     shown = _converge(root, f"## Run 3\n\n{older}")
-    assert (shown["run"], shown["mark"], shown["fixing"]) == (2, "amend", True)
+    assert (shown["run"], shown["mark"], shown["fixing"]) == (3, None, False)
     shown = _converge(root, f"## Run 3 — 2026-11-03 11:00\n\n{older}")
     assert (shown["run"], shown["fixing"]) == (3, False)
 
@@ -710,9 +713,12 @@ def _heading_shows(root: Path, heading: str) -> tuple[Any, Any, Any]:
     return shown["run"], shown["mark"], shown["fixing"]
 
 
-def test_s1_a_mark_of_several_words_is_not_seen(root: Path) -> None:
-    older = (2, "amend", False)
-    assert _heading_shows(root, "## Run 3 — 2026-11-03 10:00 · catch-up now") == older
+def test_s1_a_mark_of_several_words_is_the_newest_runs(root: Path) -> None:
+    assert _heading_shows(root, "## Run 3 — 2026-11-03 10:00 · catch-up now") == (
+        3,
+        "catch-up now",
+        False,
+    )
     assert _heading_shows(root, "## Run 3 — 2026-11-03 10:00 · catch-up") == (
         3,
         "catch-up",
@@ -720,19 +726,23 @@ def test_s1_a_mark_of_several_words_is_not_seen(root: Path) -> None:
     )
 
 
-def test_s2_a_trailing_space_hides_the_heading(root: Path) -> None:
-    older = (2, "amend", False)
-    assert _heading_shows(root, "## Run 3 — 2026-11-03 10:00 · catch-up ") == older
+def test_s2_a_trailing_space_is_the_newest_runs_heading(root: Path) -> None:
+    assert _heading_shows(root, "## Run 3 — 2026-11-03 10:00 · catch-up ") == (
+        3,
+        "catch-up",
+        False,
+    )
 
 
-def test_s5_a_missing_date_or_a_carriage_return_hides_the_heading(root: Path) -> None:
-    older = (2, "amend", False)
-    for heading in ("## Run 3", "## Running"):
-        assert _heading_shows(root, heading) == older
+def test_s5_a_missing_date_or_a_carriage_return_is_the_newest_runs_heading(
+    root: Path,
+) -> None:
+    assert _heading_shows(root, "## Run 3") == (3, None, False)
+    assert _heading_shows(root, "## Running") == (None, None, False)
     crlf = _converge(
         root, f"## Run 3 — 2026-11-03 10:00 · x\n\n{_OLDER}".replace("\n", "\r\n")
     )
-    assert (crlf["run"], crlf["mark"], crlf["fixing"]) == (None, None, False)
+    assert (crlf["run"], crlf["mark"], crlf["fixing"]) == (3, "x", False)
     assert crlf["roles"]["conformance"]["model"] == "m"
     assert crlf["roles"]["conformance"]["tokens"] == 5
 
@@ -885,7 +895,7 @@ def _site(top: Path, name: str, minions: bool = True) -> Path:
     return folder.resolve()
 
 
-def _listed(record: Path, rows: list[dict[str, Any]] | None = None) -> list[Any]:
+def _listed(record: Path | None, rows: list[dict[str, Any]] | None = None) -> list[Any]:
     """Return the `(path, name)` pairs `projects` lists for `record` and `rows`."""
     found = _viewer()["projects"](record, rows or [])
     return [(each.path, each.name) for each in found]
@@ -938,26 +948,30 @@ def test_p2_a_blank_line_a_tab_and_a_space_list_nothing(tmp_path: Path) -> None:
     assert _listed(_record(top, "\n\t\n   \n")) == []
 
 
-def test_p4_a_relative_line_is_a_path_under_the_working_folder(
+def test_p4_a_relative_line_is_no_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     top = tmp_path.resolve()
-    _site(top, "a")
+    a = _site(top, "a")
     _site(top, "b")
     monkeypatch.chdir(top)
-    record = _record(top, "b\n./a/../a\n")
-    assert _listed(record) == [(top / "b", "b"), (top / "a", "a")]
+    assert _listed(_record(top, f"b\n./a/../a\n{a}/../a\n")) == [(a, "a")]
     assert _listed(_record(top, "~/a\n")) == []
 
 
-def test_p6_a_minions_that_is_a_link_to_a_folder_is_a_project(tmp_path: Path) -> None:
+def test_p6_a_minions_that_is_a_link_is_no_project(tmp_path: Path) -> None:
     top = tmp_path.resolve()
     real = top / "real"
     real.mkdir()
     a = _site(top, "a", minions=False)
     (a / ".minions").symlink_to(real)
-    assert _listed(_record(top, f"{a}\n")) == [(a, "a")]
-    assert _listed(top / "none", [{"path": str(a)}]) == [(a, "a")]
+    assert _listed(_record(top, f"{a}\n")) == []
+    assert _listed(top / "none", [{"path": str(a)}]) == []
+    b = _site(top / "home", "b")
+    (top / "linked").symlink_to(top / "home")
+    under = top / "linked" / "b"
+    assert _listed(_record(top, f"{under}\n")) == [(b, "b")]
+    assert _listed(top / "none", [{"path": str(under)}]) == [(b, "b")]
 
 
 def test_p6_a_minions_that_is_a_file_or_a_dangling_link_is_no_project(
@@ -972,24 +986,23 @@ def test_p6_a_minions_that_is_a_file_or_a_dangling_link_is_no_project(
     assert _listed(top / "none", [{"path": str(a)}, {"path": str(b)}]) == []
 
 
-def test_p1_a_record_that_is_no_file_lists_nothing(tmp_path: Path) -> None:
+def test_p1_a_record_that_is_no_file_raises_broken(tmp_path: Path) -> None:
     top = tmp_path.resolve()
     a = _site(top, "a")
     plain = _record(top / "src", f"{a}\n")
     (top / "link").symlink_to(plain)
     (top / "folder").mkdir()
-    for record in ("link", "folder", "missing", "dangling"):
-        if record == "dangling":
-            (top / record).symlink_to(top / "nowhere")
-        assert _listed(top / record) == []
+    (top / "dangling").symlink_to(top / "nowhere")
+    for record in ("link", "folder", "dangling"):
+        with pytest.raises(kept.Broken, match="it is not a file"):
+            _listed(top / record)
+    assert _listed(top / "missing") == []
     assert _listed(_record(top, "")) == []
     assert _listed(plain) == [(a, "a")]
 
 
 @pytest.mark.slow
-def test_p1_a_record_that_is_a_pipe_lists_nothing_and_a_row_still_shows(
-    tmp_path: Path,
-) -> None:
+def test_p1_a_record_that_is_a_pipe_raises_broken_at_once(tmp_path: Path) -> None:
     top = tmp_path.resolve()
     a = _site(top, "a")
     os.mkfifo(top / "repos")
@@ -1005,20 +1018,19 @@ def test_p1_a_record_that_is_a_pipe_lists_nothing_and_a_row_still_shows(
         capture_output=True,
         text=True,
         timeout=20,
-        check=True,
     )
-    assert json.loads(done.stdout) == [[str(a), "a"]]
+    assert done.returncode == 1
+    assert done.stderr.splitlines()[-1].endswith("repos: it is not a file")
 
 
-def test_p2_a_bad_byte_is_a_path_no_project_and_a_nul_byte_escapes(
-    tmp_path: Path,
-) -> None:
+def test_p2_a_bad_byte_or_a_nul_byte_raises_broken(tmp_path: Path) -> None:
     top = tmp_path.resolve()
     a = _site(top, "a")
-    assert _listed(_record(top, b"\xffbad\n" + f"{a}\n".encode())) == [(a, "a")]
-    assert _listed(_record(top, b"\xff\xfe")) == []
+    for text in (b"\xffbad\n" + f"{a}\n".encode(), b"\xff\xfe"):
+        with pytest.raises(kept.Broken, match="it is not text"):
+            _listed(_record(top, text))
     assert _listed(_record(top, f"{a}\n")) == [(a, "a")]
-    with pytest.raises(ValueError, match="null"):
+    with pytest.raises(kept.Broken, match="a line holds a NUL byte"):
         _listed(_record(top, f"{a}\nx\x00y\n"))
 
 
@@ -1030,15 +1042,44 @@ def test_p2_crlf_line_ends_and_a_leading_blank_line_read(tmp_path: Path) -> None
     assert _listed(_record(top, text)) == [(a, "a"), (b, "b")]
 
 
-def test_p3_a_record_past_the_bound_is_read_to_the_bound(tmp_path: Path) -> None:
+def test_p3_a_record_past_the_bound_raises_broken(tmp_path: Path) -> None:
     top = tmp_path.resolve()
     a = _site(top, "a")
     c = _site(top, "c")
-    assert _listed(_record(top, f"{a}\n" + "\n" * _PART + f"{c}\n")) == [(a, "a")]
     lead = f"{a}\n"
-    text = lead + "\n" * (262141 - len(lead)) + f"{c}\n"
-    assert _listed(_record(top, text)) == [(a, "a")]
-    assert _listed(_record(top, "\n" * (_PART - 1) + f"{c}\n")) == []
+    for text in (
+        lead + "\n" * _PART + f"{c}\n",
+        lead + "\n" * (262141 - len(lead)) + f"{c}\n",
+        "\n" * (_PART - 1) + f"{c}\n",
+    ):
+        with pytest.raises(kept.Broken, match=f"it is over {_PART} bytes"):
+            _listed(_record(top, text))
+    full = lead + "\n" * (_PART - len(lead) - len(f"{c}\n")) + f"{c}\n"
+    assert len(full) == _PART
+    assert _listed(_record(top, full)) == [(a, "a"), (c, "c")]
+
+
+def test_snapshot_shows_one_row_for_a_record_that_cannot_be_read(
+    tmp_path: Path,
+) -> None:
+    top = tmp_path.resolve()
+    a = _site(top, "a")
+    b = _site(top, "b")
+
+    def read(path: Path, only: str | None) -> dict[str, Any]:
+        if only == "fingerprint":
+            return {"fingerprint": "f"}
+        return {"name": path.name, "unread": None, "versions": []}
+
+    snapshot = _viewer()["snapshot"]
+    rows = [{"path": str(a)}]
+    shown = snapshot(0.0, _record(top, "x\x00y\n"), rows, {}, read)
+    assert [each["name"] for each in shown] == ["repos", "a"]
+    assert shown[0]["unread"] == "repos could not be read: a line holds a NUL byte"
+    assert (shown[0]["versions"], shown[0]["run"]) == ([], None)
+    shown = snapshot(0.0, _record(top, f"{b}\n"), rows, {}, read)
+    assert [each["name"] for each in shown] == ["a", "b"]
+    assert _listed(None, rows) == [(a, "a")]
 
 
 def _queued(root: Path, **entries: str) -> list[dict[str, Any]]:

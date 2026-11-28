@@ -513,27 +513,40 @@ def test_verdicts_read_a_line_the_writer_wrote() -> None:
         " · model gpt-6.1-sol-x · effort default · tokens 1200"
         f" · {statuslog.FALLBACK}"
     )
-    assert statuslog.verdicts(f"10:00:00 · round 1 · {text}") == statuslog.Verdicts(
+    event = statuslog.parse_event(f"10:00:00 · round 1 · {text}")
+    assert event is not None
+    assert statuslog.verdicts(event) == statuslog.Verdicts(
         "adversarial", "codex", "gpt-6.1-sol-x", "default", 1200, True
     )
 
 
-def test_verdicts_read_a_line_as_the_viewer_reads_it() -> None:
-    plain = "verdicts — conformance clean · open_blocking 10 · tokens 5"
-    assert statuslog.verdicts(plain) == statuslog.Verdicts(
+def _verdicts(detail: str, name: str = "verdicts") -> statuslog.Verdicts | None:
+    return statuslog.verdicts(statuslog.Event(1, name, detail))
+
+
+def test_verdicts_read_an_event_of_the_modules_form() -> None:
+    plain = "conformance clean · open_blocking 10 · tokens 5"
+    assert _verdicts(plain) == statuslog.Verdicts(
         "conformance", None, None, None, 5, False
     )
-    early = f"{statuslog.FAILED} verdicts — adversarial x · open_blocking 0 · tokens 5"
-    found = statuslog.verdicts(early)
+    found = _verdicts(
+        f"adversarial x · open_blocking 0 · tokens 5 · {statuslog.FAILED}"
+    )
     assert found is not None
     assert found.fallback
-    bare = "verdicts — conformance executor · open_blocking 0 · tokens 5"
-    found = statuslog.verdicts(bare)
+    found = _verdicts(f"adversarial x · open_blocking 0 · tokens 5 {statuslog.FAILED}")
+    assert found is not None
+    assert not found.fallback
+    early = (
+        f"{statuslog.FAILED} · verdicts — adversarial x · open_blocking 0 · tokens 5"
+    )
+    assert statuslog.parse_event(f"10:00:00 · round 1 · {early}") is None
+    found = _verdicts("conformance executor · open_blocking 0 · tokens 5")
     assert found is not None
     assert (found.executor, found.tokens) == (None, 5)
-    arabic = "verdicts — conformance clean · open_blocking 0 · tokens ٣"
-    found = statuslog.verdicts(arabic)
+    found = _verdicts("conformance clean · open_blocking 0 · tokens ٣")
     assert found is not None
     assert found.tokens is None
-    assert statuslog.verdicts("verdicts — other clean · open_blocking 0 · x") is None
-    assert statuslog.verdicts("no such line") is None
+    assert _verdicts("other clean · open_blocking 0 · x") is None
+    assert _verdicts("conformance clean · open_blocking 0 · tokens 5", "fix") is None
+    assert _verdicts("x verdicts — conformance clean · open_blocking 0 · y") is None

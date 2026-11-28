@@ -7,7 +7,7 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 - [x] 1 — The pin · moderate
 - [x] 2 — The module · moderate
 - [x] 3 — The readers · moderate
-- [ ] 4 — The fix · hard
+- [x] 4 — The fix · hard
 - [ ] 5 — The record · moderate
 
 ## 1 — The pin
@@ -79,24 +79,24 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 
 ## 4 — The fix
 
-- [ ] 4.1 In `skills/mflib/runlog.py` make a first event a day on when its clock is `12` hours or more earlier than the time in the log's stamp ([D25](design.md#d25)), and make a name that is no real date no log in the list and the newest ([D21](design.md#d21)); a `-N` suffix on a real stamp stays.
+- [x] 4.1 In `skills/mflib/runlog.py` make a first event a day on when its clock is `12` hours or more earlier than the time in the log's stamp ([D25](design.md#d25)), and make a name that is no real date no log in the list and the newest ([D21](design.md#d21)); a `-N` suffix on a real stamp stays.
   Turn `test_l6_the_first_event_is_on_the_stems_day` and `test_l1_a_name_that_is_no_date_is_listed` in `tests/test_viewer_pins.py`, and write `test_first_event_late_in_the_day_is_a_day_on` and `test_a_name_that_is_no_date_is_passed_over_by_the_list` in `tests/test_runlog.py`.
   Verify: `uv run pytest tests/test_runlog.py tests/test_viewer_pins.py -n auto -q` exits `0`; `uv run pytest tests/test_mark_pins.py tests/test_queue_pins.py -k "case_n_the_trim or case_s_stack or take_requests_reads" -n auto -q` exits `0`.
-- [ ] 4.2 In `skills/mflib/kept.py` read `repos` through the bounded read of `REPOS_BOUND` and raise `Broken` for a link, a FIFO, a folder, a bad byte, a file over the bound and a line holding a NUL byte; a missing file is no line ([D22](design.md#d22), [D35](design.md#d35)).
+- [x] 4.2 In `skills/mflib/kept.py` read `repos` through the bounded read of `REPOS_BOUND` and raise `Broken` for a link, a FIFO, a folder, a bad byte, a file over the bound and a line holding a NUL byte; a missing file is no line ([D22](design.md#d22), [D35](design.md#d35)).
   Turn `test_repos_list_is_empty_for_a_link` and `test_repos_list_is_empty_for_a_fifo` in `tests/test_kept.py` to `…_raises_broken_for_a_link` and `…_for_a_fifo`, write `test_repos_list_raises_broken_for_a_nul_line`, turn `test_p1_…`, `test_p2_…` and `test_p3_…` in `tests/test_viewer_pins.py` to `projects` raising `Broken`, and split the viewer's cases out of the two `repos` readers' cases in `tests/test_kept_pins.py` to raise `Broken` ([D38](design.md#d38)).
   Verify: `uv run pytest tests/test_kept.py tests/test_kept_pins.py tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 4.3 In `skills/mf-ui/scripts/viewer.py` let `projects` take a record of None as no record, add `snapshot(now, record, rows, memory, read)`, which ticks `ui.toml`'s projects alone and puts the row named `repos` first, built as `_unread` builds a project's, when `projects` raises `Broken`, and have the poll of `serve` call it ([D35](design.md#d35)).
+- [x] 4.3 In `skills/mf-ui/scripts/viewer.py` let `projects` take a record of None as no record, add `snapshot(now, record, rows, memory, read)`, which ticks `ui.toml`'s projects alone and puts the row named `repos` first, built as `_unread` builds a project's, when `projects` raises `Broken`, and have the poll of `serve` call it ([D35](design.md#d35)).
   Write `test_snapshot_shows_one_row_for_a_record_that_cannot_be_read` in `tests/test_viewer_pins.py`: a record holding `x`, a NUL byte and `y`, one `ui.toml` project, a stand-in `read`; the row is first, says `repos could not be read`, and the project follows.
   Verify: `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 4.4 In `skills/mf-ui/scripts/viewer.py` list no project for a line of `repos` that is no absolute path and none whose `.minions` is a link, the record's paths and `ui.toml`'s alike; a path through a linked parent folder still lists ([D36](design.md#d36)).
+- [x] 4.4 In `skills/mf-ui/scripts/viewer.py` list no project for a line of `repos` that is no absolute path and none whose `.minions` is a link, the record's paths and `ui.toml`'s alike; a path through a linked parent folder still lists ([D36](design.md#d36)).
   Turn `test_p4_…` and `test_p6_…` in `tests/test_viewer_pins.py`.
   Verify: `uv run pytest tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 4.5 In `skills/mflib/statuslog.py` make `verdicts` take an event of the module's form named `verdicts`, its fallback read from the detail's own fields, and in `skills/mf-ui/scripts/viewer.py` read the newest run, its number and mark, `fixing` and each role's spent fields from `statuslog.runs`; `RUN_HEADING` and its `heading[2]` read are removed ([D33](design.md#d33), [D34](design.md#d34)).
+- [x] 4.5 In `skills/mflib/statuslog.py` make `verdicts` take an event of the module's form named `verdicts`, its fallback read from the detail's own fields, and in `skills/mf-ui/scripts/viewer.py` read the newest run, its number and mark, `fixing` and each role's spent fields from `statuslog.runs`; `RUN_HEADING` and its `heading[2]` read are removed ([D33](design.md#d33), [D34](design.md#d34)).
   Turn `test_s1_…`, `test_s2_…`, `test_s5_…`, `test_v4_…` and `test_v6_…` in `tests/test_viewer_pins.py`, and the phase 2 cases of `verdicts` in `tests/test_statuslog.py` to events.
   Verify: `git grep -c -F -e "heading[2]" -- skills/mf-ui/scripts/viewer.py` prints nothing; `uv run pytest tests/test_statuslog.py tests/test_viewer.py tests/test_viewer_pins.py -n auto -q` exits `0`.
-- [ ] 4.6 In `tests/test_structure.py` drop the viewer's `## Run` entry of `FORMAT_SITES`.
+- [x] 4.6 In `tests/test_structure.py` drop the viewer's `## Run` entry of `FORMAT_SITES`.
   Verify: `uv run pytest tests/test_structure.py -q` exits `0`.
-- [ ] 4.7 Hold every assert of the readings kept as today: a role's older `verdicts` line still shows ([D19](design.md#d19)), and no assert of `tests/test_viewer.py` changed; the conductor reads `runlog` too.
+- [x] 4.7 Hold every assert of the readings kept as today: a role's older `verdicts` line still shows ([D19](design.md#d19)), and no assert of `tests/test_viewer.py` changed; the conductor reads `runlog` too.
   Verify: `uv run pytest tests/test_conduct.py -k "frontmatter or log_verify or cut_halt or queued_cut or a_cut or cap_status or cap_writes or rejoin or halt_is or run_log or spent or status_log or newest" -n auto -q` exits `0`; `uv run pytest tests/test_mark_pins.py tests/test_queue_pins.py -k "case_n_the_trim or case_s_stack or take_requests_reads" -n auto -q` exits `0`.
 
 ## 5 — The record

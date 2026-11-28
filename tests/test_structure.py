@@ -91,7 +91,6 @@ FORMAT_SITES: frozenset[tuple[str, str]] = frozenset(
         ("run.py", "status_log.md"),
         # the run log's reader, until the readers' version
         ("run.py", r"\d\d:\d\d:\d\d"),
-        ("viewer.py", "## Run"),
     }
 )
 _OS_WORDS = re.compile(r"\b(sandbox-exec|bwrap|caffeinate|sysctl|ps)\b")

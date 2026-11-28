@@ -29,9 +29,7 @@ ENDS = ("done", "halt")
 FALLBACK = "fallback: codex usage limit"
 FAILED = "fallback: codex failed"
 _NUMBER = re.compile(r"## Run ([0-9]+)")
-_VERDICTS = re.compile(
-    r"verdicts — (conformance|adversarial) \S+ · open_blocking \d+ · (.*)"
-)
+_VERDICTS = re.compile(r"(conformance|adversarial) \S+ · open_blocking \d+ · (.*)")
 _SPENT = re.compile(r"(executor|model|effort|tokens) (\S+)")
 
 
@@ -228,24 +226,25 @@ def verdicts_line(role: str, verdict: str, open_blocking: int, spent: str) -> st
     return f"verdicts — {role} {verdict} · open_blocking {open_blocking} · {spent}"
 
 
-def verdicts(line: str) -> Verdicts | None:
-    """Return the fields of the `verdicts` text found anywhere in a line, or None.
+def verdicts(event: Event) -> Verdicts | None:
+    """Return the fields of a `verdicts` event, or None for any other event.
 
-    A fallback is either fallback phrase anywhere in the line. A field the text lacks
-    is None, and a token count that is no ASCII number is None.
+    A fallback is either fallback phrase as a field of the detail; a field it lacks is
+    None, as is a token count that is no ASCII number. Why: 0161-viewer design D34.
     """
-    found = _VERDICTS.search(line)
+    found = _VERDICTS.fullmatch(event.detail) if event.name == "verdicts" else None
     if found is None:
         return None
     fields = dict(_SPENT.findall(found[2]))
     tokens = fields.get("tokens")
+    parts = found[2].split(" · ")
     return Verdicts(
         found[1],
         fields.get("executor"),
         fields.get("model"),
         fields.get("effort"),
         int(tokens) if tokens and tokens.isascii() and tokens.isdigit() else None,
-        FALLBACK in line or FAILED in line,
+        FALLBACK in parts or FAILED in parts,
     )
 
 

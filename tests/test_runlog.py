@@ -1351,6 +1351,32 @@ def test_timed_dates_the_first_event_on_the_stems_day_and_a_suffix_stays() -> No
     assert at == _at(1, "23:59:10")
 
 
+def test_first_event_late_in_the_day_is_a_day_on() -> None:
+    def first(clock: str) -> float:
+        [(_, at)] = runlog.timed("20261101-235900", [f"{clock} · run · start — x"])
+        return at
+
+    assert first("00:00:01") == _at(2, "00:00:01")
+    assert first("11:59:00") == _at(2, "11:59:00")
+    assert first("11:59:01") == _at(1, "11:59:01")
+    assert first("20:59:00") == _at(1, "20:59:00")
+    later = list(runlog.timed("20261101-235900", ["00:00:01 · a · e — x"] * 2))
+    assert [at for _, at in later] == [_at(2, "00:00:01")] * 2
+
+
+def test_a_name_that_is_no_date_is_passed_over_by_the_list(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    real = runs / "20261101-100001.md"
+    real.write_text(f"{_SPAWN}\n")
+    for name in ("20261399-250000", "20260230-100000-2"):
+        (runs / f"{name}.md").write_text(f"{_SPAWN}\n")
+
+    assert runlog.newest(runs) == real
+    (runs / "20261101-100001-2.md").write_text(f"{_SPAWN}\n")
+    assert runlog.newest(runs) == runs / "20261101-100001-2.md"
+
+
 def test_cause_reads_a_word_off_the_list_too() -> None:
     assert runlog.cause("build check fail — x · cause check-red") == "check-red"
     assert runlog.cause("x · cause not-on-the-list") == "not-on-the-list"

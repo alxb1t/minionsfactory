@@ -33,6 +33,7 @@ CAUSES = (
 )
 _STAMPED = re.compile(r"\d{8}-\d{6}(-\d+)?")
 _STAMP = "%Y%m%d-%H%M%S"
+_HALF_DAY = 12 * 3600
 _CAUSE = re.compile(r" · cause ([a-z-]+)$")
 # The most bytes `wait` reads of a log at one poll. Why: 0140-run-log design D7.
 BOUND = 262_144
@@ -88,17 +89,21 @@ def parse(text: str) -> Event | None:
 def timed(stem: str, lines: Iterable[str]) -> Iterator[tuple[Event, float]]:
     """Yield each event of `lines` with its epoch second, dated from the log's stem.
 
-    The first event is on the stem's day; a clock that steps back from the event
-    before is a day on, and days add. Why: 0161-viewer design D20.
+    The first event is a day on when its clock is `_HALF_DAY` or more before the stem's;
+    a clock that steps back from the event before is a day on. Why: 0161-viewer D25.
     """
     base = datetime.strptime(stem[:15], _STAMP)
-    days, before = 0, 0
+    start = base.hour * 3600 + base.minute * 60 + base.second
+    days, before = 0, None
     for text in lines:
         if (event := parse(text)) is None:
             continue
         hours, minutes, seconds = (int(part) for part in text[:8].split(":"))
         moment = hours * 3600 + minutes * 60 + seconds
-        days += moment < before
+        if before is None:
+            days += start - moment >= _HALF_DAY
+        else:
+            days += moment < before
         before = moment
         at = base.replace(hour=hours, minute=minutes, second=seconds)
         yield event, (at + timedelta(days=days)).timestamp()
@@ -122,12 +127,26 @@ def order(log: Path) -> tuple[str, int, str]:
     return log.stem[:15], len(log.stem), log.stem
 
 
-def _logs(runs: Path) -> list[Path]:
-    """Return the run logs in `runs`: each `*.md` named by a stamp, suffixed or not.
+def _dated(stem: str) -> bool:
+    """Return whether a stem's stamp is a real date and time.
 
-    e.g. `20261029-163000-2.md` is one, `notes.md` is none
+    e.g. "20261029-163000-2" → True; "20261399-250000" → False
     """
-    return [log for log in runs.glob("*.md") if _STAMPED.fullmatch(log.stem)]
+    try:
+        datetime.strptime(stem[:15], _STAMP)
+    except ValueError:
+        return False
+    return True
+
+
+def _logs(runs: Path) -> list[Path]:
+    """Return the run logs in `runs`: each `*.md` a real stamp names, suffixed or not.
+
+    e.g. `20261029-163000-2.md` is one; `notes.md` and `20261399-250000.md` are none.
+    Why: 0161-viewer design D21.
+    """
+    found = runs.glob("*.md")
+    return [log for log in found if _STAMPED.fullmatch(log.stem) and _dated(log.stem)]
 
 
 def newest(runs: Path) -> Path | None:

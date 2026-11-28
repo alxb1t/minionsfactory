@@ -74,7 +74,6 @@ READ_EVENTS = frozenset(
 NEEDS_YOU = ("human", "integrating", "released")
 SUFFIX = re.compile(r" · (?:hard|moderate)$")
 SUBTASK = re.compile(r"^- \[([ x])\] (\d+)\.\d+ ", re.MULTILINE)
-RUN_HEADING = re.compile(r"^## Run (\d+) — \S+ \S+(?: · (\S+))?$", re.MULTILINE)
 SPAWNED = re.compile(r"(model|effort|executor) (\S+)")
 PHASE = re.compile(r"^\S+ · (phase \d+|close|repair)(?: · |$)")
 GATE_START = "gate · start"
@@ -314,11 +313,11 @@ class Reader:
             )
         return found
 
-    def spent(self, text: str) -> dict[str, dict[str, Any]]:
-        """Return each role's newest `verdicts` line fields in the status log's text."""
+    def spent(self, runs: list[mflib.statuslog.Section]) -> dict[str, dict[str, Any]]:
+        """Return each role's newest `verdicts` event fields, the newest run first."""
         found: dict[str, dict[str, Any]] = {}
-        for line in text.splitlines():
-            read = mflib.statuslog.verdicts(line)
+        for event in (event for run in runs for event in run.events):
+            read = mflib.statuslog.verdicts(event)
             if read and read.role not in found:
                 found[read.role] = read._asdict()
         return found
@@ -329,10 +328,10 @@ class Reader:
         text = read_part(mflib.layout.status_log(self.primary, change))
         if text is None:
             return None
-        heading = RUN_HEADING.search(text)
-        after = text[heading.end() :].splitlines() if heading else []
-        top = next((line for line in after if line.strip()), "")
-        spent = self.spent(text)
+        runs = mflib.statuslog.runs(text)
+        newest = runs[0] if runs else mflib.statuslog.Section(None, None, [])
+        top = newest.events[0] if newest.events else None
+        spent = self.spent(runs)
         roles, rounds = {}, []
         for role in ROLES:
             front = read_part(folder / f"{role}.md") or ""
@@ -348,11 +347,13 @@ class Reader:
             }
         known = [number for number in rounds if number is not None]
         return {
-            "run": int(heading[1]) if heading else None,
-            "mark": heading[2] if heading else None,
+            "run": newest.number,
+            "mark": newest.mark,
             "round": max(known, default=None),
             "cap": self.converge["CAP"],
-            "fixing": " · fix — sent" in top,
+            "fixing": top is not None
+            and top.name == "fix"
+            and top.detail.startswith("sent"),
             "roles": roles,
         }
 
@@ -626,19 +627,22 @@ def read_config(path: Path) -> tuple[int, list[dict[str, Any]]]:
     return port, rows
 
 
-def projects(record: Path, rows: list[dict[str, Any]]) -> list[Entry]:
+def projects(record: Path | None, rows: list[dict[str, Any]]) -> list[Entry]:
     """Return the shown projects: the rows first, then the record, each path once.
 
-    e.g. a row with `hide = true` drops its project; a path with no `.minions/` is none
+    A record of None is none, a broken one raises `mflib.kept.Broken`. A relative line,
+    or a path whose `.minions` is a link or no folder, is none. Why: 0161-viewer D35.
     """
     named: dict[Path, dict[str, Any]] = {}
     for row in rows:
         named.setdefault(Path(row["path"]).expanduser().resolve(), row)
-    listed = [Path(line).resolve() for line in mflib.kept.repos(record)]
+    lines = mflib.kept.repos(record) if record else []
+    listed = [Path(line).resolve() for line in lines if Path(line).is_absolute()]
     found = []
     for path in dict.fromkeys([*named, *listed]):
         row = named.get(path, {})
-        if row.get("hide") is True or not mflib.layout.run_dir(path).is_dir():
+        run = mflib.layout.run_dir(path)
+        if row.get("hide") is True or run.is_symlink() or not run.is_dir():
             continue
         name = row.get("name")
         found.append(Entry(path, name if isinstance(name, str) and name else path.name))
@@ -812,6 +816,29 @@ def tick(
         )
 
 
+def snapshot(
+    now: float,
+    record: Path,
+    rows: list[dict[str, Any]],
+    memory: dict[Path, list[Any]],
+    read: Read,
+) -> list[dict[str, Any]]:
+    """Return the projects the page shows, ticked; a broken record leaves the rows.
+
+    A record that cannot be read puts a project named `repos` first, saying why.
+    Why: 0161-viewer design D22, D35.
+    """
+    try:
+        entries = projects(record, rows)
+    except mflib.kept.Broken as broken:
+        shown = tick(now, projects(None, rows), memory, read)
+        return [
+            _unread(Path("repos"), f"repos could not be read: {broken.phrase}"),
+            *shown,
+        ]
+    return tick(now, entries, memory, read)
+
+
 class Handler(BaseHTTPRequestHandler):
     """Answer a GET by `route`, writing a generator body as it yields."""
 
@@ -844,8 +871,9 @@ def serve(config: Path) -> int:  # pragma: no cover
 
     def poll() -> None:
         while True:
-            entries = projects(mflib.layout.repos_file(), rows)
-            state.publish(tick(time.monotonic(), entries, memory, read_project))
+            record = mflib.layout.repos_file()
+            shown = snapshot(time.monotonic(), record, rows, memory, read_project)
+            state.publish(shown)
             time.sleep(POLL)
 
     Handler.state, Handler.port = state, port

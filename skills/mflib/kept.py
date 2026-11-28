@@ -418,14 +418,13 @@ def record_repo(primary: Path) -> None:
 def repos(path: Path) -> list[str]:
     """Return each line of the record of repos, stripped, a blank one skipped.
 
-    Only the first `REPOS_BOUND` bytes are read, a bad byte replaced. A link, a pipe,
-    a folder or a missing file gives no line. Why: 0161-viewer design D35.
+    A missing file gives no line; a record `_read` cannot read, or a line holding a
+    NUL byte, raises `Broken`. Why: 0161-viewer design D22, D35.
     """
-    try:
-        text = statefile.read(path, limit=REPOS_BOUND)
-    except OSError:
-        return []
-    return [line.strip() for line in text.splitlines() if line.strip()]
+    lines = [line.strip() for line in (_read(path, REPOS_BOUND) or "").splitlines()]
+    if any("\x00" in line for line in lines):
+        raise Broken(path, "a line holds a NUL byte")
+    return [line for line in lines if line]
 
 
 def make_probe_mark(executor: str, pid: int) -> Path:
