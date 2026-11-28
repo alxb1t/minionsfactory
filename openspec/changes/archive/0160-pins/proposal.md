@@ -1,5 +1,6 @@
 ---
 bump: minor
+version: v0.130
 debt: [0159·R3]
 ---
 

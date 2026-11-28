@@ -1702,7 +1702,7 @@ Each halt SHALL be logged when it happens, and each block as `blocked — by <id
 close on `run · halt — halted <ids> · blocked <ids> · released <tags>` and exit 1. `conduct.py report` SHALL print every
 `halt` line, then the closing line, and SHALL end a blocked version's line with `blocked by <id>`. The run SHALL keep no state
 outside git and the run directory, except the claim, `origin`'s URLs, the default branch's name, the offline base, the release ledger, a person's gate approval,
-the live mark, the list of repos a run started in, the probe's mark, the queue's entries, its `briefs` and `supervised` records and the rejoin requests in the home folder: a re-run derives every stage again and continues. A halt SHALL need
+the live mark, the list of repos a run started in, the probe's mark, the pin's four files `source`, `pending`, `hold` and `checkout`, the queue's entries, its `briefs` and `supervised` records and the rejoin requests in the home folder: a re-run derives every stage again and continues. A halt SHALL need
 the person only at a stage in `HALTS`, a `**HUMAN` phase, a merge with a note, a converge that halted on anything but
 `.minions/debt.lock`, or an older `.minions/backlog.lock`, a release whose
 base moved, a release stopped on purpose or refused, a repo git config key or local `origin` the run refuses, a git config that
@@ -1764,11 +1764,11 @@ time named, save a mailbox checker, which falls back.
 
 ### Requirement: The kept files are read and written through one module
 
-`skills/mflib/kept.py` SHALL be the one home of the conductor's kept files in the home folder: the kept origin `<digest>`, `<digest>.default`, the offline base `<digest>.pushed`, the release ledger `<digest>.released/<change>`, a person's gate approval `<digest>.gate/<change>`, the live mark `live/<digest>`, `repos` and the probe mark `probe-<executor>-<pid>`, with each one's write, read, listing and removal. `conduct.py`, `gate_check.py` and, for the kept origin and the live mark, `pin.py` SHALL go through it. The pin's four files and `ship.toml` are not its.
+`skills/mflib/kept.py` SHALL be the one home of the conductor's kept files in the home folder: the kept origin `<digest>`, `<digest>.default`, the offline base `<digest>.pushed`, the release ledger `<digest>.released/<change>`, a person's gate approval `<digest>.gate/<change>`, the live mark `live/<digest>`, `repos`, the probe mark `probe-<executor>-<pid>` and the pin's four files `source`, `pending`, `hold` and `checkout`, with each one's write, read, listing and removal, and of the operator's `ship.toml` the read. `conduct.py`, `gate_check.py` and `pin.py` SHALL go through it. `cloud_setup.py`'s write of `ship.toml` is not its.
 
-A read of a kept file SHALL follow no link, SHALL not block, SHALL take a regular file alone, SHALL be bounded — 65,536 bytes, and for `repos` 262,144 — and SHALL decode strictly. A kept origin, `.default` or offline base that cannot be read SHALL stop the command, exit 2, naming the file: a name that is a link, a FIFO, a folder, over its bound, a bad byte, a kept origin that is not two lists of URLs, or a base that is not empty and not a commit id of 40 hex digits. A gate approval that cannot be read SHALL approve nothing. A ledger entry that is not one commit id, its whole text stripped being 40 lower-case hex digits, SHALL be no release head, SHALL be named in the run log or, for a command, on stderr, and SHALL stay. A live mark that cannot be read SHALL read as none, and a `repos` that cannot be read SHALL read as none and take no append.
+A read of a kept file SHALL follow no link, SHALL not block, SHALL take a regular file alone, SHALL be bounded — 65,536 bytes, and for `repos` 262,144 — and SHALL decode strictly; the read of `ship.toml` and of a pin file is so too. A kept origin, `.default` or offline base that cannot be read SHALL stop the command, exit 2, naming the file: a name that is a link, a FIFO, a folder, over its bound, a bad byte, a kept origin that is not two lists of URLs, or a base that is not empty and not a commit id of 40 hex digits. A pin file and `ship.toml` that cannot be read SHALL stop the command as *The pin's files are read and written through kept.py* and *A ship.toml that cannot be read stops the command* say. A gate approval that cannot be read SHALL approve nothing. A ledger entry that is not one commit id, its whole text stripped being 40 lower-case hex digits, SHALL be no release head, SHALL be named in the run log or, for a command, on stderr, and SHALL stay. A live mark that cannot be read SHALL read as none, and a `repos` that cannot be read SHALL read as none and take no append.
 
-A write of the offline base, a ledger entry, an approval and the live mark SHALL be staged, mode 0600, and a failed write SHALL leave no staged file. The kept origin and `.default` SHALL be written once: a name that stands, of any kind, stays, and the next read of a link or a folder there stops the command as above. The probe mark SHALL be made empty, after a mark of its name is removed. `repos` SHALL be appended to through no link, to a regular file. A folder of the kept files SHALL be made at 0700, and one that stands SHALL keep its mode. A removal SHALL be by name under the folder's descriptor. `.default` SHALL be written with a newline and read stripped.
+A write of the offline base, a ledger entry, an approval, the live mark and a pin file SHALL be staged, mode 0600, and a failed write SHALL leave no staged file. The kept origin and `.default` SHALL be written once: a name that stands, of any kind, stays, and the next read of a link or a folder there stops the command as above. The probe mark SHALL be made empty, after a mark of its name is removed. `repos` SHALL be appended to through no link, to a regular file. A folder of the kept files SHALL be made at 0700, and one that stands SHALL keep its mode. A removal SHALL be by name under the folder's descriptor. `.default` SHALL be written with a newline and read stripped.
 
 #### Scenario: A bad byte in `.default` stops the run
 - **WHEN** `<digest>.default` holds a byte no text is made of and `conduct.py run` starts
@@ -1810,6 +1810,10 @@ A write of the offline base, a ledger entry, an approval and the live mark SHALL
 #### Scenario: `.default` ends in a newline
 - **WHEN** a run keeps the default branch `main`
 - **THEN** `<digest>.default` holds `main` and a newline, and a push to `main` halts nothing
+
+#### Scenario: A pin file is written staged
+- **WHEN** `make install-skills` writes `source` twice
+- **THEN** `source` holds the second text and one newline, its mode is 0600, and no `source.tmp` stands
 
 ### Requirement: A version declares what it builds on
 
@@ -7091,3 +7095,49 @@ After a build phase's worker passes its check, `conduct.py` SHALL, for each phas
 #### Scenario: A phase whose checks hold
 - **WHEN** every ticked `Verify:` command that runs no `pytest` test and no `make` passes, and each ticked `pytest` `Verify:` that says it exits 0 collects a test
 - **THEN** the quick plan check exits 0 and the next phase is spawned
+
+### Requirement: The pin's files are read and written through kept.py
+
+`describe`, `move` and `install` of `pin.py` SHALL read, write and remove the pin's four files — `source`, `pending`, `hold` and `checkout`, each a text and one newline, read stripped — through `skills/mflib/kept.py` alone. A pin file that is absent SHALL read as none. An empty `source` SHALL read as none, and an empty `pending`, `hold` or `checkout` SHALL mean no pending release, no hold and no checkout.
+
+A pin file that cannot be read — a link, a FIFO, a folder or any other name that is no regular file, a file over 65,536 bytes, or a bad byte — SHALL stop `describe`, so a run at its start halts, exit 2, its halt line naming `~/.mf-ship-origin/<name>`, with no traceback. At `move`, which runs at a run's close, it SHALL be named as `pin: cannot move — <text>`, SHALL move no link, and SHALL leave the run's exit as it was; it SHALL never read as no pin. `install` SHALL read no pin file. It SHALL write each one staged, mode 0600, in a folder made at 0700, replacing a link at the name and leaving the link's target as it was, and SHALL remove `pending` and `hold` by name under the folder's descriptor. A folder at a name it writes, or a home folder it cannot make, SHALL end `install` as `pin: cannot install — <error>`, exit 2. A live mark that cannot be read SHALL still read as none.
+
+#### Scenario: A bad byte in hold stops the run
+- **WHEN** `hold` holds a byte no text is made of and `conduct.py run` starts
+- **THEN** the run's halt line names `~/.mf-ship-origin/hold`, `conduct.py run` exits 2, and no traceback prints
+
+#### Scenario: A bad byte in source at a run's close
+- **WHEN** `source` holds a byte no text is made of and the last live run ends
+- **THEN** `pin: cannot move — ` names `~/.mf-ship-origin/source`, no link moves, and the run's exit is what it was
+
+#### Scenario: A link at a pin file
+- **WHEN** a link to a file stands at `pending` and `make install-skills` links a release
+- **THEN** `pending` is gone, and the link's target holds its old text
+
+#### Scenario: A folder where install writes
+- **WHEN** a folder stands at `source` and `make install-skills` runs
+- **THEN** it prints `pin: cannot install — ` naming `source`, and exits 2
+
+#### Scenario: An empty source is no source
+- **WHEN** `source` is a file of no bytes, or of white space alone, and the last live run ends
+- **THEN** no link moves, and nothing is printed
+
+### Requirement: A ship.toml that cannot be read stops the command
+
+The read of the operator's `ship.toml` SHALL be `skills/mflib/kept.py`'s, as *The kept files are read and written through one module* says: through no link, without blocking, of a regular file, at most 65,536 bytes, decoded strictly. A link, dangling or not, a FIFO, a folder, any other name that is no regular file, a file over its bound, a bad byte, a TOML error and a file nested deeper than the parser's limit SHALL stop the command that reads it — `conduct.py run`, `cut`, `status` or `report` — with exit 2, printing `<path>: <reason>` and no traceback. A file that is absent or empty SHALL be no cap, with tags pushed. Each read SHALL read the file again.
+
+#### Scenario: A link at ship.toml
+- **WHEN** `ship.toml` is a link to a valid file and `conduct.py run` starts
+- **THEN** it exits 2 naming the file, and starts no worker
+
+#### Scenario: A FIFO at ship.toml
+- **WHEN** `ship.toml` is a FIFO with no writer and `conduct.py status` runs
+- **THEN** it exits 2 naming the file, and does not wait
+
+#### Scenario: A nested file
+- **WHEN** `ship.toml` holds arrays nested past the parser's limit and `conduct.py report` runs
+- **THEN** it exits 2 naming the file, and prints no traceback
+
+#### Scenario: No file
+- **WHEN** no `ship.toml` stands
+- **THEN** a run has no cap and pushes tags
