@@ -14,7 +14,7 @@ from types import ModuleType
 from typing import Any, cast
 
 import pytest
-from mflib import layout
+from mflib import layout, prices
 
 _REPO = Path(__file__).resolve().parent.parent
 _SCRIPT = _REPO / "skills" / "mf-review-metrics" / "scripts" / "review_metrics.py"
@@ -933,7 +933,7 @@ def _answered(tool: str, **last: int) -> object:
 
 
 def test_the_claude_rows_price_a_worker() -> None:
-    rows = review_metrics._prices()
+    rows = prices.rows(review_metrics.PRICES)
     # A million tokens of each kind, as a Claude message's usage names them.
     usage = review_metrics._usage(
         {
@@ -1683,7 +1683,7 @@ def test_a_message_is_priced_once_by_its_id(tmp_path: Path) -> None:
     messages = [e for e in review_metrics._transcript(path) if e["event"] == "message"]
     assert [m["id"] for m in messages] == ["m1", "m2", "msg-t1", "m3"]
 
-    row = review_metrics._prices()["claude-sonnet-5-5"]
+    row = prices.rows(review_metrics.PRICES)["claude-sonnet-5-5"]
     spend = review_metrics._spend(messages[:3])
     assert spend["dollars"] == pytest.approx(row["input"] + row["output"])
     assert (spend["turns"], spend["tokens"]) == (1, 2_000_000)

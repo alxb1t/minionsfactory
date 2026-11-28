@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.132.0] - 2026-11-28
+
+Gate: local 8m57s · CI not read under mf-ship · 0.131.0: local 9m19s · CI not read under mf-ship
+
+- `tests/test_metric_pins.py` pins the metric scripts' reads on today's side: the day rule, file list and broken shapes of the run log, the headings, marks and verdict counts of the status log, a findings card and its refuted section, the head of `build.done`, the proposal's `debt:` list, the worker logs, `prices.toml` in `run.py` and `review_metrics.py`, and the debt file in `debt.py` and `Version.debt`. The moves that follow turn the asserts [the cases](openspec/changes/0162-metric-scripts/cases.md#the-turns) list and no other (0162-metric-scripts, phase 1).
+- The home gains `runlog.logs`, `statuslog.blocking`, `findings.refuted`, `prices.rows` with `prices.Unreadable`, and `eras.blocking` and `eras.refuted` for the old forms, each with unit cases, and `runlog.timed` passes by a clock that is no time of day, so the viewer shows the events around one. No script calls them yet (0162-metric-scripts, phase 2).
+- `run.py` reads the run log through `runlog.logs`, `statefile.lines` and `runlog.timed`, so a pipe, a folder, a link or a bad clock costs no metric. Turned: any step back is a day on, a name that is no real stamp is no log, a link at a log's name yields nothing, and `converge skipped` is an event (0162-metric-scripts, phase 3).
+- `run.py` reads the status log through `statuslog.read`, `statuslog.runs`, `statuslog.blocking` and `eras.blocking`. Turned: a mark counts only whole, a round needs a whole event line, a line has one count, a role other than today's and the old ones counts nothing, a link is a gap and a bad byte is replaced (0162-metric-scripts, phase 3).
+- `run.py` reads the findings through `findings.read`, `cards` and `refuted`, else `eras.refuted`, and `build.done` through `marks.done_head`. Turned: a card is a titled line with its indented lines, a Verdict needs no Priority and its case is folded, `## Refused` and a last-line heading are sections, and a link, a bad byte, a second `head:` line and a file over 65,536 bytes are no head (0162-metric-scripts, phase 4).
+- `debt.py` and `Version.debt` read the debt file through `debtfile.read` and `count`, and `run.py` and `review_metrics.py` read `prices.toml` through `prices.rows`. Turned: a card is a title `- **<digits>·<id> — `, a link at the debt file is the gap `…: it is a link`, a bad byte is replaced, and a bad price table is the gap `prices: <reason>` in `run.py` and `prices.Unreadable` in `review_metrics.py` where a pipe no longer blocks (0162-metric-scripts, phase 4).
+- The recipes name `prices.rows` and `eras`, the threat model lists `prices.py` and `eras.py` among the shared home, and D83 says the readers of `review_metrics.py` alone still hold their format entries (0162-metric-scripts, phase 5).
+
 ## [0.131.0] - 2026-11-28
 
 Gate: local 9m19s · CI not read under mf-ship · 0.130.0: local 7m43s · CI not read under mf-ship

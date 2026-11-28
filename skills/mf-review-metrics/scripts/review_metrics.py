@@ -31,6 +31,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mflib.layout
+import mflib.prices
 
 TIMEOUT_SECONDS = 600
 DATA = "review-metrics.json"
@@ -716,11 +717,6 @@ def _number(value: object) -> Number | None:
     )
 
 
-def _prices() -> dict[str, Any]:
-    """Return `prices.toml`'s rows by model."""
-    return tomllib.loads(PRICES.read_text(encoding="utf-8"))["models"]
-
-
 def _codex_spent(events: list[dict[str, Any]]) -> Record:
     """Return a Codex log's priced cost and tokens; its turns and seconds are gaps.
 
@@ -738,7 +734,9 @@ def _codex_spent(events: list[dict[str, Any]]) -> Record:
         return sum(_number(usage.get(key)) or 0 for usage in usages)
 
     spawn = events[0] if events[0].get("type") == "mf.spawn" else {}
-    row = _prices().get(model) if (model := spawn.get("model")) else None
+    row = (
+        mflib.prices.rows(PRICES).get(model) if (model := spawn.get("model")) else None
+    )
     cost = None
     if isinstance(row, dict):
         cached = total("cached_input_tokens")
@@ -1154,7 +1152,7 @@ def _spend(messages: Iterable[Record]) -> Record:
     for message in messages:
         once.setdefault(message["id"], message)
     turns = [m for m in once.values() if m["usage"] and sum(m["usage"].values())]
-    prices = _prices()
+    prices = mflib.prices.rows(PRICES)
     return {
         "dollars": _total(
             _priced_worker(prices.get(m["model"]), m["usage"]) for m in turns
@@ -1540,7 +1538,7 @@ def _converge_workers(repo: Path, change: str) -> list[Record]:
         )
     ]
     found += [(worker, "log") for worker in _named_workers(repo, change)]
-    prices = _prices()
+    prices = mflib.prices.rows(PRICES)
     return [
         {
             "repo": repo.name,

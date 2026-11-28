@@ -4,24 +4,27 @@
 # ///
 """Print the open cards in the primary's `.minions/debt.md`; none is a gap, not zero.
 
-A card opens with `- **<4 digits>·`. Why: 0030-change-impact design D7.
+A card is the title `- **<digits>·<id> — ` that `debtfile.count` reads.
+Why: 0030-change-impact design D7.
 """
 
-import re
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills"))
+import mflib.debtfile
 import mflib.layout
 
 TIMEOUT_SECONDS = 600
 DEBT = mflib.layout.debt_file(Path())
-CARD = re.compile(r"^- \*\*\d{4}·", re.MULTILINE)
 
 
 def cards(root: Path) -> int | None:
-    """Return the open cards, or None when the repo keeps no debt file."""
+    """Return the open cards, or None when the repo keeps no debt file.
+
+    A debt file `debtfile.read` refuses, a link, raises `debtfile.Unreadable`.
+    """
     common = subprocess.run(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
         cwd=root,
@@ -33,11 +36,14 @@ def cards(root: Path) -> int | None:
     path = mflib.layout.debt_file(mflib.layout.primary_of(common))
     if not path.is_file():
         return None
-    return len(CARD.findall(path.read_text(encoding="utf-8")))
+    return mflib.debtfile.count(mflib.debtfile.read(path))
 
 
 if __name__ == "__main__":
-    found = cards(Path.cwd())
+    try:
+        found = cards(Path.cwd())
+    except mflib.debtfile.Unreadable as error:
+        sys.exit(f"no {DEBT}: {error.reason}")
     if found is None:
         sys.exit(f"no {DEBT}")
     print(found)

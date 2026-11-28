@@ -335,6 +335,28 @@ def test_a_worker_shows_its_phase(tmp_path: Path) -> None:
     ]
 
 
+def test_a_log_with_a_clock_of_25_hours_still_shows_its_other_events(
+    tmp_path: Path,
+) -> None:
+    root = _primary(tmp_path)
+    _version(root, "0001-a", "- [ ] 1 — One\n")
+    last = "10:00:02 · 0001-a · spawn — fix · model m"
+    _run_log(
+        root,
+        [
+            "10:00:00 · 0001-a · spawn — build · model m",
+            "25:00:00 · 0001-a · spawn — lost · model m",
+            last,
+        ],
+    )
+
+    shown = _tree(root)
+
+    workers = _by_id(shown)["0001-a"]["workers"]
+    assert [worker["station"] for worker in workers] == ["build", "fix"]
+    assert shown["run"]["last"] == last
+
+
 @pytest.mark.slow
 def test_a_running_gate_is_the_versions_last_line(tmp_path: Path) -> None:
     root = _primary(tmp_path)

@@ -24,12 +24,12 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `scripts/docstrings.py` | gate | — |
 | `scripts/metrics/codebase.py` | reader | — |
 | `scripts/metrics/conformance.py` | reader | — |
-| `scripts/metrics/debt.py` | reader | layout.py |
+| `scripts/metrics/debt.py` | reader | debtfile.py, layout.py |
 | `scripts/metrics/prose.py` | reader | — |
 | `scripts/metrics/reading_set.py` | reader | — |
 | `scripts/metrics/references.py` | reader | — |
 | `scripts/metrics/rule_ids.py` | reader | — |
-| `scripts/metrics/run.py` | reader | layout.py |
+| `scripts/metrics/run.py` | reader | debtfile.py, eras.py, findings.py, layout.py, marks.py, prices.py, runlog.py, statefile.py, statuslog.py |
 | `scripts/metrics/tests_collected.py` | reader | — |
 | `skills/mf-build/scripts/metrics.py` | station | layout.py |
 | `skills/mf-converge/scripts/bundle.py` | station | statefile.py |
@@ -54,19 +54,21 @@ name `integrate.py`, `"run integrate.py"` names nothing. The `names` cell lists 
 | `skills/mf-plan/scripts/brief_check.py` | station | conduct.py, layout.py, modelsfile.py, verify_check.py |
 | `skills/mf-release/scripts/next_tag.py` | station | — |
 | `skills/mf-release/scripts/release.py` | station | debtfile.py, findings.py, gate_check.py, gate_run.py, layout.py, marks.py, metrics.py, modelsfile.py, next_tag.py, statefile.py |
-| `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, layout.py, metrics.py, overlap.py |
+| `skills/mf-review-metrics/scripts/review_metrics.py` | reader | conduct.py, layout.py, metrics.py, overlap.py, prices.py |
 | `skills/mf-ship/scripts/conduct.py` | conductor | brief_check.py, claim.py, converge.py, cut_check.py, debtfile.py, findings.py, gate_run.py, integrate.py, kept.py, layout.py, marks.py, metrics.py, modelsfile.py, pin.py, plan_check.py, platform.py, queue.py, release.py, runlog.py, statefile.py, statuslog.py |
 | `skills/mf-ship/scripts/pin.py` | conductor | conduct.py, kept.py, layout.py |
 | `skills/mf-ui/scripts/viewer.py` | reader | conduct.py, converge.py, findings.py, kept.py, layout.py, platform.py, queue.py, runlog.py, statefile.py, statuslog.py |
 | `skills/mflib/__init__.py` | home | — |
 | `skills/mflib/claim.py` | home | layout.py, statefile.py |
 | `skills/mflib/debtfile.py` | home | findings.py, statefile.py |
+| `skills/mflib/eras.py` | home | statuslog.py |
 | `skills/mflib/findings.py` | home | layout.py, statefile.py |
 | `skills/mflib/kept.py` | home | layout.py, statefile.py |
 | `skills/mflib/layout.py` | home | — |
 | `skills/mflib/marks.py` | home | layout.py, statefile.py |
 | `skills/mflib/modelsfile.py` | home | layout.py, statefile.py |
 | `skills/mflib/platform.py` | home | — |
+| `skills/mflib/prices.py` | home | statefile.py |
 | `skills/mflib/queue.py` | home | layout.py, statefile.py |
 | `skills/mflib/runlog.py` | home | layout.py, statefile.py |
 | `skills/mflib/statefile.py` | home | — |

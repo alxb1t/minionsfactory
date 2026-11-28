@@ -89,8 +89,8 @@ def parse(text: str) -> Event | None:
 def timed(stem: str, lines: Iterable[str]) -> Iterator[tuple[Event, float]]:
     """Yield each event of `lines` with its epoch second, dated from the log's stem.
 
-    The first event is a day on when its clock is `_HALF_DAY` or more before the stem's;
-    a clock that steps back from the event before is a day on. Why: 0161-viewer D25.
+    A step back, or a first clock `_HALF_DAY` before the stem's, is a day on; a clock
+    that is no time of day is passed by. Why: 0161-viewer D25; 0162-metric-scripts D1.
     """
     base = datetime.strptime(stem[:15], _STAMP)
     start = base.hour * 3600 + base.minute * 60 + base.second
@@ -99,6 +99,8 @@ def timed(stem: str, lines: Iterable[str]) -> Iterator[tuple[Event, float]]:
         if (event := parse(text)) is None:
             continue
         hours, minutes, seconds = (int(part) for part in text[:8].split(":"))
+        if hours > 23 or minutes > 59 or seconds > 59:
+            continue
         moment = hours * 3600 + minutes * 60 + seconds
         if before is None:
             days += start - moment >= _HALF_DAY
@@ -139,14 +141,15 @@ def _dated(stem: str) -> bool:
     return True
 
 
-def _logs(runs: Path) -> list[Path]:
-    """Return the run logs in `runs`: each `*.md` a real stamp names, suffixed or not.
+def logs(runs: Path) -> list[Path]:
+    """Return the run logs in `runs`, oldest first: each `*.md` a real stamp names.
 
-    e.g. `20261029-163000-2.md` is one; `notes.md` and `20261399-250000.md` are none.
-    Why: 0161-viewer design D21.
+    A suffixed name is one; `notes.md` and `20261399-250000.md` are none.
+    Why: 0161-viewer design D21; 0162-metric-scripts design D1.
     """
     found = runs.glob("*.md")
-    return [log for log in found if _STAMPED.fullmatch(log.stem) and _dated(log.stem)]
+    named = [log for log in found if _STAMPED.fullmatch(log.stem) and _dated(log.stem)]
+    return sorted(named, key=order)
 
 
 def newest(runs: Path) -> Path | None:
@@ -154,10 +157,8 @@ def newest(runs: Path) -> Path | None:
 
     e.g. `20261029-163000.md`, `20261029-163000-2.md` → the second
     """
-    logs = _logs(runs)
-    if not logs:
-        return None
-    return max(logs, key=order)
+    found = logs(runs)
+    return found[-1] if found else None
 
 
 def _lines(log: Path) -> list[str]:
@@ -180,7 +181,7 @@ def release_died(runs: Path, change: str) -> bool:
     Why: 0152-release-script design D12.
     """
     worker: bool | None = None
-    for log in sorted(_logs(runs), key=order, reverse=True):
+    for log in reversed(logs(runs)):
         for event in reversed(events(log)):
             if event.who != change or event.name not in ("spawn", "finish"):
                 continue

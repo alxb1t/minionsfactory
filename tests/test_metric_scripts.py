@@ -1012,6 +1012,6 @@ def test_the_backlog_is_read_from_the_primary_run_directory(tmp_path: Path) -> N
     _git(primary, "init", "-q")
     _git(primary, "commit", "-q", "--allow-empty", "-m", "base")
     _git(primary, "worktree", "add", "-q", "-b", "v0.2_x", str(worktree))
-    _write(primary, {".minions/debt.md": "- **0023·a**\n- **0024·b**\n"})
+    _write(primary, {".minions/debt.md": "- **0023·a — x**\n- **0024·b — y**\n"})
 
     assert _load("debt").cards(worktree) == 2

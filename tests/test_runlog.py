@@ -1388,3 +1388,78 @@ def test_cause_reads_none_without_a_word_at_the_end() -> None:
     assert runlog.cause("x · cause Plan") is None
     assert runlog.cause("x · cause gate-red · more") is None
     assert runlog.cause("x · cause ") is None
+
+
+def test_logs_list_each_real_stamp_oldest_first(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    names = (
+        "20261105-100000",
+        "20261105-090000-10",
+        "20261104-235959-3",
+        "20261105-090000-9",
+        "20261105-090000",
+        "20261105-090000-2",
+    )
+    for name in names:
+        (runs / f"{name}.md").write_text(f"{_SPAWN}\n")
+
+    assert [log.stem for log in runlog.logs(runs)] == [
+        "20261104-235959-3",
+        "20261105-090000",
+        "20261105-090000-2",
+        "20261105-090000-9",
+        "20261105-090000-10",
+        "20261105-100000",
+    ]
+    assert runlog.logs(tmp_path / "none") == []
+
+
+def test_logs_pass_over_a_name_that_is_no_date(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    for name in ("20261105-100000.md", "20261105-100000-2.md"):
+        (runs / name).write_text(f"{_SPAWN}\n")
+    for name in (
+        "20261399-250000.md",
+        "20260230-100000-2.md",
+        "20261105-100000.txt",
+        "20261105-100000x.md",
+        "notes.md",
+    ):
+        (runs / name).write_text(f"{_SPAWN}\n")
+
+    assert [log.name for log in runlog.logs(runs)] == [
+        "20261105-100000.md",
+        "20261105-100000-2.md",
+    ]
+
+
+def test_timed_passes_by_a_clock_that_is_no_time() -> None:
+    stem = "20261105-100000"
+
+    for clock in ("25:00:00", "24:00:00", "10:60:00", "10:00:60", "99:99:99"):
+        assert list(runlog.timed(stem, [f"{clock} · x · spawn — build"])) == []
+    [(last, _)] = runlog.timed(stem, ["23:59:59 · x · spawn — build"])
+    assert last.who == "x"
+    kept = list(
+        runlog.timed(
+            stem,
+            [
+                "10:00:00 · x · spawn — build",
+                "25:00:00 · x · note — lost",
+                "10:00:05 · x · finish — build",
+            ],
+        )
+    )
+    assert [event.name for event, _ in kept] == ["spawn", "finish"]
+    assert [at for _, at in kept] == [_at(5, "10:00:00"), _at(5, "10:00:05")]
+
+
+def test_parse_still_reads_a_clock_of_25_hours(tmp_path: Path) -> None:
+    line = "25:00:00 · x · spawn — build"
+
+    assert runlog.parse(line) == runlog.Event(line, "x", "spawn", "build")
+    log = tmp_path / "20261105-100000.md"
+    log.write_text(f"# Ship run 20261105-100000\n\n{line}\n")
+    assert [event.line for event in runlog.events(log)] == [line]

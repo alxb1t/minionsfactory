@@ -31,6 +31,9 @@ FAILED = "fallback: codex failed"
 _NUMBER = re.compile(r"## Run ([0-9]{1,18})(?![0-9])")
 _VERDICTS = re.compile(r"(conformance|adversarial) \S+ · open_blocking \d+ · (.*)")
 _SPENT = re.compile(r"(executor|model|effort|tokens) (\S+)")
+_ROLES = ("conformance ", "adversarial ")
+_OPEN = " · open_blocking "
+_COUNT = re.compile(r"[0-9]{1,18}(?![0-9])")
 
 
 class Refused(Exception):
@@ -248,6 +251,18 @@ def verdicts(event: Event) -> Verdicts | None:
         else None,
         FALLBACK in parts or FAILED in parts,
     )
+
+
+def blocking(event: Event) -> int | None:
+    """Return the count a conformance or adversarial `verdicts` event holds, or None.
+
+    e.g. detail "conformance clean · open_blocking 2 · tokens 5" → 2
+    Why: 0162-metric-scripts design D2.
+    """
+    if event.name != "verdicts" or not event.detail.startswith(_ROLES):
+        return None
+    found = _COUNT.match(event.detail.partition(_OPEN)[2])
+    return int(found[0]) if found else None
 
 
 def names_lock(text: str) -> bool:
