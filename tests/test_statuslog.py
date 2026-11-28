@@ -450,3 +450,112 @@ def test_open_run_raises_on_a_link_at_the_log(tmp_path: Path) -> None:
         statuslog.open_run(log, _CHANGE)
 
     assert outside.read_text() == "# t\n\n## Run 1 — d\n"
+
+
+def test_runs_give_each_run_newest_first() -> None:
+    found = statuslog.runs(_LOG)
+
+    assert [(run.number, run.mark) for run in found] == [(2, "catch-up"), (1, None)]
+    assert found[0].events == [
+        statuslog.Event(2, "fix", "R1"),
+        statuslog.Event(1, "start", "base a"),
+    ]
+    assert found[1].events == [statuslog.Event(1, "halt", "old")]
+    assert statuslog.runs("# t\n10:00:00 · round 1 · start\n") == []
+    latest = statuslog.latest(_LOG)
+    assert (found[0].mark, found[0].events) == (latest.mark, latest.events)
+
+
+def test_runs_read_running_as_a_heading_with_no_number() -> None:
+    text = (
+        "# t\n\n## Running\n10:00:02 · round 3 · done\n"
+        "## Run 12 — d · a · b\n10:00:01 · round 2 · fix — R1\n"
+        "## Run ٣ — d\n## Run x\n"
+    )
+
+    found = statuslog.runs(text)
+
+    assert [(run.number, run.mark) for run in found] == [
+        (None, None),
+        (12, "a · b"),
+        (None, None),
+        (None, None),
+    ]
+    assert found[0].events == [statuslog.Event(3, "done", "")]
+    assert found[1].events == [statuslog.Event(2, "fix", "R1")]
+
+
+def test_a_number_of_thousands_of_digits_reads_as_no_number() -> None:
+    huge = "9" * 5000
+    found = statuslog.runs(f"# t\n\n## Run {huge} — d\n## Run 7 — d\n")
+    assert [run.number for run in found] == [None, 7]
+    found_verdicts = _verdicts(f"conformance clean · open_blocking 0 · tokens {huge}")
+    assert found_verdicts is not None
+    assert found_verdicts.tokens is None
+
+
+def test_spent_words_a_string_fallback_as_failed() -> None:
+    models = ("claude", None, "high")
+
+    assert statuslog.spent(models, 1200, False) == (
+        "executor claude · model default · effort high · tokens 1200"
+    )
+    assert statuslog.spent(("codex", "m", None), 0, False).endswith(
+        "effort default · tokens 0"
+    )
+    assert statuslog.spent(models, None, False).endswith("tokens unavailable")
+    assert statuslog.spent(models, 5, True).endswith(f"tokens 5 · {statuslog.FALLBACK}")
+    assert statuslog.spent(models, 5, "").endswith(f"tokens 5 · {statuslog.FAILED}")
+    assert statuslog.spent(models, 5, "limit").endswith(
+        f"tokens 5 · {statuslog.FAILED}"
+    )
+    assert statuslog.FALLBACK == "fallback: codex usage limit"
+    assert statuslog.FAILED == "fallback: codex failed"
+
+
+def test_verdicts_read_a_line_the_writer_wrote() -> None:
+    spent = statuslog.spent(("codex", "gpt-6.1-sol-x", None), 1200, True)
+    text = statuslog.verdicts_line("adversarial", "clean", 0, spent)
+
+    assert text == (
+        "verdicts — adversarial clean · open_blocking 0 · executor codex"
+        " · model gpt-6.1-sol-x · effort default · tokens 1200"
+        f" · {statuslog.FALLBACK}"
+    )
+    event = statuslog.parse_event(f"10:00:00 · round 1 · {text}")
+    assert event is not None
+    assert statuslog.verdicts(event) == statuslog.Verdicts(
+        "adversarial", "codex", "gpt-6.1-sol-x", "default", 1200, True
+    )
+
+
+def _verdicts(detail: str, name: str = "verdicts") -> statuslog.Verdicts | None:
+    return statuslog.verdicts(statuslog.Event(1, name, detail))
+
+
+def test_verdicts_read_an_event_of_the_modules_form() -> None:
+    plain = "conformance clean · open_blocking 10 · tokens 5"
+    assert _verdicts(plain) == statuslog.Verdicts(
+        "conformance", None, None, None, 5, False
+    )
+    found = _verdicts(
+        f"adversarial x · open_blocking 0 · tokens 5 · {statuslog.FAILED}"
+    )
+    assert found is not None
+    assert found.fallback
+    found = _verdicts(f"adversarial x · open_blocking 0 · tokens 5 {statuslog.FAILED}")
+    assert found is not None
+    assert not found.fallback
+    early = (
+        f"{statuslog.FAILED} · verdicts — adversarial x · open_blocking 0 · tokens 5"
+    )
+    assert statuslog.parse_event(f"10:00:00 · round 1 · {early}") is None
+    found = _verdicts("conformance executor · open_blocking 0 · tokens 5")
+    assert found is not None
+    assert (found.executor, found.tokens) == (None, 5)
+    found = _verdicts("conformance clean · open_blocking 0 · tokens ٣")
+    assert found is not None
+    assert found.tokens is None
+    assert _verdicts("other clean · open_blocking 0 · x") is None
+    assert _verdicts("conformance clean · open_blocking 0 · tokens 5", "fix") is None
+    assert _verdicts("x verdicts — conformance clean · open_blocking 0 · y") is None

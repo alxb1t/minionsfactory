@@ -61,8 +61,6 @@ PLACEHOLDERS = (
 )
 PROMPT = re.compile(r"^## Prompt\n\n```text\n(.*?)^```$", re.MULTILINE | re.DOTALL)
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
-FALLBACK = "fallback: codex usage limit"
-FAILED = "fallback: codex failed"
 NO_OPEN_CARD = "verdict is changes-requested with no open card"
 CLEAN_OPEN = "verdict is clean beside a blocking card not closed"
 REWRITE = (
@@ -642,29 +640,15 @@ def read_verdicts(
         verdict = read[role]
         if verdict is None or verdict.malformed is not None:
             continue
+        spent = mflib.statuslog.spent(result.models, result.tokens, result.fallback)
         lines.append(
-            f"verdicts — {role} {verdict.verdict} · open_blocking"
-            f" {verdict.open_blocking} · {_spent(result)}"
+            mflib.statuslog.verdicts_line(
+                role, verdict.verdict, verdict.open_blocking, spent
+            )
         )
     if lines:
         stamp(context, *lines)
     return read
-
-
-def _spent(result: Checked) -> str:
-    """Return a checker's executor, model, effort and tokens, as the log shows them.
-
-    e.g. "executor claude · model default · effort high · tokens 1200"
-    """
-    executor, model, effort = result.models
-    tokens = "unavailable" if result.tokens is None else result.tokens
-    spent = (
-        f"executor {executor} · model {model or 'default'}"
-        f" · effort {effort or 'default'} · tokens {tokens}"
-    )
-    if isinstance(result.fallback, str):
-        return f"{spent} · {FAILED}"
-    return spent + (f" · {FALLBACK}" if result.fallback else "")
 
 
 def held(
@@ -1283,7 +1267,8 @@ def check(context: Context, frozen: Freeze) -> dict[str, Verdict]:
         f"{role} {verdict.verdict} · open_blocking {verdict.open_blocking}"
         for role, verdict in read.items()
     )
-    stamp(context, f"pickup — checked · {files} · {_spent(result)}")
+    spent = mflib.statuslog.spent(result.models, result.tokens, result.fallback)
+    stamp(context, f"pickup — checked · {files} · {spent}")
     return read
 
 

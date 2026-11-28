@@ -26,6 +26,11 @@ NAMES = (
     *("pickup", "catch-up", "by rule", "debt", "halt", "done"),
 )
 ENDS = ("done", "halt")
+FALLBACK = "fallback: codex usage limit"
+FAILED = "fallback: codex failed"
+_NUMBER = re.compile(r"## Run ([0-9]{1,18})(?![0-9])")
+_VERDICTS = re.compile(r"(conformance|adversarial) \S+ · open_blocking \d+ · (.*)")
+_SPENT = re.compile(r"(executor|model|effort|tokens) (\S+)")
 
 
 class Refused(Exception):
@@ -45,6 +50,25 @@ class Run(NamedTuple):
 
     mark: str | None
     events: list[Event]
+
+
+class Section(NamedTuple):
+    """One run of the log: its heading's number and mark, and its events in order."""
+
+    number: int | None
+    mark: str | None
+    events: list[Event]
+
+
+class Verdicts(NamedTuple):
+    """What a `verdicts` line says a role spent, and whether it fell back to Codex."""
+
+    role: str
+    executor: str | None
+    model: str | None
+    effort: str | None
+    tokens: int | None
+    fallback: bool
 
 
 class Block(NamedTuple):
@@ -156,6 +180,74 @@ def latest(text: str) -> Run:
         return Run(None, [])
     events = [event for event in map(parse_event, block.lines) if event]
     return Run(mark_of(block.heading), events)
+
+
+def runs(text: str) -> list[Section]:
+    """Return every run of the log's text, newest first, as a `Section`.
+
+    A line that starts `## Run` is a heading; its number is the ASCII digits after
+    `## Run `, None with none. No date and no clock is read. Why: 0161-viewer D41.
+    """
+    found: list[Section] = []
+    for line in text.splitlines():
+        if is_heading(line):
+            number = _NUMBER.match(line)
+            found.append(Section(int(number[1]) if number else None, mark_of(line), []))
+        elif found and (event := parse_event(line)):
+            found[-1].events.append(event)
+    return found
+
+
+def spent(
+    models: tuple[str, str | None, str | None], tokens: int | None, fallback: bool | str
+) -> str:
+    """Return the executor, model, effort and tokens a checker spent, as the log shows.
+
+    A fallback of any string reads as a failure; None tokens read `unavailable`.
+    e.g. ("claude", None, "high"), 5, False → "executor claude · model default · …"
+    """
+    executor, model, effort = models
+    shown = "unavailable" if tokens is None else tokens
+    text = (
+        f"executor {executor} · model {model or 'default'}"
+        f" · effort {effort or 'default'} · tokens {shown}"
+    )
+    if isinstance(fallback, str):
+        return f"{text} · {FAILED}"
+    return text + (f" · {FALLBACK}" if fallback else "")
+
+
+def verdicts_line(role: str, verdict: str, open_blocking: int, spent: str) -> str:
+    """Return the `verdicts` event's text converge writes for a role.
+
+    e.g. "conformance", "clean", 0, "tokens 5" →
+    "verdicts — conformance clean · open_blocking 0 · tokens 5"
+    """
+    return f"verdicts — {role} {verdict} · open_blocking {open_blocking} · {spent}"
+
+
+def verdicts(event: Event) -> Verdicts | None:
+    """Return the fields of a `verdicts` event, or None for any other event.
+
+    A fallback is either fallback phrase as a field of the detail; a field it lacks is
+    None, as is a token count that is no ASCII number. Why: 0161-viewer design D34.
+    """
+    found = _VERDICTS.fullmatch(event.detail) if event.name == "verdicts" else None
+    if found is None:
+        return None
+    fields = dict(_SPENT.findall(found[2]))
+    tokens = fields.get("tokens")
+    parts = found[2].split(" · ")
+    return Verdicts(
+        found[1],
+        fields.get("executor"),
+        fields.get("model"),
+        fields.get("effort"),
+        int(tokens)
+        if tokens and tokens.isascii() and tokens.isdigit() and len(tokens) <= 18
+        else None,
+        FALLBACK in parts or FAILED in parts,
+    )
 
 
 def names_lock(text: str) -> bool:

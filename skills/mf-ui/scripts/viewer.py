@@ -16,7 +16,6 @@ import os
 import re
 import runpy
 import signal
-import stat
 import subprocess
 import sys
 import threading
@@ -24,15 +23,20 @@ import time
 import tomllib
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, NamedTuple, NoReturn, Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import mflib.findings
+import mflib.kept
 import mflib.layout
 import mflib.platform
+import mflib.queue
+import mflib.runlog
 import mflib.statefile
+import mflib.statuslog
 
 SELF = Path(__file__).resolve()
 SKILLS = SELF.parents[2]
@@ -61,7 +65,6 @@ USAGE = (
     "usage: viewer.py project <primary> [--only liveness|fingerprint]"
     " | serve | start | stop"
 )
-STAMP = "%Y%m%d-%H%M%S"
 ACTIVE = 60
 QUIET = 300
 ROLES = ("conformance", "adversarial")
@@ -71,14 +74,8 @@ READ_EVENTS = frozenset(
 NEEDS_YOU = ("human", "integrating", "released")
 SUFFIX = re.compile(r" · (?:hard|moderate)$")
 SUBTASK = re.compile(r"^- \[([ x])\] (\d+)\.\d+ ", re.MULTILINE)
-RUN_HEADING = re.compile(r"^## Run (\d+) — \S+ \S+(?: · (\S+))?$", re.MULTILINE)
-VERDICT = re.compile(
-    r"verdicts — (conformance|adversarial) \S+ · open_blocking \d+ · (.*)"
-)
-SPENT = re.compile(r"(executor|model|effort|tokens) (\S+)")
 SPAWNED = re.compile(r"(model|effort|executor) (\S+)")
 PHASE = re.compile(r"^\S+ · (phase \d+|close|repair)(?: · |$)")
-CAUSE = re.compile(r" · cause ([a-z-]+)$")
 GATE_START = "gate · start"
 LIMIT = re.compile(r"limited until (\d{4}-\d\d-\d\d \d\d:\d\d)$")
 TIMESTAMP = re.compile(r'"timestamp"\s*:\s*"([^"]+)"')
@@ -136,27 +133,6 @@ def read_part(path: Path, tail: bool = False) -> str | None:
         return None
 
 
-def read_lines(path: Path) -> Iterator[str]:
-    """Yield a regular file's lines one at a time, each cut at `PART` characters.
-
-    The whole file is streamed, so the memory held is one line; a long line's rest is
-    dropped. e.g. a pipe, a link or a missing file → no lines
-    """
-    try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    except OSError:
-        return
-    if not stat.S_ISREG(os.fstat(fd).st_mode):
-        os.close(fd)
-        return
-    with os.fdopen(fd, encoding="utf-8", errors="replace") as file:
-        while piece := file.readline(PART):
-            if not piece.endswith("\n") and len(piece) == PART:
-                while (rest := file.readline(PART)) and not rest.endswith("\n"):
-                    pass
-            yield piece.rstrip("\n")
-
-
 def _int(value: str | None) -> int | None:
     """Return a field as an integer, None when it is not one."""
     return int(value) if value and value.isascii() and value.isdigit() else None
@@ -210,7 +186,7 @@ class Reader:
         self.primary: Path = conduct["primary_of"](primary)
         self.runs = mflib.layout.run_dir(self.primary)
         self.now = now
-        self.log: Path | None = conduct["last_log"](mflib.layout.runs_dir(self.primary))
+        self.log = mflib.runlog.newest(mflib.layout.runs_dir(self.primary))
         self.cache: dict[Path, list[Event]] = {}
         self.claimed: str | None = None
 
@@ -236,20 +212,11 @@ class Reader:
         The whole log is streamed, so a spawn or a midnight far back still counts; only
         the events the projector reads, and the last of each version, are kept.
         """
-        base = datetime.strptime(log.stem[:15], STAMP)
-        days, before = 0, 0
         found: dict[int, Event] = {}
         last: dict[str, tuple[int, Event]] = {}
-        for number, line in enumerate(read_lines(log)):
-            if not (match := self.conduct["EVENT"].match(line)):
-                continue
-            hours, minutes, seconds = (int(part) for part in line[:8].split(":"))
-            moment = hours * 3600 + minutes * 60 + seconds
-            days += moment < before
-            before = moment
-            at = base.replace(hour=hours, minute=minutes, second=seconds)
-            at += timedelta(days=days)
-            event = Event(match[1], match[2], line[match.end() :], at.timestamp(), line)
+        lines = mflib.statefile.lines(log, PART)
+        for number, (read, at) in enumerate(mflib.runlog.timed(log.stem, lines)):
+            event = Event(read.who, read.name, read.detail, at, read.line)
             last[event.who] = (number, event)
             if event.name in READ_EVENTS:
                 found[number] = event
@@ -262,7 +229,7 @@ class Reader:
 
     def versions(self) -> list[Any]:
         """Return the open versions, a queued cut being none."""
-        cuts = self.conduct["_cuts"](self.primary)
+        cuts = mflib.queue.entries(self.primary)
         found = self.conduct["open_versions"](self.primary)
         return [version for version in found if version.change not in cuts]
 
@@ -346,37 +313,29 @@ class Reader:
             )
         return found
 
-    def spent(self, text: str) -> dict[str, dict[str, Any]]:
-        """Return each role's newest `verdicts` line fields in the status log's text."""
+    def spent(self, runs: list[mflib.statuslog.Section]) -> dict[str, dict[str, Any]]:
+        """Return each role's newest `verdicts` event fields, the newest run first."""
         found: dict[str, dict[str, Any]] = {}
-        for line in text.splitlines():
-            if (match := VERDICT.search(line)) and match[1] not in found:
-                fields = dict(SPENT.findall(match[2]))
-                found[match[1]] = {
-                    "executor": fields.get("executor"),
-                    "model": fields.get("model"),
-                    "effort": fields.get("effort"),
-                    "tokens": _int(fields.get("tokens")),
-                    "fallback": any(
-                        self.converge[name] in line for name in ("FALLBACK", "FAILED")
-                    ),
-                }
+        for event in (event for run in runs for event in run.events):
+            read = mflib.statuslog.verdicts(event)
+            if read and read.role not in found:
+                found[read.role] = read._asdict()
         return found
 
     def converge_of(self, change: str) -> dict[str, Any] | None:
         """Return converge's run, round, cap and roles; None with no status log."""
         folder = mflib.layout.change_dir(self.primary, change)
-        text = read_part(folder / "status_log.md")
+        text = read_part(mflib.layout.status_log(self.primary, change))
         if text is None:
             return None
-        heading = RUN_HEADING.search(text)
-        after = text[heading.end() :].splitlines() if heading else []
-        top = next((line for line in after if line.strip()), "")
-        spent = self.spent(text)
+        runs = mflib.statuslog.runs(text)
+        newest = runs[0] if runs else mflib.statuslog.Section(None, None, [])
+        top = newest.events[0] if newest.events else None
+        spent = self.spent(runs)
         roles, rounds = {}, []
         for role in ROLES:
             front = read_part(folder / f"{role}.md") or ""
-            field = self.conduct["_frontmatter"]
+            field = mflib.findings.frontmatter
             rounds.append(_int(field(front, "round")))
             roles[role] = {
                 "verdict": field(front, "verdict"),
@@ -388,11 +347,13 @@ class Reader:
             }
         known = [number for number in rounds if number is not None]
         return {
-            "run": int(heading[1]) if heading else None,
-            "mark": heading[2] if heading else None,
+            "run": newest.number,
+            "mark": newest.mark,
             "round": max(known, default=None),
             "cap": self.converge["CAP"],
-            "fixing": " · fix — sent" in top,
+            "fixing": top is not None
+            and top.name == "fix"
+            and top.detail.startswith("sent"),
             "roles": roles,
         }
 
@@ -431,8 +392,8 @@ class Reader:
         e.g. `halt — build check fail — … · cause check-red` → `check-red`
         """
         halts = [e for e in self.newest() if e.who == change and e.name == "halt"]
-        found = CAUSE.search(halts[-1].detail) if halts else None
-        return found[1] if found and self.halted_in_log(change) else None
+        found = mflib.runlog.cause(halts[-1].detail) if halts else None
+        return found if found and self.halted_in_log(change) else None
 
     @staticmethod
     def _rejoins(event: Event, change: str) -> bool:
@@ -526,7 +487,7 @@ class Reader:
             named = each["why"].split()[1:] if each["state"] == "waiting" else []
             if any(states.get(name) in ("halted", "needs you") for name in named):
                 each["state"] = "blocked"
-        cuts = self.conduct["_cuts"](self.primary)
+        cuts = mflib.queue.entries(self.primary)
         claim = self.claim()
         newest = self.newest()
         return {
@@ -549,7 +510,8 @@ class Reader:
         """
         halt = entry["halt"]
         waits = entry.get("waits") if halt is None else None
-        state = "cut halted" if halt is not None else "queued" if waits else "cut"
+        queued = halt is None and mflib.queue.is_wait(entry)
+        state = "cut halted" if halt is not None else "queued" if queued else "cut"
         return {"id": name, "state": state, "halt": halt, "waits": waits}
 
     def for_you(
@@ -665,20 +627,22 @@ def read_config(path: Path) -> tuple[int, list[dict[str, Any]]]:
     return port, rows
 
 
-def projects(record: Path, rows: list[dict[str, Any]]) -> list[Entry]:
+def projects(record: Path | None, rows: list[dict[str, Any]]) -> list[Entry]:
     """Return the shown projects: the rows first, then the record, each path once.
 
-    e.g. a row with `hide = true` drops its project; a path with no `.minions/` is none
+    A record of None is none, a broken one raises `mflib.kept.Broken`. A relative line,
+    or a path whose `.minions` is a link or no folder, is none. Why: 0161-viewer D35.
     """
     named: dict[Path, dict[str, Any]] = {}
     for row in rows:
         named.setdefault(Path(row["path"]).expanduser().resolve(), row)
-    lines = (read_part(record) or "").splitlines()
-    listed = [Path(line.strip()).resolve() for line in lines if line.strip()]
+    lines = mflib.kept.repos(record) if record else []
+    listed = [Path(line).resolve() for line in lines if Path(line).is_absolute()]
     found = []
     for path in dict.fromkeys([*named, *listed]):
         row = named.get(path, {})
-        if row.get("hide") is True or not (path / ".minions").is_dir():
+        run = mflib.layout.run_dir(path)
+        if row.get("hide") is True or run.is_symlink() or not run.is_dir():
             continue
         name = row.get("name")
         found.append(Entry(path, name if isinstance(name, str) and name else path.name))
@@ -852,6 +816,29 @@ def tick(
         )
 
 
+def snapshot(
+    now: float,
+    record: Path,
+    rows: list[dict[str, Any]],
+    memory: dict[Path, list[Any]],
+    read: Read,
+) -> list[dict[str, Any]]:
+    """Return the projects the page shows, ticked; a broken record leaves the rows.
+
+    A record that cannot be read puts a project named `repos` first, saying why.
+    Why: 0161-viewer design D22, D35.
+    """
+    try:
+        entries = projects(record, rows)
+    except mflib.kept.Broken as broken:
+        shown = tick(now, projects(None, rows), memory, read)
+        return [
+            _unread(Path("repos"), f"repos could not be read: {broken.phrase}"),
+            *shown,
+        ]
+    return tick(now, entries, memory, read)
+
+
 class Handler(BaseHTTPRequestHandler):
     """Answer a GET by `route`, writing a generator body as it yields."""
 
@@ -884,8 +871,9 @@ def serve(config: Path) -> int:  # pragma: no cover
 
     def poll() -> None:
         while True:
-            entries = projects(mflib.layout.repos_file(), rows)
-            state.publish(tick(time.monotonic(), entries, memory, read_project))
+            record = mflib.layout.repos_file()
+            shown = snapshot(time.monotonic(), record, rows, memory, read_project)
+            state.publish(shown)
             time.sleep(POLL)
 
     Handler.state, Handler.port = state, port

@@ -415,6 +415,18 @@ def record_repo(primary: Path) -> None:
         return
 
 
+def repos(path: Path) -> list[str]:
+    """Return each line of the record of repos, stripped, a blank one skipped.
+
+    A missing file gives no line; a record `_read` cannot read, or a line holding a
+    NUL byte, raises `Broken`. Why: 0161-viewer design D22, D35.
+    """
+    lines = [line.strip() for line in (_read(path, REPOS_BOUND) or "").splitlines()]
+    if any("\x00" in line for line in lines):
+        raise Broken(path, "a line holds a NUL byte")
+    return [line for line in lines if line]
+
+
 def make_probe_mark(executor: str, pid: int) -> Path:
     """Return the probe mark of `executor` for `pid`, made anew, empty, at 0600."""
     mark = layout.probe_mark(executor, pid)

@@ -71,7 +71,9 @@ What a security review weighs MF's changes against. Read by the cut, build and c
   where tags are pushed.
 - **The viewer runs outside the sandbox** ([D82](docs/decisions.md#d82--the-viewer-is-an-operator-tool)): it reads files a
   worker wrote, each project in a child it kills past its bound, binds `127.0.0.1`, refuses a foreign `Host` and sets every
-  string as text. Any local process of the operator can open its stream, and no worker can bind loopback.
+  string as text. It reads the status log, the run log, a findings file, the queue and `repos` through `skills/mflib/`
+  modules, each bound kept, and a `repos` that cannot be read (`kept.repos` raises `Broken`) shows one row and stops
+  nothing. Any local process of the operator can open its stream, and no worker can bind loopback.
 - **A person's yes, or `merge=yes` from a run the person started or a cut the person queued**, precedes every merge and
   push.
 

@@ -2286,7 +2286,7 @@ def _metrics_lists(p: Path) -> list[Path]:
     return list(module._recorded_repos())
 
 
-@pytest.mark.parametrize("reader", [_viewer_lists, _metrics_lists])
+@pytest.mark.parametrize("reader", [_metrics_lists])
 def test_write_the_readers_of_repos_take_a_list_with_a_bad_byte(
     p: Path, reader: Callable[[Path], list[Path]]
 ) -> None:
@@ -2297,7 +2297,7 @@ def test_write_the_readers_of_repos_take_a_list_with_a_bad_byte(
     assert reader(p) == [p.resolve()]
 
 
-@pytest.mark.parametrize("reader", [_viewer_lists, _metrics_lists])
+@pytest.mark.parametrize("reader", [_metrics_lists])
 def test_write_the_readers_of_repos_read_a_list_of_mode_0_as_none(
     p: Path, reader: Callable[[Path], list[Path]]
 ) -> None:
@@ -2308,6 +2308,28 @@ def test_write_the_readers_of_repos_read_a_list_of_mode_0_as_none(
     repos.chmod(0)
     try:
         assert reader(p) == []
+    finally:
+        repos.chmod(0o600)
+
+
+def test_write_the_viewer_raises_broken_for_a_list_with_a_bad_byte(p: Path) -> None:
+    (p / ".minions").mkdir()
+    _kept()
+    layout.repos_file().write_bytes(b"\xff\xfe\n" + f"{p}\n".encode())
+
+    with pytest.raises(mflib.kept.Broken, match="repos cannot be read: it is not text"):
+        _viewer_lists(p)
+
+
+def test_write_the_viewer_raises_broken_for_a_list_of_mode_0(p: Path) -> None:
+    (p / ".minions").mkdir()
+    _kept()
+    repos = layout.repos_file()
+    repos.write_text(f"{p}\n")
+    repos.chmod(0)
+    try:
+        with pytest.raises(mflib.kept.Broken, match="repos cannot be read"):
+            _viewer_lists(p)
     finally:
         repos.chmod(0o600)
 

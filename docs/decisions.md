@@ -71,14 +71,17 @@ conductor. The world is reached through named seams — the platform, whose file
 executor, the host and the tooling. `docs/modules.md` gives each script its layer, and `tests/test_structure.py` holds
 the map, the loads, the private names, the cycles, the OS commands, the state paths spelled outside
 `skills/mflib/layout.py`, the format names spelled outside `skills/mflib/` — the card head `- **`, written by
-`skills/mflib/findings.py` and `skills/mflib/debtfile.py`, and the run log's title `# Ship run` and the event's
+`skills/mflib/findings.py` and `skills/mflib/debtfile.py`, the status log's name `status_log.md` and its heading
+`## Run`, written by `skills/mflib/statuslog.py`, and the run log's title `# Ship run` and the event's
 clock `\d\d:\d\d:\d\d`, in either spelling, written by `skills/mflib/runlog.py`, among them — the seed line its folder fixes before a script's first `mflib` import, and a threat-model
 surface for each Python file under `skills/`, in `make gate` and `make check`.**
 
 - **Why:** the refactoring series moves code one region at a time, and a shape no gate holds drifts back with the next
   feature: a load of another station, a borrowed private name, a cycle, an OS command in a new file.
 - **Accepts:** today's breaches, each on a list in `tests/test_structure.py` that only shrinks
-  ([D79](#d79--a-tool-finds-a-checker-judges)) · a name that is no load, held as an edge · a row in `docs/modules.md`
+  ([D79](#d79--a-tool-finds-a-checker-judges)); the viewer's `status_log.md`, `## Run`, `.minions`, `_cuts` and
+  `_frontmatter` entries are gone, and the readers of `review_metrics.py` and `run.py` still hold theirs · a name that is
+  no load, held as an edge · a row in `docs/modules.md`
   for each new script.
 - **Rejected:** a layer table beyond the map's layers · a rule per file · a new gate step · a decision per rule.
 - **Amends:** D2, D57 and D79, each edited where it lives.
@@ -516,8 +519,9 @@ writes into no repo and is no station of the line.**
 
 ### D82 · The viewer is an operator tool
 
-**`mf-ui` reads the recorded and configured projects' run directories, worktrees and queue entries, writes only its own state
-files in the operator's state folder, binds loopback and shows worker-written text as text.**
+**`mf-ui` reads the recorded and configured projects' run directories, worktrees and queue entries, the status log, the run
+log, a findings file, the queue and `repos` through the home modules, writes only its own state files in the operator's
+state folder, binds loopback, shows a `repos` that cannot be read as one row and shows worker-written text as text.**
 
 - **Why:** a person who conducts several versions needs one page of them, and the sandbox that keeps workers from loopback and
   the home folder does not bind the operator's own tool.
@@ -1257,14 +1261,16 @@ line, `re-plan: <ids>`, and its rescue names `/mf-plan … from=` as the way bac
 `integrate.{md,red,resolved,settled}`,
 `build.{done,halt,closing,simplified,discarded.patch}`, `gate.red`, `plan-check.txt`, `build-notes.md`, `stacked-on`, `rescue.md`, `replan.mark`, `release.held`, `release.flag`, `release.pre`, `release.discarded.<n>.patch`, `gate-check/` and
 `logs/<stamp>-<station>[-<n>].log`, each script finding it through `change_dir` of `skills/mflib/layout.py`;
-`status_log.md` is written and parsed by `skills/mflib/statuslog.py`, found through `change_dir`;
+`status_log.md` is written and parsed by `skills/mflib/statuslog.py`, found through `change_dir`, its every run read by
+`statuslog.runs`, and the spent text and the `verdicts` line written and parsed there;
 the marks a station leaves for the run are named, written and parsed by `skills/mflib/marks.py`, found through `change_dir`;
 `models.toml` is written and parsed by `skills/mflib/modelsfile.py`, found through `models_file` of
 `skills/mflib/layout.py`; `conformance.md` and `adversarial.md` are written and parsed by `skills/mflib/findings.py`, found through
 `findings_file` of `skills/mflib/layout.py`. `grants/`,
 `runs/`, `gate/`, `replay/`, `metrics/`, `awake/`, `cuts/` and `debt.md` stay generic, the run's probe logging to
 `runs/<stamp>/`; `debt.md` is written and parsed by `skills/mflib/debtfile.py`, the run log `runs/<stamp>.md` by
-`skills/mflib/runlog.py`, and the claim `runs/active` by `skills/mflib/claim.py`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
+`skills/mflib/runlog.py`, its events' moment and a halt's cause among them, the claim `runs/active` by
+`skills/mflib/claim.py`, and the home folder's `repos` read by `kept.repos`. `conduct.py run` moves an old layout in at its start, under the claim, before any worker — a folder's
 old `review.md` and `security.md` among it — and a file beside its new one or a link halts it; a hand-run station or
 script on an old layout halts, naming `/mf-ship`, each reading the one old-layout table of `skills/mflib/layout.py`, and
 `review_metrics.py` reads both.**

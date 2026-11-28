@@ -1,6 +1,6 @@
 # MinionsFactory — the recipes
 
-What an extension edits today: a station, a state file, an OS, an executor. Each section names the files, the row it
+What an extension edits today: a station, a state file, a new fact on the board, an OS, an executor. Each section names the files, the row it
 adds to [the module map](modules.md) and the structure rule of `tests/test_structure.py` that holds it, per
 [D83](decisions.md#d83--the-code-is-layered-with-named-seams-held-by-the-gate).
 
@@ -44,7 +44,9 @@ A new file in `.minions/changes/<change-id>/`, per
 | `scripts/metrics/run.py`, `skills/mf-review-metrics/scripts/review_metrics.py` | when a metric reads it, through `change_dir` |
 
 A reader takes `change_dir(primary, change)` from `skills/mflib/layout.py`, the home's run-directory layout. It keeps
-its own git call for the primary, and `layout.primary_of` maps git's answer to it.
+its own git call for the primary, and `layout.primary_of` maps git's answer to it. It takes what a module parses —
+`statuslog.runs` for a status log's runs, `runlog.timed` for an event's moment, `kept.repos` for the record of projects —
+and writes no regex of a format a module owns.
 
 A writer stages the file through `write` of `skills/mflib/statefile.py`, which renames `<name>.tmp` over it and raises
 `WriteFailed` for the writer to word; a reader takes `statefile.read`, which follows no link. The status log is
@@ -67,6 +69,22 @@ the operator's `ship.toml`; their paths are `layout.kept_file(primary)` and its 
   `check_formats` holds the format names in `skills/mflib/`: a string constant elsewhere equal to `status_log.md` or a mark's name,
   or containing `## Run`, `# Ship run`, the card head `- **` or `- \*\*`, or the run log's clock `\d\d:\d\d:\d\d` or
   `(\d\d):(\d\d):(\d\d)`, fails unless `FORMAT_SITES` lists the pair.
+
+## A new fact on the board
+
+A fact the page shows that a state file holds, per [D82](decisions.md#d82--the-viewer-is-an-operator-tool).
+
+| file | edit |
+|---|---|
+| the format's module under `skills/mflib/` | the parser, beside the writer: it takes the text and gives a typed value |
+| `skills/mf-ui/scripts/viewer.py` | the projector: read the file through `statefile` and the module, add the value to `project`'s tree |
+| `skills/mf-ui/page/index.html` | the page: set the value as text |
+| `tests/test_<module>.py` | the parser's cases, each shape of the file |
+| `tests/test_viewer.py`, `tests/test_viewer_pins.py` | the projector's cases, through `project`, `projects` or `read_part` |
+
+- **Row:** none, unless the extension adds a script; then a row as for a station.
+- **Rules:** `check_formats` fails on a format name the viewer spells; `check_loads` lists the viewer's loads of
+  `conduct.py` and `converge.py`, and a new one needs a decision.
 
 ## An OS
 

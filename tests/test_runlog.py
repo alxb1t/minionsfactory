@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -1306,3 +1307,84 @@ def test_module_verify_raises_on_a_link(tmp_path: Path) -> None:
 
     with pytest.raises(OSError, match=r"linked\.md"):
         runlog.verify(log)
+
+
+def _at(day: int, clock: str) -> float:
+    hours, minutes, seconds = (int(part) for part in clock.split(":"))
+    return datetime(2026, 11, day, hours, minutes, seconds).timestamp()
+
+
+def test_timed_a_step_back_is_a_day_on() -> None:
+    lines = [
+        "# Ship run 20261101-235900",
+        "23:59:30 · run · start — executor claude",
+        "not an event",
+        "23:59:30 · 0001-a · spawn — build",
+        "00:00:10 · 0001-a · finish — build",
+        "00:00:05 · 0001-a · check — gate",
+        "00:00:05 · 0001-a · done — ok",
+    ]
+
+    found = list(runlog.timed("20261101-235900", lines))
+
+    assert [event.name for event, _ in found] == [
+        "start",
+        "spawn",
+        "finish",
+        "check",
+        "done",
+    ]
+    assert [at for _, at in found] == [
+        _at(1, "23:59:30"),
+        _at(1, "23:59:30"),
+        _at(2, "00:00:10"),
+        _at(3, "00:00:05"),
+        _at(3, "00:00:05"),
+    ]
+
+
+def test_timed_dates_the_first_event_on_the_stems_day_and_a_suffix_stays() -> None:
+    first = list(runlog.timed("20261101-235900-3", ["23:59:10 · run · start — x"]))
+    [(event, at)] = first
+
+    assert event.who == "run"
+    assert at == _at(1, "23:59:10")
+
+
+def test_first_event_late_in_the_day_is_a_day_on() -> None:
+    def first(clock: str) -> float:
+        [(_, at)] = runlog.timed("20261101-235900", [f"{clock} · run · start — x"])
+        return at
+
+    assert first("00:00:01") == _at(2, "00:00:01")
+    assert first("11:59:00") == _at(2, "11:59:00")
+    assert first("11:59:01") == _at(1, "11:59:01")
+    assert first("20:59:00") == _at(1, "20:59:00")
+    later = list(runlog.timed("20261101-235900", ["00:00:01 · a · e — x"] * 2))
+    assert [at for _, at in later] == [_at(2, "00:00:01")] * 2
+
+
+def test_a_name_that_is_no_date_is_passed_over_by_the_list(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    real = runs / "20261101-100001.md"
+    real.write_text(f"{_SPAWN}\n")
+    for name in ("20261399-250000", "20260230-100000-2"):
+        (runs / f"{name}.md").write_text(f"{_SPAWN}\n")
+
+    assert runlog.newest(runs) == real
+    (runs / "20261101-100001-2.md").write_text(f"{_SPAWN}\n")
+    assert runlog.newest(runs) == runs / "20261101-100001-2.md"
+
+
+def test_cause_reads_a_word_off_the_list_too() -> None:
+    assert runlog.cause("build check fail — x · cause check-red") == "check-red"
+    assert runlog.cause("x · cause not-on-the-list") == "not-on-the-list"
+    assert "not-on-the-list" not in runlog.CAUSES
+
+
+def test_cause_reads_none_without_a_word_at_the_end() -> None:
+    assert runlog.cause("no cause here") is None
+    assert runlog.cause("x · cause Plan") is None
+    assert runlog.cause("x · cause gate-red · more") is None
+    assert runlog.cause("x · cause ") is None
