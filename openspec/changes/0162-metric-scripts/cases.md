@@ -173,7 +173,7 @@ none. A15, A54, B28 (marked maybe-equivalent) are all reachable and killed: A15 
 - build log a link to a log with a result → (1.0, 7); a dangling link, `b"\xff\xfe"`, an empty file, a missing file → both `gap: no result event in 0001-x/logs/20261101-100000-build.log`; `b"\xff\xfe\n"` then a result → (1.0, 7). The 5h window is `gap: no mf.quota line in a Codex log` in each.
 - `role_tokens("conformance")` with the checker's log missing → `Gap: no 0001-x/logs/…-converge-conformance.log`; empty or `b"\xff\xfe"` → `Gap: no result event in …`.
 
-**F `run._priced`, `review_metrics._prices`, `_codex_spent` (a Codex converge log, same input to each: `Version.spent(("converge",))` and `read_repo`'s `cost_converge`/`tokens_converge`; written (run result, rm result))**
+**F `run._priced`, `review_metrics._prices` (removed by 4.9; pinned as it was), `_codex_spent` (a Codex converge log, same input to each: `Version.spent(("converge",))` and `read_repo`'s `cost_converge`/`tokens_converge`; written (run result, rm result))**
 - prices good, one turn input 1,000,000 cached 400,000 output 100,000 → ((2.4, 1100000), (2.4, 1100000)).
 - prices file missing → both `raises FileNotFoundError: … '<P>/<dir>/prices.toml'`; not TOML (`not = = toml`) → both `raises TOMLDecodeError: Invalid value (at line 1, column 7)`; `[other]` table only → both `raises KeyError: 'models'`. [F30]
 - `models = 5` → both `raises AttributeError: 'int' object has no attribute 'get'`; Codex row without `cached_input` → both `raises KeyError: 'cached_input'`; `input = "2.0"` → both `raises TypeError: can only concatenate str (not "float") to str`.
