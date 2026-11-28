@@ -485,6 +485,15 @@ def test_runs_read_running_as_a_heading_with_no_number() -> None:
     assert found[1].events == [statuslog.Event(2, "fix", "R1")]
 
 
+def test_a_number_of_thousands_of_digits_reads_as_no_number() -> None:
+    huge = "9" * 5000
+    found = statuslog.runs(f"# t\n\n## Run {huge} — d\n## Run 7 — d\n")
+    assert [run.number for run in found] == [None, 7]
+    found_verdicts = _verdicts(f"conformance clean · open_blocking 0 · tokens {huge}")
+    assert found_verdicts is not None
+    assert found_verdicts.tokens is None
+
+
 def test_spent_words_a_string_fallback_as_failed() -> None:
     models = ("claude", None, "high")
 

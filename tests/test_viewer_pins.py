@@ -230,9 +230,9 @@ def test_a_line_past_the_bound_is_cut_and_the_rest_dropped(root: Path) -> None:
     head = "10:00:01 · 0001-a · check — "
     for size in (300000, 524288):
         _raw_log(root, f"{head}{'x' * size}\n{halt}\n")
-        assert _tree(root)["run"]["last"] == halt
+        assert _child(root, 60)["run"]["last"] == halt
     _raw_log(root, f"{halt}\n{head}{'x' * 300000}")
-    last = _tree(root)["run"]["last"]
+    last = _child(root, 60)["run"]["last"]
     assert last == (head + "x" * 300000)[:_PART]
     assert len(last) == _PART
 

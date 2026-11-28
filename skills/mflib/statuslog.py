@@ -28,7 +28,7 @@ NAMES = (
 ENDS = ("done", "halt")
 FALLBACK = "fallback: codex usage limit"
 FAILED = "fallback: codex failed"
-_NUMBER = re.compile(r"## Run ([0-9]+)")
+_NUMBER = re.compile(r"## Run ([0-9]{1,18})(?![0-9])")
 _VERDICTS = re.compile(r"(conformance|adversarial) \S+ · open_blocking \d+ · (.*)")
 _SPENT = re.compile(r"(executor|model|effort|tokens) (\S+)")
 
@@ -243,7 +243,9 @@ def verdicts(event: Event) -> Verdicts | None:
         fields.get("executor"),
         fields.get("model"),
         fields.get("effort"),
-        int(tokens) if tokens and tokens.isascii() and tokens.isdigit() else None,
+        int(tokens)
+        if tokens and tokens.isascii() and tokens.isdigit() and len(tokens) <= 18
+        else None,
         FALLBACK in parts or FAILED in parts,
     )
 

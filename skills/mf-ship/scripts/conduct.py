@@ -137,7 +137,8 @@ FINAL = "final — "
 SHA256 = re.compile(r"[0-9a-f]{64}")
 PROGRESS = re.compile(r"^- \[([ x])\] (\d+) — (.*)$", re.MULTILINE)
 RELEASE_SUBJECT = re.compile(r"chore\(release\): (\S+)")
-# The viewer borrows both from the loaded conductor. Why: 0140-run-log design D2.
+# Both names stay bound for the conductor's own use and for tests/test_runlog.py.
+# Why: 0140-run-log design D2.
 EVENT = mflib.runlog.EVENT
 last_log = mflib.runlog.newest
 TAG = re.compile(r"v\d+\.\d+\.\d+")
