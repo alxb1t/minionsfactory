@@ -36,7 +36,7 @@ def refuted(text: str) -> list[str] | None:
 
     e.g. "## Refused\n- a\n## Next\n" → ["- a"]
     """
-    lines = text.splitlines()
+    lines = re.split(r"\r?\n", text)
     at = next((i for i, line in enumerate(lines) if line.startswith(REFUSED)), None)
     if at is None:
         return None

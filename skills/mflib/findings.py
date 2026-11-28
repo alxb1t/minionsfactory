@@ -154,7 +154,7 @@ def refuted(text: str) -> list[str] | None:
     The section runs from the first line that starts `## Refuted` to the next `## `.
     Why: 0162-metric-scripts design D3.
     """
-    lines = text.splitlines()
+    lines = re.split(r"\r?\n", text)
     at = next((i for i, line in enumerate(lines) if line.startswith(REFUTED)), None)
     if at is None:
         return None

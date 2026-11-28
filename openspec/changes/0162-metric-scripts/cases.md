@@ -279,7 +279,7 @@ whose typed lines are retyped so that its 2 stands.
 | R | test_a_fifo_at_a_log_name_hangs_the_read | raises TimeoutExpired | raises TimeoutExpired (the child hangs) | no raise (the child returns) | 3 | R1 |
 | R | test_measure_reads_a_bad_clock_as_a_valueerror_not_a_gap | raises ValueError | raises ValueError | Gap: no run log names 0001-x | 3 | R2 |
 | S | test_status_log_headings_and_marks | odd-second-grant-mark | [3, 'gap: no round 1 verdicts with open_blocking', 1, 0] | [3, 'gap: no round 1 verdicts with open_blocking', 0, 0] | 3 | S8 |
-| S | test_status_log_headings_and_marks | odd-grant-then-amend | ['gap: no round in the status log', 'gap: no round 1 verdicts with open_blocking', 0, 1] | ['gap: no round in the status log', 'gap: no round 1 verdicts with open_blocking', 0, 0] | 3 | S8 |
+| S | test_status_log_headings_and_marks | odd-grant-then-amend | ['gap: no round in the status log', 'gap: no round 1 verdicts with open_blocking', 0, 1] | [3, 'gap: no round 1 verdicts with open_blocking', 0, 0] | 3 | S8 |
 | S | test_status_log_headings_and_marks | odd-bare-fragment-no-clock | [3, 'gap: no round 1 verdicts with open_blocking', 0, 0] | ['gap: no round in the status log', 'gap: no round 1 verdicts with open_blocking', 0, 0] | 3 | S11 |
 | S | test_status_log_headings_and_marks | odd-second-amend-mark | ['gap: no round in the status log', 'gap: no round 1 verdicts with open_blocking', 0, 1] | [3, 'gap: no round 1 verdicts with open_blocking', 0, 0] | 3 | S8 |
 | S | test_status_log_headings_and_marks | odd-runner-heading | ['gap: no round in the status log', 'gap: no round 1 verdicts with open_blocking', 0, 0] | [3, 'gap: no round 1 verdicts with open_blocking', 0, 0] | 3 | S9 |
@@ -293,8 +293,9 @@ whose typed lines are retyped so that its 2 stands.
 | S | test_findings_cards_and_the_refuted_section | odd-h1-between-two-cards-fields | [2, 0] | [1, 0] | 4 | S6 |
 | S | test_findings_cards_and_the_refuted_section | odd-verdict-only | [0, 0] | [1, 0] | 4 | S13 |
 | S | test_findings_cards_and_the_refuted_section | odd-untitled-card | [1, 0] | [0, 0] | 4 | S13 |
-| S | test_findings_cards_and_the_refuted_section | odd-heading-no-newline | ['gap: no ## Refuted in 0001-x/conformance.md', 'gap: no ## Refuted in 0001-x/conformance.md'] | [0, 0] | 4 | S7 |
+| S | test_findings_cards_and_the_refuted_section | odd-heading-no-newline | ['gap: no ## Refuted in 0001-x/conformance.md', 'gap: no ## Refuted in 0001-x/conformance.md'] | [1, 0] | 4 | S7 |
 | S | test_findings_cards_and_the_refuted_section | odd-refused-heading | ['gap: no ## Refuted in 0001-x/conformance.md', 'gap: no ## Refuted in 0001-x/conformance.md'] | [1, 1] | 4 | S14 |
+| S | test_findings_cards_and_the_refuted_section | odd-priority-at-column-0 | [1, 0] | [0, 0] | 4 | S6 |
 | S | test_findings_cards_and_the_refuted_section | odd-capital-Confirmed | [0, 0] | [1, 0] | 4 | S13 |
 | S | test_findings_file_shapes | link | [1, 1] | ['gap: no 0001-x/conformance.md', 'gap: no 0001-x/conformance.md'] | 4 | S9 |
 | S | test_build_done_head | odd-tab-after-colon | ['gap: no head in 0001-x/build.done', 'gap: no head in 0001-x/build.done'] | [2, 1] | 4 | S10 |

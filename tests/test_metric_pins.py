@@ -1751,8 +1751,8 @@ def _codex_read(
 def _by_run(root: Path, shown: Path) -> object:
     try:
         return run.Version(root, "0001-x", "a", "b").spent(("converge",))
+    # why: each side's error is the value under test
     except Exception as error:  # noqa: BLE001
-        # why: each side's error is the value under test
         return _pretty(error, shown)
 
 
@@ -1761,8 +1761,8 @@ def _by_review(root: Path, shown: Path) -> object:
         found = next(
             r for r in review_metrics.read_repo(root) if r["change"] == "0001-x"
         )
+    # why: each side's error is the value under test
     except Exception as error:  # noqa: BLE001
-        # why: each side's error is the value under test
         return _pretty(error, shown)
     return found["cost_converge"], found["tokens_converge"]
 
@@ -1919,8 +1919,8 @@ def _claude_workers(
     out = tmp_path / "site" / "page.html"
     try:
         assert review_metrics.main(["--repo", str(repo), "--out", str(out)]) == 0
+    # why: the error is the value under test
     except Exception as error:  # noqa: BLE001
-        # why: the error is the value under test
         return _pretty(error, tmp_path)
     workers = json.loads(out.with_name("review-metrics.json").read_text())["workers"]
     return workers[0]["model"], workers[0]["tokens"], workers[0]["dollars"]

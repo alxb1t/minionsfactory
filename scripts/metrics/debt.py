@@ -4,7 +4,8 @@
 # ///
 """Print the open cards in the primary's `.minions/debt.md`; none is a gap, not zero.
 
-A card opens with `- **<4 digits>·`. Why: 0030-change-impact design D7.
+A card is the title `- **<digits>·<id> — ` that `debtfile.count` reads.
+Why: 0030-change-impact design D7.
 """
 
 import subprocess

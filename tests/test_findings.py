@@ -548,6 +548,11 @@ def test_refuted_gives_the_top_level_entries_of_the_section() -> None:
     assert findings.refuted("## Refuted\n") == []
     assert findings.refuted("## Refuted\r\n- a\r\n- b\r\n") == ["- a", "- b"]
     assert findings.refuted("## Refuted\n- a\n## Refuted\n- b\n") == ["- a"]
+    assert findings.refuted("## Refuted\n- a\x0c- b\n- c\n") == ["- a\x0c- b", "- c"]
+    assert findings.refuted("## Refuted\n- a ## x\n- b\n") == [
+        "- a ## x",
+        "- b",
+    ]
 
 
 def test_refuted_ends_at_the_next_second_level_heading() -> None:

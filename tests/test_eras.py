@@ -85,6 +85,8 @@ def test_refuted_reads_the_entries_under_refused() -> None:
     assert eras.refuted("## Refused (2)\n- a\n") == ["- a"]
     assert eras.refuted("## Refused") == []
     assert eras.refuted("## Refused\r\n- a\r\n") == ["- a"]
+    assert eras.refuted("## Refused\n- a\x0c- b\n- c\n") == ["- a\x0c- b", "- c"]
+    assert eras.refuted("## Refused\n- a ## x\n- b\n") == ["- a ## x", "- b"]
 
 
 def test_refuted_gives_none_over_refuted_and_over_no_heading() -> None:
