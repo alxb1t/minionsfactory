@@ -47,7 +47,7 @@ None.
 - Code: `skills/mflib/kept.py`, `skills/mf-ship/scripts/pin.py`, `skills/mf-ship/scripts/conduct.py`.
 - Tests: new `tests/test_pinfiles_pins.py` and `tests/test_kept_pinfiles.py`, which import helpers of `tests/test_pin.py` and read `tests/conduct_load.py`; `tests/test_kept_pins.py` loses a test and gains an assertion.
 - Docs: `docs/decisions.md` (D55, D84), `THREAT_MODEL.md`, `docs/principles.md`, `docs/recipes.md`.
-- A `ship.toml` that is a link now stops the command; the changelog says so. A pin file that is a link, a folder or a FIFO now stops `describe` and `install`.
+- A `ship.toml` that is a link now stops the command; the changelog says so. A pin file that is a link, a folder or a FIFO now stops `describe`; `install` stops on a folder alone and replaces a link or a FIFO at the name.
 
 ## Not in this change
 
