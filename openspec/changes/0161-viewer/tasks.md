@@ -51,8 +51,8 @@ The phases pin the viewer's reads on today's side, add the module parsers, move 
 - [x] 2.5 Add `repos(path)` to `skills/mflib/kept.py`, reading the record as the viewer's `projects` does today: the first `REPOS_BOUND` bytes, each line stripped, a blank one skipped, nothing for a link, a FIFO or a missing file ([D35](design.md#d35)).
   Add `test_repos_list_each_line_stripped`, `test_repos_list_is_empty_for_a_missing_file`, `test_repos_list_is_empty_for_a_link` and `test_repos_list_is_empty_for_a_fifo` to `tests/test_kept.py`, the FIFO in a child with a timeout, marked `slow`.
   Verify: `uv run pytest tests/test_kept.py -n auto -q` exits `0`.
-- [x] 2.6 No script calls the new functions yet, and no row of the map changes.
-  Verify: `git grep -c -e "statuslog.runs" -e "statefile.lines" -e "kept.repos" -e "runlog.timed" -- skills/mf-ui skills/mf-converge skills/mf-ship` prints nothing; `uv run pytest tests/test_statuslog.py tests/test_status_log_copies.py tests/test_runlog.py tests/test_kept.py tests/test_structure.py -n auto -q` exits `0`.
+- [x] 2.6 No script calls the new functions yet — the viewer takes them from phase 3, and neither converge nor the conductor calls them — and no row of the map changes.
+  Verify: `git grep -c -e "statuslog.runs" -e "statefile.lines" -e "kept.repos" -e "runlog.timed" -- skills/mf-converge skills/mf-ship` prints nothing; `uv run pytest tests/test_statuslog.py tests/test_status_log_copies.py tests/test_runlog.py tests/test_kept.py tests/test_structure.py -n auto -q` exits `0`.
 
 ## 3 — The readers
 
